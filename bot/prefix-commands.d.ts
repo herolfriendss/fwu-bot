@@ -1,0 +1,1 @@
+export function resolvePrefixCommand(commands: { name: string; response: string; permission: string }[], content: string, memberPermissions?: string): { content: string; allowed: boolean } | null;

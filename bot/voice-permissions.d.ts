@@ -1,0 +1,9 @@
+export const CONNECT: bigint;
+export const MANAGE_CHANNELS: bigint;
+export const ADMINISTRATOR: bigint;
+export function canManageVoice(permissions: string | bigint): boolean;
+export function canUseVoiceCommand(command: string, permissions: string | bigint, memberRoleIds: string[], access?: { panelRoleIds: string[] | null; pvRoleIds: string[] | null }, isOwner?: boolean): boolean;
+export function connectState(allow: string, deny: string): boolean | null;
+export function privateVoicePlan(overwrites: { id: string; type: number }[], everyoneId: string, actorId: string, botId: string): { id: string; type: number; Connect: boolean }[];
+export function restoreVoicePlan(current: { id: string; type: number; allow: string; deny: string }[], original: { id: string; type: number; allow: string; deny: string }[]): { id: string; type: number; Connect: boolean | null }[];
+export function voiceCommand(content: string): "=panel" | "=pv" | "=access" | null;

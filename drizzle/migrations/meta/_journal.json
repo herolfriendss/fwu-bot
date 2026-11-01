@@ -1,0 +1,27 @@
+{
+  "version": "7",
+  "dialect": "postgresql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "7",
+      "when": 1793281673527,
+      "tag": "0000_custom_discord_commands",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1793283196133,
+      "tag": "0001_bot_settings",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1793357510769,
+      "tag": "0002_bot_runtime_status",
+      "breakpoints": true
+    }
+  ]
+}
