@@ -48,6 +48,7 @@ export type Database = {
         Row: {
           connected: boolean
           events: Json
+          guilds: Json
           id: string
           last_seen: string
           last_sync: string | null
@@ -56,6 +57,7 @@ export type Database = {
         Insert: {
           connected?: boolean
           events?: Json
+          guilds?: Json
           id: string
           last_seen?: string
           last_sync?: string | null
@@ -64,6 +66,7 @@ export type Database = {
         Update: {
           connected?: boolean
           events?: Json
+          guilds?: Json
           id?: string
           last_seen?: string
           last_sync?: string | null

@@ -32,7 +32,17 @@ async function reportStatus() {
   try {
     const res = await fetch(STATUS_API, {
       method: "POST", headers: { ...AUTH, "Content-Type": "application/json" }, signal: AbortSignal.timeout(10_000),
-      body: JSON.stringify({ connected: client.isReady(), startedAt, lastSync, events }),
+      body: JSON.stringify({
+        connected: client.isReady(),
+        startedAt,
+        lastSync,
+        events,
+        guilds: client.guilds.cache.map((guild) => ({
+          id: guild.id,
+          name: guild.name,
+          icon: guild.icon,
+        })),
+      }),
     });
     if (!res.ok) console.error("Envoi du statut impossible.");
   } catch { console.error("Envoi du statut impossible."); }

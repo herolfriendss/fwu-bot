@@ -2,6 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { createHash, timingSafeEqual } from "node:crypto";
 import { useSession } from "@tanstack/react-start/server";
 import { sessionConfig, requireOwner, discord, snowflake, cache, type GateSession } from "./discord.server";
+import { readRuntimeStatus } from "./bot-status.server";
 
 export const login = createServerFn({ method: "POST" })
   .inputValidator((d: { password: string }) => ({ password: String(d.password ?? "") }))
@@ -35,13 +36,17 @@ export type Message = {
 
 export const getOverview = createServerFn({ method: "GET" }).handler(async () => {
   await requireOwner();
-  const [bot, guilds] = await Promise.all([
+  const [bot, runtime] = await Promise.all([
     discord<BotUser>("users/@me"),
-    discord<Guild[]>("users/@me/guilds?limit=200"),
+    readRuntimeStatus(),
   ]);
   return {
     bot: { id: bot.id, username: bot.username, avatar: bot.avatar },
-    guilds: guilds.map((g) => ({ id: g.id, name: g.name, icon: g.icon })),
+    guilds: (runtime?.guilds ?? []).map((g) => ({
+      id: g.id,
+      name: g.name,
+      icon: g.icon,
+    })),
   };
 });
 

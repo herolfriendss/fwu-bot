@@ -48,7 +48,7 @@ export async function getVerifyKey(): Promise<string | null> {
   const fromEnv = process.env["DISCORD_INTERACTIONS_PUBLIC_KEY"];
   if (fromEnv) return fromEnv;
   if (verifyKeyCache && verifyKeyCache.exp > Date.now()) return verifyKeyCache.key;
-  const app = await discord<{ id: string; verify_key?: string }>("oauth2/applications/@me");
+  const app = await discord<{ id: string; verify_key?: string }>("applications/@me");
   const key = typeof app.verify_key === "string" ? app.verify_key : "";
   if (!/^[0-9a-f]{64}$/i.test(key)) return null;
   verifyKeyCache = { key, exp: Date.now() + 5 * 60_000 };

@@ -48,3 +48,5 @@ public/downloads/
 # Backups and generated archives
 bot/*.backup*
 public/downloads/
+
+.env.save

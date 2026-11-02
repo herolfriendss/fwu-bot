@@ -6,33 +6,57 @@ export const runtimeEventCodes = [
   "dog_nickname_restored", "dog_leashes_restored", "dog_reconcile_error", "dog_voice_returned", "dog_voice_error",
   "sysplus_role_updated", "radio_autostarted", "radio_autostart_error", "spam_timeout_error",
 ] as const;
+
+const runtimeGuildSchema = z.object({
+  id: z.string().regex(/^\d{5,25}$/),
+  name: z.string().min(1).max(100),
+  icon: z.string().nullable(),
+}).strict();
+
 export const runtimeReportSchema = z.object({
   connected: z.boolean(),
   startedAt: z.string().datetime(),
   lastSync: z.string().datetime().nullable(),
-  events: z.array(z.object({ at: z.string().datetime(), code: z.enum(runtimeEventCodes) }).strict()).max(50),
+  events: z.array(z.object({
+    at: z.string().datetime(),
+    code: z.enum(runtimeEventCodes),
+  }).strict()).max(50),
+  guilds: z.array(runtimeGuildSchema).max(500).default([]),
 }).strict();
+
 export type RuntimeReport = z.infer<typeof runtimeReportSchema>;
 export type RuntimeStatus = RuntimeReport & { lastSeen: string };
+
 export const EVENT_LABELS: Record<typeof runtimeEventCodes[number], string> = {
-  started: "Processus démarré", connected: "Connexion Discord établie", disconnected: "Connexion Discord interrompue",
-  reconnecting: "Reconnexion à Discord", sync_ok: "Réglages synchronisés", sync_error: "Échec de synchronisation",
-  gateway_error: "Erreur de connexion Discord", message_error: "Erreur de traitement d’un message",
-  voice_error: "Erreur de commande vocale", interaction_error: "Erreur de traitement d’une interaction",
-  welcome_error: "Échec du message de bienvenue", dog_enforcement_error: "Échec de réapplication du surnom DOG",
-  dog_nickname_restored: "Surnom de laisse DOG rétabli", dog_leashes_restored: "État DOG restauré après reconnexion",
-  dog_reconcile_error: "Échec de restauration DOG", dog_voice_returned: "Membre DOG ramené dans le vocal du propriétaire",
-  dog_voice_error: "Échec du retour vocal DOG", sysplus_role_updated: "Rôle SYS+ mis à jour",
-  radio_autostarted: "Radio 24/7 redémarrée", radio_autostart_error: "Échec du redémarrage de la radio",
+  started: "Processus démarré",
+  connected: "Connexion Discord établie",
+  disconnected: "Connexion Discord interrompue",
+  reconnecting: "Reconnexion à Discord",
+  sync_ok: "Réglages synchronisés",
+  sync_error: "Échec de synchronisation",
+  gateway_error: "Erreur de connexion Discord",
+  message_error: "Erreur de traitement d’un message",
+  voice_error: "Erreur de commande vocale",
+  interaction_error: "Erreur de traitement d’une interaction",
+  welcome_error: "Échec du message de bienvenue",
+  dog_enforcement_error: "Échec de réapplication du surnom DOG",
+  dog_nickname_restored: "Surnom de laisse DOG rétabli",
+  dog_leashes_restored: "État DOG restauré après reconnexion",
+  dog_reconcile_error: "Échec de restauration DOG",
+  dog_voice_returned: "Membre DOG ramené dans le vocal du propriétaire",
+  dog_voice_error: "Échec du retour vocal DOG",
+  sysplus_role_updated: "Rôle SYS+ mis à jour",
+  radio_autostarted: "Radio 24/7 redémarrée",
+  radio_autostart_error: "Échec du redémarrage de la radio",
   spam_timeout_error: "Échec du timeout anti-spam",
 };
+
 export function connectionState(status: RuntimeStatus | null, now = Date.now()) {
   if (!status) return "unknown";
   if (now - Date.parse(status.lastSeen) > 70_000 || !status.connected) return "offline";
   return "online";
 }
 
-// The uptime belongs to the Oracle process, never to the website runtime.
 export function slashRuntimeStatus(status: RuntimeStatus | null, now = Date.now()) {
   const state = connectionState(status, now);
   const started = status ? Date.parse(status.startedAt) : NaN;

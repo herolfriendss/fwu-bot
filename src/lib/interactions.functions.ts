@@ -34,7 +34,7 @@ export const getSlashStatus = createServerFn({ method: "GET" }).handler(async ()
 // to appear everywhere; updates to already-registered names show up immediately.
 export const registerSlashCommands = createServerFn({ method: "POST" }).handler(async () => {
   await requireOwner();
-  const app = await discord<{ id: string }>("oauth2/applications/@me");
+  const app = await discord<{ id: string }>("applications/@me");
   const existing = await discord<RegisteredCommand[]>(`applications/${app.id}/commands`);
   const ours = new Set(SLASH_COMMANDS.map((c) => c.name));
   // Upsert each built-in separately; never bulk-overwrite unrelated definitions.
@@ -47,7 +47,7 @@ export const saveSlashCommand = createServerFn({ method: "POST" })
   .inputValidator((input: unknown) => commandFormSchema.parse(input))
   .handler(async ({ data }) => {
     await requireOwner();
-    const app = await discord<{ id: string }>("oauth2/applications/@me");
+    const app = await discord<{ id: string }>("applications/@me");
     const existing = await discord<RegisteredCommand[]>(`applications/${app.id}/commands`);
     const current = data.id ? existing.find((c) => c.id === data.id) : undefined;
     if (data.id && !current) throw new Error("Cette commande n’existe plus. Actualise la liste.");
@@ -76,7 +76,7 @@ export const deleteSlashCommand = createServerFn({ method: "POST" })
   .inputValidator((d: { id: string }) => ({ id: snowflake(d.id) }))
   .handler(async ({ data }) => {
     await requireOwner();
-    const app = await discord<{ id: string }>("oauth2/applications/@me");
+    const app = await discord<{ id: string }>("applications/@me");
     await discordWrite(`applications/${app.id}/commands/${data.id}`, "DELETE");
     invalidateCache(`applications/${app.id}/commands`);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
