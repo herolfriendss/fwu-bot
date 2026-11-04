@@ -16,7 +16,7 @@ export const Route = createFileRoute("/api/public/bot-sync")({
       POST: async ({ request }) => {
         const { checkBotSecret } = await import("@/lib/bot-settings.server");
         if (!checkBotSecret(request)) return json({ error: "unauthorized" }, 401);
-        let body: { action?: unknown; guildId?: unknown; roleId?: unknown; actorId?: unknown; prompt?: unknown; instructions?: unknown; author?: unknown };
+        let body: { action?: unknown; guildId?: unknown; roleId?: unknown; actorId?: unknown; applicationId?: unknown; name?: unknown; permissions?: unknown; prompt?: unknown; instructions?: unknown; author?: unknown };
         try {
           body = await request.json();
         } catch {
@@ -51,6 +51,27 @@ export const Route = createFileRoute("/api/public/bot-sync")({
           // after it has already been persisted merely because optional audit
           // storage is unavailable (for example, before the audit migration).
           return json({ ok: true, auditRecorded });
+        }
+        if (body.action === "custom-command") {
+          // The gateway bot may receive a command created from the dashboard.
+          // Resolve its saved response here so both interaction entry points use
+          // the same server-only table instead of duplicating command logic.
+          const applicationId = String(body.applicationId ?? "");
+          const name = String(body.name ?? "").trim().toLowerCase();
+          const permissions = String(body.permissions ?? "0");
+          if (!isDiscordSnowflake(applicationId) || !/^[a-z0-9_-]{1,32}$/.test(name)) {
+            return json({ error: "invalid command" }, 400);
+          }
+          const { findCustomCommandByName } = await import("@/lib/custom-commands.server");
+          const saved = await findCustomCommandByName(applicationId, name);
+          if (!saved) return json({ found: false });
+          const { canUseCommand } = await import("@/lib/custom-commands");
+          return json({
+            found: true,
+            allowed: canUseCommand(saved.permission, permissions),
+            content: saved.response,
+            ephemeral: saved.ephemeral,
+          });
         }
         const prompt = String(body.prompt ?? "").trim().slice(0, 1500);
         const instructions = String(body.instructions ?? "").trim().slice(0, 2000);

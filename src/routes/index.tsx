@@ -3,7 +3,7 @@ import { queryOptions, useQuery, useQueryClient, useSuspenseQuery } from "@tanst
 import { useServerFn } from "@tanstack/react-start";
 import { useState } from "react";
 import { toast } from "sonner";
-import { Hash, Send, Server, RefreshCw, Bot, LogOut, Settings } from "lucide-react";
+import { Hash, Send, Server, RefreshCw, Bot, LogOut, Settings, Coins } from "lucide-react";
 import { getOverview, logout, getChannels, getMessages, sendMessage } from "@/lib/discord.functions";
 import { Button } from "@/components/ui/button";
 
@@ -16,9 +16,9 @@ const overviewQuery = queryOptions({
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "Tableau de bord du bot Discord" },
-      { name: "description", content: "Suivez vos serveurs, lisez les salons et envoyez des messages avec votre bot Discord." },
-      { property: "og:title", content: "Tableau de bord du bot Discord" },
+      { title: "Tableau de bord — Her? V4" },
+      { name: "description", content: "Suivez vos serveurs, lisez les salons et envoyez des messages avec votre bot Discord Her?." },
+      { property: "og:title", content: "Tableau de bord — Her? V4" },
       { property: "og:description", content: "Serveurs, salons et messages de votre bot Discord en un coup d'œil." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
@@ -101,6 +101,9 @@ function Dashboard() {
             <div className="font-mono text-2xl font-medium text-primary">{data.guilds.length}</div>
             <div className="text-xs uppercase tracking-wider text-muted-foreground">serveurs</div>
           </div>
+          <Button asChild variant="ghost" size="icon"><Link to="/economie" aria-label="Économie PND" title="Économie PND">
+            <Coins className="h-5 w-5" />
+          </Link></Button>
           <Button asChild variant="ghost" size="icon"><Link to="/configuration" aria-label="Configuration" title="Configuration">
             <Settings className="h-5 w-5" />
           </Link></Button>

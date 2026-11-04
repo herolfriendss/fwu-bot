@@ -2,7 +2,7 @@
 // Called from src/routes/api/public/discord-interactions.ts only.
 import nacl from "tweetnacl";
 import { discord, discordWrite, invalidateCache } from "./discord.server";
-import { SLASH_COMMANDS } from "./slash-commands";
+import { SLASH_COMMANDS, slashCommandsByCategory } from "./slash-commands";
 import { findCustomCommand } from "./custom-commands.server";
 import { canUseCommand } from "./custom-commands";
 import { readRuntimeStatus } from "./bot-status.server";
@@ -95,8 +95,11 @@ async function runCommand(i: Interaction): Promise<InteractionResponse> {
   const userId = i.member?.user?.id ?? i.user?.id ?? "";
   switch (i.data?.name) {
     case "aide": {
-      const lines = SLASH_COMMANDS.map((c) => `• \`/${c.name}\` — ${c.description}`);
-      return ephemeral(`**Commandes du bot**\n${lines.join("\n")}`);
+      const embeds = slashCommandsByCategory().map((group) => ({
+        title: group.category,
+        description: group.commands.map((c) => `**/${c.name}** — ${c.description}`).join("\n"),
+      }));
+      return { type: 4, data: { content: "**Commandes du bot**", embeds, flags: EPHEMERAL } };
     }
     case "salut": {
       return { type: 4, data: { content: `Salut${userId ? ` <@${userId}>` : ""} ! 👋` } };
@@ -110,6 +113,14 @@ async function runCommand(i: Interaction): Promise<InteractionResponse> {
     case "nettoyer":
       return clean(i);
     default: {
+      // Economy, DOG, voice, music and radio live in SQLite on the Oracle host.
+      // If Discord is configured to send interactions to this HTTP endpoint
+      // instead of the gateway, explain the required deployment mode instead of
+      // pretending the command does not exist.
+      const definition = SLASH_COMMANDS.find((c) => c.name === i.data?.name);
+      if (definition?.requiresBotProcess) {
+        return ephemeral("Cette commande nécessite le bot Oracle 24/7 connecté à Discord. Vérifie son statut sur le tableau de bord, ou utilise la commande préfixée équivalente pendant la transition.");
+      }
       if (i.application_id && i.data?.id) {
         const saved = await findCustomCommand(i.application_id, i.data.id);
         if (saved) {

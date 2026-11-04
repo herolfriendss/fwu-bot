@@ -11,3 +11,8 @@ export async function findCustomCommand(applicationId: string, commandId: string
   if (error) throw new Error("Impossible de lire la réponse de cette commande.");
   return data;
 }
+export async function findCustomCommandByName(applicationId: string, name: string) {
+  const { data, error } = await supabaseAdmin.from("discord_custom_commands").select("*").eq("application_id", applicationId).eq("name", name).maybeSingle();
+  if (error) throw new Error("Impossible de lire la réponse de cette commande.");
+  return data;
+}

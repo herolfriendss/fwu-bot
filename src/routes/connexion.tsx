@@ -7,9 +7,9 @@ import { login } from "@/lib/discord.functions";
 export const Route = createFileRoute("/connexion")({
   head: () => ({
     meta: [
-      { title: "Connexion — Tableau de bord du bot" },
+      { title: "Connexion — Her? V4" },
       { name: "description", content: "Espace réservé au propriétaire du bot Discord." },
-      { property: "og:title", content: "Connexion — Tableau de bord du bot" },
+      { property: "og:title", content: "Connexion — Her? V4" },
       { property: "og:description", content: "Espace réservé au propriétaire du bot Discord." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },

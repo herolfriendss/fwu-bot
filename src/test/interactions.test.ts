@@ -139,6 +139,11 @@ describe("interaction dispatch", () => {
     expect(embed?.title).toBe("Mon serveur");
     expect(embed?.fields.find((f) => f.name === "Membres")?.value).toBe("42");
   });
+  it("explains that economy commands need the Oracle gateway bot", async () => {
+    const r = await handleInteraction(command("balance", [{ name: "membre", value: "998877665544332211" }]));
+    expect(JSON.stringify(r)).toContain("bot Oracle 24/7");
+    expect(r.data?.["flags"]).toBe(64);
+  });
   it("answers an unknown command with an ephemeral notice", async () => {
     const r = await handleInteraction(command("inconnue"));
     expect(JSON.stringify(r)).toContain("Commande inconnue");

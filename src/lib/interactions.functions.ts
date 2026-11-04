@@ -37,8 +37,14 @@ export const registerSlashCommands = createServerFn({ method: "POST" }).handler(
   const app = await discord<{ id: string }>("applications/@me");
   const existing = await discord<RegisteredCommand[]>(`applications/${app.id}/commands`);
   const ours = new Set(SLASH_COMMANDS.map((c) => c.name));
+  const byName = new Map(existing.map((command) => [command.name, command]));
   // Upsert each built-in separately; never bulk-overwrite unrelated definitions.
-  for (const c of SLASH_COMMANDS) await discord(`applications/${app.id}/commands`, { method: "POST", body: JSON.stringify(toDiscordCommand(c)) });
+  for (const c of SLASH_COMMANDS) {
+    const current = byName.get(c.name);
+    const body = JSON.stringify(toDiscordCommand(c));
+    if (current) await discord(`applications/${app.id}/commands/${current.id}`, { method: "PATCH", body });
+    else await discord(`applications/${app.id}/commands`, { method: "POST", body });
+  }
   invalidateCache(`applications/${app.id}/commands`);
   return { ours: SLASH_COMMANDS.length, kept: existing.filter((c) => !ours.has(c.name)).length };
 });
@@ -56,7 +62,11 @@ export const saveSlashCommand = createServerFn({ method: "POST" })
     const builtIn = current && SLASH_COMMANDS.find((c) => c.name === current.name);
     if (builtIn && data.name !== builtIn.name) throw new Error("Le nom d’une commande intégrée ne peut pas être changé.");
     if (!builtIn && SLASH_COMMANDS.some((c) => c.name === data.name)) throw new Error("Ce nom est réservé à une commande intégrée.");
-    const payload = builtIn ? { description: data.description, default_member_permissions: data.permission } : {
+    const payload = builtIn ? {
+      ...toDiscordCommand(builtIn),
+      description: data.description,
+      ...(data.permission ? { default_member_permissions: data.permission } : {}),
+    } : {
       name: data.name, description: data.description, type: 1, options: [], default_member_permissions: data.permission, dm_permission: false,
     };
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");

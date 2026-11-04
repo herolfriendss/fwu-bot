@@ -3,7 +3,7 @@ import { queryOptions, useQuery, useQueryClient, useSuspenseQuery } from "@tanst
 import { useServerFn } from "@tanstack/react-start";
 import { useState } from "react";
 import { toast } from "sonner";
-import { ArrowLeft, ArrowUpRight, Bot, Hash, Megaphone, Shield, Users, Trash2, Plus, Volume2, Folder, Save, BarChart3, Command, UserRoundCheck, Server, Activity, FileKey } from "lucide-react";
+import { ArrowLeft, ArrowUpRight, Bot, Hash, Megaphone, Shield, Users, Trash2, Plus, Volume2, Folder, Save, BarChart3, Command, UserRoundCheck, Server, Activity, FileKey, Coins } from "lucide-react";
 import { getOverview } from "@/lib/discord.functions";
 import { cn } from "@/lib/utils";
 import {
@@ -22,9 +22,9 @@ const overviewQuery = queryOptions({ queryKey: ["discord", "overview"], queryFn:
 export const Route = createFileRoute("/configuration")({
   head: () => ({
     meta: [
-      { title: "Configuration du bot Discord" },
-      { name: "description", content: "Analyses du serveur, profil, salons, rôles, membres, modération et annonces de votre bot Discord." },
-      { property: "og:title", content: "Configuration du bot Discord" },
+      { title: "Configuration — Her? V4" },
+      { name: "description", content: "Analyses du serveur, profil, salons, rôles, membres, modération et annonces de votre bot Discord Her?." },
+      { property: "og:title", content: "Configuration — Her? V4" },
       { property: "og:description", content: "Configuration et statistiques des serveurs de votre bot Discord." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
@@ -114,6 +114,7 @@ function Config() {
           <Button asChild variant="ghost" className="console-nav-item px-3 text-sm"><Link to="/admin"><Shield className="h-4 w-4" /> Admin <ArrowUpRight className="ml-auto h-3 w-3" /></Link></Button>
           <Button asChild variant="ghost" className="console-nav-item px-3 text-sm"><Link to="/installation"><FileKey className="h-4 w-4" /> Installation Oracle</Link></Button>
           <Button asChild variant="ghost" className="console-nav-item px-3 text-sm"><Link to="/statut"><Activity className="h-4 w-4" /> Statut du bot</Link></Button>
+          <Button asChild variant="ghost" className="console-nav-item px-3 text-sm"><Link to="/economie"><Coins className="h-4 w-4" /> Économie PND</Link></Button>
           <Button asChild variant="ghost" className="console-nav-item px-3 md:hidden"><Link to="/"><ArrowLeft className="h-4 w-4" /> Tableau de bord</Link></Button>
           </div>
           <div className="mt-10 hidden border-t border-border px-3 pt-5 md:block"><p className="flex items-center gap-2 text-xs text-muted-foreground"><Shield className="h-3.5 w-3.5 text-primary" /> Accès propriétaire</p></div>

@@ -16,7 +16,8 @@
     "lint": "eslint .",
     "format": "prettier --write .",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "package:bot": "python3 scripts/package-bot.py"
   },
   "overrides": {
     "rolldown": "1.2.1"

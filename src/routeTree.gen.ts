@@ -13,12 +13,14 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as AdminRouteImport } from './routes/admin'
 import { Route as ConfigurationRouteImport } from './routes/configuration'
 import { Route as ConnexionRouteImport } from './routes/connexion'
+import { Route as EconomieRouteImport } from './routes/economie'
 import { Route as InstallationRouteImport } from './routes/installation'
 import { Route as StatutRouteImport } from './routes/statut'
 import { Route as ApiIncidentRouteImport } from './routes/api/incident'
 import { Route as ApiPublicBotStatusRouteImport } from './routes/api/public/bot-status'
 import { Route as ApiPublicBotSyncRouteImport } from './routes/api/public/bot-sync'
 import { Route as ApiPublicDiscordInteractionsRouteImport } from './routes/api/public/discord-interactions'
+import { Route as ApiPublicEconomySnapshotRouteImport } from './routes/api/public/economy-snapshot'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -38,6 +40,11 @@ const ConfigurationRoute = ConfigurationRouteImport.update({
 const ConnexionRoute = ConnexionRouteImport.update({
   id: '/connexion',
   path: '/connexion',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const EconomieRoute = EconomieRouteImport.update({
+  id: '/economie',
+  path: '/economie',
   getParentRoute: () => rootRouteImport,
 } as any)
 const InstallationRoute = InstallationRouteImport.update({
@@ -71,30 +78,40 @@ const ApiPublicDiscordInteractionsRoute =
     path: '/api/public/discord-interactions',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiPublicEconomySnapshotRoute =
+  ApiPublicEconomySnapshotRouteImport.update({
+    id: '/api/public/economy-snapshot',
+    path: '/api/public/economy-snapshot',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/admin': typeof AdminRoute
   '/configuration': typeof ConfigurationRoute
   '/connexion': typeof ConnexionRoute
+  '/economie': typeof EconomieRoute
   '/installation': typeof InstallationRoute
   '/statut': typeof StatutRoute
   '/api/incident': typeof ApiIncidentRoute
   '/api/public/bot-status': typeof ApiPublicBotStatusRoute
   '/api/public/bot-sync': typeof ApiPublicBotSyncRoute
   '/api/public/discord-interactions': typeof ApiPublicDiscordInteractionsRoute
+  '/api/public/economy-snapshot': typeof ApiPublicEconomySnapshotRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/admin': typeof AdminRoute
   '/configuration': typeof ConfigurationRoute
   '/connexion': typeof ConnexionRoute
+  '/economie': typeof EconomieRoute
   '/installation': typeof InstallationRoute
   '/statut': typeof StatutRoute
   '/api/incident': typeof ApiIncidentRoute
   '/api/public/bot-status': typeof ApiPublicBotStatusRoute
   '/api/public/bot-sync': typeof ApiPublicBotSyncRoute
   '/api/public/discord-interactions': typeof ApiPublicDiscordInteractionsRoute
+  '/api/public/economy-snapshot': typeof ApiPublicEconomySnapshotRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -102,12 +119,14 @@ export interface FileRoutesById {
   '/admin': typeof AdminRoute
   '/configuration': typeof ConfigurationRoute
   '/connexion': typeof ConnexionRoute
+  '/economie': typeof EconomieRoute
   '/installation': typeof InstallationRoute
   '/statut': typeof StatutRoute
   '/api/incident': typeof ApiIncidentRoute
   '/api/public/bot-status': typeof ApiPublicBotStatusRoute
   '/api/public/bot-sync': typeof ApiPublicBotSyncRoute
   '/api/public/discord-interactions': typeof ApiPublicDiscordInteractionsRoute
+  '/api/public/economy-snapshot': typeof ApiPublicEconomySnapshotRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -116,36 +135,42 @@ export interface FileRouteTypes {
     | '/admin'
     | '/configuration'
     | '/connexion'
+    | '/economie'
     | '/installation'
     | '/statut'
     | '/api/incident'
     | '/api/public/bot-status'
     | '/api/public/bot-sync'
     | '/api/public/discord-interactions'
+    | '/api/public/economy-snapshot'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
     | '/admin'
     | '/configuration'
     | '/connexion'
+    | '/economie'
     | '/installation'
     | '/statut'
     | '/api/incident'
     | '/api/public/bot-status'
     | '/api/public/bot-sync'
     | '/api/public/discord-interactions'
+    | '/api/public/economy-snapshot'
   id:
     | '__root__'
     | '/'
     | '/admin'
     | '/configuration'
     | '/connexion'
+    | '/economie'
     | '/installation'
     | '/statut'
     | '/api/incident'
     | '/api/public/bot-status'
     | '/api/public/bot-sync'
     | '/api/public/discord-interactions'
+    | '/api/public/economy-snapshot'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -153,12 +178,14 @@ export interface RootRouteChildren {
   AdminRoute: typeof AdminRoute
   ConfigurationRoute: typeof ConfigurationRoute
   ConnexionRoute: typeof ConnexionRoute
+  EconomieRoute: typeof EconomieRoute
   InstallationRoute: typeof InstallationRoute
   StatutRoute: typeof StatutRoute
   ApiIncidentRoute: typeof ApiIncidentRoute
   ApiPublicBotStatusRoute: typeof ApiPublicBotStatusRoute
   ApiPublicBotSyncRoute: typeof ApiPublicBotSyncRoute
   ApiPublicDiscordInteractionsRoute: typeof ApiPublicDiscordInteractionsRoute
+  ApiPublicEconomySnapshotRoute: typeof ApiPublicEconomySnapshotRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -189,6 +216,13 @@ declare module '@tanstack/react-router' {
       path: '/connexion'
       fullPath: '/connexion'
       preLoaderRoute: typeof ConnexionRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/economie': {
+      id: '/economie'
+      path: '/economie'
+      fullPath: '/economie'
+      preLoaderRoute: typeof EconomieRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/installation': {
@@ -233,6 +267,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicDiscordInteractionsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/economy-snapshot': {
+      id: '/api/public/economy-snapshot'
+      path: '/api/public/economy-snapshot'
+      fullPath: '/api/public/economy-snapshot'
+      preLoaderRoute: typeof ApiPublicEconomySnapshotRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -241,12 +282,14 @@ const rootRouteChildren: RootRouteChildren = {
   AdminRoute: AdminRoute,
   ConfigurationRoute: ConfigurationRoute,
   ConnexionRoute: ConnexionRoute,
+  EconomieRoute: EconomieRoute,
   InstallationRoute: InstallationRoute,
   StatutRoute: StatutRoute,
   ApiIncidentRoute: ApiIncidentRoute,
   ApiPublicBotStatusRoute: ApiPublicBotStatusRoute,
   ApiPublicBotSyncRoute: ApiPublicBotSyncRoute,
   ApiPublicDiscordInteractionsRoute: ApiPublicDiscordInteractionsRoute,
+  ApiPublicEconomySnapshotRoute: ApiPublicEconomySnapshotRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

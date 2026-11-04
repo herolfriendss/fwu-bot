@@ -142,6 +142,48 @@ export function recoverBlackjackGames() {
   });
 }
 
+/**
+ * Read-only, bounded mirror of one guild's economy for the V4 dashboard.
+ * SQLite stays the source of truth; the dashboard only displays this snapshot.
+ */
+export function economySnapshot(guildId, guild = null) {
+  const totals = db.prepare("SELECT COUNT(*) AS wallets, COALESCE(SUM(balance), 0) AS total FROM wallets WHERE guild_id=?").get(guildId);
+  const ledger = db.prepare("SELECT COUNT(*) AS count FROM economy_ledger WHERE guild_id=?").get(guildId);
+  const daily = db.prepare("SELECT COUNT(*) AS count FROM daily_claims WHERE guild_id=?").get(guildId);
+  const games = db.prepare("SELECT COUNT(*) AS count FROM active_blackjack WHERE guild_id=?").get(guildId);
+  const top = db.prepare("SELECT user_id, balance FROM wallets WHERE guild_id=? AND balance>0 ORDER BY balance DESC, user_id ASC LIMIT 10").all(guildId);
+  const shop = db.prepare("SELECT role_id, price FROM shop_items WHERE guild_id=? ORDER BY price ASC LIMIT 25").all(guildId);
+
+  const displayName = (userId) => {
+    const name = guild?.members?.cache?.get(userId)?.displayName;
+    return typeof name === "string" && name.trim() ? name.trim().slice(0, 80) : null;
+  };
+
+  return {
+    guildId,
+    guildName: typeof guild?.name === "string" && guild.name.trim() ? guild.name.trim().slice(0, 100) : null,
+    totalBalance: Number(totals?.total ?? 0),
+    walletCount: Number(totals?.wallets ?? 0),
+    ledgerCount: Number(ledger?.count ?? 0),
+    dailyClaims: Number(daily?.count ?? 0),
+    activeGames: Number(games?.count ?? 0),
+    topWallets: top.map((entry) => ({
+      userId: entry.user_id,
+      displayName: displayName(entry.user_id),
+      balance: Number(entry.balance),
+    })),
+    shopItems: shop.map((item) => {
+      const roleName = guild?.roles?.cache?.get(item.role_id)?.name;
+      return {
+        roleId: item.role_id,
+        roleName: typeof roleName === "string" ? roleName.slice(0, 100) : null,
+        price: Number(item.price),
+      };
+    }),
+    capturedAt: new Date().toISOString(),
+  };
+}
+
 export async function handleEconomyMessage(message) {
   if (!message.guild || !message.member) return false;
   const parts = message.content.trim().split(/\s+/);

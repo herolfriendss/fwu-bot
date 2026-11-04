@@ -5,6 +5,7 @@ export const runtimeEventCodes = [
   "message_error", "voice_error", "interaction_error", "welcome_error", "dog_enforcement_error",
   "dog_nickname_restored", "dog_leashes_restored", "dog_reconcile_error", "dog_voice_returned", "dog_voice_error",
   "sysplus_role_updated", "radio_autostarted", "radio_autostart_error", "spam_timeout_error", "slash_commands_registered", "slash_commands_registration_error",
+  "economy_snapshot_ok", "economy_snapshot_error",
 ] as const;
 
 const runtimeGuildSchema = z.object({
@@ -51,6 +52,8 @@ export const EVENT_LABELS: Record<typeof runtimeEventCodes[number], string> = {
   spam_timeout_error: "Échec du timeout anti-spam",
   slash_commands_registered: "Commandes slash enregistrées",
   slash_commands_registration_error: "Échec de l’enregistrement des commandes slash",
+  economy_snapshot_ok: "Soldes PND synchronisés vers le tableau de bord",
+  economy_snapshot_error: "Échec de la synchronisation des soldes PND",
 };
 
 export function connectionState(status: RuntimeStatus | null, now = Date.now()) {

@@ -8,6 +8,7 @@
   },
   "scripts": {
     "start": "node --env-file=.env index.js",
+    "export:economy": "node scripts/export-economy.js",
     "test": "node --test systems/sysplus/permissions.test.js"
   },
   "dependencies": {

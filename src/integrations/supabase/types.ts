@@ -44,6 +44,48 @@ export type Database = {
         }
         Relationships: []
       }
+      bot_economy_snapshots: {
+        Row: {
+          active_games: number
+          captured_at: string
+          daily_claims: number
+          guild_id: string
+          guild_name: string | null
+          ledger_count: number
+          shop_items: Json
+          top_wallets: Json
+          total_balance: number
+          updated_at: string
+          wallet_count: number
+        }
+        Insert: {
+          active_games?: number
+          captured_at?: string
+          daily_claims?: number
+          guild_id: string
+          guild_name?: string | null
+          ledger_count?: number
+          shop_items?: Json
+          top_wallets?: Json
+          total_balance?: number
+          updated_at?: string
+          wallet_count?: number
+        }
+        Update: {
+          active_games?: number
+          captured_at?: string
+          daily_claims?: number
+          guild_id?: string
+          guild_name?: string | null
+          ledger_count?: number
+          shop_items?: Json
+          top_wallets?: Json
+          total_balance?: number
+          updated_at?: string
+          wallet_count?: number
+        }
+        Relationships: []
+      }
       bot_runtime_status: {
         Row: {
           connected: boolean

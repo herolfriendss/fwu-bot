@@ -10,8 +10,8 @@ const statusQuery = queryOptions({ queryKey: ["bot-runtime-status"], queryFn: ()
 export const Route = createFileRoute("/statut")({
   ssr: false,
   head: () => ({ meta: [
-    { title: "Statut du bot — Discord Foundry" }, { name: "description", content: "Connexion Discord, dernière synchronisation et journal du bot hébergé sur Oracle." },
-    { property: "og:title", content: "Statut du bot — Discord Foundry" }, { property: "og:description", content: "Suivi privé de la connexion et des événements du bot Discord." },
+    { title: "Statut du bot — Her? V4" }, { name: "description", content: "Connexion Discord, dernière synchronisation et journal du bot hébergé sur Oracle." },
+    { property: "og:title", content: "Statut du bot — Her? V4" }, { property: "og:description", content: "Suivi privé de la connexion et des événements du bot Discord." },
     { property: "og:type", content: "website" }, { name: "twitter:card", content: "summary" },
   ] }),
   loader: ({ context }) => context.queryClient.ensureQueryData(statusQuery), component: StatusPage,

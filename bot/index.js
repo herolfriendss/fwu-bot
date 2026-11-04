@@ -1,12 +1,20 @@
 // Bot Discord 24h/24 — à lancer sur ton VPS. Les réglages viennent du site (onglet « Bot 24h/24 »).
-import { Client, GatewayIntentBits, Partials, PermissionFlagsBits, REST, Routes } from "discord.js";
-import { SLASH_COMMANDS, toDiscordCommand } from "../src/lib/slash-commands.ts";
+import { Client, GatewayIntentBits, Partials, PermissionFlagsBits, REST } from "discord.js";
+import { existsSync } from "node:fs";
+// The dashboard and the Oracle bot share one command definition file. In the
+// repository it lives in ../src/lib; the public source archive ships a copy at
+// the bot root so an isolated installation also works.
+const sharedSlashCommands = new URL("../src/lib/slash-commands.ts", import.meta.url);
+const localSlashCommands = new URL("./slash-commands.ts", import.meta.url);
+const slashCommandsModule = await import((existsSync(sharedSlashCommands) ? sharedSlashCommands : localSlashCommands).href);
+const { SLASH_COMMANDS, slashCommandsByCategory, toDiscordCommand } = slashCommandsModule;
 import { resolvePrefixCommand } from "./prefix-commands.js";
 import { handleVoiceMessage, handleVoiceInteraction } from "./voice-commands.js";
 import { handleSysPlusMessage, handleSysPlusInteraction } from "./systems/sysplus/commands.js";
 import { enforceLeashNickname, handleDogCommand, handleLeashVoiceState, reconcileLeashedMembers } from "./dog-commands.js";
 import { handleMusicMessage, handleMusicInteraction, handleRadioMessage, startConfiguredRadios } from "./music/music.js";
-import { handleEconomyMessage, handleEconomyInteraction, recoverBlackjackGames } from "./economy.js";
+import { economySnapshot, handleEconomyMessage, handleEconomyInteraction, recoverBlackjackGames } from "./economy.js";
+import { handleV4SlashInteraction } from "./v4-commands.js";
 
 const { DISCORD_TOKEN, SITE_URL, BOT_SYNC_SECRET } = process.env;
 if (!DISCORD_TOKEN || !SITE_URL || !BOT_SYNC_SECRET) {
@@ -16,6 +24,7 @@ if (!DISCORD_TOKEN || !SITE_URL || !BOT_SYNC_SECRET) {
 const API = `${SITE_URL.replace(/\/$/, "")}/api/public/bot-sync`;
 const AUTH = { Authorization: `Bearer ${BOT_SYNC_SECRET}` };
 const STATUS_API = `${SITE_URL.replace(/\/$/, "")}/api/public/bot-status`;
+const ECONOMY_API = `${SITE_URL.replace(/\/$/, "")}/api/public/economy-snapshot`;
 const startedAt = new Date().toISOString();
 let lastSync = null;
 const events = [];
@@ -75,6 +84,36 @@ const client = new Client({
   intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildVoiceStates, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent, GatewayIntentBits.GuildMembers],
   partials: [Partials.Channel],
 });
+
+let economyReporting = false;
+let economySnapshotReported = false;
+/**
+ * Push a bounded economy mirror for every guild. SQLite remains authoritative;
+ * the dashboard only displays these aggregates and never writes them back.
+ */
+async function reportEconomy() {
+  if (economyReporting || !client.isReady()) return;
+  economyReporting = true;
+  try {
+    const snapshots = client.guilds.cache.map((guild) => economySnapshot(guild.id, guild));
+    if (!snapshots.length) return;
+    const res = await fetch(ECONOMY_API, {
+      method: "POST",
+      headers: { ...AUTH, "Content-Type": "application/json" },
+      signal: AbortSignal.timeout(15_000),
+      body: JSON.stringify({ snapshots }),
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    if (!economySnapshotReported) {
+      economySnapshotReported = true;
+      record("economy_snapshot_ok");
+    }
+  } catch {
+    record("economy_snapshot_error");
+  } finally {
+    economyReporting = false;
+  }
+}
 
 const recent = new Map(); // anti-spam : `${guild}:${user}` -> timestamps
 let recentMessagesSinceCleanup = 0;
@@ -200,16 +239,31 @@ async function reconcileDogLeashes() {
 client.once("ready", () => {
   record("connected");
 
-  const slashCommands = SLASH_COMMANDS
-    .filter((command) => command.name === "sysp")
-    .map(toDiscordCommand);
-
+  // Merge the V4 command surface one command at a time. A bulk PUT would wipe
+  // commands created from the dashboard (custom commands) or by other tools.
   const rest = new REST({ version: "10" }).setToken(DISCORD_TOKEN);
-  void rest.put(Routes.applicationCommands(client.application.id), { body: slashCommands })
+  const commandRoute = `/applications/${client.application.id}/commands`;
+  void (async () => {
+    const existing = await rest.get(commandRoute);
+    const byName = new Map(
+      (Array.isArray(existing) ? existing : [])
+        .filter((command) => typeof command?.name === "string" && typeof command?.id === "string")
+        .map((command) => [command.name, command]),
+    );
+    for (const command of SLASH_COMMANDS) {
+      const current = byName.get(command.name);
+      const body = toDiscordCommand(command);
+      if (current) await rest.patch(`${commandRoute}/${current.id}`, { body });
+      else await rest.post(commandRoute, { body });
+    }
+  })()
     .then(() => record("slash_commands_registered"))
     .catch(() => record("slash_commands_registration_error"));
 
   void reportStatus();
+  void reportEconomy();
+  const economyTimer = setInterval(() => { void reportEconomy(); }, 5 * 60_000);
+  economyTimer.unref?.();
   void reconcileDogLeashes();
   void startConfiguredRadios(client).then((started) => {
     if (started) record("radio_autostarted");
@@ -221,6 +275,165 @@ client.on("shardResume", () => { record("connected"); void reportStatus(); void 
 client.on("error", () => record("gateway_error"));
 client.on("shardError", () => record("gateway_error"));
 
+async function handleCoreSlashInteraction(interaction) {
+  if (!interaction.isChatInputCommand()) return false;
+
+  const command = interaction.commandName;
+
+  if (command === "status") {
+    const seconds = Math.max(0, Math.floor((Date.now() - Date.parse(startedAt)) / 1000));
+    const uptime = `${Math.floor(seconds / 86400)}j ${Math.floor(seconds / 3600) % 24}h ${Math.floor(seconds / 60) % 60}min`;
+    await interaction.reply({
+      content: `🟢 **Her? est en ligne**\nConnexion Discord : ${client.isReady() ? "Connecté" : "Déconnecté"}\nSynchronisation : ${lastSync ? "Opérationnelle" : "En attente"}\nTemps de fonctionnement : ${uptime}`,
+      ephemeral: true,
+    });
+    return true;
+  }
+
+  if (command === "aide") {
+    const embeds = slashCommandsByCategory().map((group) => ({
+      title: group.category,
+      description: group.commands.map((c) => `**/${c.name}** — ${c.description}`).join("\n"),
+    }));
+    await interaction.reply({
+      content: "🤖 **Commandes V4 de Her?**",
+      embeds,
+      ephemeral: true,
+    });
+    return true;
+  }
+
+  if (command === "salut") {
+    await interaction.reply({ content: `👋 Salut ${interaction.user} ! Ravi de te voir !` });
+    return true;
+  }
+
+  if (command === "sondage") {
+    const question = interaction.options.getString("question", true);
+    const options = [1, 2, 3, 4, 5]
+      .map((n) => interaction.options.getString(`option_${n}`))
+      .filter(Boolean);
+    const emojis = ["1️⃣", "2️⃣", "3️⃣", "4️⃣", "5️⃣"];
+
+    const content = `📊 **${question}**\n\n${options.map((option, i) => `${emojis[i]} ${option}`).join("\n")}\n\nVote avec les réactions ci-dessus !`;
+    await interaction.reply({ content, allowedMentions: { parse: [] } });
+
+    try {
+      const message = await interaction.fetchReply();
+      for (let i = 0; i < options.length; i++) {
+        await message.react(emojis[i]);
+      }
+    } catch {
+      await interaction.followUp({
+        content: "Le sondage est publié, mais je n'ai pas pu ajouter les réactions. Vérifie ma permission « Ajouter des réactions ».",
+        ephemeral: true,
+      }).catch(() => {});
+    }
+    return true;
+  }
+
+  if (command === "info-serveur") {
+    if (!interaction.guild) {
+      await interaction.reply({ content: "Cette commande doit être utilisée sur un serveur.", ephemeral: true });
+      return true;
+    }
+
+    const guild = interaction.guild;
+    const owner = await guild.fetchOwner().catch(() => null);
+
+    await interaction.reply({
+      content: `📊 **Informations du serveur : ${guild.name}**\n👑 Propriétaire : ${owner?.user.tag ?? "Inconnu"}\n👥 Membres : ${guild.memberCount}\n💬 Salons : ${guild.channels.cache.size}\n🎭 Rôles : ${guild.roles.cache.size}\n📅 Créé le : ${guild.createdAt.toLocaleDateString("fr-FR")}`,
+      allowedMentions: { parse: [] },
+    });
+    return true;
+  }
+
+  if (command === "nettoyer") {
+    if (!interaction.guild || !interaction.channel || typeof interaction.channel.bulkDelete !== "function") {
+      await interaction.reply({ content: "Cette commande doit être utilisée dans un salon textuel d'un serveur.", ephemeral: true });
+      return true;
+    }
+
+    if (!interaction.memberPermissions?.has(PermissionFlagsBits.ManageMessages)) {
+      await interaction.reply({ content: "🔒 Tu dois avoir la permission Gérer les messages.", ephemeral: true });
+      return true;
+    }
+
+    const botMember = interaction.guild.members.me;
+    if (!botMember?.permissionsIn(interaction.channel).has(PermissionFlagsBits.ManageMessages)) {
+      await interaction.reply({ content: "Je n'ai pas la permission Gérer les messages dans ce salon.", ephemeral: true });
+      return true;
+    }
+
+    const amount = interaction.options.getInteger("nombre", true);
+    await interaction.deferReply({ ephemeral: true });
+
+    try {
+      let deletedCount = 0;
+
+      if (amount === 1) {
+        const messages = await interaction.channel.messages.fetch({ limit: 1 });
+        const latest = messages.first();
+        if (latest) {
+          await latest.delete();
+          deletedCount = 1;
+        }
+      } else {
+        const deleted = await interaction.channel.bulkDelete(amount, true);
+        deletedCount = deleted.size;
+      }
+
+      await interaction.editReply(`🧹 ${deletedCount} message(s) supprimé(s). Les messages datant de plus de 14 jours ne peuvent pas être supprimés en masse.`);
+    } catch {
+      await interaction.editReply("Impossible de supprimer les messages. Vérifie mes permissions et réessaie.");
+    }
+    return true;
+  }
+
+  return false;
+}
+
+/** Dashboard-created slash commands are answered from the shared server table. */
+async function handleSavedSlashCommand(interaction) {
+  if (!interaction.isChatInputCommand() || interaction.replied || interaction.deferred) return false;
+  let data;
+  try {
+    const res = await fetch(API, {
+      method: "POST",
+      headers: { ...AUTH, "Content-Type": "application/json" },
+      signal: AbortSignal.timeout(10_000),
+      body: JSON.stringify({
+        action: "custom-command",
+        applicationId: client.application.id,
+        name: interaction.commandName,
+        permissions: interaction.memberPermissions?.bitfield.toString() ?? "0",
+      }),
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    data = await res.json();
+  } catch {
+    record("interaction_error");
+    return false;
+  }
+  if (!data?.found) {
+    await interaction.reply({
+      content: "Commande inconnue. Mets à jour les commandes depuis le panneau de configuration.",
+      ephemeral: true,
+    }).catch(() => {});
+    return true;
+  }
+  if (!data.allowed) {
+    await interaction.reply({ content: "Tu n’as pas la permission d’utiliser cette commande.", ephemeral: true }).catch(() => {});
+    return true;
+  }
+  await interaction.reply({
+    content: String(data.content ?? "").slice(0, 2000),
+    allowedMentions: { parse: [] },
+    ephemeral: !!data.ephemeral,
+  }).catch(() => {});
+  return true;
+}
+
 client.on("interactionCreate", (interaction) => {
   (async () => {
     if (await handleSysPlusInteraction(interaction, settings, {
@@ -228,10 +441,23 @@ client.on("interactionCreate", (interaction) => {
       secret: BOT_SYNC_SECRET,
       record,
     })) return;
+
+    if (await handleCoreSlashInteraction(interaction)) return;
+    if (await handleV4SlashInteraction(interaction, settings[interaction.guildId])) return;
     if (await handleEconomyInteraction(interaction)) return;
     if (await handleMusicInteraction(interaction)) return;
     await handleVoiceInteraction(interaction, settings[interaction.guildId]?.voiceAccess);
-  })().catch(() => record("interaction_error"));
+    await handleSavedSlashCommand(interaction);
+  })().catch(async (error) => {
+    console.error("[bot] interaction_error:", error?.message ?? "Unknown error");
+    record("interaction_error");
+    if (interaction.isRepliable() && !interaction.replied && !interaction.deferred) {
+      await interaction.reply({
+        content: "Une erreur est survenue pendant le traitement de cette commande.",
+        ephemeral: true,
+      }).catch(() => {});
+    }
+  });
 });
 
 await sync();
