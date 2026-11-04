@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { connectionState, runtimeEventCodes, runtimeReportSchema, slashRuntimeStatus, formatRuntimeDuration, type RuntimeStatus } from "@/lib/bot-status";
 const now = Date.parse("2026-10-30T11:00:00Z");
-const status: RuntimeStatus = { connected: true, startedAt: "2026-10-30T10:00:00Z", lastSeen: "2026-10-30T11:00:00Z", lastSync: null, events: [] };
+const status: RuntimeStatus = { connected: true, startedAt: "2026-10-30T10:00:00Z", lastSeen: "2026-10-30T11:00:00Z", lastSync: null, events: [], guilds: [] };
 describe("Bot runtime", () => {
   it("accepts every fixed event code emitted by the bot process", () => {
     expect(runtimeEventCodes).toEqual(expect.arrayContaining([

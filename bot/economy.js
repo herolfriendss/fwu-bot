@@ -1,56 +1,48 @@
-import { mkdirSync } from "node:fs";
-import { DatabaseSync } from "node:sqlite";
 import { randomInt, randomUUID } from "node:crypto";
 import { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder, PermissionFlagsBits } from "discord.js";
+import { db, transaction } from "./database.js";
+import { LOTTERY_MAX_TICKETS, lotteryPayout, robPlan, ticketCost, workReward } from "./economy-policy.js";
 
-const dataDir = new URL("./data/", import.meta.url);
-mkdirSync(dataDir, { recursive: true, mode: 0o700 });
-const db = new DatabaseSync(new URL("./data/economy.sqlite", import.meta.url).pathname);
 const purchaseLocks = new Set();
 const MAX_BALANCE = 1_000_000_000_000;
-db.exec(`
-  PRAGMA journal_mode = WAL;
-  PRAGMA foreign_keys = ON;
-  CREATE TABLE IF NOT EXISTS wallets (
-    guild_id TEXT NOT NULL, user_id TEXT NOT NULL,
-    balance INTEGER NOT NULL DEFAULT 0 CHECK(balance >= 0),
-    PRIMARY KEY (guild_id, user_id)
-  );
-  CREATE TABLE IF NOT EXISTS economy_ledger (
-    id INTEGER PRIMARY KEY AUTOINCREMENT, guild_id TEXT NOT NULL, user_id TEXT NOT NULL,
-    delta INTEGER NOT NULL, reason TEXT NOT NULL, created_at INTEGER NOT NULL
-  );
-  CREATE INDEX IF NOT EXISTS economy_ledger_member_idx ON economy_ledger(guild_id,user_id,created_at DESC);
-  CREATE TABLE IF NOT EXISTS daily_claims (
-    guild_id TEXT NOT NULL, user_id TEXT NOT NULL, claimed_at INTEGER NOT NULL,
-    PRIMARY KEY (guild_id, user_id)
-  );
-  CREATE TABLE IF NOT EXISTS shop_items (
-    guild_id TEXT NOT NULL, role_id TEXT NOT NULL, price INTEGER NOT NULL CHECK(price > 0),
-    PRIMARY KEY (guild_id, role_id)
-  );
-  CREATE TABLE IF NOT EXISTS active_blackjack (
-    game_id TEXT PRIMARY KEY, guild_id TEXT NOT NULL, user_id TEXT NOT NULL,
-    bet INTEGER NOT NULL CHECK(bet > 0), player_cards TEXT NOT NULL, dealer_cards TEXT NOT NULL,
-    created_at INTEGER NOT NULL
-  );
-`);
-
-function transaction(action) {
-  db.exec("BEGIN IMMEDIATE");
-  try {
-    const result = action();
-    db.exec("COMMIT");
-    return result;
-  } catch (error) {
-    db.exec("ROLLBACK");
-    throw error;
-  }
-}
 
 function balance(guildId, userId) {
-  db.prepare("INSERT OR IGNORE INTO wallets(guild_id,user_id,balance) VALUES(?,?,0)").run(guildId, userId);
+  db.prepare("INSERT OR IGNORE INTO wallets(guild_id,user_id,balance,bank) VALUES(?,?,0,0)").run(guildId, userId);
   return Number(db.prepare("SELECT balance FROM wallets WHERE guild_id=? AND user_id=?").get(guildId, userId).balance);
+}
+
+function wallet(guildId, userId) {
+  db.prepare("INSERT OR IGNORE INTO wallets(guild_id,user_id,balance,bank) VALUES(?,?,0,0)").run(guildId, userId);
+  const row = db.prepare("SELECT balance, bank FROM wallets WHERE guild_id=? AND user_id=?").get(guildId, userId);
+  return { balance: Number(row.balance), bank: Number(row.bank) };
+}
+
+function changeBank(guildId, userId, delta) {
+  db.prepare("INSERT OR IGNORE INTO wallets(guild_id,user_id,balance,bank) VALUES(?,?,0,0)").run(guildId, userId);
+  const current = wallet(guildId, userId);
+  if (current.bank + delta < 0) throw new Error("Banque PND insuffisante.");
+  if (current.bank + delta > MAX_BALANCE) throw new Error(`La banque ne peut pas dépasser ${format(MAX_BALANCE)}.`);
+  db.prepare("UPDATE wallets SET bank=bank+? WHERE guild_id=? AND user_id=?").run(delta, guildId, userId);
+}
+
+/** Crédit/débit contrôlé utilisable par les autres modules (jeux, cartes…). */
+export function grantPnd(guildId, userId, amount, reason = "module_reward") {
+  if (!Number.isSafeInteger(amount) || amount === 0) throw new Error("Montant PND invalide.");
+  return transaction(() => changeBalance(guildId, userId, amount, reason));
+}
+
+export function pndBalance(guildId, userId) {
+  return wallet(guildId, userId);
+}
+
+export function cooldownRemaining(guildId, userId, action, now = Date.now()) {
+  const row = db.prepare("SELECT ready_at FROM economy_cooldowns WHERE guild_id=? AND user_id=? AND action=?").get(guildId, userId, action);
+  return row ? Math.max(0, Number(row.ready_at) - now) : 0;
+}
+
+export function setCooldown(guildId, userId, action, readyAt) {
+  db.prepare("INSERT INTO economy_cooldowns(guild_id,user_id,action,ready_at) VALUES(?,?,?,?) ON CONFLICT(guild_id,user_id,action) DO UPDATE SET ready_at=excluded.ready_at")
+    .run(guildId, userId, action, readyAt);
 }
 
 function changeBalance(guildId, userId, delta, reason = "adjustment") {
@@ -147,11 +139,11 @@ export function recoverBlackjackGames() {
  * SQLite stays the source of truth; the dashboard only displays this snapshot.
  */
 export function economySnapshot(guildId, guild = null) {
-  const totals = db.prepare("SELECT COUNT(*) AS wallets, COALESCE(SUM(balance), 0) AS total FROM wallets WHERE guild_id=?").get(guildId);
+  const totals = db.prepare("SELECT COUNT(*) AS wallets, COALESCE(SUM(balance + bank), 0) AS total FROM wallets WHERE guild_id=?").get(guildId);
   const ledger = db.prepare("SELECT COUNT(*) AS count FROM economy_ledger WHERE guild_id=?").get(guildId);
   const daily = db.prepare("SELECT COUNT(*) AS count FROM daily_claims WHERE guild_id=?").get(guildId);
   const games = db.prepare("SELECT COUNT(*) AS count FROM active_blackjack WHERE guild_id=?").get(guildId);
-  const top = db.prepare("SELECT user_id, balance FROM wallets WHERE guild_id=? AND balance>0 ORDER BY balance DESC, user_id ASC LIMIT 10").all(guildId);
+  const top = db.prepare("SELECT user_id, balance + bank AS balance FROM wallets WHERE guild_id=? AND balance + bank > 0 ORDER BY balance DESC, user_id ASC LIMIT 10").all(guildId);
   const shop = db.prepare("SELECT role_id, price FROM shop_items WHERE guild_id=? ORDER BY price ASC LIMIT 25").all(guildId);
 
   const displayName = (userId) => {
@@ -188,7 +180,7 @@ export async function handleEconomyMessage(message) {
   if (!message.guild || !message.member) return false;
   const parts = message.content.trim().split(/\s+/);
   const command = (parts[0] ?? "").toLowerCase();
-  const known = new Set(["=balance", "=solde", "=daily", "=pay", "=shop", "=buy", "=inventory", "=leaderboard", "=roulette", "=blackjack", "=pnd"]);
+  const known = new Set(["=balance", "=solde", "=daily", "=pay", "=shop", "=buy", "=inventory", "=leaderboard", "=roulette", "=blackjack", "=pnd", "=work", "=bank", "=history", "=rob", "=lottery"]);
   if (!known.has(command)) return false;
   const gid = message.guild.id, uid = message.author.id;
   try {
@@ -207,6 +199,119 @@ export async function handleEconomyMessage(message) {
       });
       if (claim.remaining) await safeReply(message, `⏳ Ton bonus quotidien est déjà récupéré. Réessaie dans **${Math.ceil(claim.remaining / 3_600_000)} h**.`);
       else await safeReply(message, `🎁 Tu as reçu **${format(claim.reward)}**. Nouveau solde : **${format(claim.total)}**.`);
+    } else if (command === "=work") {
+      const remaining = cooldownRemaining(gid, uid, "work");
+      if (remaining) throw new Error(`⏳ Tu pourras retravailler dans **${Math.ceil(remaining / 60_000)} min**.`);
+      const reward = workReward(randomInt(1_000_000) / 1_000_000);
+      const total = transaction(() => {
+        setCooldown(gid, uid, "work", Date.now() + 60 * 60_000);
+        return changeBalance(gid, uid, reward, "work_reward");
+      });
+      await safeReply(message, `🛠️ Tu as travaillé et gagné **${format(reward)}**. Solde : **${format(total)}**.`);
+    } else if (command === "=bank") {
+      const action = (parts[1] ?? "solde").toLowerCase();
+      if (action === "solde" || action === "balance") {
+        const w = wallet(gid, uid);
+        await safeReply(message, `🏦 Portefeuille : **${format(w.balance)}** · Banque : **${format(w.bank)}** · Total : **${format(w.balance + w.bank)}**.`);
+      } else if (["deposit", "deposer", "déposer"].includes(action)) {
+        const amount = parseAmount(parts[2]);
+        const w = transaction(() => {
+          const current = wallet(gid, uid);
+          if (current.balance < amount) throw new Error("Solde PND insuffisant pour ce dépôt.");
+          changeBalance(gid, uid, -amount, "bank_deposit");
+          changeBank(gid, uid, amount);
+          return wallet(gid, uid);
+        });
+        await safeReply(message, `🏦 **${format(amount)}** déposés en banque. Banque : **${format(w.bank)}**.`);
+      } else if (["withdraw", "retirer", "retrait"].includes(action)) {
+        const amount = parseAmount(parts[2]);
+        const w = transaction(() => {
+          changeBank(gid, uid, -amount);
+          changeBalance(gid, uid, amount, "bank_withdraw");
+          return wallet(gid, uid);
+        });
+        await safeReply(message, `🏦 **${format(amount)}** retirés de la banque. Portefeuille : **${format(w.balance)}**.`);
+      } else {
+        throw new Error("Utilisation : `=bank solde|deposit montant|withdraw montant`.");
+      }
+    } else if (command === "=history") {
+      const rows = db.prepare("SELECT delta,reason,created_at FROM economy_ledger WHERE guild_id=? AND user_id=? ORDER BY id DESC LIMIT 10").all(gid, uid);
+      const labels = {
+        daily_reward: "Bonus quotidien", work_reward: "Travail", transfer_sent: "Transfert envoyé",
+        transfer_received: "Transfert reçu", bank_deposit: "Dépôt banque", bank_withdraw: "Retrait banque",
+        roulette_bet: "Mise roulette", roulette_payout: "Gain roulette", blackjack_bet: "Mise blackjack",
+        blackjack_win: "Gain blackjack", blackjack_natural: "Blackjack", blackjack_push: "Égalité blackjack",
+        shop_purchase: "Achat boutique", shop_refund: "Remboursement boutique", rob_success: "Vol réussi",
+        rob_failed: "Vol raté", lottery_ticket: "Ticket loterie", lottery_win: "Gain loterie",
+      };
+      const lines = rows.map((row) => {
+        const sign = Number(row.delta) >= 0 ? "+" : "";
+        const date = new Date(Number(row.created_at)).toLocaleDateString("fr-FR");
+        return `• ${date} — **${sign}${format(row.delta)}** — ${labels[row.reason] ?? row.reason}`;
+      });
+      await message.reply({ embeds: [new EmbedBuilder().setTitle("📜 Historique PND").setDescription(lines.length ? lines.join("\n") : "Aucun mouvement pour le moment.")], allowedMentions: { parse: [] } });
+    } else if (command === "=rob") {
+      const target = message.mentions.users.first();
+      if (!target || target.bot || target.id === uid) throw new Error("Utilisation : `=rob @membre`.");
+      const remaining = cooldownRemaining(gid, uid, "rob");
+      if (remaining) throw new Error(`⏳ Tu pourras retenter un vol dans **${Math.ceil(remaining / 60_000)} min**.`);
+      const victim = wallet(gid, target.id).balance;
+      const plan = robPlan({ victimBalance: victim, ownBalance: wallet(gid, uid).balance, roll: randomInt(1_000_000) / 1_000_000 });
+      if (!plan.allowed) throw new Error("Cette personne n’a pas assez de PND à voler.");
+      const outcome = transaction(() => {
+        setCooldown(gid, uid, "rob", Date.now() + 2 * 60 * 60_000);
+        if (plan.success) {
+          changeBalance(gid, target.id, -plan.amount, "rob_victim");
+          return { total: changeBalance(gid, uid, plan.amount, "rob_success"), fine: 0 };
+        }
+        if (plan.fine > 0) {
+          changeBalance(gid, uid, -plan.fine, "rob_failed");
+          changeBalance(gid, target.id, plan.fine, "rob_restitution");
+        }
+        return { total: wallet(gid, uid).balance, fine: plan.fine };
+      });
+      await safeReply(message, plan.success
+        ? `🕵️ Tu as volé **${format(plan.amount)}** à ${mention(target.id)}. Solde : **${format(outcome.total)}**.`
+        : `🚨 Vol raté ! Tu as dû rendre **${format(outcome.fine)}** à ${mention(target.id)}. Solde : **${format(outcome.total)}**.`);
+    } else if (command === "=lottery") {
+      const action = (parts[1] ?? "info").toLowerCase();
+      const openDraw = () => db.prepare("SELECT * FROM lottery_draws WHERE guild_id=? AND winner_id IS NULL ORDER BY id DESC LIMIT 1").get(gid);
+      if (action === "buy" || action === "acheter") {
+        const { tickets: count, cost } = ticketCost(Number.parseInt(parts[2] ?? "1", 10) || 1);
+        const result = transaction(() => {
+          let draw = openDraw();
+          if (!draw) {
+            const info = db.prepare("INSERT INTO lottery_draws(guild_id,pot,winner_id,created_at) VALUES(?,?,NULL,?)").run(gid, 0, Date.now());
+            draw = { id: Number(info.lastInsertRowid), pot: 0 };
+          }
+          const mine = db.prepare("SELECT COUNT(*) AS count FROM lottery_tickets WHERE guild_id=? AND draw_id=? AND user_id=?").get(gid, draw.id, uid).count;
+          if (Number(mine) + count > LOTTERY_MAX_TICKETS) throw new Error(`Maximum ${LOTTERY_MAX_TICKETS} tickets par personne et par tirage.`);
+          changeBalance(gid, uid, -cost, "lottery_ticket");
+          for (let i = 0; i < count; i++) db.prepare("INSERT INTO lottery_tickets(guild_id,user_id,draw_id,created_at) VALUES(?,?,?,?)").run(gid, uid, draw.id, Date.now());
+          db.prepare("UPDATE lottery_draws SET pot=pot+? WHERE id=?").run(cost, draw.id);
+          return { tickets: Number(mine) + count, pot: Number(draw.pot) + cost };
+        });
+        await safeReply(message, `🎟️ **${count}** ticket(s) acheté(s) pour **${format(cost)}**. Tu as **${result.tickets}/${LOTTERY_MAX_TICKETS}** tickets. Cagnotte : **${format(result.pot)}**.`);
+      } else if (action === "draw" || action === "tirage") {
+        if (!admin(message.member)) throw new Error("Seuls les administrateurs peuvent lancer le tirage.");
+        const draw = openDraw();
+        if (!draw) throw new Error("Aucun tirage en cours.");
+        const tickets = db.prepare("SELECT user_id FROM lottery_tickets WHERE draw_id=?").all(draw.id);
+        if (!tickets.length) throw new Error("Aucun ticket vendu pour ce tirage.");
+        const winner = tickets[randomInt(tickets.length)].user_id;
+        const payout = lotteryPayout(draw.pot);
+        transaction(() => {
+          db.prepare("UPDATE lottery_draws SET winner_id=? WHERE id=? AND winner_id IS NULL").run(winner, draw.id);
+          changeBalance(gid, winner, payout, "lottery_win");
+        });
+        await safeReply(message, `🎉 Le tirage est terminé ! ${mention(winner)} remporte **${format(payout)}** sur une cagnotte de **${format(draw.pot)}**.`);
+      } else {
+        const draw = openDraw();
+        const count = draw ? db.prepare("SELECT COUNT(*) AS count FROM lottery_tickets WHERE draw_id=?").get(draw.id).count : 0;
+        await message.reply({ embeds: [new EmbedBuilder().setTitle("🎟️ Loterie PND").setDescription(draw
+          ? `Cagnotte : **${format(draw.pot)}**\nTickets vendus : **${count}**\nPrix du ticket : **100 PND**\n\nAchète avec \`=lottery buy [1-10]\`.`
+          : "Aucun tirage en cours. Achète un ticket avec `=lottery buy` pour lancer la cagnotte.")], allowedMentions: { parse: [] } });
+      }
     } else if (command === "=pay") {
       const target = message.mentions.users.first();
       if (!target || target.bot || target.id === uid) throw new Error("Utilisation : `=pay @membre montant` (membre non-bot, différent de toi).");

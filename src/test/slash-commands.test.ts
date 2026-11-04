@@ -30,15 +30,15 @@ describe("V4 slash commands", () => {
   it("converts nested subcommands and restricts admin-only commands", () => {
     const shop = SLASH_COMMANDS.find((command) => command.name === "shop");
     const payload = toDiscordCommand(shop!);
-    expect(payload.name).toBe("shop");
-    expect(payload.options?.map((option) => option.name)).toEqual(["voir", "ajouter", "retirer"]);
+    expect(payload["name"]).toBe("shop");
+    expect(payload.options?.map((option) => option["name"])).toEqual(["voir", "ajouter", "retirer"]);
 
     const pnd = toDiscordCommand(SLASH_COMMANDS.find((command) => command.name === "pnd")!);
     expect(pnd.default_member_permissions).toBe("32");
     expect(pnd.dm_permission).toBe(false);
 
     const roulette = toDiscordCommand(SLASH_COMMANDS.find((command) => command.name === "roulette")!);
-    expect(roulette.options?.find((option) => option.name === "choix")?.choices).toHaveLength(3);
+    expect(roulette.options?.find((option) => option["name"] === "choix")?.["choices"]).toHaveLength(3);
   });
 
   it("groups commands for /aide without losing any", () => {

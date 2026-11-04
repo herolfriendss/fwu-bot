@@ -15,6 +15,15 @@ import { enforceLeashNickname, handleDogCommand, handleLeashVoiceState, reconcil
 import { handleMusicMessage, handleMusicInteraction, handleRadioMessage, startConfiguredRadios } from "./music/music.js";
 import { economySnapshot, handleEconomyMessage, handleEconomyInteraction, recoverBlackjackGames } from "./economy.js";
 import { handleV4SlashInteraction } from "./v4-commands.js";
+import { handleSocialMessage } from "./social.js";
+import { handleCardsMessage } from "./cards.js";
+import { handleGuildGuardInteraction } from "./guild-guard-commands.js";
+import { handleGuildCreate, handleGuildGuardJoin, parseGuildAllowlist } from "./guild-guard.js";
+import { handleModerationInteraction } from "./moderation.js";
+import { handleVoiceV2Interaction, handleVoiceV2State, forgetGuildTempVoices, forgetTempVoice } from "./voice-v2.js";
+import { handleGamesInteraction, handleGamesMessage, startGamesScheduler } from "./games.js";
+import { handleTicketChannelDelete, handleTicketsInteraction } from "./tickets.js";
+import { handleAutomationInteraction, handleAutomationJoin, handleAutomationMessage, startAutomationScheduler } from "./automation.js";
 
 const { DISCORD_TOKEN, SITE_URL, BOT_SYNC_SECRET } = process.env;
 if (!DISCORD_TOKEN || !SITE_URL || !BOT_SYNC_SECRET) {
@@ -25,6 +34,9 @@ const API = `${SITE_URL.replace(/\/$/, "")}/api/public/bot-sync`;
 const AUTH = { Authorization: `Bearer ${BOT_SYNC_SECRET}` };
 const STATUS_API = `${SITE_URL.replace(/\/$/, "")}/api/public/bot-status`;
 const ECONOMY_API = `${SITE_URL.replace(/\/$/, "")}/api/public/economy-snapshot`;
+// Optional isolation allowlist. Empty = accept every guild, but each guild's
+// data remains isolated by guild_id in SQLite and in bot_settings.
+const ALLOWED_GUILDS = parseGuildAllowlist(process.env.V4_ALLOWED_GUILD_IDS);
 const startedAt = new Date().toISOString();
 let lastSync = null;
 const events = [];
@@ -155,6 +167,10 @@ client.on("messageCreate", async (msg) => {
     if (await handleMusicMessage(msg)) return;
     if (await handleVoiceMessage(msg, settings[msg.guild.id]?.voiceAccess)) return;
     if (await handleEconomyMessage(msg)) return;
+    if (await handleSocialMessage(msg)) return;
+    if (await handleCardsMessage(msg)) return;
+    if (await handleGamesMessage(msg, record)) return;
+    if (await handleAutomationMessage(msg, s, { apiUrl: API, secret: BOT_SYNC_SECRET, record })) return;
   } catch { record("voice_error"); return; }
   if (!s) return;
   const text = msg.content.toLowerCase();
@@ -203,7 +219,10 @@ client.on("messageCreate", async (msg) => {
 });
 
 client.on("guildMemberAdd", async (member) => {
-  const w = settings[member.guild.id]?.welcome;
+  const s = settings[member.guild.id];
+  if (await handleGuildGuardJoin(member, s?.guildGuard, record)) return;
+  await handleAutomationJoin(member, s, record).catch(() => record("automation_error"));
+  const w = s?.welcome;
   if (!w?.enabled || !w.channelId) return;
   const channel = await member.guild.channels.fetch(w.channelId).catch(() => null);
   if (channel?.isTextBased()) {
@@ -225,7 +244,15 @@ client.on("voiceStateUpdate", (oldState, newState) => {
   handleLeashVoiceState(oldState, newState)
     .then((moved) => { if (moved) record("dog_voice_returned"); })
     .catch(() => record("dog_voice_error"));
+  void handleVoiceV2State(oldState, newState, settings[newState.guild?.id ?? oldState.guild?.id], record)
+    .catch(() => record("temp_voice_error"));
 });
+
+client.on("channelDelete", (channel) => {
+  forgetTempVoice(channel.id);
+  handleTicketChannelDelete(channel, record);
+});
+client.on("guildDelete", (guild) => { forgetGuildTempVoices(guild.id); });
 
 async function reconcileDogLeashes() {
   try {
@@ -272,6 +299,7 @@ client.once("ready", () => {
 client.on("shardDisconnect", () => { record("disconnected"); void reportStatus(); });
 client.on("shardReconnecting", () => { record("reconnecting"); void reportStatus(); });
 client.on("shardResume", () => { record("connected"); void reportStatus(); void reconcileDogLeashes(); });
+client.on("guildCreate", (guild) => { void handleGuildCreate(guild, ALLOWED_GUILDS, record); });
 client.on("error", () => record("gateway_error"));
 client.on("shardError", () => record("gateway_error"));
 
@@ -443,6 +471,24 @@ client.on("interactionCreate", (interaction) => {
     })) return;
 
     if (await handleCoreSlashInteraction(interaction)) return;
+    if (await handleGuildGuardInteraction(interaction, settings[interaction.guildId], {
+      apiUrl: API,
+      secret: BOT_SYNC_SECRET,
+      record,
+    })) return;
+    if (await handleModerationInteraction(interaction, settings[interaction.guildId])) return;
+    if (await handleVoiceV2Interaction(interaction, settings[interaction.guildId])) return;
+    if (await handleGamesInteraction(interaction, settings[interaction.guildId], record)) return;
+    if (await handleTicketsInteraction(interaction, settings[interaction.guildId], {
+      apiUrl: API,
+      secret: BOT_SYNC_SECRET,
+      record,
+    })) return;
+    if (await handleAutomationInteraction(interaction, settings[interaction.guildId], {
+      apiUrl: API,
+      secret: BOT_SYNC_SECRET,
+      record,
+    })) return;
     if (await handleV4SlashInteraction(interaction, settings[interaction.guildId])) return;
     if (await handleEconomyInteraction(interaction)) return;
     if (await handleMusicInteraction(interaction)) return;
@@ -463,4 +509,6 @@ client.on("interactionCreate", (interaction) => {
 await sync();
 setInterval(sync, 60_000);
 setInterval(reportStatus, 20_000);
+startGamesScheduler(client, record);
+startAutomationScheduler(client, record);
 client.login(DISCORD_TOKEN).catch(() => { record("gateway_error"); process.exitCode = 1; });

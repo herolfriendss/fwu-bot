@@ -3,7 +3,7 @@ import { queryOptions, useQuery, useQueryClient, useSuspenseQuery } from "@tanst
 import { useServerFn } from "@tanstack/react-start";
 import { useState } from "react";
 import { toast } from "sonner";
-import { ArrowLeft, ArrowUpRight, Bot, Hash, Megaphone, Shield, Users, Trash2, Plus, Volume2, Folder, Save, BarChart3, Command, UserRoundCheck, Server, Activity, FileKey, Coins } from "lucide-react";
+import { ArrowLeft, ArrowUpRight, Bot, Hash, Megaphone, Shield, Users, Trash2, Plus, Volume2, Folder, Save, BarChart3, Command, UserRoundCheck, Server, Activity, FileKey, Coins, SlidersHorizontal } from "lucide-react";
 import { getOverview } from "@/lib/discord.functions";
 import { cn } from "@/lib/utils";
 import {
@@ -15,6 +15,7 @@ import { ServerAnalytics } from "@/components/ServerAnalytics";
 import { CommandManager } from "@/components/CommandManager";
 import { MembershipRequests } from "@/components/MembershipRequests";
 import { BotSettingsPanel } from "@/components/BotSettingsPanel";
+import { V4ModulesPanel } from "@/components/V4ModulesPanel";
 import { Button } from "@/components/ui/button";
 
 const overviewQuery = queryOptions({ queryKey: ["discord", "overview"], queryFn: () => getOverview(), staleTime: 60_000 });
@@ -49,6 +50,7 @@ const TABS = [
   { id: "moderation", label: "Modération", icon: Shield },
   { id: "annonces", label: "Annonces", icon: Megaphone },
   { id: "bot", label: "Bot 24h/24", icon: Server },
+  { id: "modules", label: "Modules V4", icon: SlidersHorizontal },
   { id: "commandes", label: "Commandes", icon: Command },
   { id: "adhesions", label: "Adhésions", icon: UserRoundCheck },
 ] as const;
@@ -120,7 +122,7 @@ function Config() {
           <div className="mt-10 hidden border-t border-border px-3 pt-5 md:block"><p className="flex items-center gap-2 text-xs text-muted-foreground"><Shield className="h-3.5 w-3.5 text-primary" /> Accès propriétaire</p></div>
         </nav>
         <main className="console-main min-w-0">
-          <div className="mb-8 flex items-center justify-between gap-4 border-b border-border pb-6"><div><p className="mb-2 font-mono text-[10px] uppercase tracking-widest text-muted-foreground">Configuration / {TABS.find((t) => t.id === tab)?.label}</p><h2 className="text-2xl font-semibold">{TABS.find((t) => t.id === tab)?.label}</h2></div><span className="hidden font-mono text-xs text-muted-foreground sm:block">{String(TABS.findIndex((t) => t.id === tab) + 1).padStart(2, "0")} / 09</span></div>
+          <div className="mb-8 flex items-center justify-between gap-4 border-b border-border pb-6"><div><p className="mb-2 font-mono text-[10px] uppercase tracking-widest text-muted-foreground">Configuration / {TABS.find((t) => t.id === tab)?.label}</p><h2 className="text-2xl font-semibold">{TABS.find((t) => t.id === tab)?.label}</h2></div><span className="hidden font-mono text-xs text-muted-foreground sm:block">{String(TABS.findIndex((t) => t.id === tab) + 1).padStart(2, "0")} / {String(TABS.length).padStart(2, "0")}</span></div>
           <div key={`${tab}-${guildId}`} className="console-content space-y-4">
           {tab === "profil" && <Profile name={data.bot.username} guildId={guildId} />}
           {tab !== "profil" && !guildId && <p className="text-muted-foreground">Le bot n'est sur aucun serveur.</p>}
@@ -132,6 +134,7 @@ function Config() {
           {admin.data && tab === "moderation" && <Moderation guildId={guildId} admin={admin.data} />}
           {admin.data && tab === "annonces" && <Announce channels={admin.data.channels} />}
           {admin.data && tab === "bot" && <BotSettingsPanel key={guildId} guildId={guildId} channels={admin.data.channels.filter((c) => c.type === 0 || c.type === 5)} />}
+          {admin.data && tab === "modules" && <V4ModulesPanel key={guildId} guildId={guildId} channels={admin.data.channels} roles={admin.data.roles} />}
           {tab === "commandes" && <CommandManager guildId={guildId} />}
           {tab === "adhesions" && guildId && <MembershipRequests guildId={guildId} />}
           </div>

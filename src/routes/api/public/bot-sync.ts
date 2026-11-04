@@ -16,7 +16,7 @@ export const Route = createFileRoute("/api/public/bot-sync")({
       POST: async ({ request }) => {
         const { checkBotSecret } = await import("@/lib/bot-settings.server");
         if (!checkBotSecret(request)) return json({ error: "unauthorized" }, 401);
-        let body: { action?: unknown; guildId?: unknown; roleId?: unknown; actorId?: unknown; applicationId?: unknown; name?: unknown; permissions?: unknown; prompt?: unknown; instructions?: unknown; author?: unknown };
+        let body: { action?: unknown; guildId?: unknown; roleId?: unknown; actorId?: unknown; applicationId?: unknown; name?: unknown; permissions?: unknown; prompt?: unknown; instructions?: unknown; author?: unknown; module?: unknown; settings?: unknown };
         try {
           body = await request.json();
         } catch {
@@ -51,6 +51,22 @@ export const Route = createFileRoute("/api/public/bot-sync")({
           // after it has already been persisted merely because optional audit
           // storage is unavailable (for example, before the audit migration).
           return json({ ok: true, auditRecorded });
+        }
+        if (body.action === "module-settings") {
+          // Module configuration changed from a Discord slash command. The
+          // dashboard remains the source of truth: validate, merge with the
+          // current settings and return the sanitized object for the bot cache.
+          const module = String(body.module ?? "");
+          const modules = new Set(["guildGuard", "moderation", "verification", "tickets", "tempVoice", "automation"]);
+          const guildId = String(body.guildId ?? "");
+          if (!modules.has(module) || !isDiscordSnowflake(guildId)) return json({ error: "invalid module" }, 400);
+          if (JSON.stringify(body.settings ?? {}).length > 100_000) return json({ error: "settings too large" }, 413);
+          const { readBotSettings, writeBotSettings } = await import("@/lib/bot-settings.server");
+          const { sanitizeSettings } = await import("@/lib/bot-settings");
+          const current = await readBotSettings(guildId);
+          const next = sanitizeSettings({ ...current, [module]: body.settings });
+          const saved = await writeBotSettings(guildId, next);
+          return json({ ok: true, settings: saved });
         }
         if (body.action === "custom-command") {
           // The gateway bot may receive a command created from the dashboard.

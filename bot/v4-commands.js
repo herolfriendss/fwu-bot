@@ -11,6 +11,8 @@ import { handleEconomyMessage } from "./economy.js";
 import { handleDogCommand } from "./dog-commands.js";
 import { handleVoiceMessage } from "./voice-commands.js";
 import { handleMusicMessage, handleRadioMessage } from "./music/music.js";
+import { handleSocialMessage } from "./social.js";
+import { handleCardsMessage } from "./cards.js";
 
 const emptyMentions = () => ({ users: [], members: [], roles: [], channels: [] });
 
@@ -67,6 +69,26 @@ function buildPlan(interaction) {
     }
     case "daily":
       return { handler: "economy", content: "=daily", mentions };
+    case "work":
+      return { handler: "economy", content: "=work", mentions };
+    case "bank": {
+      const subcommand = options.getSubcommand();
+      if (subcommand === "solde") return { handler: "economy", content: "=bank solde", mentions };
+      const amount = options.getInteger("montant", true);
+      return { handler: "economy", content: `=bank ${subcommand} ${amount}`, mentions, ephemeral: true };
+    }
+    case "history":
+      return { handler: "economy", content: "=history", mentions, ephemeral: true };
+    case "rob": {
+      const user = options.getUser("membre", true);
+      return userPlan(`=rob <@${user.id}>`, user, { handler: "economy", ephemeral: true });
+    }
+    case "lottery": {
+      const subcommand = options.getSubcommand();
+      if (subcommand === "buy") return { handler: "economy", content: `=lottery buy ${options.getInteger("nombre", true)}`, mentions, ephemeral: true };
+      if (subcommand === "draw") return { handler: "economy", content: "=lottery draw", mentions, ephemeral: true };
+      return { handler: "economy", content: "=lottery info", mentions, ephemeral: true };
+    }
     case "pay": {
       const user = options.getUser("membre", true);
       const amount = options.getInteger("montant", true);
@@ -108,6 +130,47 @@ function buildPlan(interaction) {
     case "blackjack": {
       const bet = options.getInteger("mise", true);
       return { handler: "economy", content: `=blackjack ${bet}`, mentions };
+    }
+
+    // ── Social ───────────────────────────────────────────────────────────────
+    case "profil": {
+      const user = options.getUser("membre");
+      if (!user) return { handler: "social", content: "=profil", mentions };
+      return userPlan(`=profil <@${user.id}>`, user, { handler: "social" });
+    }
+    case "bio":
+      return { handler: "social", content: `=bio ${options.getString("texte", true)}`, mentions, ephemeral: true };
+    case "rep": {
+      const user = options.getUser("membre", true);
+      const reason = options.getString("raison");
+      return userPlan(`=rep <@${user.id}>${reason ? ` ${reason}` : ""}`, user, { handler: "social" });
+    }
+    case "toprep":
+      return { handler: "social", content: "=toprep", mentions };
+    case "color":
+      return { handler: "social", content: `=color ${options.getString("couleur", true)}`, mentions, ephemeral: true };
+
+    // ── Cartes ───────────────────────────────────────────────────────────────
+    case "cards": {
+      const user = options.getUser("membre");
+      if (!user) return { handler: "cards", content: "=cards", mentions };
+      return userPlan(`=cards <@${user.id}>`, user, { handler: "cards" });
+    }
+    case "card":
+      return { handler: "cards", content: `=card ${options.getString("carte", true)}`, mentions, ephemeral: true };
+    case "pack":
+      return { handler: "cards", content: "=pack", mentions };
+    case "trade": {
+      const subcommand = options.getSubcommand();
+      if (subcommand === "proposer") {
+        const user = options.getUser("membre", true);
+        const offer = options.getString("offre", true);
+        const request = options.getString("demande", true);
+        return userPlan(`=trade propose <@${user.id}> ${offer} ${request}`, user, { handler: "cards" });
+      }
+      if (subcommand === "accepter") return { handler: "cards", content: `=trade accept ${options.getString("id", true)}`, mentions, ephemeral: true };
+      if (subcommand === "annuler") return { handler: "cards", content: `=trade cancel ${options.getString("id", true)}`, mentions, ephemeral: true };
+      return { handler: "cards", content: "=trades", mentions, ephemeral: true };
     }
 
     // ── DOG ─────────────────────────────────────────────────────────────────
@@ -226,6 +289,8 @@ export async function handleV4SlashInteraction(interaction, guildSettings = null
     else if (plan.handler === "voice") handled = await handleVoiceMessage(message, guildSettings?.voiceAccess);
     else if (plan.handler === "music") handled = await handleMusicMessage(message);
     else if (plan.handler === "radio") handled = await handleRadioMessage(message);
+    else if (plan.handler === "social") handled = await handleSocialMessage(message);
+    else if (plan.handler === "cards") handled = await handleCardsMessage(message);
 
     if (!handled) await message.reply("Cette commande n’est pas disponible pour le moment.");
   } catch (error) {
