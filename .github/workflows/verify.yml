@@ -33,4 +33,4 @@ jobs:
       - name: Run bot tests
         run: npm --prefix bot test
       - name: Lint
-        run: npx eslint . --rule "prettier/prettier: off"
+        run: 'npx eslint . --rule "prettier/prettier: off"'
