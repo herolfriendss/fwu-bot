@@ -60,7 +60,8 @@ export async function discord<T>(path: string, init?: RequestInit): Promise<T> {
         const body = (await res.json()) as { retry_after?: number };
         if (body.retry_after) wait = body.retry_after;
       } catch {
-        // Discord may return an empty/non-JSON body with a 429 response.
+        // Keep the retry-after header value when the response body is not JSON.
+        wait = Number(res.headers.get("retry-after")) || wait;
       }
       await new Promise((resolve) =>
         setTimeout(resolve, Math.min(wait, 10) * 1000 + 100),
