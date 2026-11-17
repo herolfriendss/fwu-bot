@@ -1,6 +1,8 @@
-# Her? V4 — processus Discord
+# PND Assist V5 — processus Discord
 
-Nécessite Node.js 24 LTS. Le bot synchronise les réglages depuis le dashboard, applique DOG/vocal/modération, lit YouTube, répond aux commandes slash et conserve le portefeuille PND dans `data/economy.sqlite`.
+Le bot est privé et doit rester limité au serveur principal PND. Le serveur MZ est hors périmètre.
+
+Nécessite Node.js 24 LTS. Le bot synchronise les réglages depuis le dashboard, applique DOG/vocal/modération, lit YouTube, répond aux commandes slash et conserve le portefeuille PND dans `data/economy.sqlite`. `PND_ALLOWED_GUILD_ID` est obligatoire : indique l’identifiant Discord du serveur PND principal. Sans cet identifiant valide, le processus refuse de démarrer. Tout autre serveur est quitté, y compris ceux présents lors d’un redémarrage.
 
 ## Installation isolée
 
@@ -8,7 +10,7 @@ Nécessite Node.js 24 LTS. Le bot synchronise les réglages depuis le dashboard,
 npm install
 cp .env.example .env
 chmod 600 .env
-# renseigner DISCORD_TOKEN, SITE_URL et BOT_SYNC_SECRET
+# renseigner DISCORD_TOKEN, SITE_URL, BOT_SYNC_SECRET et PND_ALLOWED_GUILD_ID
 npm start
 ```
 
