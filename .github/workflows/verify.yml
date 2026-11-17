@@ -33,6 +33,6 @@ jobs:
       - name: Run bot tests
         run: npm --prefix bot test
       - name: Lint changed bot security files
-        run: npx eslint bot/index.js bot/guild-guard.js bot/guild-guard.test.js --rule "prettier/prettier: off"
+        run: npx eslint bot/index.js bot/guild-guard.js bot/guild-guard.test.js bot/dog-commands.js bot/dog-hierarchy-policy.js bot/dog-hierarchy-policy.test.js --rule "prettier/prettier: off"
       - name: Check bot JavaScript syntax
-        run: node --check bot/index.js && node --check bot/guild-guard.js && node --check bot/voice-access-requests.js && node --check bot/voice-access-request-policy.js
+        run: node --check bot/index.js && node --check bot/guild-guard.js && node --check bot/dog-commands.js && node --check bot/dog-hierarchy-policy.js && node --check bot/voice-access-requests.js && node --check bot/voice-access-request-policy.js
