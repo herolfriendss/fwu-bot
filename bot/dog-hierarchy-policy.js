@@ -37,7 +37,7 @@ export function canRemoveDogLeash(member, guildOwnerId, sysPlusRoleId) {
   if (!member?.id) return false;
   if (member.id === guildOwnerId) return true;
   return typeof sysPlusRoleId === "string"
-    && /^\\d{5,25}$/.test(sysPlusRoleId)
+    && /^\d{5,25}$/.test(sysPlusRoleId)
     && sysPlusRoleId !== member.guild?.id
     && Boolean(member.roles?.cache?.has(sysPlusRoleId));
 }
