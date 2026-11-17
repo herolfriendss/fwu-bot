@@ -32,6 +32,15 @@ Le bot enregistre les commandes au démarrage en fusionnant chaque définition (
 
 Les commandes préfixées `=` restent disponibles pendant la transition et partagent exactement la même logique métier.
 
+Les commandes de modération préfixées utilisent les mêmes rôles staff autorisés, la même hiérarchie et les mêmes protections Protect que les commandes slash :
+
+- `=warn @membre raison` et `=warnings [@membre]`
+- `=mute @membre 10m raison` et `=unmute @membre raison` (durée acceptée : minutes, heures ou jours, maximum 28 jours)
+- `=kick @membre raison` et `=ban @membre raison`
+- `=clear 1-100` (alias `=purge`), `=slowmode 0-21600`, `=lock` et `=unlock`
+
+Les sanctions sur un membre protégé restent bloquées et déclenchent exactement le compteur Protect ; les commandes de gestion des salons exigent les permissions correspondantes sur le membre et sur le bot.
+
 ## Export de l’économie
 
 ```bash
