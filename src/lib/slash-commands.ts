@@ -150,6 +150,12 @@ export const SLASH_COMMANDS: SlashCommandDef[] = [
       ]),
       sub("reset", "Désactive la protection par rôle"),
       sub("status", "Affiche la configuration Protect"),
+      sub("strikes", "Consulte les infractions Protect d’un modérateur", [
+        opt(6, "membre", "Modérateur à consulter"),
+      ]),
+      sub("reset-strikes", "Réinitialise les infractions Protect d’un modérateur", [
+        opt(6, "membre", "Modérateur concerné (par défaut : toi)"),
+      ]),
     ],
   },
   {
