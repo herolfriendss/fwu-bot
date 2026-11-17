@@ -182,6 +182,16 @@ function buildPlan(interaction) {
       const user = options.getUser("membre", true);
       return userPlan(`=undog <@${user.id}>`, user, { handler: "dog", ephemeral: true });
     }
+    case "rank": {
+      const user = options.getUser("membre", true);
+      const role = options.getRole("role", true);
+      return {
+        handler: "dog",
+        content: `=rank <@${user.id}> <@&${role.id}>`,
+        mentions: { ...emptyMentions(), users: [user], members: [user], roles: [role] },
+        ephemeral: true,
+      };
+    }
     case "doginfo": {
       const user = options.getUser("membre", true);
       return userPlan(`=doginfo <@${user.id}>`, user, { handler: "dog", ephemeral: true });
