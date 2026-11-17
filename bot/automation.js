@@ -3,7 +3,7 @@ import { EmbedBuilder, PermissionFlagsBits } from "discord.js";
 import { db } from "./database.js";
 import { updateModuleSettings } from "./module-settings.js";
 import {
-  clampInterval, isDue, nextRunAt, renderAutomation, sanitizeAutomationContent,
+  clampInterval, isDue, nextRunAt, normalizeAllowedGuildIds, renderAutomation, sanitizeAutomationContent,
 } from "./automation-policy.js";
 
 const P = PermissionFlagsBits;
@@ -52,9 +52,7 @@ export async function handleAutomationJoin(member, settings, record = () => {}) 
 }
 
 export function runAutomationTick(client, record = () => {}, allowedGuildIds = []) {
-  const guildIds = [...new Set(
-    (Array.isArray(allowedGuildIds) ? allowedGuildIds : []).filter((id) => typeof id === "string" && /^\\d{5,25}$/.test(id)),
-  )];
+  const guildIds = normalizeAllowedGuildIds(allowedGuildIds);
   if (!guildIds.length) return 0;
   const placeholders = guildIds.map(() => "?").join(",");
   const due = db.prepare(`SELECT * FROM automation_messages WHERE enabled=1 AND next_run_at<=? AND guild_id IN (${placeholders}) ORDER BY next_run_at ASC LIMIT 20`).all(Date.now(), ...guildIds);
