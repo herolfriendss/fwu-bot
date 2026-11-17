@@ -22,7 +22,7 @@ Le bot enregistre les commandes au démarrage en fusionnant chaque définition (
 
 - Économie : `/balance [membre]`, `/daily`, `/pay membre montant`, `/leaderboard`, `/shop voir|ajouter|retirer`, `/buy rôle`, `/inventory`, `/pnd ajouter|retirer|definir`.
 - Jeux : `/roulette mise choix`, `/blackjack mise` puis boutons **Tirer** / **Rester**.
-- DOG : `/dog membre`, `/undog membre`, `/doginfo membre`.
+- DOG : `/dog membre`, `/undog membre`, `/doginfo membre`. `/dog` et `/undog` (ainsi que `=dog` / `=undog`) exigent que le rôle le plus élevé de l’exécutant soit strictement supérieur à celui de la cible ; les membres de même rang ou plus élevés sont protégés. Le propriétaire du serveur reste l’exception. Le rôle technique DOG est ignoré dans ce calcul afin que la laisse puisse être retirée. Le rôle le plus élevé du bot doit lui aussi rester supérieur à celui de la cible.
 - Vocal : `/access membre`, `/unaccess membre`, `/panel`, `/pv`.
 - Demandes d’accès : `/voice-request-panel` publie un bouton dans le chat du vocal ou dans un salon textuel général. Le demandeur indique le salon (nom exact, ID ou lien) depuis le panneau général ; si le chat du vocal est visible avec Voir le salon, Envoyer des messages et Lire l’historique, la demande y est publiée directement. Publie le panneau dans le chat du salon vocal pour une demande ciblée, ou dans un salon textuel accessible à tous comme entrée générale pour les salons cachés. Le propriétaire, les administrateurs, les membres ayant Gérer les salons ou le rôle SYS+ peuvent approuver/refuser. Les demandes expirent après 24 h et sont conservées en SQLite.
 - Musique : `/play`, `/pause`, `/resume`, `/skip`, `/queue`, `/volume`, `/loop`, etc. File limitée à 100 titres et cooldown utilisateur.
