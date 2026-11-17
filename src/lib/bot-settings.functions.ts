@@ -1,6 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireOwner, snowflake } from "./discord.server";
-import { sanitizeSettings, type BotSettings } from "./bot-settings";
+import { sanitizeSettings, sanitizeSettingsForGuild, type BotSettings } from "./bot-settings";
 import { z } from "zod";
 import { prefixCommandFormSchema } from "./prefix-commands";
 
@@ -17,7 +17,8 @@ export const saveBotSettings = createServerFn({ method: "POST" })
   .handler(async ({ data }) => {
     await requireOwner();
     const { writeBotSettings } = await import("./bot-settings.server");
-    return writeBotSettings(data.guildId, data.settings);
+    const settings = sanitizeSettingsForGuild(data.settings, data.guildId);
+    return writeBotSettings(data.guildId, settings);
   });
 
 // Never return protected secret values to the browser.
