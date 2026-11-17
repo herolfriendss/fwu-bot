@@ -135,11 +135,13 @@ export async function enforceLeashNickname(member) {
 }
 
 /** Restore active DOG nicknames after the bot reconnects. */
-export async function reconcileLeashedMembers(client) {
+export async function reconcileLeashedMembers(client, allowedGuildIds = []) {
+  const allowed = new Set((Array.isArray(allowedGuildIds) ? allowedGuildIds : []).filter((id) => typeof id === "string" && /^\\d{5,25}$/.test(id)));
+  if (!allowed.size) return 0;
   const records = await loadState();
   let restored = 0;
   for (const record of Object.values(records)) {
-    if (!record || record.releasing || !record.guildId || !record.memberId) continue;
+    if (!record || record.releasing || !record.guildId || !allowed.has(record.guildId) || !record.memberId) continue;
     const guild = client.guilds.cache.get(record.guildId);
     if (!guild) continue;
     const member = await guild.members.fetch(record.memberId).catch(() => null);
