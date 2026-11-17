@@ -39,6 +39,8 @@ BOT_FILES = [
     "economy-policy.d.ts",
     "moderation.js",
     "moderation-policy.js",
+    "moderation-protection-policy.js",
+    "moderation-protection-policy.test.js",
     "moderation-policy.d.ts",
     "guild-guard.js",
     "guild-guard-policy.js",
