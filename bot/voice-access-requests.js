@@ -16,6 +16,7 @@ import {
   isVoiceAccessRequestExpired,
   parseVoiceChannelId,
   VOICE_ACCESS_REQUEST_TTL,
+  voiceAccessGrantPermissions,
 } from "./voice-access-request-policy.js";
 
 const pendingDecision = new Set();
@@ -252,7 +253,7 @@ async function decideRequest(interaction, settings, action, requestId) {
       if (!channel.permissionsFor(botMember)?.has(PermissionFlagsBits.ManageChannels)) {
         throw new Error("Le bot n’a pas la permission « Gérer les salons » dans ce vocal.");
       }
-      await channel.permissionOverwrites.edit(request.requester_id, { Connect: true }, {
+      await channel.permissionOverwrites.edit(request.requester_id, voiceAccessGrantPermissions(), {
         reason: `Demande d’accès vocal #${id} approuvée par ${interaction.user.tag}`,
       });
     }
