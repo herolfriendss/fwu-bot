@@ -7,7 +7,7 @@ Nécessite Node.js 24 LTS. Le bot synchronise les réglages depuis le dashboard,
 ## Installation isolée
 
 ```bash
-npm install
+npm ci
 cp .env.example .env
 chmod 600 .env
 # renseigner DISCORD_TOKEN, SITE_URL, BOT_SYNC_SECRET et PND_ALLOWED_GUILD_ID
