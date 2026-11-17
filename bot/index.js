@@ -8,7 +8,7 @@ const sharedSlashCommands = new URL("../src/lib/slash-commands.ts", import.meta.
 const localSlashCommands = new URL("./slash-commands.ts", import.meta.url);
 const slashCommandsModule = await import((existsSync(sharedSlashCommands) ? sharedSlashCommands : localSlashCommands).href);
 const { SLASH_COMMANDS, slashCommandsByCategory, toDiscordCommand } = slashCommandsModule;
-import { resolvePrefixCommand } from "./prefix-commands.js";
+import { normalizePrefixAlias, resolvePrefixCommand } from "./prefix-commands.js";
 import { handleVoiceMessage, handleVoiceInteraction } from "./voice-commands.js";
 import { handleAntiMoveInteraction, handleAntiMoveMessage, handleAntiMoveVoiceState } from "./anti-move.js";
 import { handleVoiceAccessRequestInteraction } from "./voice-access-requests.js";
