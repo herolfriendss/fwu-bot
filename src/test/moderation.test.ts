@@ -16,13 +16,14 @@ const base = {
 };
 
 describe("moderation policy", () => {
-  it("parses human durations with a bounded fallback", () => {
+  it("accepts valid human durations and rejects invalid or over-limit values", () => {
     expect(parseDuration("10m")).toBe(10);
     expect(parseDuration("2h")).toBe(120);
     expect(parseDuration("1d")).toBe(1440);
-    expect(parseDuration("30s")).toBe(1);
-    expect(parseDuration("nope", 15)).toBe(15);
-    expect(parseDuration("99999d")).toBe(10_080);
+    expect(parseDuration("28d")).toBe(40_320);
+    expect(parseDuration("30s")).toBeNull();
+    expect(parseDuration("nope")).toBeNull();
+    expect(parseDuration("99999d")).toBeNull();
     expect(formatDuration(120)).toBe("2 h");
     expect(formatDuration(1440)).toBe("1 j");
   });
