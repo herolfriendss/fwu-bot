@@ -4,6 +4,7 @@ import {
   canRequestFromVoiceChat,
   isDiscordSnowflake,
   isVoiceAccessRequestExpired,
+  matchesVoiceAccessRequestMessage,
   parseVoiceChannelId,
   VOICE_ACCESS_REQUEST_TTL,
   voiceAccessGrantPermissions,
@@ -47,4 +48,12 @@ test("approval grants only private-channel visibility and voice connection", () 
     ViewChannel: true,
     Connect: true,
   });
+});
+
+
+test("approval buttons must match the persisted request message", () => {
+  assert.equal(matchesVoiceAccessRequestMessage("12345678901234567", "12345678901234567"), true);
+  assert.equal(matchesVoiceAccessRequestMessage("12345678901234567", "12345678901234568"), false);
+  assert.equal(matchesVoiceAccessRequestMessage(null, "12345678901234567"), false);
+  assert.equal(matchesVoiceAccessRequestMessage("invalid", "12345678901234567"), false);
 });
