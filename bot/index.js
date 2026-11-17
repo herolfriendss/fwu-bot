@@ -34,9 +34,14 @@ const API = `${SITE_URL.replace(/\/$/, "")}/api/public/bot-sync`;
 const AUTH = { Authorization: `Bearer ${BOT_SYNC_SECRET}` };
 const STATUS_API = `${SITE_URL.replace(/\/$/, "")}/api/public/bot-status`;
 const ECONOMY_API = `${SITE_URL.replace(/\/$/, "")}/api/public/economy-snapshot`;
-// Optional isolation allowlist. Empty = accept every guild, but each guild's
-// data remains isolated by guild_id in SQLite and in bot_settings.
-const ALLOWED_GUILDS = parseGuildAllowlist(process.env.V4_ALLOWED_GUILD_IDS);
+// V5 is private to the PND server. Fail closed: the single PND guild ID must
+// be configured explicitly before the gateway process is allowed to start.
+const PND_GUILD_ID = String(process.env.PND_ALLOWED_GUILD_ID ?? "").trim();
+if (!/^\d{5,25}$/.test(PND_GUILD_ID)) {
+  console.error("❌ PND_ALLOWED_GUILD_ID doit contenir l’identifiant Discord du serveur PND.");
+  process.exit(1);
+}
+const ALLOWED_GUILDS = [PND_GUILD_ID];
 const startedAt = new Date().toISOString();
 let lastSync = null;
 const events = [];
@@ -161,17 +166,26 @@ client.on("messageCreate", async (msg) => {
       return;
     }
   }
-  try {
-    if (await handleDogCommand(msg)) return;
-    if (await handleRadioMessage(msg)) return;
-    if (await handleMusicMessage(msg)) return;
-    if (await handleVoiceMessage(msg, settings[msg.guild.id]?.voiceAccess)) return;
-    if (await handleEconomyMessage(msg)) return;
-    if (await handleSocialMessage(msg)) return;
-    if (await handleCardsMessage(msg)) return;
-    if (await handleGamesMessage(msg, record)) return;
-    if (await handleAutomationMessage(msg, s, { apiUrl: API, secret: BOT_SYNC_SECRET, record })) return;
-  } catch { record("voice_error"); return; }
+  if (!ALLOWED_GUILDS.includes(msg.guild.id)) return;
+  const handlers = [
+    ["dog", () => handleDogCommand(msg)],
+    ["radio", () => handleRadioMessage(msg)],
+    ["music", () => handleMusicMessage(msg)],
+    ["voice", () => handleVoiceMessage(msg, settings[msg.guild.id]?.voiceAccess)],
+    ["economy", () => handleEconomyMessage(msg)],
+    ["social", () => handleSocialMessage(msg)],
+    ["cards", () => handleCardsMessage(msg)],
+    ["games", () => handleGamesMessage(msg, record)],
+    ["automation", () => handleAutomationMessage(msg, s, { apiUrl: API, secret: BOT_SYNC_SECRET, record })],
+  ];
+  for (const [moduleName, handler] of handlers) {
+    try {
+      if (await handler()) return;
+    } catch {
+      record(`${moduleName}_error`);
+      return;
+    }
+  }
   if (!s) return;
   const text = msg.content.toLowerCase();
   const isMod = msg.member?.permissions.has(PermissionFlagsBits.ManageMessages);
@@ -219,6 +233,7 @@ client.on("messageCreate", async (msg) => {
 });
 
 client.on("guildMemberAdd", async (member) => {
+  if (!ALLOWED_GUILDS.includes(member.guild.id)) return;
   const s = settings[member.guild.id];
   if (await handleGuildGuardJoin(member, s?.guildGuard, record)) return;
   await handleAutomationJoin(member, s, record).catch(() => record("automation_error"));
@@ -231,6 +246,7 @@ client.on("guildMemberAdd", async (member) => {
 });
 
 client.on("guildMemberUpdate", (oldMember, newMember) => {
+  if (!ALLOWED_GUILDS.includes(newMember.guild.id)) return;
   const nicknameChanged = oldMember.nickname !== newMember.nickname;
   const rolesChanged = oldMember.roles.cache.size !== newMember.roles.cache.size
     || oldMember.roles.cache.some((role) => !newMember.roles.cache.has(role.id));
@@ -241,6 +257,8 @@ client.on("guildMemberUpdate", (oldMember, newMember) => {
 });
 
 client.on("voiceStateUpdate", (oldState, newState) => {
+  const guildId = newState.guild?.id ?? oldState.guild?.id;
+  if (!guildId || !ALLOWED_GUILDS.includes(guildId)) return;
   handleLeashVoiceState(oldState, newState)
     .then((moved) => { if (moved) record("dog_voice_returned"); })
     .catch(() => record("dog_voice_error"));
@@ -249,6 +267,7 @@ client.on("voiceStateUpdate", (oldState, newState) => {
 });
 
 client.on("channelDelete", (channel) => {
+  if (!channel.guildId || !ALLOWED_GUILDS.includes(channel.guildId)) return;
   forgetTempVoice(channel.id);
   handleTicketChannelDelete(channel, record);
 });
@@ -263,8 +282,15 @@ async function reconcileDogLeashes() {
   }
 }
 
-client.once("ready", () => {
+client.once("ready", async () => {
   record("connected");
+
+  // Remove any server that was already present when the gateway connected.
+  // This runs before telemetry, economy snapshots, schedulers or command setup.
+  const foreignGuilds = client.guilds.cache.filter((guild) => !ALLOWED_GUILDS.includes(guild.id));
+  for (const guild of foreignGuilds.values()) {
+    await handleGuildCreate(guild, ALLOWED_GUILDS, record);
+  }
 
   // Merge the V4 command surface one command at a time. A bulk PUT would wipe
   // commands created from the dashboard (custom commands) or by other tools.
@@ -463,6 +489,7 @@ async function handleSavedSlashCommand(interaction) {
 }
 
 client.on("interactionCreate", (interaction) => {
+  if (interaction.guildId && !ALLOWED_GUILDS.includes(interaction.guildId)) return;
   (async () => {
     if (await handleSysPlusInteraction(interaction, settings, {
       apiUrl: API,
