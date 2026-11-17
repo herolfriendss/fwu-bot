@@ -129,13 +129,27 @@ export const SLASH_COMMANDS: SlashCommandDef[] = [
     description: "Avertit un membre et enregistre la raison",
     usage: "/warn membre raison [expire]",
     category: "Modération",
-    defaultMemberPermissions: manageMessages,
     dmPermission: false,
     requiresBotProcess: true,
     options: [
       opt(6, "membre", "Membre à avertir", { required: true }),
       opt(3, "raison", "Raison de l’avertissement", { required: true, max_length: 300 }),
       opt(4, "expire", "Expiration en jours (0 = jamais)", { min_value: 0, max_value: 365 }),
+    ],
+  },
+  {
+    name: "protect",
+    description: "Configure le rôle personnel protégé contre les sanctions",
+    usage: "/protect role | reset | status",
+    category: "Modération",
+    dmPermission: false,
+    requiresBotProcess: true,
+    options: [
+      sub("role", "Définit le rôle Protect", [
+        opt(8, "role", "Rôle intouchable", { required: true }),
+      ]),
+      sub("reset", "Désactive la protection par rôle"),
+      sub("status", "Affiche la configuration Protect"),
     ],
   },
   {
@@ -152,7 +166,6 @@ export const SLASH_COMMANDS: SlashCommandDef[] = [
     description: "Met un membre en sourdine (timeout Discord)",
     usage: "/mute membre durée raison",
     category: "Modération",
-    defaultMemberPermissions: moderateMembers,
     dmPermission: false,
     requiresBotProcess: true,
     options: [
@@ -166,7 +179,6 @@ export const SLASH_COMMANDS: SlashCommandDef[] = [
     description: "Retire la sourdine d’un membre",
     usage: "/unmute membre [raison]",
     category: "Modération",
-    defaultMemberPermissions: moderateMembers,
     dmPermission: false,
     requiresBotProcess: true,
     options: [
@@ -179,7 +191,6 @@ export const SLASH_COMMANDS: SlashCommandDef[] = [
     description: "Expulse un membre du serveur",
     usage: "/kick membre raison",
     category: "Modération",
-    defaultMemberPermissions: kickMembers,
     dmPermission: false,
     requiresBotProcess: true,
     options: [
@@ -192,7 +203,6 @@ export const SLASH_COMMANDS: SlashCommandDef[] = [
     description: "Bannit un membre du serveur",
     usage: "/ban membre raison",
     category: "Modération",
-    defaultMemberPermissions: banMembers,
     dmPermission: false,
     requiresBotProcess: true,
     options: [
