@@ -178,3 +178,38 @@ export async function handleVoiceV2Interaction(interaction, guildSettings = {}) 
   }
   return true;
 }
+
+
+// Alias préfixé du contrôle des salons temporaires. Les opérations passent
+// par le même gestionnaire que /voc (propriétaire, staff et état SQLite).
+import { createPrefixInteraction } from "./prefix-interaction.js";
+
+export async function handleVoiceV2Message(message, guildSettings = {}) {
+  const parts = String(message.content ?? "").trim().split(/\s+/);
+  if ((parts[0] ?? "").toLowerCase() !== "=voc") return false;
+  const subcommand = (parts[1] ?? "panel").toLowerCase();
+  const args = parts.slice(2);
+  const values = {};
+
+  if (subcommand === "limit") {
+    const limit = Number(args[0]);
+    if (!Number.isInteger(limit) || limit < 0 || limit > 99) {
+      await message.reply("Utilisation : +voc limit <0-99> (0 = illimité).");
+      return true;
+    }
+    values.nombre = limit;
+  } else if (subcommand === "name") {
+    const name = args.join(" ").trim();
+    if (!name || name.length > 100) {
+      await message.reply("Utilisation : +voc name <nouveau nom> (100 caractères maximum).");
+      return true;
+    }
+    values.nom = name;
+  } else if (!["panel", "claim", "lock", "unlock", "delete"].includes(subcommand)) {
+    await message.reply("Vocal temporaire : +voc panel|limit <nombre>|name <nom>|claim|lock|unlock|delete.");
+    return true;
+  }
+
+  const interaction = createPrefixInteraction(message, "voc", subcommand, values);
+  return handleVoiceV2Interaction(interaction, guildSettings);
+}
