@@ -258,3 +258,52 @@ export function startSysPlusDmScheduler(client, allowedGuildIds, record = () => 
   }, DM_CAMPAIGN_DELAY_MS);
   dmWorkerTimer.unref?.();
 }
+
+
+// Préfixes de consentement, réveil vocal et campagnes. Le même moteur que les
+// commandes slash reste responsable des consentements, restrictions et quotas.
+import { createPrefixInteraction } from "../../prefix-interaction.js";
+
+export async function handleSysPlusBroadcastMessage(message, settings, options = {}) {
+  const parts = String(message.content ?? "").trim().split(/\s+/);
+  const command = (parts[0] ?? "").toLowerCase();
+  const supported = new Set([
+    "=wakeup", "=wakeup-optin", "=wakeup-optout", "=dm-optin", "=dm-optout",
+    "=dm-all", "=dm-all-confirm", "=dm-all-stop", "=dm-all-status",
+  ]);
+  if (!supported.has(command)) return false;
+
+  const commandName = command.slice(1);
+  const args = parts.slice(1);
+  const values = {};
+  if (commandName === "wakeup") {
+    const rawId = (args[0] ?? "").replace(/[<@!>]/g, "");
+    const target = message.mentions.users?.first?.()
+      ?? (rawId ? await message.guild?.members?.fetch(rawId).then((member) => member.user).catch(() => null) : null);
+    if (!target) {
+      await message.reply("Utilisation : +wakeup @membre (le membre doit avoir activé +wakeup-optin).");
+      return true;
+    }
+    values.membre = target;
+  } else if (commandName === "dm-all") {
+    const content = args.join(" ").trim();
+    if (!content || content.length > 1800) {
+      await message.reply("Utilisation : +dm-all <message de 1 à 1800 caractères>.");
+      return true;
+    }
+    values.message = content;
+  } else if (["dm-all-confirm", "dm-all-stop", "dm-all-status"].includes(commandName)) {
+    const id = Number(args[0]);
+    if (!Number.isSafeInteger(id) || id < 1) {
+      await message.reply("Utilisation : +" + commandName + " <identifiant de campagne>.");
+      return true;
+    }
+    values.id = id;
+  } else if (args.length) {
+    await message.reply("Cette commande ne prend aucun argument.");
+    return true;
+  }
+
+  const interaction = createPrefixInteraction(message, commandName, null, values);
+  return handleSysPlusBroadcastInteraction(interaction, settings, options);
+}
