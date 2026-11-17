@@ -400,7 +400,7 @@ function prefixTargetId(message, rawValue) {
   const mentioned = message.mentions?.members?.first?.()?.id
     ?? message.mentions?.users?.first?.()?.id;
   const raw = String(rawValue ?? "").trim();
-  const match = raw.match(/^(?:<@!?(\\d{5,25})>|(\\d{5,25}))$/);
+  const match = raw.match(/^(?:<@!?(\d{5,25})>|(\d{5,25}))$/);
   return mentioned ?? match?.[1] ?? match?.[2] ?? null;
 }
 
@@ -410,7 +410,7 @@ function prefixTargetId(message, rawValue) {
  */
 export async function handleModerationMessage(message, guildSettings = {}) {
   if (!message?.guild || !message.member) return false;
-  const parts = String(message.content ?? "").trim().split(/\\s+/);
+  const parts = String(message.content ?? "").trim().split(/\s+/);
   const command = parts[0]?.toLowerCase();
   if (!PREFIX_MODERATION_COMMANDS.has(command)) return false;
 
@@ -482,7 +482,7 @@ export async function handleModerationMessage(message, guildSettings = {}) {
         `• <t:${Math.floor(Number(warning.created_at) / 1000)}:d> — ${warning.reason} (par <@${warning.moderator_id}>)`,
       );
       await say(lines.length
-        ? `⚠️ **${rows.length} avertissement(s) actif(s) pour <@${targetId}>**\\n${lines.join("\\n")}`
+        ? `⚠️ **${rows.length} avertissement(s) actif(s) pour <@${targetId}>**\n${lines.join("\n")}`
         : `✅ Aucun avertissement actif pour <@${targetId}>.`);
       return true;
     }
@@ -497,8 +497,7 @@ export async function handleModerationMessage(message, guildSettings = {}) {
       throw new Error("Tu ne possèdes aucun rôle autorisé à utiliser les sanctions.");
     }
 
-    const reasonStart = command === "=mute" ? 3 : 2;
-    const reason = sanitizeReason(parts.slice(reasonStart).join(""));
+
 
     // Protect is deliberately checked before hierarchy: even a lower-ranked
     // authorized moderator receives a strike for attempting to sanction a protected member.
@@ -600,7 +599,7 @@ export async function handleModerationMessage(message, guildSettings = {}) {
     }
 
     if (command === "=mute") {
-      if (!/^\\d+\\s*(s|m|h|d|j)?$/i.test(parts[2] ?? "")) {
+      if (!/^\d+\s*(s|m|h|d|j)?$/i.test(parts[2] ?? "")) {
         throw new Error("Utilisation : =mute @membre 10m [raison]");
       }
       const minutes = parseDuration(parts[2], 10);
