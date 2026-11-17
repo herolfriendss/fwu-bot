@@ -217,6 +217,23 @@ export function sanitizeSettings(raw: unknown): BotSettings {
   };
 }
 
+/** Sanitizes role settings in the context of their guild, excluding @everyone. */
+export function sanitizeSettingsForGuild(input: unknown, guildId: string): BotSettings {
+  const settings = sanitizeSettings(input);
+  return {
+    ...settings,
+    sysPlus: {
+      roleId: settings.sysPlus.roleId === guildId ? null : settings.sysPlus.roleId,
+    },
+    moderation: {
+      ...settings.moderation,
+      protectRoleId: settings.moderation.protectRoleId === guildId ? null : settings.moderation.protectRoleId,
+      staffRoleIds: settings.moderation.staffRoleIds.filter((id) => id !== guildId),
+      untouchableRoleIds: settings.moderation.untouchableRoleIds.filter((id) => id !== guildId),
+    },
+  };
+}
+
 /** Returns the keyword reply for a message, or null. Exact = whole message; otherwise whole word/phrase match. */
 export function matchKeyword(rules: KeywordRule[], content: string): string | null {
   const text = content.toLowerCase().trim();
