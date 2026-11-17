@@ -101,3 +101,66 @@ export async function handleGuildGuardInteraction(interaction, guildSettings, { 
   await interaction.reply({ content: "Sous-commande GuildGuard inconnue.", ephemeral: true });
   return true;
 }
+
+
+// Alias préfixé des commandes GuildGuard : il délègue au même gestionnaire
+// que le slash pour conserver la validation et la sauvegarde communes.
+import { createPrefixInteraction } from "./prefix-interaction.js";
+
+export async function handleGuildGuardMessage(message, guildSettings, options) {
+  const parts = String(message.content ?? "").trim().split(/\s+/);
+  if ((parts[0] ?? "").toLowerCase() !== "=guildguard") return false;
+  const subcommand = (parts[1] ?? "status").toLowerCase();
+  const args = parts.slice(2);
+  const values = {};
+
+  if (subcommand === "account-age") {
+    const days = Number(args[0]);
+    if (!Number.isInteger(days) || days < 0 || days > 3650) {
+      await message.reply("Utilisation : +guildguard account-age <0-3650> (0 désactive le contrôle).");
+      return true;
+    }
+    values.jours = days;
+  } else if (subcommand === "raid") {
+    const connections = Number(args[0]);
+    const seconds = Number(args[1]);
+    if (!Number.isInteger(connections) || connections < 0 || connections > 1000
+      || !Number.isInteger(seconds) || seconds < 5 || seconds > 300) {
+      await message.reply("Utilisation : +guildguard raid <connexions 0-1000> <secondes 5-300>.");
+      return true;
+    }
+    values.connexions = connections;
+    values.secondes = seconds;
+  } else if (subcommand === "quarantine") {
+    const rawId = (args[0] ?? "").replace(/[<@&>]/g, "");
+    const role = message.mentions.roles?.first?.()
+      ?? (rawId ? message.guild?.roles?.cache?.get(rawId) : null);
+    if (!role) {
+      await message.reply("Utilisation : +guildguard quarantine @Rôle.");
+      return true;
+    }
+    values.role = role;
+  } else if (subcommand === "log") {
+    const rawId = (args[0] ?? "").replace(/[<#>]/g, "");
+    const channel = message.mentions.channels?.first?.()
+      ?? (rawId ? message.guild?.channels?.cache?.get(rawId) : null);
+    if (!channel) {
+      await message.reply("Utilisation : +guildguard log #salon.");
+      return true;
+    }
+    values.salon = channel;
+  } else if (subcommand === "lockdown") {
+    const state = (args[0] ?? "").toLowerCase();
+    if (!["on", "off"].includes(state)) {
+      await message.reply("Utilisation : +guildguard lockdown on|off.");
+      return true;
+    }
+    values.etat = state;
+  } else if (!["status", "enable", "disable"].includes(subcommand)) {
+    await message.reply("GuildGuard : status, enable, disable, account-age <jours>, raid <connexions> <secondes>, quarantine @rôle, log #salon, lockdown on|off.");
+    return true;
+  }
+
+  const interaction = createPrefixInteraction(message, "guildguard", subcommand, values);
+  return handleGuildGuardInteraction(interaction, guildSettings, options);
+}
