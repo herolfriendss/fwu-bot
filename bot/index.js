@@ -12,6 +12,7 @@ import { resolvePrefixCommand } from "./prefix-commands.js";
 import { handleVoiceMessage, handleVoiceInteraction } from "./voice-commands.js";
 import { handleVoiceAccessRequestInteraction } from "./voice-access-requests.js";
 import { handleSysPlusMessage, handleSysPlusInteraction } from "./systems/sysplus/commands.js";
+import { handleSysPlusBroadcastInteraction, startSysPlusDmScheduler } from "./systems/sysplus/broadcast.js";
 import { enforceLeashNickname, handleDogCommand, handleLeashVoiceState, reconcileLeashedMembers } from "./dog-commands.js";
 import { handleMusicMessage, handleMusicInteraction, handleRadioMessage, startConfiguredRadios } from "./music/music.js";
 import { economySnapshot, handleEconomyMessage, handleEconomyInteraction, recoverBlackjackGames } from "./economy.js";
@@ -540,6 +541,8 @@ client.on("interactionCreate", (interaction) => {
       record,
     })) return;
 
+    if (await handleSysPlusBroadcastInteraction(interaction, settings[interaction.guildId], { record })) return;
+
     if (await handleCoreSlashInteraction(interaction)) return;
     if (await handleGuildGuardInteraction(interaction, settings[interaction.guildId], {
       apiUrl: API,
@@ -581,4 +584,5 @@ setInterval(sync, 60_000);
 setInterval(reportStatus, 20_000);
 startGamesScheduler(client, record, ALLOWED_GUILDS);
 startAutomationScheduler(client, record, ALLOWED_GUILDS);
+startSysPlusDmScheduler(client, ALLOWED_GUILDS, record);
 client.login(DISCORD_TOKEN).catch(() => { record("gateway_error"); process.exitCode = 1; });
