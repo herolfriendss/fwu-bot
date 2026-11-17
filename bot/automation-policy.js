@@ -3,6 +3,11 @@ export const AUTOMATION_MIN_INTERVAL = 5;
 export const AUTOMATION_MAX_INTERVAL = 10_080;
 export const AUTOMATION_MAX_CONTENT = 2_000;
 
+export function normalizeAllowedGuildIds(value) {
+  if (!Array.isArray(value)) return [];
+  return [...new Set(value.filter((id) => typeof id === "string" && /^\d{5,25}$/.test(id)))];
+}
+
 export function clampInterval(raw) {
   const value = Math.floor(Number(raw));
   if (!Number.isFinite(value)) return AUTOMATION_MIN_INTERVAL;
