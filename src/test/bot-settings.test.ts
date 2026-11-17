@@ -18,6 +18,22 @@ describe("bot settings", () => {
     expect(settings.moderation.staffRoleIds).toEqual(["1234567890124"]);
     expect(settings.moderation.untouchableRoleIds).toEqual(["1234567890125"]);
   });
+  it("rejects @everyone from every configurable role field", () => {
+    const guildId = "1234567890123";
+    const validRoleId = "1234567890124";
+    const settings = sanitizeSettingsForGuild({
+      guildGuard: { quarantineRoleId: guildId },
+      verification: { roleId: guildId },
+      tickets: { supportRoleId: guildId },
+      automation: { autoRoleIds: [guildId, validRoleId] },
+    }, guildId);
+
+    expect(settings.guildGuard.quarantineRoleId).toBeNull();
+    expect(settings.verification.roleId).toBeNull();
+    expect(settings.tickets.supportRoleId).toBeNull();
+    expect(settings.automation.autoRoleIds).toEqual([validRoleId]);
+  });
+
   it("syncs separate role restrictions for =panel and =pv", () => {
     expect(sanitizeSettings({ voiceAccess: { panelRoleIds: ["11111"], pvRoleIds: ["22222"] } }).voiceAccess).toEqual({ panelRoleIds: ["11111"], pvRoleIds: ["22222"] });
     expect(sanitizeSettings({}).voiceAccess).toEqual({ panelRoleIds: null, pvRoleIds: null });
