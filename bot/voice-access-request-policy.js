@@ -1,4 +1,5 @@
 export const VOICE_ACCESS_REQUEST_TTL = 24 * 60 * 60 * 1000;
+export const MAX_PENDING_VOICE_ACCESS_REQUESTS = 3;
 const SNOWFLAKE = /^\d{5,25}$/;
 const VOICE_CHAT_REQUEST_PERMISSIONS = (1n << 10n) | (1n << 11n) | (1n << 16n);
 
