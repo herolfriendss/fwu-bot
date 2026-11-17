@@ -183,6 +183,29 @@ db.exec(`
     PRIMARY KEY (campaign_id,user_id)
   );
   CREATE INDEX IF NOT EXISTS sysplus_dm_campaign_recipients_status_idx ON sysplus_dm_campaign_recipients(campaign_id,status);
+
+  -- ANTI-MOVE individuel SYS+ : préférences par membre, whitelist et historique borné.
+  CREATE TABLE IF NOT EXISTS sysplus_anti_move_preferences (
+    guild_id TEXT NOT NULL, user_id TEXT NOT NULL,
+    enabled INTEGER NOT NULL DEFAULT 0 CHECK(enabled IN (0,1)),
+    updated_at INTEGER NOT NULL,
+    PRIMARY KEY (guild_id,user_id)
+  );
+  CREATE TABLE IF NOT EXISTS sysplus_anti_move_config (
+    guild_id TEXT PRIMARY KEY, enabled INTEGER NOT NULL DEFAULT 1 CHECK(enabled IN (0,1)),
+    updated_by TEXT NOT NULL, updated_at INTEGER NOT NULL
+  );
+  CREATE TABLE IF NOT EXISTS sysplus_anti_move_whitelist (
+    guild_id TEXT NOT NULL, protected_user_id TEXT NOT NULL, allowed_actor_id TEXT NOT NULL,
+    created_by TEXT NOT NULL, created_at INTEGER NOT NULL,
+    PRIMARY KEY (guild_id,protected_user_id,allowed_actor_id)
+  );
+  CREATE TABLE IF NOT EXISTS sysplus_anti_move_logs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT, guild_id TEXT NOT NULL,
+    protected_user_id TEXT NOT NULL, actor_id TEXT, from_channel_id TEXT, to_channel_id TEXT,
+    action TEXT NOT NULL, details TEXT, created_at INTEGER NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS sysplus_anti_move_logs_guild_idx ON sysplus_anti_move_logs(guild_id,created_at DESC);
 `);
 
 // Migration additive de la V3 : la banque PND est ajoutée sans toucher aux soldes.
