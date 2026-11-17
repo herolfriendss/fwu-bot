@@ -331,6 +331,15 @@ export const SLASH_COMMANDS: SlashCommandDef[] = [
     options: [opt(3, "message", "Message à envoyer aux abonnés", { required: true, max_length: 1800 })],
   },
   {
+    name: "dm-all-confirm",
+    description: "Confirme l’envoi d’une campagne privée préparée (owners uniquement)",
+    usage: "/dm-all-confirm id",
+    category: "SYS+",
+    dmPermission: false,
+    requiresBotProcess: true,
+    options: [opt(4, "id", "Identifiant de campagne à confirmer", { required: true, min_value: 1 })],
+  },
+  {
     name: "dm-all-stop",
     description: "Annule une campagne DM en cours (owners uniquement)",
     usage: "/dm-all-stop id",
