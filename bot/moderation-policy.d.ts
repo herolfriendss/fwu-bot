@@ -1,4 +1,4 @@
-export function parseDuration(raw: unknown, fallbackMinutes?: number): number;
+export function parseDuration(raw: unknown): number | null;
 export function hasPermission(bitfield: string | bigint, bit: string | bigint): boolean;
 export function canModerate(input: {
   actorId: string | null;
