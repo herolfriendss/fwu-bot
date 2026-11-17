@@ -9,7 +9,7 @@
   "scripts": {
     "start": "node --env-file=.env index.js",
     "export:economy": "node scripts/export-economy.js",
-    "test": "node --test systems/sysplus/permissions.test.js guild-guard.test.js automation-policy.test.js voice-access-request-policy.test.js dog-hierarchy-policy.test.js moderation-protection-policy.test.js moderation-policy.test.js"
+    "test": "node --test systems/sysplus/permissions.test.js guild-guard.test.js automation-policy.test.js voice-access-request-policy.test.js dog-hierarchy-policy.test.js moderation-protection-policy.test.js moderation-policy.test.js rich-presence-policy.test.js"
   },
   "dependencies": {
     "discord.js": "^14.16.3",
