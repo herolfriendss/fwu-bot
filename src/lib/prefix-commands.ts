@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 export const RESERVED_PREFIX_COMMANDS = new Set([
-  "access", "panel", "pv", "sysp", "dog", "undog", "doginfo",
+  "access", "panel", "pv", "sysp", "dog", "undog", "doginfo", "anti-move",
   "play", "p", "pause", "resume", "skip", "stop", "queue", "nowplaying", "np",
   "volume", "vol", "loop", "shuffle", "clearqueue", "remove", "join", "leave", "musicpanel",
 ]);
