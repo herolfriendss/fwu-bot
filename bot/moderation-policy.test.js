@@ -4,6 +4,7 @@ import {
   activeWarnings,
   formatDuration,
   parseDuration,
+  parseMemberReference,
   sanitizeReason,
   warningExpiry,
 } from "./moderation-policy.js";
@@ -40,4 +41,14 @@ test("reasons are single-line and bounded; durations are formatted", () => {
   assert.equal(formatDuration(10), "10 min");
   assert.equal(formatDuration(120), "2 h");
   assert.equal(formatDuration(2_880), "2 j");
+});
+
+
+test("prefix member references accept mentions and snowflakes only", () => {
+  assert.equal(parseMemberReference("<@12345678901234567>"), "12345678901234567");
+  assert.equal(parseMemberReference("<@!12345678901234567>"), "12345678901234567");
+  assert.equal(parseMemberReference("12345678901234567"), "12345678901234567");
+  assert.equal(parseMemberReference("reason-12345678901234567"), null);
+  assert.equal(parseMemberReference("<@&12345678901234567>"), null);
+  assert.equal(parseMemberReference("1234"), null);
 });
