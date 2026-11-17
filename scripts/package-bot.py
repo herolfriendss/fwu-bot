@@ -16,6 +16,7 @@ BOT_FILES = [
     "README.md",
     ".env.example",
     "package.json",
+    "package-lock.json",
     "index.js",
     "database.js",
     "v4-commands.js",
