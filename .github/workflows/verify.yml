@@ -5,6 +5,7 @@ on:
     branches: [main, pnd-v5]
   pull_request:
     branches: [main]
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -20,6 +21,9 @@ jobs:
         with:
           node-version: 24
           cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            bot/package-lock.json
       - name: Install dashboard dependencies
         run: npm ci
       - name: Run dashboard tests
@@ -34,6 +38,13 @@ jobs:
         run: npm --prefix bot test
       - name: Validate Oracle bot archive
         run: python3 scripts/package-bot.py
+      - name: Upload Oracle bot archive
+        uses: actions/upload-artifact@v4
+        with:
+          name: pnd-assist-v5-oracle
+          path: public/downloads/bot-oracle.zip
+          if-no-files-found: error
+          retention-days: 14
       - name: Lint changed bot security files
         run: npx eslint bot/index.js bot/guild-guard.js bot/guild-guard.test.js bot/dog-commands.js bot/dog-hierarchy-policy.js bot/dog-hierarchy-policy.test.js bot/moderation.js bot/moderation-protection-policy.js bot/moderation-protection-policy.test.js --rule "prettier/prettier: off"
       - name: Check bot JavaScript syntax
