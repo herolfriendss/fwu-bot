@@ -317,11 +317,27 @@ client.once("ready", async () => {
     await handleGuildCreate(guild, ALLOWED_GUILDS, record);
   }
 
-  // Merge the V4 command surface one command at a time. A bulk PUT would wipe
-  // commands created from the dashboard (custom commands) or by other tools.
+  // Built-in PND commands belong to the single authorized guild, not the
+  // application-wide command namespace. Remove only our known built-in names
+  // from the global namespace; leave dashboard/custom commands untouched.
+  // Then merge the built-ins one at a time in PND so no custom guild command
+  // can be erased by a bulk PUT.
   const rest = new REST({ version: "10" }).setToken(DISCORD_TOKEN);
-  const commandRoute = `/applications/${client.application.id}/commands`;
+  const globalCommandRoute = `/applications/${client.application.id}/commands`;
+  const commandRoute = `/applications/${client.application.id}/guilds/${PND_GUILD_ID}/commands`;
   void (async () => {
+    const builtInNames = new Set(SLASH_COMMANDS.map((command) => command.name));
+    const globalCommands = await rest.get(globalCommandRoute);
+    for (const command of Array.isArray(globalCommands) ? globalCommands : []) {
+      if (builtInNames.has(command?.name) && typeof command?.id === "string") {
+        try {
+          await rest.delete(`${globalCommandRoute}/${command.id}`);
+        } catch {
+          record("global_command_cleanup_error");
+        }
+      }
+    }
+
     const existing = await rest.get(commandRoute);
     const byName = new Map(
       (Array.isArray(existing) ? existing : [])
