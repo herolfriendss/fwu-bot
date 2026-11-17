@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
-  botCanModerate, canUseModeration, isProtectedMember,
+  botCanModerate, canUseModeration, getRemovableConfiguredRoleIds, isProtectedMember,
   nextProtectStrike, protectStrikeAction,
 } from "./moderation-protection-policy.js";
 
@@ -40,4 +40,23 @@ test("actor and bot must both be strictly above target", () => {
   assert.equal(botCanModerate(member("bot", [], 10), member("target", [], 5)), true);
   assert.equal(botCanModerate(member("bot", [], 5), member("target", [], 5)), false);
   assert.equal(botCanModerate(member("bot", [], 4), member("target", [], 5)), false);
+});
+
+
+test("third-strike derank includes only unmanaged configured roles below the bot", () => {
+  const role = (id, position, managed = false) => ({
+    id, managed, position,
+    comparePositionTo(other) { return this.position - other.position; },
+  });
+  const memberRoles = new Map([
+    ["staff", role("staff", 3)],
+    ["sys", role("sys", 5)],
+    ["managed", role("managed", 2, true)],
+    ["above-bot", role("above-bot", 12)],
+  ]);
+  const actor = { guild: { id: "guild" }, roles: { cache: memberRoles } };
+  const botHighest = role("bot-highest", 10);
+  const bot = { roles: { highest: botHighest } };
+  assert.deepEqual(getRemovableConfiguredRoleIds(actor, bot, ["staff", "sys", "managed", "above-bot", "missing"]), ["staff", "sys"]);
+  assert.deepEqual(getRemovableConfiguredRoleIds(actor, bot, ["above-bot"]), []);
 });
