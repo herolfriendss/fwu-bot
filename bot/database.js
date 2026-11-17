@@ -62,6 +62,13 @@ db.exec(`
     expires_at INTEGER
   );
   CREATE INDEX IF NOT EXISTS moderation_warnings_member_idx ON moderation_warnings(guild_id,user_id,created_at DESC);
+  CREATE TABLE IF NOT EXISTS moderation_protect_strikes (
+    guild_id TEXT NOT NULL,
+    moderator_id TEXT NOT NULL,
+    strikes INTEGER NOT NULL DEFAULT 0 CHECK(strikes >= 0 AND strikes <= 3),
+    updated_at INTEGER NOT NULL,
+    PRIMARY KEY (guild_id, moderator_id)
+  );
 
   -- Social -------------------------------------------------------------------
   CREATE TABLE IF NOT EXISTS profiles (
