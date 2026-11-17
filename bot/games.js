@@ -114,13 +114,22 @@ async function announceGiveaway({ channel, row, winners }) {
   }
 }
 
-async function finishDueGiveaways(client, record = () => {}) {
-  const due = db.prepare("SELECT * FROM giveaways WHERE status='open' AND ends_at<=? ORDER BY ends_at ASC LIMIT 10").all(Date.now());
+async function finishDueGiveaways(client, record = () => {}, allowedGuildIds = []) {
+  const guildIds = [...new Set(
+    (Array.isArray(allowedGuildIds) ? allowedGuildIds : []).filter((id) => typeof id === "string" && /^\\d{5,25}$/.test(id)),
+  )];
+  if (!guildIds.length) return;
+  const placeholders = guildIds.map(() => "?").join(",");
+  const due = db.prepare(`SELECT * FROM giveaways WHERE status='open' AND ends_at<=? AND guild_id IN (${placeholders}) ORDER BY ends_at ASC LIMIT 10`).all(Date.now(), ...guildIds);
   for (const giveaway of due) {
-    const closed = closeGiveaway(giveaway.giveaway_id, giveaway.guild_id);
-    if (!closed) continue;
     try {
-      const channel = await client.channels.fetch(closed.row.channel_id).catch(() => null);
+      const channel = await client.channels.fetch(giveaway.channel_id).catch(() => null);
+      if (!channel?.isTextBased() || channel.guildId !== giveaway.guild_id) {
+        record("giveaway_channel_mismatch");
+        continue;
+      }
+      const closed = closeGiveaway(giveaway.giveaway_id, giveaway.guild_id);
+      if (!closed) continue;
       await announceGiveaway({ channel, row: closed.row, winners: closed.winners });
       record("giveaway_finished");
     } catch {
@@ -150,10 +159,10 @@ async function announceDueEvents(client, record = () => {}) {
   }
 }
 
-export function startGamesScheduler(client, record = () => {}) {
+export function startGamesScheduler(client, record = () => {}, allowedGuildIds = []) {
   const timer = setInterval(() => {
-    void finishDueGiveaways(client, record);
-    void announceDueEvents(client, record);
+    void finishDueGiveaways(client, record, allowedGuildIds);
+    void announceDueEvents(client, record, allowedGuildIds);
   }, 30_000);
   timer.unref?.();
   return timer;
