@@ -225,11 +225,27 @@ export function sanitizeSettingsForGuild(input: unknown, guildId: string): BotSe
     sysPlus: {
       roleId: settings.sysPlus.roleId === guildId ? null : settings.sysPlus.roleId,
     },
+    guildGuard: {
+      ...settings.guildGuard,
+      quarantineRoleId: settings.guildGuard.quarantineRoleId === guildId ? null : settings.guildGuard.quarantineRoleId,
+    },
     moderation: {
       ...settings.moderation,
       protectRoleId: settings.moderation.protectRoleId === guildId ? null : settings.moderation.protectRoleId,
       staffRoleIds: settings.moderation.staffRoleIds.filter((id) => id !== guildId),
       untouchableRoleIds: settings.moderation.untouchableRoleIds.filter((id) => id !== guildId),
+    },
+    verification: {
+      ...settings.verification,
+      roleId: settings.verification.roleId === guildId ? null : settings.verification.roleId,
+    },
+    tickets: {
+      ...settings.tickets,
+      supportRoleId: settings.tickets.supportRoleId === guildId ? null : settings.tickets.supportRoleId,
+    },
+    automation: {
+      ...settings.automation,
+      autoRoleIds: settings.automation.autoRoleIds.filter((id) => id !== guildId),
     },
   };
 }
