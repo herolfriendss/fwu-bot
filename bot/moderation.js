@@ -118,7 +118,6 @@ export async function handleModerationInteraction(interaction, guildSettings = {
         if (role.managed || role.id === guild.id) throw new Error("Choisis un rôle normal du serveur.");
         const nextModeration = { ...(settings.moderation ?? {}), protectRoleId: role.id };
         if (!apiUrl || !secret) throw new Error("La synchronisation du dashboard n’est pas configurée sur le bot (API/secret manquant).");
-        if (!apiUrl || !secret) throw new Error("La synchronisation du dashboard n’est pas configurée sur le bot (API/secret manquant).");
         const response = await fetch(apiUrl, {
           method: "POST",
           headers: { Authorization: `Bearer ${secret}`, "Content-Type": "application/json" },
@@ -132,6 +131,7 @@ export async function handleModerationInteraction(interaction, guildSettings = {
         return true;
       }
       if (subcommand === "reset") {
+        if (!apiUrl || !secret) throw new Error("La synchronisation du dashboard n’est pas configurée sur le bot (API/secret manquant).");
         const nextModeration = { ...(settings.moderation ?? {}), protectRoleId: null };
         const response = await fetch(apiUrl, {
           method: "POST",
