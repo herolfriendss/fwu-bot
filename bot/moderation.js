@@ -261,6 +261,19 @@ export async function handleModerationInteraction(interaction, guildSettings = {
       if (actor.id !== guild.ownerId && !isStrictlyAbove(actor, target)) {
         throw new Error("Ton rôle le plus élevé doit être strictement supérieur à celui du membre ciblé.");
       }
+
+      // Les rôles configurés autorisent l'usage de la commande, mais ne donnent
+      // jamais au bot des permissions Discord qu'il ne possède pas réellement.
+      const botPermission = command === "kick"
+        ? P.KickMembers
+        : command === "ban"
+          ? P.BanMembers
+          : command === "mute" || command === "unmute"
+            ? P.ModerateMembers
+            : null;
+      if (botPermission && !botMember.permissions.has(botPermission)) {
+        throw new Error("Le bot ne possède pas la permission Discord nécessaire pour cette sanction.");
+      }
     }
 
     if (command === "warn") {
