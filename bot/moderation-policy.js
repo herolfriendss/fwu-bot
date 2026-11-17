@@ -3,7 +3,7 @@
 
 export function parseDuration(raw) {
   const text = String(raw ?? "").trim().toLowerCase();
-  const match = /^(\\d+)\\s*(m|h|d|j)?$/.exec(text);
+  const match = /^(\d+)\s*(m|h|d|j)?$/.exec(text);
   if (!match) return null;
 
   const value = Number(match[1]);
@@ -14,7 +14,6 @@ export function parseDuration(raw) {
   if (!Number.isSafeInteger(minutes) || minutes > 40_320) return null;
   return minutes;
 }
-
 export function hasPermission(bitfield, bit) {
   try {
     return (BigInt(bitfield) & BigInt(bit)) === BigInt(bit);
