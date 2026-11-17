@@ -47,11 +47,11 @@ const sub = (name: string, description: string, options?: SlashOption[]): SlashO
 
 const manageServer = "32"; // MANAGE_GUILD
 const manageMessages = "8192"; // MANAGE_MESSAGES
+const manageChannels = "16"; // MANAGE_CHANNELS
 const manageNicknames = "268435456"; // MANAGE_NICKNAMES
 const moderateMembers = "1099511627776"; // MODERATE_MEMBERS
 const kickMembers = "2"; // KICK_MEMBERS
 const banMembers = "4"; // BAN_MEMBERS
-const manageChannels = "16"; // MANAGE_CHANNELS
 
 export const SLASH_COMMANDS: SlashCommandDef[] = [
   // ── Général ────────────────────────────────────────────────────────────────
@@ -231,7 +231,7 @@ export const SLASH_COMMANDS: SlashCommandDef[] = [
     description: "Règle le mode lent du salon",
     usage: "/slowmode secondes",
     category: "Modération",
-    defaultMemberPermissions: manageMessages,
+    defaultMemberPermissions: manageChannels,
     dmPermission: false,
     requiresBotProcess: true,
     options: [opt(4, "secondes", "Délai entre deux messages (0–21600)", { required: true, min_value: 0, max_value: 21600 })],
