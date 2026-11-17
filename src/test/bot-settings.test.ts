@@ -1,7 +1,23 @@
 import { describe, expect, it } from "vitest";
-import { containsBannedWord, matchKeyword, sanitizeSettings } from "@/lib/bot-settings";
+import { containsBannedWord, matchKeyword, sanitizeSettings, sanitizeSettingsForGuild } from "@/lib/bot-settings";
 
 describe("bot settings", () => {
+  it("never accepts @everyone as a staff, protected or SYS+ role", () => {
+    const guildId = "1234567890123";
+    const settings = sanitizeSettingsForGuild({
+      sysPlus: { roleId: guildId },
+      moderation: {
+        protectRoleId: guildId,
+        staffRoleIds: [guildId, "1234567890124"],
+        untouchableRoleIds: [guildId, "1234567890125"],
+      },
+    }, guildId);
+
+    expect(settings.sysPlus.roleId).toBeNull();
+    expect(settings.moderation.protectRoleId).toBeNull();
+    expect(settings.moderation.staffRoleIds).toEqual(["1234567890124"]);
+    expect(settings.moderation.untouchableRoleIds).toEqual(["1234567890125"]);
+  });
   it("syncs separate role restrictions for =panel and =pv", () => {
     expect(sanitizeSettings({ voiceAccess: { panelRoleIds: ["11111"], pvRoleIds: ["22222"] } }).voiceAccess).toEqual({ panelRoleIds: ["11111"], pvRoleIds: ["22222"] });
     expect(sanitizeSettings({}).voiceAccess).toEqual({ panelRoleIds: null, pvRoleIds: null });
