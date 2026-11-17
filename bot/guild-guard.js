@@ -97,7 +97,7 @@ export function isGuildAllowed(guildId, allowlist) {
 export function restrictGuildSettings(settings, allowlist) {
   if (!settings || typeof settings !== "object" || Array.isArray(settings)) return {};
   const allowed = new Set(
-    (Array.isArray(allowlist) ? allowlist : []).filter((id) => typeof id === "string" && /^\\d{5,25}$/.test(id)),
+    (Array.isArray(allowlist) ? allowlist : []).filter((id) => typeof id === "string" && /^\d{5,25}$/.test(id)),
   );
   return Object.fromEntries(Object.entries(settings).filter(([guildId]) => allowed.has(guildId)));
 }
