@@ -41,6 +41,8 @@ BOT_FILES = [
     "moderation.js",
     "moderation-policy.js",
     "moderation-policy.test.js",
+    "rich-presence-policy.js",
+    "rich-presence-policy.test.js",
     "moderation-protection-policy.js",
     "moderation-protection-policy.test.js",
     "moderation-policy.d.ts",
