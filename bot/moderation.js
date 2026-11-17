@@ -398,10 +398,9 @@ const PREFIX_MODERATION_COMMANDS = new Set([
 
 function prefixTargetId(_message, rawValue) {
   const raw = String(rawValue ?? "").trim();
-  const match = raw.match(/^(?:<@!?(\\d{5,25})>|(\\d{5,25}))$/);
+  const match = raw.match(/^(?:<@!?(\d{5,25})>|(\d{5,25}))$/);
   return match?.[1] ?? match?.[2] ?? null;
-}
-/**
+}/**
  * Prefix moderation shares the same authorization, hierarchy and Protect
  * policies as slash moderation. Returns false only for unrelated messages.
  */
