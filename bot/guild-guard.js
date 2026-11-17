@@ -40,7 +40,7 @@ async function sendGuardLog(guild, guard, embed) {
  * prise ou journalisée, false si le membre est autorisé sans bruit.
  */
 export async function handleGuildGuardJoin(member, guard, record = () => {}) {
-  if (!guard?.enabled || member.user.bot) return false;
+  if (!guard?.enabled) return false;
   const guild = member.guild;
   const now = Date.now();
   const windowMs = Math.max(10, Number(guard.raidWindowSeconds ?? 60)) * 1000;
@@ -60,6 +60,11 @@ export async function handleGuildGuardJoin(member, guard, record = () => {}) {
     const timer = setTimeout(() => raidNotified.delete(guild.id), windowMs * 2);
     timer.unref?.();
   }
+
+  // Bot accounts count toward join bursts so a bot-only raid cannot bypass
+  // the threshold, but they are not themselves quarantined or kicked by the
+  // human account-age policy.
+  if (member.user.bot) return false;
 
   const decision = evaluateJoin({ createdAt: member.user.createdAt, now, guard, raidMode });
   if (decision.action === "allow") return false;
