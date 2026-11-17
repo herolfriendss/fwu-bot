@@ -1,4 +1,4 @@
-import { ChannelType, MessageFlags } from "discord.js";
+import { MessageFlags } from "discord.js";
 import { db } from "../../database.js";
 import { isSysPlus } from "./permissions.js";
 import { recordSysPlusAudit } from "./audit.js";
@@ -87,7 +87,6 @@ async function handleWakeup(interaction, settings) {
   }
   await interaction.deferReply({ flags: MessageFlags.Ephemeral });
   activeWakeups.add(lockKey);
-  db.prepare("INSERT INTO sysplus_wakeup_cooldowns(guild_id,target_id,last_used_at) VALUES(?,?,?) ON CONFLICT(guild_id,target_id) DO UPDATE SET last_used_at=excluded.last_used_at").run(guild.id, target.id, now);
   const targetName = target.displayName || target.user.username;
   const actorName = actor.displayName || actor.user.username;
   try {
@@ -98,6 +97,7 @@ async function handleWakeup(interaction, settings) {
     await interaction.editReply("❌ Le membre n’accepte pas les MP du bot. Aucun déplacement vocal n’a été effectué.");
     return true;
   }
+  db.prepare("INSERT INTO sysplus_wakeup_cooldowns(guild_id,target_id,last_used_at) VALUES(?,?,?) ON CONFLICT(guild_id,target_id) DO UPDATE SET last_used_at=excluded.last_used_at").run(guild.id, target.id, now);
   let moved = 0;
   let expectedChannelId = originalChannel.id;
   try {
@@ -200,8 +200,8 @@ export async function handleSysPlusBroadcastInteraction(interaction, settings, {
     await interaction.reply({ content: response, flags: MessageFlags.Ephemeral });
     return true;
   }
-  if (interaction.commandName === "wakeup") return handleWakeup(interaction, settings);
-  if (interaction.commandName === "dm-all") return createDmCampaign(interaction);
+  if (interaction.commandName === "wakeup") { record("sysplus_wakeup_requested"); return handleWakeup(interaction, settings); }
+  if (interaction.commandName === "dm-all") { record("sysplus_dm_campaign_requested"); return createDmCampaign(interaction); }
   if (interaction.commandName === "dm-all-stop") return handleDmCampaignControl(interaction, "stop");
   if (interaction.commandName === "dm-all-status") return handleDmCampaignControl(interaction, "status");
   return false;
