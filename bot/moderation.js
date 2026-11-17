@@ -398,5 +398,249 @@ const PREFIX_MODERATION_COMMANDS = new Set([
 ]);
 
 function prefixTargetId(_message, rawValue) {
-  return parseMemberReference(rawValue);
+  const raw = String(rawValue ?? "").trim();
+  const match = raw.match(/^(?:<@!?(\d{5,25})>|(\d{5,25}))$/);
+  return match?.[1] ?? match?.[2] ?? null;
+}/**
+ * Prefix moderation shares the same authorization, hierarchy and Protect
+ * policies as slash moderation. Returns false only for unrelated messages.
+ */
+export async function handleModerationMessage(message, guildSettings = {}) {
+  if (!message?.guild) return false;
+  const parts = String(message.content ?? "").trim().split(/\s+/);
+  const command = parts[0]?.toLowerCase();
+  if (!PREFIX_MODERATION_COMMANDS.has(command)) return false;
+
+  const guild = message.guild;
+  const settings = guildSettings ?? {};
+  const moderationSettings = settings.moderation ?? {};
+  const say = (content) => message.reply({ content, allowedMentions: { parse: [], repliedUser: false } });
+  const actor = message.member ?? await guild.members.fetch(message.author.id).catch(() => null);
+  if (!actor) {
+    await say("❌ Je ne trouve pas ton profil sur le serveur.");
+    return true;
+  }
+
+  try {
+    if (command === "=purge" || command === "=clear") {
+      if (!actor.permissions.has(P.ManageMessages)) throw new Error("Permission Gérer les messages requise.");
+      const amount = Number(parts[1]);
+      if (!Number.isInteger(amount) || amount < 1 || amount > 100) {
+        throw new Error("Utilisation : =clear 1-100");
+      }
+      const botMember = guild.members.me ?? await guild.members.fetchMe();
+      if (!botMember.permissionsIn(message.channel).has(P.ManageMessages)) {
+        throw new Error("Le bot doit avoir la permission Gérer les messages dans ce salon.");
+      }
+      const deleted = await message.channel.bulkDelete(amount, true);
+      await message.channel.send({ content: `🧹 ${deleted.size} message(s) supprimé(s).`, allowedMentions: { parse: [] } });
+      return true;
+    }
+
+    if (command === "=slowmode") {
+      if (!actor.permissions.has(P.ManageChannels)) throw new Error("Permission Gérer les salons requise.");
+      if (!message.channel || typeof message.channel.setRateLimitPerUser !== "function") throw new Error("Salon incompatible.");
+      const seconds = Number(parts[1]);
+      if (!Number.isInteger(seconds) || seconds < 0 || seconds > 21_600) {
+        throw new Error("Utilisation : =slowmode 0-21600");
+      }
+      const botMember = guild.members.me ?? await guild.members.fetchMe();
+      if (!botMember.permissionsIn(message.channel).has(P.ManageChannels)) {
+        throw new Error("Le bot doit avoir la permission Gérer les salons dans ce salon.");
+      }
+      await message.channel.setRateLimitPerUser(seconds, `Modération par ${message.author.tag}`);
+      await say(seconds ? `🐢 Mode lent réglé sur ${seconds} seconde(s).` : "🐇 Mode lent désactivé.");
+      return true;
+    }
+
+    if (command === "=lock" || command === "=unlock") {
+      if (!actor.permissions.has(P.ManageChannels)) throw new Error("Permission Gérer les salons requise.");
+      if (!message.channel?.permissionOverwrites) throw new Error("Salon incompatible.");
+      const botMember = guild.members.me ?? await guild.members.fetchMe();
+      if (!botMember.permissionsIn(message.channel).has(P.ManageChannels)) {
+        throw new Error("Le bot doit avoir la permission Gérer les salons dans ce salon.");
+      }
+      const locked = command === "=lock";
+      await message.channel.permissionOverwrites.edit(
+        guild.roles.everyone,
+        { SendMessages: locked ? false : null },
+        { reason: `Modération par ${message.author.tag}` },
+      );
+      await say(locked ? "🔒 Salon verrouillé." : "🔓 Salon déverrouillé.");
+      return true;
+    }
+
+    if (command === "=warnings") {
+      const targetId = prefixTargetId(message, parts[1]) ?? actor.id;
+      if (targetId !== actor.id && !actor.permissions.has(P.ManageMessages)) {
+        throw new Error("Permission Gérer les messages requise pour consulter un autre membre.");
+      }
+      const rows = activeWarnings(
+        db.prepare("SELECT * FROM moderation_warnings WHERE guild_id=? AND user_id=? ORDER BY id DESC LIMIT 25")
+          .all(guild.id, targetId),
+      );
+      const lines = rows.map((warning) =>
+        `• <t:${Math.floor(Number(warning.created_at) / 1000)}:d> — ${warning.reason} (par <@${warning.moderator_id}>)`,
+      );
+      await say(lines.length
+        ? `⚠️ **${rows.length} avertissement(s) actif(s) pour <@${targetId}>**\n${lines.join("\n")}`
+        : `✅ Aucun avertissement actif pour <@${targetId}>.`);
+      return true;
+    }
+
+    const targetId = prefixTargetId(message, parts[1]);
+    if (!targetId) throw new Error(`Utilisation : ${command} @membre [raison]`);
+    const target = await guild.members.fetch(targetId).catch(() => null);
+    if (!target) throw new Error("Ce membre n’est pas sur le serveur.");
+    const user = target.user;
+    if (actor.id === target.id) throw new Error("Tu ne peux pas te sanctionner toi-même.");
+    if (!canUseModeration(actor, guild.ownerId, settings.sysPlus?.roleId, moderationSettings.staffRoleIds ?? [])) {
+      throw new Error("Tu ne possèdes aucun rôle autorisé à utiliser les sanctions.");
+    }
+
+
+
+    // Protect is deliberately checked before hierarchy: even a lower-ranked
+    // authorized moderator receives a strike for attempting to sanction a protected member.
+    if (isProtectedMember(target, guild.ownerId, moderationSettings.protectRoleId, moderationSettings.untouchableRoleIds ?? [])) {
+      if (actor.id === guild.ownerId) {
+        await sendModerationLog(guild, settings, logEmbed(
+          guild, { user: message.author }, "protect-block", user, `Tentative ${command} bloquée — cible protégée — propriétaire`,
+        ));
+        throw new Error("⛔ Sanction bloquée : ce membre est protégé par Protect.");
+      }
+
+      const row = db.prepare("SELECT strikes FROM moderation_protect_strikes WHERE guild_id=? AND moderator_id=?")
+        .get(guild.id, actor.id);
+      const strike = nextProtectStrike(row?.strikes ?? 0);
+      db.prepare(`INSERT INTO moderation_protect_strikes(guild_id,moderator_id,strikes,updated_at)
+        VALUES(?,?,?,?) ON CONFLICT(guild_id,moderator_id) DO UPDATE SET strikes=excluded.strikes,updated_at=excluded.updated_at`)
+        .run(guild.id, actor.id, strike, Date.now());
+
+      const action = protectStrikeAction(strike);
+      const botMember = guild.members.me ?? await guild.members.fetchMe();
+      let consequence = "Avertissement Protect enregistré.";
+      if (action === "warn") {
+        await actor.send(`⚠️ Avertissement Protect 1/3 sur **${guild.name}** : tu as tenté d’utiliser ${command} sur un membre protégé.`).catch(() => {});
+        consequence = "Avertissement privé envoyé (si les MP sont ouverts).";
+      } else if (action === "timeout") {
+        if (botMember.permissions.has(P.ModerateMembers) && botCanModerate(botMember, actor)) {
+          try {
+            await actor.timeout(5 * 60_000, "Protect : deuxième tentative de sanction d’un membre protégé.");
+            consequence = "Timeout automatique de 5 minutes appliqué.";
+          } catch {
+            consequence = "Timeout de 5 minutes impossible à appliquer (Discord a refusé).";
+          }
+        } else {
+          consequence = "Timeout de 5 minutes impossible : permissions ou hiérarchie du bot insuffisantes.";
+        }
+      } else {
+        const configuredRoleIds = [...new Set([
+          ...(moderationSettings.staffRoleIds ?? []), settings.sysPlus?.roleId,
+        ].filter(Boolean))];
+        const removable = botMember.permissions.has(P.ManageRoles)
+          ? getRemovableConfiguredRoleIds(actor, botMember, configuredRoleIds)
+          : [];
+        if (removable.length) {
+          try {
+            await actor.roles.remove(removable, "Protect : troisième tentative de sanction d’un membre protégé.");
+            consequence = `${removable.length} rôle(s) staff configuré(s) retiré(s).`;
+          } catch {
+            consequence = "Retrait des rôles staff refusé par Discord.";
+          }
+        } else {
+          consequence = "Aucun rôle staff configuré ne peut être retiré en toute sécurité.";
+        }
+        await actor.send(`⛔ Protect 3/3 sur **${guild.name}** : retrait des rôles staff configurés tenté. Contacte un owner.`).catch(() => {});
+      }
+
+      await sendModerationLog(guild, settings, logEmbed(
+        guild, { user: message.author }, "protect-block", user,
+        `Tentative ${command} bloquée — Protect ${strike}/3 — ${consequence}`,
+      ));
+      await say(`⛔ Sanction bloquée : membre protégé. Tentative ${strike}/3. ${consequence}`);
+      return true;
+    }
+
+    const botMember = guild.members.me ?? await guild.members.fetchMe();
+    if (!botCanModerate(botMember, target)) {
+      throw new Error("Le rôle du bot doit être strictement supérieur à celui du membre ciblé.");
+    }
+    if (actor.id !== guild.ownerId && !isStrictlyAbove(actor, target)) {
+      throw new Error("Ton rôle le plus élevé doit être strictement supérieur à celui du membre ciblé.");
+    }
+
+    const requiredPermission = command === "=kick"
+      ? P.KickMembers
+      : command === "=ban"
+        ? P.BanMembers
+        : command === "=mute" || command === "=unmute"
+          ? P.ModerateMembers
+          : null;
+    if (requiredPermission && !botMember.permissions.has(requiredPermission)) {
+      throw new Error("Le bot ne possède pas la permission Discord nécessaire pour cette sanction.");
+    }
+
+    if (command === "=warn") {
+      const reason = sanitizeReason(parts.slice(2).join(" "));
+      const expiresAt = warningExpiry(Date.now(), Number(moderationSettings.warnExpiryDays ?? 0));
+      db.prepare("INSERT INTO moderation_warnings(guild_id,user_id,moderator_id,reason,created_at,expires_at) VALUES(?,?,?,?,?,?)")
+        .run(guild.id, user.id, message.author.id, reason, Date.now(), expiresAt);
+      const count = db.prepare("SELECT COUNT(*) AS count FROM moderation_warnings WHERE guild_id=? AND user_id=? AND (expires_at IS NULL OR expires_at>?)")
+        .get(guild.id, user.id, Date.now()).count;
+      if (moderationSettings.dmOnWarn !== false) {
+        await user.send({ content: `⚠️ Tu as reçu un avertissement sur **${guild.name}** : ${reason}`, allowedMentions: { parse: [] } }).catch(() => {});
+      }
+      await sendModerationLog(guild, settings, logEmbed(
+        guild, { user: message.author }, "warn", user, reason,
+        [{ name: "Avertissements actifs", value: String(count), inline: true }],
+      ));
+      await say(`⚠️ <@${user.id}> averti (${count} actif(s)) : ${reason}`);
+      return true;
+    }
+
+    if (command === "=mute") {
+      const minutes = parseDuration(parts[2]);
+      if (minutes === null) {
+        throw new Error("Utilisation : =mute @membre 10m [raison] (maximum 28 jours).");
+      }
+      const muteReason = sanitizeReason(parts.slice(3).join(" "));
+      await target.timeout(minutes * 60_000, muteReason);
+      await sendModerationLog(guild, settings, logEmbed(
+        guild, { user: message.author }, "mute", user, muteReason,
+        [{ name: "Durée", value: formatDuration(minutes), inline: true }],
+      ));
+      await say(`🔇 <@${user.id}> mis en sourdine pendant ${formatDuration(minutes)}.`);
+      return true;
+    }
+
+    if (command === "=unmute") {
+      const muteReason = sanitizeReason(parts.slice(2).join(" "));
+      await target.timeout(null, muteReason);
+      await sendModerationLog(guild, settings, logEmbed(guild, { user: message.author }, "unmute", user, muteReason));
+      await say(`🔊 Sourdine retirée à <@${user.id}>.`);
+      return true;
+    }
+
+    if (command === "=kick") {
+      const kickReason = sanitizeReason(parts.slice(2).join(" "));
+      await target.kick(kickReason);
+      await sendModerationLog(guild, settings, logEmbed(guild, { user: message.author }, "kick", user, kickReason));
+      await say(`👢 <@${user.id}> expulsé.`);
+      return true;
+    }
+
+    if (command === "=ban") {
+      const banReason = sanitizeReason(parts.slice(2).join(" "));
+      await guild.members.ban(user.id, { reason: banReason, deleteMessageSeconds: 0 });
+      await sendModerationLog(guild, settings, logEmbed(guild, { user: message.author }, "ban", user, banReason));
+      await say(`🔨 <@${user.id}> banni.`);
+      return true;
+    }
+
+    return true;
+  } catch (error) {
+    await say(`❌ ${error instanceof Error ? error.message : "Action impossible."}`).catch(() => {});
+    return true;
+  }
 }
