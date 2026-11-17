@@ -720,6 +720,19 @@ export const SLASH_COMMANDS: SlashCommandDef[] = [
     options: [opt(6, "membre", "Membre à consulter", { required: true })],
   },
 
+  {
+    name: "rank",
+    description: "Attribue un rôle à un membre (réservé à Perm SYS+)",
+    usage: "/rank membre role",
+    category: "Vocal & DOG",
+    dmPermission: false,
+    requiresBotProcess: true,
+    options: [
+      opt(6, "membre", "Membre qui recevra le rôle", { required: true }),
+      opt(8, "role", "Rôle à attribuer", { required: true }),
+    ],
+  },
+
   // ── Vocal ──────────────────────────────────────────────────────────────────
   {
     name: "access",
