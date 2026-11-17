@@ -1,4 +1,5 @@
-import { PermissionFlagsBits } from "discord.js";
+// Her? V5 — règles de protection et d'autorisation de modération.
+// Fonctions pures afin de pouvoir les tester sans connexion Discord.
 
 export function hasAnyConfiguredRole(member, roleIds = []) {
   return Array.isArray(roleIds) && roleIds.some((id) => member?.roles?.cache?.has(id));
@@ -39,4 +40,17 @@ export function isStrictlyAbove(actor, target) {
 
 export function botCanModerate(botMember, target) {
   return isStrictlyAbove(botMember, target);
+}
+
+/** Returns only configured staff roles that the bot can safely remove. */
+export function getRemovableConfiguredRoleIds(actor, botMember, roleIds = []) {
+  const botHighest = botMember?.roles?.highest;
+  const actorRoles = actor?.roles?.cache;
+  if (!botHighest || typeof botHighest.comparePositionTo !== "function" || !actorRoles?.get) return [];
+  return [...new Set((Array.isArray(roleIds) ? roleIds : []).filter(Boolean))].filter((id) => {
+    const role = actorRoles.get(id);
+    return Boolean(
+      role && role.managed !== true && role.id !== actor?.guild?.id && botHighest.comparePositionTo(role) > 0,
+    );
+  });
 }
