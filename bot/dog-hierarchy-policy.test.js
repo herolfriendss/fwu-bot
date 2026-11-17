@@ -2,18 +2,24 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { canApplyDogAction, isBotAboveDogTarget } from "./dog-hierarchy-policy.js";
 
-function member(id, position, compareOffset = 0) {
+function role(id, position) {
   return {
     id,
-    roles: {
-      highest: {
-        position,
-        comparePositionTo(other) {
-          if (this.position === other.position) return compareOffset;
-          return this.position - other.position;
-        },
-      },
+    position,
+    comparePositionTo(other) {
+      return this.position - other.position;
     },
+  };
+}
+
+function member(id, position, extraRoles = []) {
+  const highest = role(`role-${id}`, position);
+  const everyone = role("everyone", 0);
+  const roles = [everyone, highest, ...extraRoles];
+  return {
+    id,
+    guild: { roles: { everyone } },
+    roles: { highest, cache: new Map(roles.map((item) => [item.id, item])) },
   };
 }
 
@@ -29,6 +35,13 @@ test("only the server owner bypasses the invoker hierarchy comparison", () => {
   assert.equal(canApplyDogAction(member(OWNER, 0), member("admin", 100), OWNER), true);
   assert.equal(canApplyDogAction(member("admin", 100), member("staff", 20), OWNER), true);
   assert.equal(canApplyDogAction(member("staff", 20), member("admin", 100), OWNER), false);
+});
+
+test("the DOG marker role does not block the owner from removing the leash", () => {
+  const actor = member("staff", 20);
+  const target = member("member", 10, [role("dog-marker", 80)]);
+  assert.equal(target.roles.highest.position, 10, "test helper base role remains explicit");
+  assert.equal(canApplyDogAction(actor, target, OWNER, "dog-marker"), true);
 });
 
 test("missing hierarchy data fails closed and self-targeting is denied", () => {
