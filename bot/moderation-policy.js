@@ -75,3 +75,11 @@ export function formatDuration(minutes) {
   if (minutes >= 60) return `${Math.floor(minutes / 60)} h`;
   return `${minutes} min`;
 }
+
+
+/** Accept a Discord user mention or a raw Snowflake from the first prefix argument. */
+export function parseMemberReference(rawValue) {
+  const raw = String(rawValue ?? "").trim();
+  const match = /^(?:<@!?(\\d{5,25})>|(\\d{5,25}))$/.exec(raw);
+  return match?.[1] ?? match?.[2] ?? null;
+}
