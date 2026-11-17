@@ -1,5 +1,5 @@
 // Bot Discord 24h/24 — à lancer sur ton VPS. Les réglages viennent du site (onglet « Bot 24h/24 »).
-import { Client, GatewayIntentBits, Partials, PermissionFlagsBits, REST } from "discord.js";
+import { ActivityType, Client, GatewayIntentBits, Partials, PermissionFlagsBits, REST } from "discord.js";
 import { existsSync } from "node:fs";
 // The dashboard and the Oracle bot share one command definition file. In the
 // repository it lives in ../src/lib; the public source archive ships a copy at
@@ -25,6 +25,7 @@ import { handleVoiceV2Interaction, handleVoiceV2State, forgetGuildTempVoices, fo
 import { handleGamesInteraction, handleGamesMessage, startGamesScheduler } from "./games.js";
 import { handleTicketChannelDelete, handleTicketsInteraction } from "./tickets.js";
 import { handleAutomationInteraction, handleAutomationJoin, handleAutomationMessage, startAutomationScheduler } from "./automation.js";
+import { getPndPresenceFrame, PND_PRESENCE_INTERVAL_MS } from "./rich-presence-policy.js";
 
 const { DISCORD_TOKEN, SITE_URL, BOT_SYNC_SECRET } = process.env;
 if (!DISCORD_TOKEN || !SITE_URL || !BOT_SYNC_SECRET) {
@@ -287,8 +288,27 @@ async function reconcileDogLeashes() {
   }
 }
 
+let presenceIndex = 0;
+let presenceTimer;
+function applyPndPresence() {
+  if (!client.user) return;
+  const frame = getPndPresenceFrame(presenceIndex++);
+  try {
+    client.user.setPresence({
+      activities: [{ name: frame.name, type: ActivityType[frame.type] }],
+      status: "online",
+    });
+  } catch {
+    record("presence_update_error");
+  }
+}
+
 client.once("ready", async () => {
   record("connected");
+  applyPndPresence();
+  if (presenceTimer) clearInterval(presenceTimer);
+  presenceTimer = setInterval(applyPndPresence, PND_PRESENCE_INTERVAL_MS);
+  presenceTimer.unref?.();
 
   // Remove any server that was already present when the gateway connected.
   // This runs before telemetry, economy snapshots, schedulers or command setup.
@@ -329,7 +349,7 @@ client.once("ready", async () => {
 });
 client.on("shardDisconnect", () => { record("disconnected"); void reportStatus(); });
 client.on("shardReconnecting", () => { record("reconnecting"); void reportStatus(); });
-client.on("shardResume", () => { record("connected"); void reportStatus(); void reconcileDogLeashes(); });
+client.on("shardResume", () => { record("connected"); applyPndPresence(); void reportStatus(); void reconcileDogLeashes(); });
 client.on("guildCreate", (guild) => { void handleGuildCreate(guild, ALLOWED_GUILDS, record); });
 client.on("error", () => record("gateway_error"));
 client.on("shardError", () => record("gateway_error"));
