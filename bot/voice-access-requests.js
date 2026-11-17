@@ -10,17 +10,22 @@ import {
   TextInputStyle,
 } from "discord.js";
 import { db } from "./database.js";
+import {
+  canRequestFromVoiceChat,
+  isDiscordSnowflake,
+  isVoiceAccessRequestExpired,
+  parseVoiceChannelId,
+  VOICE_ACCESS_REQUEST_TTL,
+} from "./voice-access-request-policy.js";
 
 const pendingDecision = new Set();
-const REQUEST_TTL = 24 * 60 * 60 * 1000;
-const ID_PATTERN = /^\d{5,25}$/;
 
 async function isReviewer(interaction, settings) {
   if (!interaction.guild) return false;
   if (interaction.user.id === interaction.guild.ownerId) return true;
   const member = await interaction.guild.members.fetch(interaction.user.id).catch(() => null);
   if (!member) return false;
-  if (member.permissions.has([PermissionFlagsBits.Administrator, PermissionFlagsBits.ManageChannels])) return true;
+  if (member.permissions.has(PermissionFlagsBits.Administrator) || member.permissions.has(PermissionFlagsBits.ManageChannels)) return true;
   const sysPlusRoleId = settings?.sysPlus?.roleId;
   return typeof sysPlusRoleId === "string" && member.roles.cache.has(sysPlusRoleId);
 }
@@ -116,18 +121,11 @@ function buildRequestModal(sourceChannelId, voiceChannelId = null) {
   return modal;
 }
 
-function parseChannelId(value) {
-  const raw = String(value ?? "").trim();
-  const mention = raw.match(/^<#(\d{5,25})>$/);
-  const url = raw.match(/(?:channels\/\d+\/)(\d{5,25})/);
-  const id = mention?.[1] ?? url?.[1] ?? raw;
-  return ID_PATTERN.test(id) ? id : null;
-}
 
 async function submitRequest(interaction, sourceChannelId, presetVoiceChannelId) {
   await interaction.deferReply({ ephemeral: true });
   const voiceChannelId = presetVoiceChannelId === "select"
-    ? parseChannelId(interaction.fields.getTextInputValue("voice_channel_id"))
+    ? parseVoiceChannelId(interaction.fields.getTextInputValue("voice_channel_id"))
     : presetVoiceChannelId;
   if (!voiceChannelId) throw new Error("Identifiant de salon invalide. Utilise l’identifiant ou le lien d’un salon vocal.");
   const guild = interaction.guild;
@@ -148,11 +146,7 @@ async function submitRequest(interaction, sourceChannelId, presetVoiceChannelId)
     throw new Error("Le bot doit pouvoir voir le salon vocal et gérer ses permissions pour traiter les demandes.");
   }
 
-  const canUseVoiceChat = requesterPermissions?.has([
-    PermissionFlagsBits.ViewChannel,
-    PermissionFlagsBits.SendMessages,
-    PermissionFlagsBits.ReadMessageHistory,
-  ]) === true;
+  const canUseVoiceChat = canRequestFromVoiceChat(requesterPermissions?.bitfield ?? 0n);
   let destination = null;
   if (canUseVoiceChat && botPermissions.has(PermissionFlagsBits.SendMessages)) {
     destination = voiceChannel;
@@ -170,7 +164,7 @@ async function submitRequest(interaction, sourceChannelId, presetVoiceChannelId)
 
   const now = Date.now();
   db.prepare("UPDATE voice_access_requests SET status='expired', decided_at=? WHERE guild_id=? AND status='pending' AND created_at<?")
-    .run(now, guild.id, now - REQUEST_TTL);
+    .run(now, guild.id, now - VOICE_ACCESS_REQUEST_TTL);
 
   const existing = db.prepare("SELECT id FROM voice_access_requests WHERE guild_id=? AND voice_channel_id=? AND requester_id=? AND status='pending'")
     .get(guild.id, voiceChannel.id, interaction.user.id);
@@ -219,7 +213,7 @@ async function decideRequest(interaction, settings, action, requestId) {
   if (!Number.isSafeInteger(id) || id <= 0) throw new Error("Référence de demande invalide.");
   const request = db.prepare("SELECT * FROM voice_access_requests WHERE id=? AND guild_id=?").get(id, interaction.guildId);
   if (!request || request.status !== "pending") throw new Error("Cette demande n’est plus en attente.");
-  if (Date.now() - request.created_at > REQUEST_TTL) {
+  if (isVoiceAccessRequestExpired(request.created_at)) {
     db.prepare("UPDATE voice_access_requests SET status='expired', decided_at=? WHERE id=? AND status='pending'").run(Date.now(), id);
     throw new Error("Cette demande a expiré. Le membre doit en envoyer une nouvelle.");
   }
@@ -264,7 +258,7 @@ export async function handleVoiceAccessRequestInteraction(interaction, settings 
 
   if (interaction.isButton() && interaction.customId.startsWith("voice-access:open:")) {
     const sourceChannelId = interaction.customId.split(":")[2];
-    if (!interaction.guild || !ID_PATTERN.test(sourceChannelId)) {
+    if (!interaction.guild || !isDiscordSnowflake(sourceChannelId)) {
       await interaction.reply({ content: "Ce panneau est invalide.", ephemeral: true });
       return true;
     }
@@ -280,7 +274,7 @@ export async function handleVoiceAccessRequestInteraction(interaction, settings 
 
   if (interaction.isModalSubmit() && interaction.customId.startsWith("voice-access:submit:")) {
     const [, , sourceChannelId, voiceChannelId] = interaction.customId.split(":");
-    if (!interaction.guild || !ID_PATTERN.test(sourceChannelId) || (voiceChannelId !== "select" && !ID_PATTERN.test(voiceChannelId))) {
+    if (!interaction.guild || !ID_PATTERN.test(sourceChannelId) || (voiceChannelId !== "select" && !isDiscordSnowflake(voiceChannelId))) {
       await interaction.reply({ content: "Cette demande est invalide.", ephemeral: true });
       return true;
     }
