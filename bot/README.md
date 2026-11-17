@@ -24,6 +24,7 @@ Le bot enregistre les commandes au démarrage en fusionnant chaque définition (
 - Jeux : `/roulette mise choix`, `/blackjack mise` puis boutons **Tirer** / **Rester**.
 - DOG : `/dog membre`, `/undog membre`, `/doginfo membre`.
 - Vocal : `/access membre`, `/unaccess membre`, `/panel`, `/pv`.
+- Demandes d’accès : `/voice-request-panel` publie un bouton dans le chat du vocal ou dans un salon textuel général. Le demandeur indique le salon (ID ou lien) depuis le panneau général ; si le chat du vocal est visible avec Voir le salon, Envoyer des messages et Lire l’historique, la demande y est publiée directement. Le propriétaire, les administrateurs, les membres ayant Gérer les salons ou le rôle SYS+ peuvent approuver/refuser. Les demandes expirent après 24 h et sont conservées en SQLite.
 - Musique : `/play`, `/pause`, `/resume`, `/skip`, `/queue`, `/volume`, `/loop`, etc. File limitée à 100 titres et cooldown utilisateur.
 - Radio : `/radio set #salon URL_PLAYLIST_YOUTUBE`, `/radio start`, `/radio stop`, `/radio clear`, `/radio status`. La configuration est stockée dans `data/radio-config.json`.
 - SYS+ : `/sysp panel`, `/sysp role rôle`.
