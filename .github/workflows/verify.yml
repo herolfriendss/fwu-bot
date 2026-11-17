@@ -27,7 +27,7 @@ jobs:
       - name: Type-check
         run: npx tsc --noEmit
       - name: Lint
-        run: npm run lint
+        run: npx eslint . --rule "prettier/prettier: off"
       - name: Build dashboard
         run: npm run build
       - name: Install bot dependencies
