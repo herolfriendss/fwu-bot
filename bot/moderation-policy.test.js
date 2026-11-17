@@ -52,3 +52,9 @@ test("prefix member references accept mentions and snowflakes only", () => {
   assert.equal(parseMemberReference("<@&12345678901234567>"), null);
   assert.equal(parseMemberReference("1234"), null);
 });
+
+test("gateway can import both moderation handlers", async () => {
+  const moderation = await import("./moderation.js");
+  assert.equal(typeof moderation.handleModerationInteraction, "function");
+  assert.equal(typeof moderation.handleModerationMessage, "function");
+});
