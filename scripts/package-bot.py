@@ -32,6 +32,8 @@ BOT_FILES = [
     "voice-v2-policy.js",
     "voice-v2-policy.d.ts",
     "dog-commands.js",
+    "dog-hierarchy-policy.js",
+    "dog-hierarchy-policy.test.js",
     "economy.js",
     "economy-policy.js",
     "economy-policy.d.ts",
