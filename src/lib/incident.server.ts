@@ -141,7 +141,9 @@ export function streamIncidentAnalysis(request: Request, guildId: string, descri
       } finally {
         try {
           controller.close();
-        } catch {}
+        } catch {
+          // The client may already have cancelled or closed the stream.
+        }
       }
     },
   });
