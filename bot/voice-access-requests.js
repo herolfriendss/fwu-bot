@@ -14,6 +14,7 @@ import {
   canRequestFromVoiceChat,
   isDiscordSnowflake,
   isVoiceAccessRequestExpired,
+  matchesVoiceAccessRequestMessage,
   parseVoiceChannelId,
   VOICE_ACCESS_REQUEST_TTL,
   voiceAccessGrantPermissions,
@@ -209,7 +210,8 @@ async function submitRequest(interaction, sourceChannelId, presetVoiceChannelId)
       reason: interaction.fields.getTextInputValue("reason").trim(),
       createdAt: now,
     }));
-    db.prepare("UPDATE voice_access_requests SET message_id=? WHERE id=?").run(message.id, requestId);
+    const savedMessage = db.prepare("UPDATE voice_access_requests SET message_id=? WHERE id=? AND status='pending'").run(message.id, requestId);
+    if (savedMessage.changes !== 1) throw new Error("Impossible d’enregistrer la référence du message de demande.");
   } catch (error) {
     db.prepare("DELETE FROM voice_access_requests WHERE id=? AND status='pending'").run(requestId);
     throw new Error("Impossible de publier la demande. Vérifie les permissions du bot dans le salon de demande.");
@@ -230,7 +232,7 @@ async function decideRequest(interaction, settings, action, requestId) {
   if (!Number.isSafeInteger(id) || id <= 0) throw new Error("Référence de demande invalide.");
   const request = db.prepare("SELECT * FROM voice_access_requests WHERE id=? AND guild_id=?").get(id, interaction.guildId);
   if (!request || request.status !== "pending") throw new Error("Cette demande n’est plus en attente.");
-  if (request.message_id && request.message_id !== interaction.message?.id) {
+  if (!matchesVoiceAccessRequestMessage(request.message_id, interaction.message?.id)) {
     throw new Error("Ce bouton ne correspond pas au message de demande enregistré.");
   }
   if (isVoiceAccessRequestExpired(request.created_at)) {
