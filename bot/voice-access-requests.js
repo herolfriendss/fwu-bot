@@ -87,8 +87,13 @@ async function publishPanel(interaction) {
       .setStyle(ButtonStyle.Primary),
   );
 
-  await interaction.channel.send({ embeds: [embed], components: [row], allowedMentions: { parse: [] } });
-  await interaction.reply({ content: "✅ Panneau de demande d’accès publié.", ephemeral: true });
+  await interaction.deferReply({ ephemeral: true });
+  try {
+    await interaction.channel.send({ embeds: [embed], components: [row], allowedMentions: { parse: [] } });
+    await interaction.editReply("✅ Panneau de demande d’accès publié.");
+  } catch {
+    await interaction.editReply("❌ Impossible de publier le panneau. Vérifie mes permissions dans ce salon.");
+  }
   return true;
 }
 
@@ -217,7 +222,7 @@ async function submitRequest(interaction, sourceChannelId, presetVoiceChannelId)
 
 async function decideRequest(interaction, settings, action, requestId) {
   if (!await isReviewer(interaction, settings)) {
-    await interaction.reply({ content: "Cette décision est réservée au staff autorisé.", ephemeral: true });
+    await interaction.followUp({ content: "Cette décision est réservée au staff autorisé.", ephemeral: true });
     return;
   }
   const id = Number(requestId);
@@ -226,7 +231,13 @@ async function decideRequest(interaction, settings, action, requestId) {
   if (!request || request.status !== "pending") throw new Error("Cette demande n’est plus en attente.");
   if (isVoiceAccessRequestExpired(request.created_at)) {
     db.prepare("UPDATE voice_access_requests SET status='expired', decided_at=? WHERE id=? AND status='pending'").run(Date.now(), id);
-    throw new Error("Cette demande a expiré. Le membre doit en envoyer une nouvelle.");
+    await interaction.message.edit({
+      embeds: [new EmbedBuilder().setColor(0x95a5a6).setTitle("⌛ Demande expirée").setDescription(`Demande #${id} · <@${request.requester_id}> · <#${request.voice_channel_id}>`)],
+      components: [decisionRow(id, true)],
+      allowedMentions: { parse: [] },
+    });
+    await interaction.followUp({ content: "Cette demande a expiré. Le membre doit en envoyer une nouvelle.", ephemeral: true });
+    return;
   }
   if (pendingDecision.has(id)) throw new Error("Une décision est déjà en cours pour cette demande.");
   pendingDecision.add(id);
@@ -247,7 +258,7 @@ async function decideRequest(interaction, settings, action, requestId) {
       "UPDATE voice_access_requests SET status=?, decided_at=?, decided_by=? WHERE id=? AND status='pending'",
     ).run(status, Date.now(), interaction.user.id, id);
     if (result.changes !== 1) throw new Error("Cette demande a déjà été traitée.");
-    await interaction.update({
+    await interaction.message.edit({
       embeds: [new EmbedBuilder()
         .setColor(action === "approve" ? 0x57f287 : 0xed4245)
         .setTitle(action === "approve" ? "✅ Demande approuvée" : "⛔ Demande refusée")
@@ -301,11 +312,12 @@ export async function handleVoiceAccessRequestInteraction(interaction, settings 
 
   if (interaction.isButton() && /^voice-access:(approve|deny):\d+$/.test(interaction.customId)) {
     const [, action, requestId] = interaction.customId.split(":");
+    await interaction.deferUpdate();
     try {
       await decideRequest(interaction, settings, action, requestId);
     } catch (error) {
-      const content = error instanceof Error ? error.message : "Impossible de traiter la demande.";
-      await interaction.reply({ content, ephemeral: true }).catch(() => {});
+      const response = error instanceof Error ? error.message : "Impossible de traiter la demande.";
+      await interaction.followUp({ content: response, ephemeral: true }).catch(() => {});
     }
     return true;
   }
