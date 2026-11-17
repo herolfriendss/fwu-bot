@@ -329,7 +329,7 @@ client.once("ready", async () => {
     const builtInNames = new Set(SLASH_COMMANDS.map((command) => command.name));
     const globalCommands = await rest.get(globalCommandRoute);
     for (const command of Array.isArray(globalCommands) ? globalCommands : []) {
-      if (builtInNames.has(command?.name) && typeof command?.id === "string") {
+      if (command?.type === 1 && builtInNames.has(command.name) && typeof command.id === "string") {
         try {
           await rest.delete(`${globalCommandRoute}/${command.id}`);
         } catch {
@@ -341,7 +341,7 @@ client.once("ready", async () => {
     const existing = await rest.get(commandRoute);
     const byName = new Map(
       (Array.isArray(existing) ? existing : [])
-        .filter((command) => typeof command?.name === "string" && typeof command?.id === "string")
+        .filter((command) => command?.type === 1 && typeof command?.name === "string" && typeof command?.id === "string")
         .map((command) => [command.name, command]),
     );
     for (const command of SLASH_COMMANDS) {
