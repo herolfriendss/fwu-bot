@@ -1,5 +1,6 @@
 import { readFile, writeFile, rename, mkdir } from "node:fs/promises";
 import { PermissionFlagsBits } from "discord.js";
+import { canApplyDogAction, isBotAboveDogTarget } from "./dog-hierarchy-policy.js";
 
 const stateFile = new URL("./data/dog-state.json", import.meta.url);
 let state;
@@ -253,18 +254,34 @@ export async function handleDogCommand(message) {
     return true;
   }
 
-  const botMember = await message.guild.members.fetchMe();
-  if (!botMember.permissions.has(PermissionFlagsBits.ManageNicknames)) {
-    await message.reply({ content: "❌ Il me manque la permission **Gérer les surnoms**.", allowedMentions: { parse: [] } });
-    return true;
-  }
-
-  if (target.id === message.guild.ownerId || target.roles.highest.position >= botMember.roles.highest.position) {
+  // DOG info is read-only: hierarchy and bot mutation permissions apply only
+  // to commands which actually add or remove the leash.
+  if (command !== "=doginfo" && !canApplyDogAction(message.member, target, message.guild.ownerId)) {
     await message.reply({
-      content: "❌ Je ne peux pas modifier ce membre : son rôle est au-dessus du mien ou il est propriétaire du serveur.",
+      content: "⛔ Tu ne peux pas utiliser DOG sur ce membre : son rôle le plus élevé doit être strictement inférieur au tien. Les membres de même niveau ou au-dessus sont protégés.",
       allowedMentions: { parse: [] },
     });
     return true;
+  }
+
+  if (command !== "=doginfo") {
+    const botMember = await message.guild.members.fetchMe();
+    if (!botMember.permissions.has(PermissionFlagsBits.ManageNicknames)) {
+      await message.reply({ content: "❌ Il me manque la permission **Gérer les surnoms**.", allowedMentions: { parse: [] } });
+      return true;
+    }
+    if (!botMember.permissions.has(PermissionFlagsBits.ManageRoles)) {
+      await message.reply({ content: "❌ Il me manque la permission **Gérer les rôles**.", allowedMentions: { parse: [] } });
+      return true;
+    }
+
+    if (target.id === message.guild.ownerId || !isBotAboveDogTarget(botMember, target)) {
+      await message.reply({
+        content: "❌ Je ne peux pas modifier ce membre : son rôle le plus élevé est égal ou supérieur à celui du bot, ou il est propriétaire du serveur.",
+        allowedMentions: { parse: [] },
+      });
+      return true;
+    }
   }
 
   const records = await loadState();
