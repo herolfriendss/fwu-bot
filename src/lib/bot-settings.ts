@@ -16,6 +16,9 @@ export type ModerationSettings = {
   logChannelId: string | null;
   dmOnWarn: boolean;
   warnExpiryDays: number;
+  protectRoleId: string | null;
+  staffRoleIds: string[];
+  untouchableRoleIds: string[];
 };
 export type VerificationSettings = {
   enabled: boolean;
@@ -79,7 +82,7 @@ export const DEFAULT_SETTINGS: BotSettings = {
     raidWindowSeconds: 60,
     lockdown: false,
   },
-  moderation: { logChannelId: null, dmOnWarn: true, warnExpiryDays: 90 },
+  moderation: { logChannelId: null, dmOnWarn: true, warnExpiryDays: 90, protectRoleId: null, staffRoleIds: [], untouchableRoleIds: [] },
   verification: {
     enabled: false,
     roleId: null,
@@ -181,6 +184,9 @@ export function sanitizeSettings(raw: unknown): BotSettings {
       logChannelId: snowflakeId(moderation["logChannelId"]),
       dmOnWarn: bool(moderation["dmOnWarn"], true),
       warnExpiryDays: int(moderation["warnExpiryDays"], 0, 365, d.moderation["warnExpiryDays"]),
+      protectRoleId: snowflakeId(moderation["protectRoleId"]),
+      staffRoleIds: snowflakeList(moderation["staffRoleIds"], 30),
+      untouchableRoleIds: snowflakeList(moderation["untouchableRoleIds"], 30),
     },
     verification: {
       enabled: bool(verification["enabled"], false),
