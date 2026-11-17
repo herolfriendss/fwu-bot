@@ -229,6 +229,9 @@ async function decideRequest(interaction, settings, action, requestId) {
   if (!Number.isSafeInteger(id) || id <= 0) throw new Error("Référence de demande invalide.");
   const request = db.prepare("SELECT * FROM voice_access_requests WHERE id=? AND guild_id=?").get(id, interaction.guildId);
   if (!request || request.status !== "pending") throw new Error("Cette demande n’est plus en attente.");
+  if (request.message_id && request.message_id !== interaction.message?.id) {
+    throw new Error("Ce bouton ne correspond pas au message de demande enregistré.");
+  }
   if (isVoiceAccessRequestExpired(request.created_at)) {
     db.prepare("UPDATE voice_access_requests SET status='expired', decided_at=? WHERE id=? AND status='pending'").run(Date.now(), id);
     await interaction.message.edit({
