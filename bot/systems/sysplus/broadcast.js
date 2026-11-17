@@ -152,12 +152,12 @@ async function createDmCampaign(interaction) {
     return true;
   }
   const createdAt = Date.now();
-  const result = db.prepare("INSERT INTO sysplus_dm_campaigns(guild_id,actor_id,message,status,total_count,sent_count,failed_count,created_at,updated_at) VALUES(?,?,?,'pending',?,0,0,?,?)").run(guild.id, interaction.user.id, message, recipients.length, createdAt, createdAt);
+  const result = db.prepare("INSERT INTO sysplus_dm_campaigns(guild_id,actor_id,message,status,total_count,sent_count,failed_count,confirmed_at,created_at,updated_at) VALUES(?,?,?,'pending',?,0,0,NULL,?,?)").run(guild.id, interaction.user.id, message, recipients.length, createdAt, createdAt);
   const campaignId = Number(result.lastInsertRowid);
   const insertRecipient = db.prepare("INSERT OR IGNORE INTO sysplus_dm_campaign_recipients(campaign_id,user_id,status,updated_at) VALUES(?,?,'pending',?)");
   for (const row of recipients) insertRecipient.run(campaignId, row.user_id, createdAt);
   recordSysPlusAudit(guild.id, interaction.user.id, "sysplus.dm_all.start", String(campaignId), { recipients: recipients.length });
-  await interaction.reply({ content: "📨 Campagne #" + campaignId + " créée pour " + recipients.length + " abonné(s). Envoi progressif (un MP toutes les 2,5 secondes), annulable avec /dm-all-stop. Les membres peuvent se désabonner avec /dm-optout.", flags: MessageFlags.Ephemeral });
+  await interaction.reply({ content: "📝 Prévisualisation de la campagne #" + campaignId + " : " + recipients.length + " abonné(s) ciblé(s). Aucun MP n’est encore envoyé. Vérifie le texte, puis lance /dm-all-confirm id:" + campaignId + " pour confirmer. Tu peux annuler avec /dm-all-stop id:" + campaignId + ".", flags: MessageFlags.Ephemeral });
   return true;
 }
 
@@ -167,6 +167,12 @@ async function handleDmCampaignControl(interaction, action) {
     return true;
   }
   const id = interaction.options.getInteger("id", true);
+  if (action === "confirm") {
+    const result = db.prepare("UPDATE sysplus_dm_campaigns SET confirmed_at=?,updated_at=? WHERE id=? AND guild_id=? AND actor_id=? AND status='pending' AND confirmed_at IS NULL").run(Date.now(), Date.now(), id, interaction.guild.id, interaction.user.id);
+    await interaction.reply({ content: result.changes ? "✅ Campagne #" + id + " confirmée. L’envoi progressif aux membres abonnés va commencer." : "❌ Campagne introuvable, déjà confirmée, annulée ou créée par un autre owner.", flags: MessageFlags.Ephemeral });
+    if (result.changes) recordSysPlusAudit(interaction.guild.id, interaction.user.id, "sysplus.dm_all.confirm", String(id));
+    return true;
+  }
   if (action === "stop") {
     const result = db.prepare("UPDATE sysplus_dm_campaigns SET status='cancelled',updated_at=? WHERE id=? AND guild_id=? AND status IN ('pending','sending')").run(Date.now(), id, interaction.guild.id);
     await interaction.reply({ content: result.changes ? "🛑 Campagne #" + id + " annulée. Aucun nouveau MP ne sera lancé." : "Aucune campagne active #" + id + " trouvée.", flags: MessageFlags.Ephemeral });
@@ -202,6 +208,7 @@ export async function handleSysPlusBroadcastInteraction(interaction, settings, {
   }
   if (interaction.commandName === "wakeup") { record("sysplus_wakeup_requested"); return handleWakeup(interaction, settings); }
   if (interaction.commandName === "dm-all") { record("sysplus_dm_campaign_requested"); return createDmCampaign(interaction); }
+  if (interaction.commandName === "dm-all-confirm") return handleDmCampaignControl(interaction, "confirm");
   if (interaction.commandName === "dm-all-stop") return handleDmCampaignControl(interaction, "stop");
   if (interaction.commandName === "dm-all-status") return handleDmCampaignControl(interaction, "status");
   return false;
@@ -215,9 +222,9 @@ export function startSysPlusDmScheduler(client, allowedGuildIds, record = () => 
     if (dmWorkerRunning) return;
     dmWorkerRunning = true;
     try {
-      const row = db.prepare("SELECT r.campaign_id,r.user_id,c.guild_id,c.message FROM sysplus_dm_campaign_recipients r JOIN sysplus_dm_campaigns c ON c.id=r.campaign_id WHERE r.status='pending' AND c.status IN ('pending','sending') ORDER BY c.id ASC,r.rowid ASC LIMIT 1").get();
+      const row = db.prepare("SELECT r.campaign_id,r.user_id,c.guild_id,c.message FROM sysplus_dm_campaign_recipients r JOIN sysplus_dm_campaigns c ON c.id=r.campaign_id WHERE r.status='pending' AND c.status IN ('pending','sending') AND c.confirmed_at IS NOT NULL ORDER BY c.id ASC,r.rowid ASC LIMIT 1").get();
       if (!row) {
-        db.prepare("UPDATE sysplus_dm_campaigns SET status='completed',updated_at=? WHERE status IN ('pending','sending') AND NOT EXISTS (SELECT 1 FROM sysplus_dm_campaign_recipients r WHERE r.campaign_id=sysplus_dm_campaigns.id AND r.status IN ('pending','processing'))").run(Date.now());
+        db.prepare("UPDATE sysplus_dm_campaigns SET status='completed',updated_at=? WHERE status IN ('pending','sending') AND confirmed_at IS NOT NULL AND NOT EXISTS (SELECT 1 FROM sysplus_dm_campaign_recipients r WHERE r.campaign_id=sysplus_dm_campaigns.id AND r.status IN ('pending','processing'))").run(Date.now());
         return;
       }
       db.prepare("UPDATE sysplus_dm_campaigns SET status='sending',updated_at=? WHERE id=?").run(Date.now(), row.campaign_id);
