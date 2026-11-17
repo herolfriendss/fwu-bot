@@ -93,6 +93,24 @@ db.exec(`
     channel_id TEXT PRIMARY KEY, guild_id TEXT NOT NULL, owner_id TEXT NOT NULL, created_at INTEGER NOT NULL
   );
 
+  -- Demandes d'accès aux salons vocaux privés (état persistant après redémarrage).
+  CREATE TABLE IF NOT EXISTS voice_access_requests (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    guild_id TEXT NOT NULL,
+    voice_channel_id TEXT NOT NULL,
+    requester_id TEXT NOT NULL,
+    request_channel_id TEXT NOT NULL,
+    message_id TEXT,
+    status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending','approved','denied','expired')),
+    reason TEXT NOT NULL DEFAULT '',
+    created_at INTEGER NOT NULL,
+    decided_at INTEGER,
+    decided_by TEXT
+  );
+  CREATE UNIQUE INDEX IF NOT EXISTS voice_access_requests_pending_idx
+    ON voice_access_requests(guild_id, voice_channel_id, requester_id)
+    WHERE status='pending';
+
   -- Staff / tickets ----------------------------------------------------------
   CREATE TABLE IF NOT EXISTS tickets (
     id INTEGER PRIMARY KEY AUTOINCREMENT, guild_id TEXT NOT NULL, channel_id TEXT NOT NULL UNIQUE,
