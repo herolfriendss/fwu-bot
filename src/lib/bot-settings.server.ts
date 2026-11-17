@@ -1,24 +1,24 @@
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
-import { sanitizeSettings, type BotSettings } from "./bot-settings";
+import { sanitizeSettingsForGuild, type BotSettings } from "./bot-settings";
 import { timingSafeEqual } from "node:crypto";
 
 // Call only after requireOwner() or the BOT_SYNC_SECRET check.
 export async function readBotSettings(guildId: string): Promise<BotSettings> {
   const { data, error } = await supabaseAdmin.from("bot_settings").select("settings").eq("guild_id", guildId).maybeSingle();
   if (error) throw new Error("Impossible de lire les réglages du bot.");
-  return sanitizeSettings(data?.settings);
+  return sanitizeSettingsForGuild(data?.settings, guildId);
 }
 
 export async function readAllBotSettings(): Promise<Record<string, BotSettings>> {
   const { data, error } = await supabaseAdmin.from("bot_settings").select("guild_id, settings");
   if (error) throw new Error("Impossible de lire les réglages du bot.");
-  return Object.fromEntries((data ?? []).map((r) => [r.guild_id, sanitizeSettings(r.settings)]));
+  return Object.fromEntries((data ?? []).map((r) => [r.guild_id, sanitizeSettingsForGuild(r.settings, r.guild_id)]));
 }
 
 export async function writeBotSettings(guildId: string, settings: BotSettings, updateCommands = false) {
   // General settings saves must not overwrite commands edited in another tab.
   const latest = await readBotSettings(guildId);
-  const next = { ...settings, voiceAccess: latest.voiceAccess, prefixCommands: updateCommands ? settings.prefixCommands : latest.prefixCommands };
+  const next = sanitizeSettingsForGuild({ ...settings, voiceAccess: latest.voiceAccess, prefixCommands: updateCommands ? settings.prefixCommands : latest.prefixCommands }, guildId);
   const { error } = await supabaseAdmin
     .from("bot_settings")
     .upsert({ guild_id: guildId, settings: next as never, updated_at: new Date().toISOString() });
