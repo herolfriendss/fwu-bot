@@ -101,8 +101,8 @@ function buildRequestModal(sourceChannelId, voiceChannelId = null) {
   if (!voiceChannelId) {
     const channelInput = new TextInputBuilder()
       .setCustomId("voice_channel_id")
-      .setLabel("Identifiant du salon vocal")
-      .setPlaceholder("Colle l’identifiant ou le lien du salon")
+      .setLabel("Nom, identifiant ou lien du salon")
+      .setPlaceholder("Ex. vocal-staff, ID ou lien du salon")
       .setStyle(TextInputStyle.Short)
       .setMinLength(5)
       .setMaxLength(100)
@@ -124,15 +124,26 @@ function buildRequestModal(sourceChannelId, voiceChannelId = null) {
 
 async function submitRequest(interaction, sourceChannelId, presetVoiceChannelId) {
   await interaction.deferReply({ ephemeral: true });
-  const voiceChannelId = presetVoiceChannelId === "select"
-    ? parseVoiceChannelId(interaction.fields.getTextInputValue("voice_channel_id"))
+  const channelInput = presetVoiceChannelId === "select"
+    ? interaction.fields.getTextInputValue("voice_channel_id").trim()
     : presetVoiceChannelId;
-  if (!voiceChannelId) throw new Error("Identifiant de salon invalide. Utilise l’identifiant ou le lien d’un salon vocal.");
+  const voiceChannelId = parseVoiceChannelId(channelInput);
   const guild = interaction.guild;
   const member = await guild.members.fetch(interaction.user.id);
-  const voiceChannel = await guild.channels.fetch(voiceChannelId).catch(() => null);
+  let voiceChannel = voiceChannelId
+    ? await guild.channels.fetch(voiceChannelId).catch(() => null)
+    : null;
+  if (!voiceChannel && !voiceChannelId) {
+    const normalizedName = channelInput.replace(/^#/, "").trim().toLocaleLowerCase();
+    const channels = await guild.channels.fetch();
+    const matches = channels.filter((channel) =>
+      channel.type === ChannelType.GuildVoice && channel.name.toLocaleLowerCase() === normalizedName,
+    );
+    if (matches.size > 1) throw new Error("Plusieurs salons portent ce nom. Utilise l’identifiant du salon.");
+    voiceChannel = matches.first() ?? null;
+  }
   if (!voiceChannel || voiceChannel.guildId !== guild.id || voiceChannel.type !== ChannelType.GuildVoice) {
-    throw new Error("Je ne trouve pas ce salon vocal sur ce serveur.");
+    throw new Error("Je ne trouve pas ce salon vocal. Vérifie son nom, son identifiant ou son lien.");
   }
 
   const requesterPermissions = voiceChannel.permissionsFor(member);
