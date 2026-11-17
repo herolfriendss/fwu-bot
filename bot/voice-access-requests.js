@@ -274,7 +274,7 @@ export async function handleVoiceAccessRequestInteraction(interaction, settings 
 
   if (interaction.isModalSubmit() && interaction.customId.startsWith("voice-access:submit:")) {
     const [, , sourceChannelId, voiceChannelId] = interaction.customId.split(":");
-    if (!interaction.guild || !ID_PATTERN.test(sourceChannelId) || (voiceChannelId !== "select" && !isDiscordSnowflake(voiceChannelId))) {
+    if (!interaction.guild || !isDiscordSnowflake(sourceChannelId) || (voiceChannelId !== "select" && !isDiscordSnowflake(voiceChannelId))) {
       await interaction.reply({ content: "Cette demande est invalide.", ephemeral: true });
       return true;
     }
