@@ -145,6 +145,30 @@ export async function handleModerationInteraction(interaction, guildSettings = {
         await confirm(interaction, "Le rôle Protect a été désactivé.");
         return true;
       }
+      if (subcommand === "strikes") {
+        const member = interaction.options.getUser("membre") ?? interaction.user;
+        const row = db.prepare("SELECT strikes, updated_at FROM moderation_protect_strikes WHERE guild_id=? AND moderator_id=?")
+          .get(guild.id, member.id);
+        const count = Number(row?.strikes ?? 0);
+        const updated = row?.updated_at
+          ? `\nDernière tentative : <t:${Math.floor(Number(row.updated_at) / 1000)}:R>.`
+          : "";
+        await confirm(interaction, `🛡️ Protect — <@${member.id}> : **${count}/3** tentative(s) enregistrée(s).${updated}`);
+        return true;
+      }
+      if (subcommand === "reset-strikes") {
+        const member = interaction.options.getUser("membre") ?? interaction.user;
+        const result = db.prepare("DELETE FROM moderation_protect_strikes WHERE guild_id=? AND moderator_id=?")
+          .run(guild.id, member.id);
+        await sendModerationLog(guild, settings, logEmbed(
+          guild, interaction, "protect-reset", member,
+          `Compteur Protect réinitialisé par <@${interaction.user.id}>.`,
+        ));
+        await confirm(interaction, result.changes
+          ? `✅ Compteur Protect de <@${member.id}> réinitialisé.`
+          : `ℹ️ Aucun compteur Protect actif pour <@${member.id}>.`);
+        return true;
+      }
       await confirm(interaction, settings.moderation?.protectRoleId
         ? `Rôle Protect actuel : <@&${settings.moderation.protectRoleId}>.`
         : "Aucun rôle Protect n’est configuré.");
