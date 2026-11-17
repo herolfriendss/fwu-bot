@@ -147,6 +147,7 @@ function pruneSpamState(now) {
 
 client.on("messageCreate", async (msg) => {
   if (msg.author.bot || !msg.guild) return;
+  if (!ALLOWED_GUILDS.includes(msg.guild.id)) return;
   const s = settings[msg.guild.id];
   if (s?.spam?.enabled && !msg.member?.permissions.has(PermissionFlagsBits.ManageMessages)) {
     const now = Date.now();
@@ -166,7 +167,6 @@ client.on("messageCreate", async (msg) => {
       return;
     }
   }
-  if (!ALLOWED_GUILDS.includes(msg.guild.id)) return;
   const handlers = [
     ["dog", () => handleDogCommand(msg)],
     ["radio", () => handleRadioMessage(msg)],
