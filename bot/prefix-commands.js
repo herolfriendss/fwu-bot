@@ -16,5 +16,5 @@ export function resolvePrefixCommand(commands, content, memberPermissions = "0")
 /** Normalize the requested "+" alias to the canonical "=" prefix. */
 export function normalizePrefixAlias(content) {
   const value = String(content ?? "");
-  return value.replace(/^(\\s*)\\+/, "$1=");
+  return value.replace(/^(\s*)\+/, "$1=");
 }
