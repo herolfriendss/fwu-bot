@@ -13,9 +13,10 @@ function role(id, position) {
 }
 
 function member(id, position, extraRoles = []) {
-  const highest = role(`role-${id}`, position);
+  const base = role(`role-${id}`, position);
   const everyone = role("everyone", 0);
-  const roles = [everyone, highest, ...extraRoles];
+  const roles = [everyone, base, ...extraRoles];
+  const highest = roles.reduce((top, item) => item.comparePositionTo(top) > 0 ? item : top);
   return {
     id,
     guild: { roles: { everyone } },
@@ -40,7 +41,7 @@ test("only the server owner bypasses the invoker hierarchy comparison", () => {
 test("the DOG marker role does not block the owner from removing the leash", () => {
   const actor = member("staff", 20);
   const target = member("member", 10, [role("dog-marker", 80)]);
-  assert.equal(target.roles.highest.position, 10, "test helper base role remains explicit");
+  assert.equal(target.roles.highest.position, 80, "the leash marker is actually the target's highest role");
   assert.equal(canApplyDogAction(actor, target, OWNER, "dog-marker"), true);
 });
 
