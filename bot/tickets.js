@@ -323,3 +323,35 @@ export function ticketSnapshot(guildId) {
   const rows = db.prepare("SELECT status, COUNT(*) AS count FROM tickets WHERE guild_id=? GROUP BY status").all(guildId);
   return Object.fromEntries(rows.map((row) => [row.status, Number(row.count)]));
 }
+
+
+// Commandes préfixées des tickets. Le même gestionnaire slash effectue les
+// contrôles de rôle, l'accès aux tickets, la journalisation et les mutations.
+import { createPrefixInteraction } from "./prefix-interaction.js";
+
+export async function handleTicketsMessage(message, guildSettings = {}, options = {}) {
+  const parts = String(message.content ?? "").trim().split(/\s+/);
+  if ((parts[0] ?? "").toLowerCase() !== "=ticket") return false;
+  const subcommand = (parts[1] ?? "").toLowerCase();
+  const args = parts.slice(2);
+  const values = {};
+
+  if (subcommand === "close") {
+    values.raison = args.join(" ").slice(0, 300);
+  } else if (subcommand === "add" || subcommand === "remove") {
+    const rawId = (args[0] ?? "").replace(/[<@!>]/g, "");
+    const user = message.mentions.users?.first?.()
+      ?? (rawId ? await message.guild?.members?.fetch(rawId).then((member) => member.user).catch(() => null) : null);
+    if (!user) {
+      await message.reply("Utilisation : +ticket " + subcommand + " @membre.");
+      return true;
+    }
+    values.membre = user;
+  } else if (!["panel", "list"].includes(subcommand)) {
+    await message.reply("Tickets : +ticket panel, +ticket list, +ticket close [raison], +ticket add @membre, +ticket remove @membre.");
+    return true;
+  }
+
+  const interaction = createPrefixInteraction(message, "ticket", subcommand, values);
+  return handleTicketsInteraction(interaction, guildSettings, options);
+}
