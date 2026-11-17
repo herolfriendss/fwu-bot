@@ -300,7 +300,8 @@ export async function handleModerationInteraction(interaction, guildSettings = {
     }
 
     if (command === "warn") {
-      const days = interaction.options.getInteger("expire") ?? 0;
+      const days = interaction.options.getInteger("expire")
+        ?? Number(settings.moderation?.warnExpiryDays ?? 0);
       const expiresAt = warningExpiry(Date.now(), days) ?? null;
       db.prepare("INSERT INTO moderation_warnings(guild_id,user_id,moderator_id,reason,created_at,expires_at) VALUES(?,?,?,?,?,?)")
         .run(guild.id, user.id, interaction.user.id, reason, Date.now(), expiresAt);
@@ -582,7 +583,7 @@ export async function handleModerationMessage(message, guildSettings = {}) {
 
     if (command === "=warn") {
       const reason = sanitizeReason(parts.slice(2).join(" "));
-      const expiresAt = warningExpiry(Date.now(), 0);
+      const expiresAt = warningExpiry(Date.now(), Number(moderationSettings.warnExpiryDays ?? 0));
       db.prepare("INSERT INTO moderation_warnings(guild_id,user_id,moderator_id,reason,created_at,expires_at) VALUES(?,?,?,?,?,?)")
         .run(guild.id, user.id, message.author.id, reason, Date.now(), expiresAt);
       const count = db.prepare("SELECT COUNT(*) AS count FROM moderation_warnings WHERE guild_id=? AND user_id=? AND (expires_at IS NULL OR expires_at>?)")
