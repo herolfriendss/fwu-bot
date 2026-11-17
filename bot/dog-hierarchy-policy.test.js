@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { canApplyDogAction, isBotAboveDogTarget } from "./dog-hierarchy-policy.js";
+import { canApplyDogAction, canRemoveDogLeash, isBotAboveDogTarget } from "./dog-hierarchy-policy.js";
 
 function role(id, position) {
   return {
@@ -55,4 +55,13 @@ test("the bot must be strictly above the target to modify it", () => {
   assert.equal(isBotAboveDogTarget(member("bot", 20), member("target", 20)), false);
   assert.equal(isBotAboveDogTarget(member("bot", 10), member("target", 20)), false);
   assert.equal(isBotAboveDogTarget({ id: "bot", roles: {} }, member("target", 1)), false);
+});
+
+
+test("only SYS+ or the server owner can release a DOG leash", () => {
+  assert.equal(canRemoveDogLeash(member("sysplus", 20, [role("sys-role", 20)]), OWNER, "sys-role"), true);
+  assert.equal(canRemoveDogLeash(member(OWNER, 0), OWNER, null), true);
+  assert.equal(canRemoveDogLeash(member("administrator", 50), OWNER, null), false);
+  assert.equal(canRemoveDogLeash(member("staff", 20), OWNER, "other-role"), false);
+  assert.equal(canRemoveDogLeash(member("everyone", 0, [role("guild", 0)]), OWNER, "guild"), false);
 });
