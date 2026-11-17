@@ -2,13 +2,14 @@
 // Fonctions pures afin de pouvoir les tester sans connexion Discord.
 
 export function hasAnyConfiguredRole(member, roleIds = []) {
-  return Array.isArray(roleIds) && roleIds.some((id) => member?.roles?.cache?.has(id));
+  const everyoneId = member?.guild?.id;
+  return Array.isArray(roleIds) && roleIds.some((id) => id && id !== everyoneId && member?.roles?.cache?.has(id));
 }
 
 export function canUseModeration(member, guildOwnerId, sysPlusRoleId, allowedRoleIds = []) {
   if (!member?.id) return false;
   if (member.id === guildOwnerId) return true;
-  if (sysPlusRoleId && member.roles?.cache?.has(sysPlusRoleId)) return true;
+  if (sysPlusRoleId && sysPlusRoleId !== member.guild?.id && member.roles?.cache?.has(sysPlusRoleId)) return true;
   return hasAnyConfiguredRole(member, allowedRoleIds);
 }
 
@@ -16,7 +17,7 @@ export function isProtectedMember(member, guildOwnerId, protectRoleId, untouchab
   if (!member?.id) return false;
   if (member.id === guildOwnerId) return true;
   return Boolean(
-    (protectRoleId && member.roles?.cache?.has(protectRoleId)) ||
+    (protectRoleId && protectRoleId !== member.guild?.id && member.roles?.cache?.has(protectRoleId)) ||
     hasAnyConfiguredRole(member, untouchableRoleIds),
   );
 }
