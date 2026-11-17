@@ -347,11 +347,15 @@ export async function handleTicketsMessage(message, guildSettings = {}, options 
       return true;
     }
     values.membre = user;
-  } else if (!["panel", "list"].includes(subcommand)) {
+  } else if (!["panel", "list", "open"].includes(subcommand)) {
     await message.reply("Tickets : +ticket panel, +ticket list, +ticket close [raison], +ticket add @membre, +ticket remove @membre.");
     return true;
   }
 
   const interaction = createPrefixInteraction(message, "ticket", subcommand, values);
+  if (subcommand === "open") {
+    interaction.isButton = () => true;
+    interaction.customId = "ticket:open";
+  }
   return handleTicketsInteraction(interaction, guildSettings, options);
 }
