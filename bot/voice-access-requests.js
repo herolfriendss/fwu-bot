@@ -15,13 +15,14 @@ const pendingDecision = new Set();
 const REQUEST_TTL = 24 * 60 * 60 * 1000;
 const ID_PATTERN = /^\d{5,25}$/;
 
-function isReviewer(interaction, settings) {
-  const member = interaction.member;
-  if (!member || !interaction.guild) return false;
+async function isReviewer(interaction, settings) {
+  if (!interaction.guild) return false;
   if (interaction.user.id === interaction.guild.ownerId) return true;
-  if (member.permissions?.has?.([PermissionFlagsBits.Administrator, PermissionFlagsBits.ManageChannels])) return true;
+  const member = await interaction.guild.members.fetch(interaction.user.id).catch(() => null);
+  if (!member) return false;
+  if (member.permissions.has([PermissionFlagsBits.Administrator, PermissionFlagsBits.ManageChannels])) return true;
   const sysPlusRoleId = settings?.sysPlus?.roleId;
-  return typeof sysPlusRoleId === "string" && member.roles?.cache?.has?.(sysPlusRoleId) === true;
+  return typeof sysPlusRoleId === "string" && member.roles.cache.has(sysPlusRoleId);
 }
 
 function decisionRow(requestId, disabled = false) {
@@ -157,8 +158,8 @@ async function submitRequest(interaction, sourceChannelId, presetVoiceChannelId)
     destination = voiceChannel;
   } else {
     const source = await guild.channels.fetch(sourceChannelId).catch(() => null);
-    if (!source || source.type === ChannelType.GuildVoice && source.id === voiceChannel.id) {
-      throw new Error("Ce salon est invisible ou son chat n’est pas accessible. Utilise le panneau général de demande d’accès.");
+    if (!source || source.type === ChannelType.GuildVoice) {
+      throw new Error("Ce salon est invisible ou son chat n’est pas accessible. Utilise le panneau général publié dans un salon textuel.");
     }
     const sourcePermissions = source.permissionsFor(botMember);
     if (!source.isSendable?.() || !sourcePermissions?.has(PermissionFlagsBits.SendMessages)) {
@@ -210,7 +211,7 @@ async function submitRequest(interaction, sourceChannelId, presetVoiceChannelId)
 }
 
 async function decideRequest(interaction, settings, action, requestId) {
-  if (!isReviewer(interaction, settings)) {
+  if (!await isReviewer(interaction, settings)) {
     await interaction.reply({ content: "Cette décision est réservée au staff autorisé.", ephemeral: true });
     return;
   }
@@ -218,6 +219,10 @@ async function decideRequest(interaction, settings, action, requestId) {
   if (!Number.isSafeInteger(id) || id <= 0) throw new Error("Référence de demande invalide.");
   const request = db.prepare("SELECT * FROM voice_access_requests WHERE id=? AND guild_id=?").get(id, interaction.guildId);
   if (!request || request.status !== "pending") throw new Error("Cette demande n’est plus en attente.");
+  if (Date.now() - request.created_at > REQUEST_TTL) {
+    db.prepare("UPDATE voice_access_requests SET status='expired', decided_at=? WHERE id=? AND status='pending'").run(Date.now(), id);
+    throw new Error("Cette demande a expiré. Le membre doit en envoyer une nouvelle.");
+  }
   if (pendingDecision.has(id)) throw new Error("Une décision est déjà en cours pour cette demande.");
   pendingDecision.add(id);
   try {
