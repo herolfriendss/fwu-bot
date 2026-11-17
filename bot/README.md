@@ -16,7 +16,7 @@ npm start
 
 Pour PM2, le fichier `ecosystem.config.cjs` à la racine du projet démarre le dashboard et le bot ensemble. Ne lance jamais plusieurs processus bot sur la même base SQLite.
 
-## Commandes slash V4
+## Commandes slash et préfixées
 
 Le bot enregistre les commandes au démarrage en fusionnant chaque définition (jamais de `PUT` global). Les commandes interactives (économie, DOG, vocal, musique, radio, SYS+) nécessitent ce processus 24/7.
 
