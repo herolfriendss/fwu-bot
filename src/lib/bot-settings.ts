@@ -111,35 +111,35 @@ export function sanitizeSettings(raw: unknown): BotSettings {
       ? value as Record<string, unknown>
       : {};
   const r = recordOf(raw);
-  const filter = recordOf(r.filter);
-  const spam = recordOf(r.spam);
-  const welcome = recordOf(r.welcome);
-  const sysPlus = recordOf(r.sysPlus);
-  const guildGuard = recordOf(r.guildGuard);
-  const ai = recordOf(r.ai);
-  const moderation = recordOf(r.moderation);
-  const verification = recordOf(r.verification);
-  const tickets = recordOf(r.tickets);
-  const tempVoice = recordOf(r.tempVoice);
-  const automation = recordOf(r.automation);
+  const filter = recordOf(r["filter"]);
+  const spam = recordOf(r["spam"]);
+  const welcome = recordOf(r["welcome"]);
+  const sysPlus = recordOf(r["sysPlus"]);
+  const guildGuard = recordOf(r["guildGuard"]);
+  const ai = recordOf(r["ai"]);
+  const moderation = recordOf(r["moderation"]);
+  const verification = recordOf(r["verification"]);
+  const tickets = recordOf(r["tickets"]);
+  const tempVoice = recordOf(r["tempVoice"]);
+  const automation = recordOf(r["automation"]);
   const d = DEFAULT_SETTINGS;
-  const keywords = (Array.isArray(r.keywords) ? r.keywords : [])
+  const keywords = (Array.isArray(r["keywords"]) ? r["keywords"] : [])
     .map((value: unknown) => {
       const keyword = recordOf(value);
       return {
-        trigger: str(keyword.trigger, 100).toLowerCase(),
-        response: str(keyword.response, 2000),
-        exact: bool(keyword.exact, false),
+        trigger: str(keyword["trigger"], 100).toLowerCase(),
+        response: str(keyword["response"], 2000),
+        exact: bool(keyword["exact"], false),
       };
     })
-    .filter((keyword: KeywordRule) => keyword.trigger && keyword.response)
+    .filter((keyword: KeywordRule) => keyword["trigger"] && keyword["response"])
     .slice(0, 100);
-  const words = (Array.isArray(filter.words) ? filter.words : [])
+  const words = (Array.isArray(filter["words"]) ? filter["words"] : [])
     .map((w: unknown) => str(w, 60).toLowerCase())
     .filter(Boolean)
     .slice(0, 300);
-  const channelId = str(welcome.channelId, 25);
-  const sysPlusRoleId = str(sysPlus.roleId, 25);
+  const channelId = str(welcome["channelId"], 25);
+  const sysPlusRoleId = str(sysPlus["roleId"], 25);
   const snowflakeId = (value: unknown) => {
     const id = str(value, 25);
     return /^\d{5,25}$/.test(id) ? id : null;
@@ -147,66 +147,66 @@ export function sanitizeSettings(raw: unknown): BotSettings {
   const snowflakeList = (value: unknown, max: number) => [...new Set(
     (Array.isArray(value) ? value : []).map(snowflakeId).filter((id): id is string => Boolean(id)),
   )].slice(0, max);
-  const youngAction = ["log", "kick", "quarantine"].includes(str(guildGuard.youngAccountAction, 20))
-    ? str(guildGuard.youngAccountAction, 20) as GuildGuardSettings["youngAccountAction"]
-    : d.guildGuard.youngAccountAction;
+  const youngAction = ["log", "kick", "quarantine"].includes(str(guildGuard["youngAccountAction"], 20))
+    ? str(guildGuard["youngAccountAction"], 20) as GuildGuardSettings["youngAccountAction"]
+    : d.guildGuard["youngAccountAction"];
   return {
     sysPlus: { roleId: /^\d{5,25}$/.test(sysPlusRoleId) ? sysPlusRoleId : null },
-    voiceAccess: voiceAccessSchema.safeParse(r.voiceAccess).success ? voiceAccessSchema.parse(r.voiceAccess) : DEFAULT_VOICE_ACCESS,
-    prefixCommands: (Array.isArray(r.prefixCommands) ? r.prefixCommands : []).flatMap((command: unknown) => {
+    voiceAccess: voiceAccessSchema.safeParse(r["voiceAccess"]).success ? voiceAccessSchema.parse(r["voiceAccess"]) : DEFAULT_VOICE_ACCESS,
+    prefixCommands: (Array.isArray(r["prefixCommands"]) ? r["prefixCommands"] : []).flatMap((command: unknown) => {
       const result = prefixCommandSchema.safeParse(command);
       return result.success ? [result.data] : [];
     }),
     keywords,
-    filter: { enabled: bool(filter.enabled, false), words, deleteMessage: bool(filter.deleteMessage, true), warn: str(filter.warn, 500) },
+    filter: { enabled: bool(filter["enabled"], false), words, deleteMessage: bool(filter["deleteMessage"], true), warn: str(filter["warn"], 500) },
     spam: {
-      enabled: bool(spam.enabled, false),
-      maxMessages: int(spam.maxMessages, 2, 30, d.spam.maxMessages),
-      perSeconds: int(spam.perSeconds, 1, 60, d.spam.perSeconds),
-      timeoutMinutes: int(spam.timeoutMinutes, 1, 1440, d.spam.timeoutMinutes),
+      enabled: bool(spam["enabled"], false),
+      maxMessages: int(spam["maxMessages"], 2, 30, d.spam["maxMessages"]),
+      perSeconds: int(spam["perSeconds"], 1, 60, d.spam["perSeconds"]),
+      timeoutMinutes: int(spam["timeoutMinutes"], 1, 1440, d.spam["timeoutMinutes"]),
     },
-    welcome: { enabled: bool(welcome.enabled, false), channelId: /^\d{5,25}$/.test(channelId) ? channelId : "", message: str(welcome.message, 2000) || d.welcome.message },
-    ai: { enabled: bool(ai.enabled, false), instructions: str(ai.instructions, 2000) || d.ai.instructions },
+    welcome: { enabled: bool(welcome["enabled"], false), channelId: /^\d{5,25}$/.test(channelId) ? channelId : "", message: str(welcome["message"], 2000) || d.welcome["message"] },
+    ai: { enabled: bool(ai["enabled"], false), instructions: str(ai["instructions"], 2000) || d.ai["instructions"] },
     guildGuard: {
-      enabled: bool(guildGuard.enabled, false),
-      minAccountAgeDays: int(guildGuard.minAccountAgeDays, 0, 365, d.guildGuard.minAccountAgeDays),
+      enabled: bool(guildGuard["enabled"], false),
+      minAccountAgeDays: int(guildGuard["minAccountAgeDays"], 0, 365, d.guildGuard["minAccountAgeDays"]),
       youngAccountAction: youngAction,
-      quarantineRoleId: snowflakeId(guildGuard.quarantineRoleId),
-      logChannelId: snowflakeId(guildGuard.logChannelId),
-      raidJoinThreshold: int(guildGuard.raidJoinThreshold, 0, 100, d.guildGuard.raidJoinThreshold),
-      raidWindowSeconds: int(guildGuard.raidWindowSeconds, 10, 600, d.guildGuard.raidWindowSeconds),
-      lockdown: bool(guildGuard.lockdown, false),
+      quarantineRoleId: snowflakeId(guildGuard["quarantineRoleId"]),
+      logChannelId: snowflakeId(guildGuard["logChannelId"]),
+      raidJoinThreshold: int(guildGuard["raidJoinThreshold"], 0, 100, d.guildGuard["raidJoinThreshold"]),
+      raidWindowSeconds: int(guildGuard["raidWindowSeconds"], 10, 600, d.guildGuard["raidWindowSeconds"]),
+      lockdown: bool(guildGuard["lockdown"], false),
     },
     moderation: {
-      logChannelId: snowflakeId(moderation.logChannelId),
-      dmOnWarn: bool(moderation.dmOnWarn, true),
-      warnExpiryDays: int(moderation.warnExpiryDays, 0, 365, d.moderation.warnExpiryDays),
+      logChannelId: snowflakeId(moderation["logChannelId"]),
+      dmOnWarn: bool(moderation["dmOnWarn"], true),
+      warnExpiryDays: int(moderation["warnExpiryDays"], 0, 365, d.moderation["warnExpiryDays"]),
     },
     verification: {
-      enabled: bool(verification.enabled, false),
-      roleId: snowflakeId(verification.roleId),
-      channelId: snowflakeId(verification.channelId),
-      minAccountAgeDays: int(verification.minAccountAgeDays, 0, 365, d.verification.minAccountAgeDays),
-      message: str(verification.message, 2000) || d.verification.message,
+      enabled: bool(verification["enabled"], false),
+      roleId: snowflakeId(verification["roleId"]),
+      channelId: snowflakeId(verification["channelId"]),
+      minAccountAgeDays: int(verification["minAccountAgeDays"], 0, 365, d.verification["minAccountAgeDays"]),
+      message: str(verification["message"], 2000) || d.verification["message"],
     },
     tickets: {
-      enabled: bool(tickets.enabled, false),
-      categoryId: snowflakeId(tickets.categoryId),
-      supportRoleId: snowflakeId(tickets.supportRoleId),
-      logChannelId: snowflakeId(tickets.logChannelId),
-      maxOpenPerUser: int(tickets.maxOpenPerUser, 1, 5, d.tickets.maxOpenPerUser),
+      enabled: bool(tickets["enabled"], false),
+      categoryId: snowflakeId(tickets["categoryId"]),
+      supportRoleId: snowflakeId(tickets["supportRoleId"]),
+      logChannelId: snowflakeId(tickets["logChannelId"]),
+      maxOpenPerUser: int(tickets["maxOpenPerUser"], 1, 5, d.tickets["maxOpenPerUser"]),
     },
     tempVoice: {
-      enabled: bool(tempVoice.enabled, false),
-      hubChannelId: snowflakeId(tempVoice.hubChannelId),
-      categoryId: snowflakeId(tempVoice.categoryId),
-      defaultLimit: int(tempVoice.defaultLimit, 0, 99, d.tempVoice.defaultLimit),
-      nameTemplate: str(tempVoice.nameTemplate, 80) || d.tempVoice.nameTemplate,
+      enabled: bool(tempVoice["enabled"], false),
+      hubChannelId: snowflakeId(tempVoice["hubChannelId"]),
+      categoryId: snowflakeId(tempVoice["categoryId"]),
+      defaultLimit: int(tempVoice["defaultLimit"], 0, 99, d.tempVoice["defaultLimit"]),
+      nameTemplate: str(tempVoice["nameTemplate"], 80) || d.tempVoice["nameTemplate"],
     },
     automation: {
-      autoRoleIds: snowflakeList(automation.autoRoleIds, 10),
-      welcomeDm: bool(automation.welcomeDm, false),
-      welcomeDmMessage: str(automation.welcomeDmMessage, 2000) || d.automation.welcomeDmMessage,
+      autoRoleIds: snowflakeList(automation["autoRoleIds"], 10),
+      welcomeDm: bool(automation["welcomeDm"], false),
+      welcomeDmMessage: str(automation["welcomeDmMessage"], 2000) || d.automation["welcomeDmMessage"],
     },
   };
 }
@@ -215,7 +215,7 @@ export function sanitizeSettings(raw: unknown): BotSettings {
 export function matchKeyword(rules: KeywordRule[], content: string): string | null {
   const text = content.toLowerCase().trim();
   for (const r of rules) {
-    if (r.exact ? text === r.trigger : new RegExp(`(^|[^\\p{L}\\p{N}])${escape(r.trigger)}($|[^\\p{L}\\p{N}])`, "u").test(text)) return r.response;
+    if (r["exact"] ? text === r["trigger"] : new RegExp(`(^|[^\\p{L}\\p{N}])${escape(r["trigger"])}($|[^\\p{L}\\p{N}])`, "u").test(text)) return r["response"];
   }
   return null;
 }
