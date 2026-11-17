@@ -141,6 +141,42 @@ export function V4ModulesPanel({ guildId, channels, roles }: { guildId: string; 
           </div>
         </div>
         <label className="flex items-center gap-2 text-sm"><Switch checked={s.moderation.dmOnWarn} onCheckedChange={(v) => set("moderation", { dmOnWarn: v })} /> Envoyer un MP lors d’un avertissement</label>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <div>
+            <Label>Rôle personnel Protect (intouchable)</Label>
+            <RoleSelect value={s.moderation.protectRoleId} roles={roles} onChange={(v) => set("moderation", { protectRoleId: v })} placeholder="Choisir le rôle Protect" />
+          </div>
+          <div>
+            <Label>Rôles autorisés à sanctionner</Label>
+            <p className="text-xs text-muted-foreground">Seuls ces rôles, SYS+ et le propriétaire pourront utiliser warn, mute, unmute, kick et ban.</p>
+            <div className="mt-2 grid max-h-40 gap-2 overflow-auto">
+              {roles.filter((r) => !r.managed).map((role) => (
+                <label key={role.id} className="flex items-center gap-2 text-sm">
+                  <input type="checkbox" checked={s.moderation.staffRoleIds.includes(role.id)} onChange={(e) => {
+                    const ids = e.target.checked ? [...s.moderation.staffRoleIds, role.id] : s.moderation.staffRoleIds.filter((id) => id !== role.id);
+                    set("moderation", { staffRoleIds: ids });
+                  }} />
+                  {role.name}
+                </label>
+              ))}
+            </div>
+          </div>
+          <div className="sm:col-span-2">
+            <Label>Autres rôles intouchables (OW, direction, etc.)</Label>
+            <p className="text-xs text-muted-foreground">Leurs membres ne pourront pas être sanctionnés et déclencheront la même protection.</p>
+            <div className="mt-2 grid max-h-40 gap-2 overflow-auto sm:grid-cols-2">
+              {roles.filter((r) => !r.managed).map((role) => (
+                <label key={role.id} className="flex items-center gap-2 text-sm">
+                  <input type="checkbox" checked={s.moderation.untouchableRoleIds.includes(role.id)} onChange={(e) => {
+                    const ids = e.target.checked ? [...s.moderation.untouchableRoleIds, role.id] : s.moderation.untouchableRoleIds.filter((id) => id !== role.id);
+                    set("moderation", { untouchableRoleIds: ids });
+                  }} />
+                  {role.name}
+                </label>
+              ))}
+            </div>
+          </div>
+        </div>
         <div className="border-t border-border pt-4">
           <label className="flex items-center gap-2 text-sm"><Switch checked={s.verification.enabled} onCheckedChange={(v) => set("verification", { enabled: v })} /> Activer la vérification</label>
           <div className="mt-3 grid gap-3 sm:grid-cols-2">
