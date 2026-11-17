@@ -35,6 +35,7 @@ export function createPrefixInteraction(message, commandName, subcommand, values
     isChatInputCommand: () => true,
     isButton: () => false,
     isRepliable: () => true,
+    inGuild: () => Boolean(message.guild),
     get replied() { return replied; },
     get deferred() { return deferred; },
     options: {
