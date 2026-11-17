@@ -45,8 +45,15 @@ export function botCanModerate(botMember, target) {
 /** Returns only configured staff roles that the bot can safely remove. */
 export function getRemovableConfiguredRoleIds(actor, botMember, roleIds = []) {
   const botHighest = botMember?.roles?.highest;
+  const actorHighest = actor?.roles?.highest;
   const actorRoles = actor?.roles?.cache;
-  if (!botHighest || typeof botHighest.comparePositionTo !== "function" || !actorRoles?.get) return [];
+  if (
+    !botHighest ||
+    !actorHighest ||
+    typeof botHighest.comparePositionTo !== "function" ||
+    typeof actorRoles?.get !== "function" ||
+    botHighest.comparePositionTo(actorHighest) <= 0
+  ) return [];
   return [...new Set((Array.isArray(roleIds) ? roleIds : []).filter(Boolean))].filter((id) => {
     const role = actorRoles.get(id);
     return Boolean(
