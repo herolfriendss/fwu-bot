@@ -285,7 +285,7 @@ export async function handleV4SlashInteraction(interaction, guildSettings = null
   try {
     let handled = false;
     if (plan.handler === "economy") handled = await handleEconomyMessage(message);
-    else if (plan.handler === "dog") handled = await handleDogCommand(message);
+    else if (plan.handler === "dog") handled = await handleDogCommand(message, guildSettings?.sysPlus?.roleId);
     else if (plan.handler === "voice") handled = await handleVoiceMessage(message, guildSettings?.voiceAccess);
     else if (plan.handler === "music") handled = await handleMusicMessage(message);
     else if (plan.handler === "radio") handled = await handleRadioMessage(message);
