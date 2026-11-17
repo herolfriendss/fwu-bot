@@ -49,11 +49,12 @@ function ChannelSelect({ value, onChange, channels, placeholder, types = [0, 5] 
   );
 }
 
-function RoleSelect({ value, onChange, roles, placeholder }: {
+function RoleSelect({ value, onChange, roles, placeholder, guildId }: {
   value: string | null;
   onChange: (value: string | null) => void;
   roles: Role[];
   placeholder: string;
+  guildId: string;
 }) {
   return (
     <select className={select} value={value ?? ""} onChange={(e) => onChange(e.target.value || null)}>
@@ -111,7 +112,7 @@ export function V4ModulesPanel({ guildId, channels, roles }: { guildId: string; 
           </div>
           <div>
             <Label>Rôle de quarantaine</Label>
-            <RoleSelect value={s.guildGuard.quarantineRoleId} roles={roles} onChange={(v) => set("guildGuard", { quarantineRoleId: v })} placeholder="Aucun" />
+            <RoleSelect value={s.guildGuard.quarantineRoleId} roles={roles} guildId={guildId} onChange={(v) => set("guildGuard", { quarantineRoleId: v })} placeholder="Aucun" />
           </div>
           <div>
             <Label>Salon du journal</Label>
@@ -144,7 +145,7 @@ export function V4ModulesPanel({ guildId, channels, roles }: { guildId: string; 
         <div className="grid gap-3 sm:grid-cols-2">
           <div>
             <Label>Rôle personnel Protect (intouchable)</Label>
-            <RoleSelect value={s.moderation.protectRoleId} roles={roles.filter((role) => role.id !== guildId)} onChange={(v) => set("moderation", { protectRoleId: v })} placeholder="Choisir le rôle Protect" />
+            <RoleSelect value={s.moderation.protectRoleId} roles={roles} guildId={guildId} onChange={(v) => set("moderation", { protectRoleId: v })} placeholder="Choisir le rôle Protect" />
           </div>
           <div>
             <Label>Rôles autorisés à sanctionner</Label>
@@ -182,7 +183,7 @@ export function V4ModulesPanel({ guildId, channels, roles }: { guildId: string; 
           <div className="mt-3 grid gap-3 sm:grid-cols-2">
             <div>
               <Label>Rôle attribué après vérification</Label>
-              <RoleSelect value={s.verification.roleId} roles={roles} onChange={(v) => set("verification", { roleId: v })} placeholder="Choisir un rôle" />
+              <RoleSelect value={s.verification.roleId} roles={roles} guildId={guildId} onChange={(v) => set("verification", { roleId: v })} placeholder="Choisir un rôle" />
             </div>
             <div>
               <Label>Salon du panneau</Label>
@@ -209,7 +210,7 @@ export function V4ModulesPanel({ guildId, channels, roles }: { guildId: string; 
           </div>
           <div>
             <Label>Rôle support</Label>
-            <RoleSelect value={s.tickets.supportRoleId} roles={roles} onChange={(v) => set("tickets", { supportRoleId: v })} placeholder="Staff du serveur" />
+            <RoleSelect value={s.tickets.supportRoleId} roles={roles} guildId={guildId} onChange={(v) => set("tickets", { supportRoleId: v })} placeholder="Staff du serveur" />
           </div>
           <div>
             <Label>Journal des tickets</Label>
