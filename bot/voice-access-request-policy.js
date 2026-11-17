@@ -32,3 +32,11 @@ export function isVoiceAccessRequestExpired(createdAt, now = Date.now()) {
 export function voiceAccessGrantPermissions() {
   return { ViewChannel: true, Connect: true };
 }
+
+
+/** Buttons must originate from the exact message persisted for this request. */
+export function matchesVoiceAccessRequestMessage(savedMessageId, interactionMessageId) {
+  return isDiscordSnowflake(savedMessageId)
+    && typeof interactionMessageId === "string"
+    && savedMessageId === interactionMessageId;
+}
