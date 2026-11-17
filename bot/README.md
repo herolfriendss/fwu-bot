@@ -18,7 +18,7 @@ Pour PM2, le fichier `ecosystem.config.cjs` à la racine du projet démarre le d
 
 ## Commandes slash et préfixées
 
-Le bot enregistre les commandes au démarrage en fusionnant chaque définition (jamais de `PUT` global). Les commandes interactives (économie, DOG, vocal, musique, radio, SYS+) nécessitent ce processus 24/7.
+Le bot enregistre les commandes intégrées uniquement dans le serveur PND configuré (`PND_ALLOWED_GUILD_ID`) : elles ne sont plus publiées globalement. Au démarrage, il retire du catalogue global uniquement les noms de commandes intégrées qu’il gère, sans supprimer les commandes personnalisées du dashboard, puis les fusionne une par une dans PND (jamais de `PUT` global). Les commandes interactives (économie, DOG, vocal, musique, radio, SYS+) nécessitent ce processus 24/7.
 
 - Économie : `/balance [membre]`, `/daily`, `/pay membre montant`, `/leaderboard`, `/shop voir|ajouter|retirer`, `/buy rôle`, `/inventory`, `/pnd ajouter|retirer|definir`.
 - Jeux : `/roulette mise choix`, `/blackjack mise` puis boutons **Tirer** / **Rester**.
