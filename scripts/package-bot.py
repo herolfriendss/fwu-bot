@@ -22,6 +22,7 @@ BOT_FILES = [
     "v4-commands.js",
     "module-settings.js",
     "prefix-commands.js",
+    "prefix-interaction.js",
     "prefix-commands.d.ts",
     "voice-commands.js",
     "voice-access-requests.js",
