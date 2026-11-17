@@ -208,7 +208,8 @@ export async function handleModerationInteraction(interaction, guildSettings = {
           await actor.timeout(5 * 60_000, "Protect : deuxième tentative de sanction d’un membre protégé.");
           consequence = "Timeout automatique de 5 minutes appliqué.";
         } else {
-          const removable = (moderation.staffRoleIds ?? []).filter((id) => actor.roles.cache.has(id));
+          const derankRoleIds = [...new Set([...(moderation.staffRoleIds ?? []), settings.sysPlus?.roleId].filter(Boolean))];
+          const removable = derankRoleIds.filter((id) => actor.roles.cache.has(id));
           if (!removable.length) {
             consequence = "3e tentative : aucun rôle staff configuré n’est actuellement attribué, aucun rôle n’a pu être retiré.";
           } else {
