@@ -17,6 +17,8 @@ export const sessionConfig = () => ({
 });
 
 export async function isOwner() {
+  // TanStack Start's useSession is a server request-context API here, not a React hook.
+  // eslint-disable-next-line react-hooks/rules-of-hooks
   const session = await useSession<GateSession>(sessionConfig());
   return !!session.data.owner;
 }
@@ -58,7 +60,9 @@ export async function discord<T>(path: string, init?: RequestInit): Promise<T> {
       try {
         const body = (await res.json()) as { retry_after?: number };
         if (body.retry_after) wait = body.retry_after;
-      } catch {}
+      } catch {
+        // Discord may return an empty/non-JSON body with a 429 response.
+      }
       await new Promise((resolve) =>
         setTimeout(resolve, Math.min(wait, 10) * 1000 + 100),
       );
