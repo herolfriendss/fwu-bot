@@ -172,7 +172,7 @@ db.exec(`
     message TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'pending'
       CHECK(status IN ('pending','sending','completed','cancelled')),
     total_count INTEGER NOT NULL DEFAULT 0, sent_count INTEGER NOT NULL DEFAULT 0,
-    failed_count INTEGER NOT NULL DEFAULT 0, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL
+    failed_count INTEGER NOT NULL DEFAULT 0, confirmed_at INTEGER, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL
   );
   CREATE INDEX IF NOT EXISTS sysplus_dm_campaigns_status_idx ON sysplus_dm_campaigns(status,created_at);
   CREATE TABLE IF NOT EXISTS sysplus_dm_campaign_recipients (
@@ -190,6 +190,10 @@ const walletColumns = db.prepare("PRAGMA table_info(wallets)").all().map((column
 if (!walletColumns.includes("bank")) {
   db.exec("ALTER TABLE wallets ADD COLUMN bank INTEGER NOT NULL DEFAULT 0 CHECK(bank >= 0)");
 }
+
+// Migration additive SYS+ : les campagnes DM exigent une confirmation explicite.
+const dmCampaignColumns = db.prepare("PRAGMA table_info(sysplus_dm_campaigns)").all().map((column) => column.name);
+if (!dmCampaignColumns.includes("confirmed_at")) db.exec("ALTER TABLE sysplus_dm_campaigns ADD COLUMN confirmed_at INTEGER");
 
 // Migrations additives V4 : le canal et l’état de rappel des événements sont
 // ajoutés aux bases existantes sans modifier les événements déjà enregistrés.
