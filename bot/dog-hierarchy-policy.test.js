@@ -59,7 +59,8 @@ test("the bot must be strictly above the target to modify it", () => {
 
 
 test("only SYS+ or the server owner can release a DOG leash", () => {
-  assert.equal(canRemoveDogLeash(member("sysplus", 20, [role("sys-role", 20)]), OWNER, "sys-role"), true);
+  const sysRoleId = "12345678901234567";
+  assert.equal(canRemoveDogLeash(member("sysplus", 20, [role(sysRoleId, 20)]), OWNER, sysRoleId), true);
   assert.equal(canRemoveDogLeash(member(OWNER, 0), OWNER, null), true);
   assert.equal(canRemoveDogLeash(member("administrator", 50), OWNER, null), false);
   assert.equal(canRemoveDogLeash(member("staff", 20), OWNER, "other-role"), false);
