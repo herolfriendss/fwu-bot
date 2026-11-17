@@ -359,6 +359,43 @@ export const SLASH_COMMANDS: SlashCommandDef[] = [
   },
 
   {
+    name: "anti-move",
+    description: "Protection vocale individuelle contre les déplacements forcés",
+    usage: "/anti-move on | off | status | config | whitelist | logs",
+    category: "SYS+",
+    dmPermission: false,
+    requiresBotProcess: true,
+    options: [
+      sub("on", "Active ta protection individuelle"),
+      sub("off", "Désactive ta protection individuelle"),
+      sub("status", "Affiche l’état de ta protection"),
+      sub("config", "Active ou suspend le système sur le serveur (SYS+)", [
+        opt(3, "etat", "Nouvel état", { required: true, choices: [{ name: "Activer", value: "on" }, { name: "Suspendre", value: "off" }] }),
+      ]),
+      {
+        type: 2,
+        name: "whitelist",
+        description: "Gère les personnes autorisées à te déplacer",
+        options: [
+          sub("add", "Ajoute une personne autorisée", [
+            opt(6, "membre", "Membre dont la protection est concernée", { required: true }),
+            opt(6, "autorise", "Personne autorisée à déplacer ce membre", { required: true }),
+          ]),
+          sub("remove", "Retire une personne autorisée", [
+            opt(6, "membre", "Membre dont la protection est concernée", { required: true }),
+            opt(6, "autorise", "Personne à retirer de la liste", { required: true }),
+          ]),
+          sub("list", "Affiche la liste blanche", [
+            opt(6, "membre", "Membre concerné (par défaut : toi)"),
+          ]),
+        ],
+      },
+      sub("logs", "Consulte les derniers incidents ANTI-MOVE", [
+        opt(6, "membre", "Membre à consulter (SYS+ pour les autres)"),
+      ]),
+    ],
+  },
+  {
     name: "ticket",
     description: "Gère les tickets de support",
     usage: "/ticket panel | close | add | remove | list",
