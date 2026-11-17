@@ -8,9 +8,13 @@ import { db } from "./database.js";
 import {
   activeWarnings, canModerate, formatDuration, parseDuration, sanitizeReason, verificationEligible, warningExpiry,
 } from "./moderation-policy.js";
+import {
+  botCanModerate, canUseModeration, isProtectedMember, nextProtectStrike, protectStrikeAction,
+} from "./moderation-protection-policy.js";
 
 const P = PermissionFlagsBits;
-const MODERATION_COMMANDS = new Set(["warn", "warnings", "mute", "unmute", "kick", "ban", "purge", "slowmode", "lock", "unlock", "verify"]);
+const MODERATION_COMMANDS = new Set(["warn", "warnings", "mute", "unmute", "kick", "ban", "purge", "slowmode", "lock", "unlock", "verify", "protect"]);
+const SANCTION_COMMANDS = new Set(["warn", "mute", "unmute", "kick", "ban"]);
 
 function logEmbed(guild, interaction, action, target, reason, extra = []) {
   return new EmbedBuilder()
@@ -104,6 +108,29 @@ export async function handleModerationInteraction(interaction, guildSettings = {
 
     await interaction.deferReply({ ephemeral: true });
 
+    if (command === "protect") {
+      if (actor.id !== guild.ownerId && !actor.permissions.has(P.Administrator)) {
+        throw new Error("Seul le propriétaire du serveur ou un administrateur peut configurer Protect.");
+      }
+      const subcommand = interaction.options.getSubcommand();
+      if (subcommand === "role") {
+        const role = interaction.options.getRole("role", true);
+        if (role.managed || role.id === guild.id) throw new Error("Choisis un rôle normal du serveur.");
+        settings.moderation = { ...(settings.moderation ?? {}), protectRoleId: role.id };
+        await confirm(interaction, `🛡️ Le rôle Protect est maintenant ${role}. Ses membres ne pourront être sanctionnés par aucune commande de modération.`);
+        return true;
+      }
+      if (subcommand === "reset") {
+        settings.moderation = { ...(settings.moderation ?? {}), protectRoleId: null };
+        await confirm(interaction, "Le rôle Protect a été désactivé.");
+        return true;
+      }
+      await confirm(interaction, settings.moderation?.protectRoleId
+        ? `Rôle Protect actuel : <@&${settings.moderation.protectRoleId}>.`
+        : "Aucun rôle Protect n’est configuré.");
+      return true;
+    }
+
     if (command === "warnings") {
       const user = interaction.options.getUser("membre") ?? interaction.user;
       if (user.id !== interaction.user.id && !actor.permissions.has(P.ManageMessages)) throw new Error("Permission Gérer les messages requise pour consulter un autre membre.");
@@ -144,9 +171,48 @@ export async function handleModerationInteraction(interaction, guildSettings = {
     const target = await targetMember(guild, user);
     const reason = sanitizeReason(interaction.options.getString("raison") ?? "");
 
-    const required = command === "kick" ? P.KickMembers : command === "ban" ? P.BanMembers : command === "mute" || command === "unmute" ? P.ModerateMembers : P.ManageMessages;
-    const hierarchy = checkHierarchy(interaction, actor, target ?? { id: user.id, permissions: { bitfield: 0n }, roles: null }, required);
-    if (!hierarchy.allowed) throw new Error(hierarchy.reason ?? "Action refusée.");
+    if (SANCTION_COMMANDS.has(command)) {
+      const moderation = settings.moderation ?? {};
+      if (!canUseModeration(actor, guild.ownerId, settings.sysPlus?.roleId, moderation.staffRoleIds ?? [])) {
+        throw new Error("Tu ne possèdes aucun rôle autorisé à utiliser les sanctions. Les rôles sont configurables dans le dashboard.");
+      }
+      if (target && isProtectedMember(target, guild.ownerId, moderation.protectRoleId, moderation.untouchableRoleIds ?? [])) {
+        const row = db.prepare("SELECT strikes FROM moderation_protect_strikes WHERE guild_id=? AND moderator_id=?").get(guild.id, actor.id);
+        const strike = nextProtectStrike(row?.strikes ?? 0);
+        db.prepare(`INSERT INTO moderation_protect_strikes(guild_id,moderator_id,strikes,updated_at)
+          VALUES(?,?,?,?) ON CONFLICT(guild_id,moderator_id) DO UPDATE SET strikes=excluded.strikes,updated_at=excluded.updated_at`)
+          .run(guild.id, actor.id, strike, Date.now());
+        const action = protectStrikeAction(strike);
+        let consequence = "Avertissement enregistré.";
+        if (action === "warn") {
+          await actor.send(`⚠️ Avertissement Protect 1/3 sur **${guild.name}** : tu as tenté d’utiliser /${command} sur un membre protégé. Toute nouvelle tentative entraînera une sanction.`).catch(() => {});
+        } else if (action === "timeout") {
+          await actor.timeout(5 * 60_000, "Protect : deuxième tentative de sanction d’un membre protégé.");
+          consequence = "Timeout automatique de 5 minutes appliqué.";
+        } else {
+          const removable = (moderation.staffRoleIds ?? []).filter((id) => actor.roles.cache.has(id));
+          if (!removable.length) {
+            consequence = "3e tentative : aucun rôle staff configuré n’est actuellement attribué, aucun rôle n’a pu être retiré.";
+          } else {
+            await actor.roles.remove(removable, "Protect : troisième tentative de sanction d’un membre protégé.");
+            consequence = `3e tentative : ${removable.length} rôle(s) staff retiré(s).`;
+          }
+          await actor.send(`⛔ Protect 3/3 sur **${guild.name}** : tes rôles staff configurés ont été retirés. Contacte un owner.`).catch(() => {});
+        }
+        await sendModerationLog(guild, settings, logEmbed(guild, interaction, "protect-block", user, `Tentative /${command} bloquée — Protect ${strike}/3 — ${consequence}`));
+        throw new Error(`⛔ Sanction bloquée : ce membre est protégé. Tentative ${strike}/3. ${consequence}`);
+      }
+      if (!target) throw new Error("Ce membre n’est pas sur le serveur.");
+      if (!botCanModerate(guild.members.me ?? await guild.members.fetchMe(), target)) {
+        throw new Error("Le rôle du bot doit être strictement supérieur à celui du membre ciblé.");
+      }
+      const hierarchy = checkHierarchy(interaction, actor, target, 0n);
+      if (!hierarchy.allowed) throw new Error(hierarchy.reason ?? "Action refusée.");
+    } else {
+      const required = command === "kick" ? P.KickMembers : command === "ban" ? P.BanMembers : command === "mute" || command === "unmute" ? P.ModerateMembers : P.ManageMessages;
+      const hierarchy = checkHierarchy(interaction, actor, target ?? { id: user.id, permissions: { bitfield: 0n }, roles: null }, required);
+      if (!hierarchy.allowed) throw new Error(hierarchy.reason ?? "Action refusée.");
+    }
 
     if (command === "warn") {
       const days = interaction.options.getInteger("expire") ?? 0;
