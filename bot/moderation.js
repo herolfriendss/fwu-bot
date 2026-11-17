@@ -315,8 +315,8 @@ export async function handleModerationInteraction(interaction, guildSettings = {
 
     if (command === "mute") {
       if (!target) throw new Error("Ce membre n’est pas sur le serveur.");
-      const minutes = parseDuration(interaction.options.getString("duree", true), 10);
-      if (minutes > 40_320) throw new Error("La sourdine Discord est limitée à 28 jours.");
+      const minutes = parseDuration(interaction.options.getString("duree", true));
+      if (minutes === null) throw new Error("Durée invalide. Utilise 10m, 2h ou 1d (maximum 28 jours).");
       await target.timeout(minutes * 60_000, reason);
       await sendModerationLog(guild, settings, logEmbed(guild, interaction, "mute", user, reason, [{ name: "Durée", value: formatDuration(minutes), inline: true }]));
       await confirm(interaction, `🔇 <@${user.id}> mis en sourdine pendant ${formatDuration(minutes)}.`);
@@ -396,14 +396,11 @@ const PREFIX_MODERATION_COMMANDS = new Set([
   "=purge", "=clear", "=slowmode", "=lock", "=unlock",
 ]);
 
-function prefixTargetId(message, rawValue) {
-  const mentioned = message.mentions?.members?.first?.()?.id
-    ?? message.mentions?.users?.first?.()?.id;
+function prefixTargetId(_message, rawValue) {
   const raw = String(rawValue ?? "").trim();
-  const match = raw.match(/^(?:<@!?(\d{5,25})>|(\d{5,25}))$/);
-  return mentioned ?? match?.[1] ?? match?.[2] ?? null;
+  const match = raw.match(/^(?:<@!?(\\d{5,25})>|(\\d{5,25}))$/);
+  return match?.[1] ?? match?.[2] ?? null;
 }
-
 /**
  * Prefix moderation shares the same authorization, hierarchy and Protect
  * policies as slash moderation. Returns false only for unrelated messages.
@@ -599,11 +596,10 @@ export async function handleModerationMessage(message, guildSettings = {}) {
     }
 
     if (command === "=mute") {
-      if (!/^\d+\s*(s|m|h|d|j)?$/i.test(parts[2] ?? "")) {
-        throw new Error("Utilisation : =mute @membre 10m [raison]");
+      const minutes = parseDuration(parts[2]);
+      if (minutes === null) {
+        throw new Error("Utilisation : =mute @membre 10m [raison] (maximum 28 jours).");
       }
-      const minutes = parseDuration(parts[2], 10);
-      if (minutes > 40_320) throw new Error("La sourdine Discord est limitée à 28 jours.");
       const muteReason = sanitizeReason(parts.slice(3).join(" "));
       await target.timeout(minutes * 60_000, muteReason);
       await sendModerationLog(guild, settings, logEmbed(
