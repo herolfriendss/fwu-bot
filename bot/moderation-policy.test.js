@@ -35,7 +35,7 @@ test("warnings expire and expired rows are filtered", () => {
 });
 
 test("reasons are single-line and bounded; durations are formatted", () => {
-  assert.equal(sanitizeReason("first line\\nsecond line"), "first line second line");
+  assert.equal(sanitizeReason("first line\nsecond line"), "first line second line");
   assert.equal(sanitizeReason("x".repeat(400)).length, 300);
   assert.equal(formatDuration(10), "10 min");
   assert.equal(formatDuration(120), "2 h");
