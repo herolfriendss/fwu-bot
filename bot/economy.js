@@ -125,12 +125,20 @@ function settleGame(game, outcome) {
 }
 
 /** Refund in-progress bets after a crash/restart; no player loses a stake to a process restart. */
-export function recoverBlackjackGames() {
-  transaction(() => {
-    const games = db.prepare("SELECT guild_id,user_id,bet FROM active_blackjack").all();
+export function recoverBlackjackGames(allowedGuildIds = []) {
+  const guildIds = [...new Set(
+    (Array.isArray(allowedGuildIds) ? allowedGuildIds : []).filter((id) => typeof id === "string" && /^\\d{5,25}$/.test(id)),
+  )];
+  if (!guildIds.length) return 0;
+
+  const placeholders = guildIds.map(() => "?").join(",");
+  return transaction(() => {
+    const games = db.prepare(`SELECT guild_id,user_id,bet FROM active_blackjack WHERE guild_id IN (${placeholders})`).all(...guildIds);
     for (const game of games) changeBalance(game.guild_id, game.user_id, Number(game.bet), "blackjack_restart_refund");
-    db.exec("DELETE FROM active_blackjack");
-    db.prepare("DELETE FROM economy_ledger WHERE created_at < ?").run(Date.now() - 365 * 24 * 60 * 60_000);
+    db.prepare(`DELETE FROM active_blackjack WHERE guild_id IN (${placeholders})`).run(...guildIds);
+    db.prepare(`DELETE FROM economy_ledger WHERE guild_id IN (${placeholders}) AND created_at < ?`)
+      .run(...guildIds, Date.now() - 365 * 24 * 60 * 60_000);
+    return games.length;
   });
 }
 
