@@ -173,7 +173,7 @@ client.on("messageCreate", async (msg) => {
   }
   const handlers = [
     ["moderation", () => handleModerationMessage(msg, s)],
-    ["dog", () => handleDogCommand(msg)],
+    ["dog", () => handleDogCommand(msg, s.sysPlus?.roleId)],
     ["radio", () => handleRadioMessage(msg)],
     ["music", () => handleMusicMessage(msg)],
     ["voice", () => handleVoiceMessage(msg, settings[msg.guild.id]?.voiceAccess)],
