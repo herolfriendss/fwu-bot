@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { handleGuildCreate, isGuildAllowed } from "./guild-guard.js";
+import { handleGuildCreate, isGuildAllowed, restrictGuildSettings } from "./guild-guard.js";
 
 const PND_ID = "12345678901234567";
 const OTHER_ID = "23456789012345678";
@@ -51,4 +51,20 @@ test("a guild is still denied when leaving it fails", async () => {
 
   assert.equal(await handleGuildCreate(guild, [PND_ID], (code) => events.push(code)), true);
   assert.deepEqual(events, ["guild_blocked"]);
+});
+
+test("settings sync exposes only the authorized PND server", () => {
+  const pnd = { prefixCommands: [{ name: "help" }] };
+  const foreign = { prefixCommands: [{ name: "admin" }] };
+  assert.deepEqual(
+    restrictGuildSettings({ [PND_ID]: pnd, [OTHER_ID]: foreign }, [PND_ID]),
+    { [PND_ID]: pnd },
+  );
+});
+
+test("settings sync fails closed for missing or invalid allowlists", () => {
+  const settings = { [PND_ID]: { enabled: true } };
+  assert.deepEqual(restrictGuildSettings(settings, []), {});
+  assert.deepEqual(restrictGuildSettings(settings, null), {});
+  assert.deepEqual(restrictGuildSettings(null, [PND_ID]), {});
 });
