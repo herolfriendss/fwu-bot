@@ -83,7 +83,8 @@ async function sync() {
   try {
     const res = await fetch(API, { headers: AUTH, signal: AbortSignal.timeout(15_000) });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const payload = await res.json();\n    settings = restrictGuildSettings(payload.guilds, ALLOWED_GUILDS);
+    const payload = await res.json();
+    settings = restrictGuildSettings(payload.guilds, ALLOWED_GUILDS);
     lastSync = new Date().toISOString();
     record("sync_ok");
   } catch {
@@ -112,7 +113,9 @@ async function reportEconomy() {
   if (economyReporting || !client.isReady()) return;
   economyReporting = true;
   try {
-    const snapshots = client.guilds.cache\n      .filter((guild) => ALLOWED_GUILDS.includes(guild.id))\n      .map((guild) => economySnapshot(guild.id, guild));
+    const snapshots = client.guilds.cache
+      .filter((guild) => ALLOWED_GUILDS.includes(guild.id))
+      .map((guild) => economySnapshot(guild.id, guild));
     if (!snapshots.length) return;
     const res = await fetch(ECONOMY_API, {
       method: "POST",
