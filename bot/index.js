@@ -142,8 +142,8 @@ async function reportEconomy() {
 // Both the historical "=" prefix and the requested "+" prefix use the same handlers.
 function withPlusPrefixAlias(message) {
   const content = String(message.content ?? "");
-  if (!/^\\+[^\\s]+/.test(content.trimStart())) return message;
-  const normalized = content.replace(/^(\\s*)\\+/, "$1=");
+  if (!/^\+[^\s]+/.test(content.trimStart())) return message;
+  const normalized = content.replace(/^(\s*)\+/, "$1=");
   return new Proxy(message, {
     get(target, property) {
       if (property === "content") return normalized;
