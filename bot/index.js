@@ -13,7 +13,7 @@ import { handleVoiceMessage, handleVoiceInteraction } from "./voice-commands.js"
 import { handleAntiMoveInteraction, handleAntiMoveMessage, handleAntiMoveVoiceState } from "./anti-move.js";
 import { handleVoiceAccessRequestInteraction } from "./voice-access-requests.js";
 import { handleSysPlusMessage, handleSysPlusInteraction } from "./systems/sysplus/commands.js";
-import { handleSysPlusBroadcastInteraction, startSysPlusDmScheduler } from "./systems/sysplus/broadcast.js";
+import { handleSysPlusBroadcastInteraction, handleSysPlusBroadcastMessage, startSysPlusDmScheduler } from "./systems/sysplus/broadcast.js";
 import { enforceLeashNickname, handleDogCommand, handleLeashVoiceState, reconcileLeashedMembers } from "./dog-commands.js";
 import { handleMusicMessage, handleMusicInteraction, handleRadioMessage, startConfiguredRadios } from "./music/music.js";
 import { economySnapshot, handleEconomyMessage, handleEconomyInteraction, recoverBlackjackGames } from "./economy.js";
@@ -201,6 +201,7 @@ client.on("messageCreate", async (msg) => {
     ["cards", () => handleCardsMessage(commandMessage)],
     ["games", () => handleGamesMessage(commandMessage, record)],
     ["automation", () => handleAutomationMessage(commandMessage, s, { apiUrl: API, secret: BOT_SYNC_SECRET, record })],
+    ["sysplus_broadcast", () => handleSysPlusBroadcastMessage(commandMessage, s, { record })],
     ["guild_guard", () => handleGuildGuardMessage(commandMessage, s, { apiUrl: API, secret: BOT_SYNC_SECRET, record })],
     ["tickets", () => handleTicketsMessage(commandMessage, s, { apiUrl: API, secret: BOT_SYNC_SECRET, record })],
     ["temp_voice", () => handleVoiceV2Message(commandMessage, s)],
