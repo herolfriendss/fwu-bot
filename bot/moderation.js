@@ -6,7 +6,7 @@
 import { EmbedBuilder, PermissionFlagsBits } from "discord.js";
 import { db } from "./database.js";
 import {
-  activeWarnings, canModerate, formatDuration, parseDuration, sanitizeReason, verificationEligible, warningExpiry,
+  activeWarnings, formatDuration, parseDuration, sanitizeReason, verificationEligible, warningExpiry,
 } from "./moderation-policy.js";
 import {
   botCanModerate, canUseModeration, getRemovableConfiguredRoleIds, isProtectedMember, isStrictlyAbove, nextProtectStrike, protectStrikeAction,
@@ -42,20 +42,6 @@ async function targetMember(guild, user) {
   return guild.members.fetch({ user: user.id, force: true }).catch(() => null);
 }
 
-function checkHierarchy(interaction, actor, target, requiredBit) {
-  return canModerate({
-    actorId: interaction.user.id,
-    targetId: target.id,
-    guildOwnerId: interaction.guild.ownerId,
-    actorPermissions: actor.permissions.bitfield.toString(),
-    targetPermissions: target.permissions?.bitfield?.toString() ?? "0",
-    actorPosition: actor.roles.highest.position,
-    targetPosition: target.roles?.highest?.position ?? -1,
-    botPosition: interaction.guild.members.me?.roles.highest.position ?? 0,
-    requiredBit: requiredBit.toString(),
-  });
-}
-
 async function confirm(interaction, content) {
   await interaction.editReply({ content, allowedMentions: { parse: [] } });
 }
@@ -72,7 +58,8 @@ export async function handleModerationInteraction(interaction, guildSettings = {
     return true;
   }
 
-  const actor = interaction.member ?? await guild.members.fetch(interaction.user.id).catch(() => null);
+  // Always resolve a full GuildMember: interaction.member may be the raw API shape.
+  const actor = await guild.members.fetch({ user: interaction.user.id, force: true }).catch(() => null);
   if (!actor) {
     await interaction.reply({ content: "Je ne trouve pas ton profil sur ce serveur.", ephemeral: true });
     return true;
@@ -368,7 +355,12 @@ async function claimVerification(interaction, settings) {
     await interaction.reply({ content: "Le rôle de vérification est introuvable. Préviens le staff.", ephemeral: true });
     return;
   }
-  const member = interaction.member ?? await guild.members.fetch(interaction.user.id);
+  // Buttons can arrive with a raw APIInteractionGuildMember; fetch the full member.
+  const member = await guild.members.fetch({ user: interaction.user.id, force: true }).catch(() => null);
+  if (!member) {
+    await interaction.reply({ content: "Impossible de retrouver ton profil sur le serveur.", ephemeral: true });
+    return;
+  }
   if (member.roles.cache.has(role.id)) {
     await interaction.reply({ content: "✅ Tu es déjà vérifié.", ephemeral: true });
     return;
