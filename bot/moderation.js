@@ -405,16 +405,20 @@ function prefixTargetId(_message, rawValue) {
  * policies as slash moderation. Returns false only for unrelated messages.
  */
 export async function handleModerationMessage(message, guildSettings = {}) {
-  if (!message?.guild || !message.member) return false;
+  if (!message?.guild) return false;
   const parts = String(message.content ?? "").trim().split(/\s+/);
   const command = parts[0]?.toLowerCase();
   if (!PREFIX_MODERATION_COMMANDS.has(command)) return false;
 
   const guild = message.guild;
-  const actor = message.member;
   const settings = guildSettings ?? {};
   const moderationSettings = settings.moderation ?? {};
   const say = (content) => message.reply({ content, allowedMentions: { parse: [], repliedUser: false } });
+  const actor = message.member ?? await guild.members.fetch(message.author.id).catch(() => null);
+  if (!actor) {
+    await say("❌ Je ne trouve pas ton profil sur le serveur.");
+    return true;
+  }
 
   try {
     if (command === "=purge" || command === "=clear") {
