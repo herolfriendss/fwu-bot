@@ -51,21 +51,26 @@ export async function handleAutomationJoin(member, settings, record = () => {}) 
   return touched;
 }
 
-export function runAutomationTick(client, record = () => {}) {
-  const due = db.prepare("SELECT * FROM automation_messages WHERE enabled=1 AND next_run_at<=? ORDER BY next_run_at ASC LIMIT 20").all(Date.now());
+export function runAutomationTick(client, record = () => {}, allowedGuildIds = []) {
+  const guildIds = [...new Set(
+    (Array.isArray(allowedGuildIds) ? allowedGuildIds : []).filter((id) => typeof id === "string" && /^\\d{5,25}$/.test(id)),
+  )];
+  if (!guildIds.length) return 0;
+  const placeholders = guildIds.map(() => "?").join(",");
+  const due = db.prepare(`SELECT * FROM automation_messages WHERE enabled=1 AND next_run_at<=? AND guild_id IN (${placeholders}) ORDER BY next_run_at ASC LIMIT 20`).all(Date.now(), ...guildIds);
   for (const row of due) {
     const interval = clampInterval(row.interval_minutes);
-    db.prepare("UPDATE automation_messages SET next_run_at=? WHERE id=?").run(nextRunAt(Date.now(), interval), row.id);
     void (async () => {
       try {
         const channel = await client.channels.fetch(row.channel_id).catch(() => null);
-        if (!channel?.isTextBased()) {
-          record("automation_error");
+        if (!channel?.isTextBased() || channel.guildId !== row.guild_id) {
+          record("automation_channel_mismatch");
           return;
         }
-        const guild = channel.guild;
+        db.prepare("UPDATE automation_messages SET next_run_at=? WHERE id=? AND guild_id=?")
+          .run(nextRunAt(Date.now(), interval), row.id, row.guild_id);
         await channel.send({
-          content: renderAutomation(row.content, { server: guild?.name ?? "le serveur" }),
+          content: renderAutomation(row.content, { server: channel.guild?.name ?? "le serveur" }),
           allowedMentions: { parse: [] },
         });
         record("automation_message_sent");
@@ -77,8 +82,8 @@ export function runAutomationTick(client, record = () => {}) {
   return due.length;
 }
 
-export function startAutomationScheduler(client, record = () => {}) {
-  const timer = setInterval(() => { runAutomationTick(client, record); }, 60_000);
+export function startAutomationScheduler(client, record = () => {}, allowedGuildIds = []) {
+  const timer = setInterval(() => { runAutomationTick(client, record, allowedGuildIds); }, 60_000);
   timer.unref?.();
   return timer;
 }
