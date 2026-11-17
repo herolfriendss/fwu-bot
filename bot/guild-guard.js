@@ -84,9 +84,18 @@ export async function handleGuildGuardJoin(member, guard, record = () => {}) {
   return decision.action === "kick" || decision.action === "quarantine";
 }
 
-/** Quitte immédiatement un serveur absent de l’allowlist globale (isolation). */
+/** Strict allowlist check. An empty or invalid allowlist always denies access. */
+export function isGuildAllowed(guildId, allowlist) {
+  return typeof guildId === "string"
+    && /^\d{5,25}$/.test(guildId)
+    && Array.isArray(allowlist)
+    && allowlist.length > 0
+    && allowlist.includes(guildId);
+}
+
+/** Quitte immédiatement tout serveur absent de l’allowlist (isolation fail-closed). */
 export async function handleGuildCreate(guild, allowlist, record = () => {}) {
-  if (!allowlist.length || allowlist.includes(guild.id)) return false;
+  if (isGuildAllowed(guild.id, allowlist)) return false;
   record("guild_blocked");
   await guild.leave().catch(() => {});
   return true;
