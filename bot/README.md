@@ -34,7 +34,7 @@ Les commandes préfixées `=` restent disponibles pendant la transition et parta
 
 Les commandes de modération préfixées utilisent les mêmes rôles staff autorisés, la même hiérarchie et les mêmes protections Protect que les commandes slash :
 
-- `=warn @membre raison` et `=warnings [@membre]`
+- `=warn @membre raison` et `=warnings [@membre]` (la durée par défaut suit le réglage `warnExpiryDays` du dashboard)
 - `=mute @membre 10m raison` et `=unmute @membre raison` (durée acceptée : minutes, heures ou jours, maximum 28 jours)
 - `=kick @membre raison` et `=ban @membre raison`
 - `=clear 1-100` (alias `=purge`), `=slowmode 0-21600`, `=lock` et `=unlock`
