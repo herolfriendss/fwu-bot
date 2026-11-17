@@ -140,7 +140,7 @@ export const SLASH_COMMANDS: SlashCommandDef[] = [
   {
     name: "protect",
     description: "Configure le rôle personnel protégé contre les sanctions",
-    usage: "/protect role | reset | status",
+    usage: "/protect role | reset | status | strikes | reset-strikes",
     category: "Modération",
     dmPermission: false,
     requiresBotProcess: true,
