@@ -10,6 +10,7 @@ const slashCommandsModule = await import((existsSync(sharedSlashCommands) ? shar
 const { SLASH_COMMANDS, slashCommandsByCategory, toDiscordCommand } = slashCommandsModule;
 import { resolvePrefixCommand } from "./prefix-commands.js";
 import { handleVoiceMessage, handleVoiceInteraction } from "./voice-commands.js";
+import { handleVoiceAccessRequestInteraction } from "./voice-access-requests.js";
 import { handleSysPlusMessage, handleSysPlusInteraction } from "./systems/sysplus/commands.js";
 import { enforceLeashNickname, handleDogCommand, handleLeashVoiceState, reconcileLeashedMembers } from "./dog-commands.js";
 import { handleMusicMessage, handleMusicInteraction, handleRadioMessage, startConfiguredRadios } from "./music/music.js";
@@ -494,6 +495,8 @@ async function handleSavedSlashCommand(interaction) {
 client.on("interactionCreate", (interaction) => {
   if (!interaction.guildId || !ALLOWED_GUILDS.includes(interaction.guildId)) return;
   (async () => {
+    if (await handleVoiceAccessRequestInteraction(interaction, settings[interaction.guildId])) return;
+
     if (await handleSysPlusInteraction(interaction, settings, {
       apiUrl: API,
       secret: BOT_SYNC_SECRET,
