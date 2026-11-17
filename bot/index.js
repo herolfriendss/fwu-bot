@@ -20,7 +20,7 @@ import { handleSocialMessage } from "./social.js";
 import { handleCardsMessage } from "./cards.js";
 import { handleGuildGuardInteraction } from "./guild-guard-commands.js";
 import { handleGuildCreate, handleGuildGuardJoin, restrictGuildSettings } from "./guild-guard.js";
-import { handleModerationInteraction } from "./moderation.js";
+import { handleModerationInteraction, handleModerationMessage } from "./moderation.js";
 import { handleVoiceV2Interaction, handleVoiceV2State, forgetGuildTempVoices, forgetTempVoice } from "./voice-v2.js";
 import { handleGamesInteraction, handleGamesMessage, startGamesScheduler } from "./games.js";
 import { handleTicketChannelDelete, handleTicketsInteraction } from "./tickets.js";
@@ -172,6 +172,7 @@ client.on("messageCreate", async (msg) => {
     }
   }
   const handlers = [
+    ["moderation", () => handleModerationMessage(msg, s)],
     ["dog", () => handleDogCommand(msg)],
     ["radio", () => handleRadioMessage(msg)],
     ["music", () => handleMusicMessage(msg)],
