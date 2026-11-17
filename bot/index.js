@@ -10,6 +10,7 @@ const slashCommandsModule = await import((existsSync(sharedSlashCommands) ? shar
 const { SLASH_COMMANDS, slashCommandsByCategory, toDiscordCommand } = slashCommandsModule;
 import { resolvePrefixCommand } from "./prefix-commands.js";
 import { handleVoiceMessage, handleVoiceInteraction } from "./voice-commands.js";
+import { handleAntiMoveInteraction, handleAntiMoveMessage, handleAntiMoveVoiceState } from "./anti-move.js";
 import { handleVoiceAccessRequestInteraction } from "./voice-access-requests.js";
 import { handleSysPlusMessage, handleSysPlusInteraction } from "./systems/sysplus/commands.js";
 import { handleSysPlusBroadcastInteraction, startSysPlusDmScheduler } from "./systems/sysplus/broadcast.js";
@@ -174,6 +175,7 @@ client.on("messageCreate", async (msg) => {
     }
   }
   const handlers = [
+    ["anti_move", () => handleAntiMoveMessage(msg, s, { record })],
     ["moderation", () => handleModerationMessage(msg, s)],
     ["dog", () => handleDogCommand(msg, s.sysPlus?.roleId)],
     ["radio", () => handleRadioMessage(msg)],
@@ -269,6 +271,8 @@ client.on("voiceStateUpdate", (oldState, newState) => {
   handleLeashVoiceState(oldState, newState)
     .then((moved) => { if (moved) record("dog_voice_returned"); })
     .catch(() => record("dog_voice_error"));
+  void handleAntiMoveVoiceState(oldState, newState, record)
+    .catch(() => record("anti_move_error"));
   void handleVoiceV2State(oldState, newState, settings[newState.guild?.id ?? oldState.guild?.id], record)
     .catch(() => record("temp_voice_error"));
 });
@@ -542,6 +546,7 @@ client.on("interactionCreate", (interaction) => {
     })) return;
 
     if (await handleSysPlusBroadcastInteraction(interaction, settings[interaction.guildId], { record })) return;
+    if (await handleAntiMoveInteraction(interaction, settings[interaction.guildId], { record })) return;
 
     if (await handleCoreSlashInteraction(interaction)) return;
     if (await handleGuildGuardInteraction(interaction, settings[interaction.guildId], {
