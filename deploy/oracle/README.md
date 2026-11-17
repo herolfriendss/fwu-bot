@@ -49,7 +49,7 @@ pm2 restart her-v3-web her-v3-bot
 
 Sauvegarde régulièrement `bot/data/economy.sqlite`, `bot/data/dog-state.json`, `bot/data/voice-locks.json` et `bot/data/radio-config.json`. La base SQLite utilise WAL : arrête proprement le bot ou crée un instantané cohérent avec `sqlite3 bot/data/economy.sqlite ".backup /chemin-securise/economy.sqlite"`. Un export JSON en lecture seule est aussi disponible avec `npm --prefix bot run export:economy -- /chemin-securise/economy-export.json`. Stocke une copie chiffrée hors de l’instance Oracle.
 
-Avant une mise à jour, sauvegarde les deux fichiers `.env`, le dossier `bot/data/` et la base Supabase. Mets à jour le code, réinstalle avec `npm install` et `npm --prefix bot install`, compile, puis redémarre PM2. N’inclus jamais `.env`, `node_modules` ou les données utilisateur dans une archive publique.
+Avant une mise à jour, sauvegarde les deux fichiers `.env`, le dossier `bot/data/` et la base Supabase. Mets à jour le code, réinstalle les dépendances avec `npm ci` puis `npm ci --prefix bot` à la racine du dépôt, compile avec `npm run build`, puis redémarre PM2. N’inclus jamais `.env`, `node_modules` ou les données utilisateur dans une archive publique.
 
 ## Permissions Discord requises
 
