@@ -93,6 +93,15 @@ export function isGuildAllowed(guildId, allowlist) {
     && allowlist.includes(guildId);
 }
 
+/** Keep configuration only for explicitly authorized guilds; never expose foreign guild settings. */
+export function restrictGuildSettings(settings, allowlist) {
+  if (!settings || typeof settings !== "object" || Array.isArray(settings)) return {};
+  const allowed = new Set(
+    (Array.isArray(allowlist) ? allowlist : []).filter((id) => typeof id === "string" && /^\\d{5,25}$/.test(id)),
+  );
+  return Object.fromEntries(Object.entries(settings).filter(([guildId]) => allowed.has(guildId)));
+}
+
 /** Quitte immédiatement tout serveur absent de l’allowlist (isolation fail-closed). */
 export async function handleGuildCreate(guild, allowlist, record = () => {}) {
   if (isGuildAllowed(guild.id, allowlist)) return false;
