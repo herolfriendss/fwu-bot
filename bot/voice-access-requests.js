@@ -326,12 +326,19 @@ export async function handleVoiceAccessRequestInteraction(interaction, settings 
 
   if (interaction.isButton() && /^voice-access:(approve|deny):\d+$/.test(interaction.customId)) {
     const [, action, requestId] = interaction.customId.split(":");
-    await interaction.deferUpdate();
     try {
+      // Acknowledge the component interaction immediately. Channel permission
+      // updates and message edits can take longer than Discord's 3-second
+      // acknowledgement window; without deferUpdate, followUp may fail.
+      await interaction.deferUpdate();
       await decideRequest(interaction, settings, action, requestId);
     } catch (error) {
       const response = error instanceof Error ? error.message : "Impossible de traiter la demande.";
-      await interaction.followUp({ content: response, ephemeral: true }).catch(() => {});
+      if (interaction.deferred || interaction.replied) {
+        await interaction.followUp({ content: response, ephemeral: true }).catch(() => {});
+      } else {
+        await interaction.reply({ content: response, ephemeral: true }).catch(() => {});
+      }
     }
     return true;
   }
