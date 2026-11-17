@@ -18,7 +18,7 @@ import { handleV4SlashInteraction } from "./v4-commands.js";
 import { handleSocialMessage } from "./social.js";
 import { handleCardsMessage } from "./cards.js";
 import { handleGuildGuardInteraction } from "./guild-guard-commands.js";
-import { handleGuildCreate, handleGuildGuardJoin } from "./guild-guard.js";
+import { handleGuildCreate, handleGuildGuardJoin, restrictGuildSettings } from "./guild-guard.js";
 import { handleModerationInteraction } from "./moderation.js";
 import { handleVoiceV2Interaction, handleVoiceV2State, forgetGuildTempVoices, forgetTempVoice } from "./voice-v2.js";
 import { handleGamesInteraction, handleGamesMessage, startGamesScheduler } from "./games.js";
@@ -63,7 +63,7 @@ async function reportStatus() {
         startedAt,
         lastSync,
         events,
-        guilds: client.guilds.cache.map((guild) => ({
+        guilds: client.guilds.cache.filter((guild) => ALLOWED_GUILDS.includes(guild.id)).map((guild) => ({
           id: guild.id,
           name: guild.name,
           icon: guild.icon,
@@ -75,7 +75,7 @@ async function reportStatus() {
   finally { reporting = false; }
 }
 record("started");
-recoverBlackjackGames();
+recoverBlackjackGames(ALLOWED_GUILDS);
 
 let settings = {}; // { [guildId]: BotSettings }
 
@@ -83,7 +83,7 @@ async function sync() {
   try {
     const res = await fetch(API, { headers: AUTH, signal: AbortSignal.timeout(15_000) });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    settings = (await res.json()).guilds ?? {};
+    const payload = await res.json();\n    settings = restrictGuildSettings(payload.guilds, ALLOWED_GUILDS);
     lastSync = new Date().toISOString();
     record("sync_ok");
   } catch {
@@ -112,7 +112,7 @@ async function reportEconomy() {
   if (economyReporting || !client.isReady()) return;
   economyReporting = true;
   try {
-    const snapshots = client.guilds.cache.map((guild) => economySnapshot(guild.id, guild));
+    const snapshots = client.guilds.cache\n      .filter((guild) => ALLOWED_GUILDS.includes(guild.id))\n      .map((guild) => economySnapshot(guild.id, guild));
     if (!snapshots.length) return;
     const res = await fetch(ECONOMY_API, {
       method: "POST",
@@ -275,7 +275,7 @@ client.on("guildDelete", (guild) => { forgetGuildTempVoices(guild.id); });
 
 async function reconcileDogLeashes() {
   try {
-    const restored = await reconcileLeashedMembers(client);
+    const restored = await reconcileLeashedMembers(client, ALLOWED_GUILDS);
     if (restored) record("dog_leashes_restored");
   } catch {
     record("dog_reconcile_error");
@@ -318,7 +318,7 @@ client.once("ready", async () => {
   const economyTimer = setInterval(() => { void reportEconomy(); }, 5 * 60_000);
   economyTimer.unref?.();
   void reconcileDogLeashes();
-  void startConfiguredRadios(client).then((started) => {
+  void startConfiguredRadios(client, ALLOWED_GUILDS).then((started) => {
     if (started) record("radio_autostarted");
   }).catch(() => record("radio_autostart_error"));
 });
@@ -489,7 +489,7 @@ async function handleSavedSlashCommand(interaction) {
 }
 
 client.on("interactionCreate", (interaction) => {
-  if (interaction.guildId && !ALLOWED_GUILDS.includes(interaction.guildId)) return;
+  if (!interaction.guildId || !ALLOWED_GUILDS.includes(interaction.guildId)) return;
   (async () => {
     if (await handleSysPlusInteraction(interaction, settings, {
       apiUrl: API,
@@ -536,6 +536,6 @@ client.on("interactionCreate", (interaction) => {
 await sync();
 setInterval(sync, 60_000);
 setInterval(reportStatus, 20_000);
-startGamesScheduler(client, record);
-startAutomationScheduler(client, record);
+startGamesScheduler(client, record, ALLOWED_GUILDS);
+startAutomationScheduler(client, record, ALLOWED_GUILDS);
 client.login(DISCORD_TOKEN).catch(() => { record("gateway_error"); process.exitCode = 1; });
