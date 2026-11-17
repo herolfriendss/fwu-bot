@@ -5,7 +5,7 @@ export const ANTI_MOVE_AUDIT_LOOKBACK_MS = 5_000;
  * only accept a single, one-member entry to the same destination in a short
  * window. Anything ambiguous is ignored rather than risking a false kickback.
  */
-export function findUniqueAntiMoveEntry(entries, { destinationChannelId, eventAt = Date.now(), actorId } = {}) {
+export function findUniqueAntiMoveEntry(entries, { destinationChannelId, eventAt = Date.now(), actorId, now = Date.now() } = {}) {
   const candidates = [...(entries ?? [])].filter((entry) => {
     const channelId = entry?.extra?.channel?.id ?? entry?.extra?.channelId ?? entry?.extra?.channel_id;
     const count = Number(entry?.extra?.count);
@@ -14,7 +14,7 @@ export function findUniqueAntiMoveEntry(entries, { destinationChannelId, eventAt
     return channelId === destinationChannelId
       && count === 1
       && createdAt >= eventAt - ANTI_MOVE_AUDIT_LOOKBACK_MS
-      && createdAt <= Date.now() + 1_000
+      && createdAt <= now + 1_000
       && Boolean(executorId)
       && executorId !== actorId;
   });
