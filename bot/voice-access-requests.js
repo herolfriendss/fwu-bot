@@ -13,6 +13,7 @@ import { db } from "./database.js";
 import {
   canRequestFromVoiceChat,
   isDiscordSnowflake,
+  MAX_PENDING_VOICE_ACCESS_REQUESTS,
   isVoiceAccessRequestExpired,
   matchesVoiceAccessRequestMessage,
   parseVoiceChannelId,
@@ -183,6 +184,13 @@ async function submitRequest(interaction, sourceChannelId, presetVoiceChannelId)
   const now = Date.now();
   db.prepare("UPDATE voice_access_requests SET status='expired', decided_at=? WHERE guild_id=? AND status='pending' AND created_at<?")
     .run(now, guild.id, now - VOICE_ACCESS_REQUEST_TTL);
+
+  const pendingCount = db.prepare(
+    "SELECT COUNT(*) AS count FROM voice_access_requests WHERE guild_id=? AND requester_id=? AND status='pending'",
+  ).get(guild.id, interaction.user.id);
+  if (Number(pendingCount?.count ?? 0) >= MAX_PENDING_VOICE_ACCESS_REQUESTS) {
+    throw new Error(`Tu as déjà ${MAX_PENDING_VOICE_ACCESS_REQUESTS} demandes en attente. Attends une réponse du staff avant d’en envoyer d’autres.`);
+  }
 
   const existing = db.prepare("SELECT id FROM voice_access_requests WHERE guild_id=? AND voice_channel_id=? AND requester_id=? AND status='pending'")
     .get(guild.id, voiceChannel.id, interaction.user.id);
