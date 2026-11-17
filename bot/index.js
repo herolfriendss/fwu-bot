@@ -139,6 +139,20 @@ async function reportEconomy() {
   }
 }
 
+// Both the historical "=" prefix and the requested "+" prefix use the same handlers.
+function withPlusPrefixAlias(message) {
+  const content = String(message.content ?? "");
+  if (!/^\\+[^\\s]+/.test(content.trimStart())) return message;
+  const normalized = content.replace(/^(\\s*)\\+/, "$1=");
+  return new Proxy(message, {
+    get(target, property) {
+      if (property === "content") return normalized;
+      const value = Reflect.get(target, property, target);
+      return typeof value === "function" ? value.bind(target) : value;
+    },
+  });
+}
+
 const recent = new Map(); // anti-spam : `${guild}:${user}` -> timestamps
 let recentMessagesSinceCleanup = 0;
 
@@ -174,18 +188,19 @@ client.on("messageCreate", async (msg) => {
       return;
     }
   }
+  const commandMessage = withPlusPrefixAlias(msg);
   const handlers = [
-    ["anti_move", () => handleAntiMoveMessage(msg, s, { record })],
-    ["moderation", () => handleModerationMessage(msg, s)],
-    ["dog", () => handleDogCommand(msg, s.sysPlus?.roleId)],
-    ["radio", () => handleRadioMessage(msg)],
-    ["music", () => handleMusicMessage(msg)],
-    ["voice", () => handleVoiceMessage(msg, settings[msg.guild.id]?.voiceAccess)],
-    ["economy", () => handleEconomyMessage(msg)],
-    ["social", () => handleSocialMessage(msg)],
-    ["cards", () => handleCardsMessage(msg)],
-    ["games", () => handleGamesMessage(msg, record)],
-    ["automation", () => handleAutomationMessage(msg, s, { apiUrl: API, secret: BOT_SYNC_SECRET, record })],
+    ["anti_move", () => handleAntiMoveMessage(commandMessage, s, { record })],
+    ["moderation", () => handleModerationMessage(commandMessage, s)],
+    ["dog", () => handleDogCommand(commandMessage, s.sysPlus?.roleId)],
+    ["radio", () => handleRadioMessage(commandMessage)],
+    ["music", () => handleMusicMessage(commandMessage)],
+    ["voice", () => handleVoiceMessage(commandMessage, settings[msg.guild.id]?.voiceAccess)],
+    ["economy", () => handleEconomyMessage(commandMessage)],
+    ["social", () => handleSocialMessage(commandMessage)],
+    ["cards", () => handleCardsMessage(commandMessage)],
+    ["games", () => handleGamesMessage(commandMessage, record)],
+    ["automation", () => handleAutomationMessage(commandMessage, s, { apiUrl: API, secret: BOT_SYNC_SECRET, record })],
   ];
   for (const [moduleName, handler] of handlers) {
     try {
@@ -207,9 +222,9 @@ client.on("messageCreate", async (msg) => {
       return;
     }
     // SYS+ commands are evaluated before user-defined prefix commands.
-    if (await handleSysPlusMessage(msg, s, { apiUrl: API, secret: BOT_SYNC_SECRET, record })) return;
+    if (await handleSysPlusMessage(commandMessage, s, { apiUrl: API, secret: BOT_SYNC_SECRET, record })) return;
     // Message commands are checked before AI and keyword responses.
-    const command = resolvePrefixCommand(s.prefixCommands ?? [], msg.content, msg.member?.permissions.bitfield.toString() ?? "0");
+    const command = resolvePrefixCommand(s.prefixCommands ?? [], commandMessage.content, msg.member?.permissions.bitfield.toString() ?? "0");
     if (command) {
       await msg.reply({ content: command.content, allowedMentions: { parse: [], repliedUser: false } });
       return;
