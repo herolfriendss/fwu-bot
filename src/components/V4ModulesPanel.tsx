@@ -58,7 +58,7 @@ function RoleSelect({ value, onChange, roles, placeholder }: {
   return (
     <select className={select} value={value ?? ""} onChange={(e) => onChange(e.target.value || null)}>
       <option value="">{placeholder}</option>
-      {roles.filter((r) => !r.managed).map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
+      {roles.filter((r) => !r.managed && r.id !== guildId).map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
     </select>
   );
 }
@@ -144,13 +144,13 @@ export function V4ModulesPanel({ guildId, channels, roles }: { guildId: string; 
         <div className="grid gap-3 sm:grid-cols-2">
           <div>
             <Label>Rôle personnel Protect (intouchable)</Label>
-            <RoleSelect value={s.moderation.protectRoleId} roles={roles} onChange={(v) => set("moderation", { protectRoleId: v })} placeholder="Choisir le rôle Protect" />
+            <RoleSelect value={s.moderation.protectRoleId} roles={roles.filter((role) => role.id !== guildId)} onChange={(v) => set("moderation", { protectRoleId: v })} placeholder="Choisir le rôle Protect" />
           </div>
           <div>
             <Label>Rôles autorisés à sanctionner</Label>
             <p className="text-xs text-muted-foreground">Seuls ces rôles, SYS+ et le propriétaire pourront utiliser warn, mute, unmute, kick et ban.</p>
             <div className="mt-2 grid max-h-40 gap-2 overflow-auto">
-              {roles.filter((r) => !r.managed).map((role) => (
+              {roles.filter((r) => !r.managed && r.id !== guildId).map((role) => (
                 <label key={role.id} className="flex items-center gap-2 text-sm">
                   <input type="checkbox" checked={s.moderation.staffRoleIds.includes(role.id)} onChange={(e) => {
                     const ids = e.target.checked ? [...s.moderation.staffRoleIds, role.id] : s.moderation.staffRoleIds.filter((id) => id !== role.id);
@@ -165,7 +165,7 @@ export function V4ModulesPanel({ guildId, channels, roles }: { guildId: string; 
             <Label>Autres rôles intouchables (OW, direction, etc.)</Label>
             <p className="text-xs text-muted-foreground">Leurs membres ne pourront pas être sanctionnés et déclencheront la même protection.</p>
             <div className="mt-2 grid max-h-40 gap-2 overflow-auto sm:grid-cols-2">
-              {roles.filter((r) => !r.managed).map((role) => (
+              {roles.filter((r) => !r.managed && r.id !== guildId).map((role) => (
                 <label key={role.id} className="flex items-center gap-2 text-sm">
                   <input type="checkbox" checked={s.moderation.untouchableRoleIds.includes(role.id)} onChange={(e) => {
                     const ids = e.target.checked ? [...s.moderation.untouchableRoleIds, role.id] : s.moderation.untouchableRoleIds.filter((id) => id !== role.id);
@@ -248,7 +248,7 @@ export function V4ModulesPanel({ guildId, channels, roles }: { guildId: string; 
         <div>
           <Label>Rôles attribués automatiquement (maximum 10)</Label>
           <div className="mt-2 grid max-h-48 gap-2 overflow-auto sm:grid-cols-2">
-            {roles.filter((r) => !r.managed).map((role) => (
+            {roles.filter((r) => !r.managed && r.id !== guildId).map((role) => (
               <label key={role.id} className="flex items-center gap-2 text-sm">
                 <input
                   type="checkbox"
