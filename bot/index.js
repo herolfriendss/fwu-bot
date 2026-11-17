@@ -18,7 +18,7 @@ import { handleV4SlashInteraction } from "./v4-commands.js";
 import { handleSocialMessage } from "./social.js";
 import { handleCardsMessage } from "./cards.js";
 import { handleGuildGuardInteraction } from "./guild-guard-commands.js";
-import { handleGuildCreate, handleGuildGuardJoin, parseGuildAllowlist } from "./guild-guard.js";
+import { handleGuildCreate, handleGuildGuardJoin } from "./guild-guard.js";
 import { handleModerationInteraction } from "./moderation.js";
 import { handleVoiceV2Interaction, handleVoiceV2State, forgetGuildTempVoices, forgetTempVoice } from "./voice-v2.js";
 import { handleGamesInteraction, handleGamesMessage, startGamesScheduler } from "./games.js";
