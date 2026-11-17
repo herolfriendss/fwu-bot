@@ -254,9 +254,13 @@ export async function handleDogCommand(message) {
     return true;
   }
 
-  // DOG info is read-only: hierarchy and bot mutation permissions apply only
-  // to commands which actually add or remove the leash.
-  if (command !== "=doginfo" && !canApplyDogAction(message.member, target, message.guild.ownerId)) {
+  const records = await loadState();
+  const id = key(message.guild.id, target.id);
+  const existing = records[id];
+
+  // DOG info is read-only. Ignore the system leash marker when comparing the
+  // target's real role hierarchy so the original owner can still use =undog.
+  if (command !== "=doginfo" && !canApplyDogAction(message.member, target, message.guild.ownerId, existing?.leashRoleId)) {
     await message.reply({
       content: "⛔ Tu ne peux pas utiliser DOG sur ce membre : son rôle le plus élevé doit être strictement inférieur au tien. Les membres de même niveau ou au-dessus sont protégés.",
       allowedMentions: { parse: [] },
@@ -283,10 +287,6 @@ export async function handleDogCommand(message) {
       return true;
     }
   }
-
-  const records = await loadState();
-  const id = key(message.guild.id, target.id);
-  const existing = records[id];
 
   if (command === "=doginfo") {
     if (!existing) {
