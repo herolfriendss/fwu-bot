@@ -71,11 +71,11 @@ export async function handleSysPlusMessage(message, settings, { apiUrl, secret, 
   const embed = new EmbedBuilder()
     .setColor(0x5865f2)
     .setTitle("SYS+ — Centre de contrôle")
-    .setDescription("Le noyau SYS+ est actif. Les modules apparaîtront ici au fur et à mesure de leur livraison.")
+    .setDescription("Le noyau SYS+ est actif. Les réveils vocaux et annonces privées respectent les consentements individuels.")
     .addFields(
       { name: "Serveur", value: message.guild.name, inline: true },
       { name: "Rôle Perm Sys+", value: roleId ? `<@&${roleId}>` : "Non configuré", inline: true },
-      { name: "Commandes disponibles", value: "`=sysp` — ouvrir ce panneau\n`=sysp audit` — dix dernières actions staff\n`=sysp role @Rôle` — configurer le rôle (propriétaire / administrateur)" },
+      { name: "Commandes disponibles", value: "`=sysp` — ouvrir ce panneau\n`=sysp audit` — dix dernières actions staff\n`/wakeup` — réveil vocal (membres volontaires)\n`/dm-all` — annonces privées (owners uniquement)" },
       { name: "Modules disponibles", value: "Tickets staff : actifs (dashboard)\nCommandes vocales `=access` / `=panel` / `=pv` : actives\nDOG, musique YouTube et mini-jeux : actifs" },
       { name: "En développement", value: "Permissions SYS+ avancées et vues globales du dashboard" }
     )
@@ -156,8 +156,8 @@ export async function handleSysPlusInteraction(interaction, settings, { apiUrl, 
       .addFields(
         { name: "Serveur", value: guild.name, inline: true },
         { name: "Rôle Perm SYS+", value: roleId ? `<@&${roleId}>` : "Non configuré", inline: true },
-        { name: "Commandes disponibles", value: "`/ticket` · `=sysp audit` · `=access` · `=panel` · `=pv` · DOG · Musique YouTube" },
-        { name: "Modules disponibles", value: "Tickets staff, économie PND, social, cartes, vocal temporaire et jeux." }
+        { name: "Commandes disponibles", value: "`/ticket` · `/wakeup` · `/wakeup-optin` · `/dm-optin` · `/dm-all` (owners) · DOG · `=access` · `=panel` · `=pv`" },
+        { name: "Modules disponibles", value: "Tickets staff, économie PND, social, cartes, vocal temporaire, jeux, réveil volontaire et campagnes DM avec abonnement." }
       )
       .setFooter({ text: "Her? V4 • SYS+" });
 
