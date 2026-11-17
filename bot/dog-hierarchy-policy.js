@@ -30,3 +30,14 @@ export function isBotAboveDogTarget(botMember, target) {
   if (!botHighest || !targetHighest || typeof botHighest.comparePositionTo !== "function") return false;
   return botHighest.comparePositionTo(targetHighest) > 0;
 }
+
+
+/** Only the configured SYS+ role or the server owner may release a DOG leash. */
+export function canRemoveDogLeash(member, guildOwnerId, sysPlusRoleId) {
+  if (!member?.id) return false;
+  if (member.id === guildOwnerId) return true;
+  return typeof sysPlusRoleId === "string"
+    && /^\\d{5,25}$/.test(sysPlusRoleId)
+    && sysPlusRoleId !== member.guild?.id
+    && Boolean(member.roles?.cache?.has(sysPlusRoleId));
+}
