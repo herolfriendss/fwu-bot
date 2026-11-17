@@ -62,9 +62,9 @@ export const Route = createFileRoute("/api/public/bot-sync")({
           if (!modules.has(module) || !isDiscordSnowflake(guildId)) return json({ error: "invalid module" }, 400);
           if (JSON.stringify(body.settings ?? {}).length > 100_000) return json({ error: "settings too large" }, 413);
           const { readBotSettings, writeBotSettings } = await import("@/lib/bot-settings.server");
-          const { sanitizeSettings } = await import("@/lib/bot-settings");
+          const { sanitizeSettingsForGuild } = await import("@/lib/bot-settings");
           const current = await readBotSettings(guildId);
-          const next = sanitizeSettings({ ...current, [module]: body.settings });
+          const next = sanitizeSettingsForGuild({ ...current, [module]: body.settings }, guildId);
           const saved = await writeBotSettings(guildId, next);
           return json({ ok: true, settings: saved });
         }
