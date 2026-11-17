@@ -9,7 +9,7 @@ import {
   activeWarnings, canModerate, formatDuration, parseDuration, sanitizeReason, verificationEligible, warningExpiry,
 } from "./moderation-policy.js";
 import {
-  botCanModerate, canUseModeration, isProtectedMember, isStrictlyAbove, nextProtectStrike, protectStrikeAction,
+  botCanModerate, canUseModeration, getRemovableConfiguredRoleIds, isProtectedMember, isStrictlyAbove, nextProtectStrike, protectStrikeAction,
 } from "./moderation-protection-policy.js";
 
 const P = PermissionFlagsBits;
@@ -117,6 +117,8 @@ export async function handleModerationInteraction(interaction, guildSettings = {
         const role = interaction.options.getRole("role", true);
         if (role.managed || role.id === guild.id) throw new Error("Choisis un rôle normal du serveur.");
         const nextModeration = { ...(settings.moderation ?? {}), protectRoleId: role.id };
+        if (!apiUrl || !secret) throw new Error("La synchronisation du dashboard n’est pas configurée sur le bot (API/secret manquant).");
+        if (!apiUrl || !secret) throw new Error("La synchronisation du dashboard n’est pas configurée sur le bot (API/secret manquant).");
         const response = await fetch(apiUrl, {
           method: "POST",
           headers: { Authorization: `Bearer ${secret}`, "Content-Type": "application/json" },
@@ -190,11 +192,19 @@ export async function handleModerationInteraction(interaction, guildSettings = {
     const reason = sanitizeReason(interaction.options.getString("raison") ?? "");
 
     if (SANCTION_COMMANDS.has(command)) {
-      const moderation = settings.moderation ?? {};
-      if (!canUseModeration(actor, guild.ownerId, settings.sysPlus?.roleId, moderation.staffRoleIds ?? [])) {
+      const moderationSettings = settings.moderation ?? {};
+      if (!target) throw new Error("Ce membre n’est pas sur le serveur.");
+      if (actor.id === target.id) throw new Error("Tu ne peux pas te sanctionner toi-même.");
+      if (!canUseModeration(actor, guild.ownerId, settings.sysPlus?.roleId, moderationSettings.staffRoleIds ?? [])) {
         throw new Error("Tu ne possèdes aucun rôle autorisé à utiliser les sanctions. Les rôles sont configurables dans le dashboard.");
       }
-      if (target && isProtectedMember(target, guild.ownerId, moderation.protectRoleId, moderation.untouchableRoleIds ?? [])) {
+      if (isProtectedMember(target, guild.ownerId, moderationSettings.protectRoleId, moderationSettings.untouchableRoleIds ?? [])) {
+        // Le propriétaire reste l'autorité ultime : il peut déclencher le blocage,
+        // mais ne subit pas l'escalade automatique de Protect.
+        if (actor.id === guild.ownerId) {
+          await sendModerationLog(guild, settings, logEmbed(guild, interaction, "protect-block", user, `Tentative /${command} bloquée — cible protégée — propriétaire`));
+          throw new Error("⛔ Sanction bloquée : ce membre est protégé par Protect.");
+        }
         const row = db.prepare("SELECT strikes FROM moderation_protect_strikes WHERE guild_id=? AND moderator_id=?").get(guild.id, actor.id);
         const strike = nextProtectStrike(row?.strikes ?? 0);
         db.prepare(`INSERT INTO moderation_protect_strikes(guild_id,moderator_id,strikes,updated_at)
@@ -202,12 +212,52 @@ export async function handleModerationInteraction(interaction, guildSettings = {
           .run(guild.id, actor.id, strike, Date.now());
         const action = protectStrikeAction(strike);
         let consequence = "Avertissement enregistré.";
+        const botMember = guild.members.me ?? await guild.members.fetchMe();
         if (action === "warn") {
           await actor.send(`⚠️ Avertissement Protect 1/3 sur **${guild.name}** : tu as tenté d’utiliser /${command} sur un membre protégé. Toute nouvelle tentative entraînera une sanction.`).catch(() => {});
         } else if (action === "timeout") {
-          await actor.timeout(5 * 60_000, "Protect : deuxième tentative de sanction d’un membre protégé.");
-          consequence = "Timeout automatique de 5 minutes appliqué.";
+          if (!botMember.permissions.has(P.ModerateMembers) || !botCanModerate(botMember, actor) || actor.id === guild.ownerId) {
+            consequence = "2e tentative : le timeout de 5 minutes n’a pas pu être appliqué (permissions ou hiérarchie du bot insuffisantes).";
+          } else {
+            try {
+              await actor.timeout(5 * 60_000, "Protect : deuxième tentative de sanction d’un membre protégé.");
+              consequence = "Timeout automatique de 5 minutes appliqué.";
+            } catch {
+              consequence = "2e tentative : le timeout de 5 minutes a été refusé par Discord ; la cible protégée reste intacte.";
+            }
+          }
         } else {
+          const configuredRoleIds = [...new Set([...(moderationSettings.staffRoleIds ?? []), settings.sysPlus?.roleId].filter(Boolean))];
+          const removable = botMember.permissions.has(P.ManageRoles)
+            ? getRemovableConfiguredRoleIds(actor, botMember, configuredRoleIds)
+            : [];
+          if (!removable.length) {
+            consequence = "3e tentative : aucun rôle staff configuré ne peut être retiré par le bot (rôle absent, géré ou hiérarchie/permission insuffisante).";
+          } else {
+            try {
+              await actor.roles.remove(removable, "Protect : troisième tentative de sanction d’un membre protégé.");
+              consequence = `3e tentative : ${removable.length} rôle(s) staff configuré(s) retiré(s).`;
+            } catch {
+              consequence = "3e tentative : Discord a refusé le retrait des rôles ; la cible protégée reste intacte.";
+            }
+          }
+          await actor.send(`⛔ Protect 3/3 sur **${guild.name}** : tentative de retrait des rôles staff configurés. Contacte un owner.`).catch(() => {});
+        }
+        await sendModerationLog(guild, settings, logEmbed(guild, interaction, "protect-block", user, `Tentative /${command} bloquée — Protect ${strike}/3 — ${consequence}`));
+        throw new Error(`⛔ Sanction bloquée : ce membre est protégé. Tentative ${strike}/3. ${consequence}`);
+      }
+      const botMember = guild.members.me ?? await guild.members.fetchMe();
+      if (!botCanModerate(botMember, target)) {
+        throw new Error("Le rôle du bot doit être strictement supérieur à celui du membre ciblé.");
+      }
+      if (actor.id !== guild.ownerId && !isStrictlyAbove(actor, target)) {
+        throw new Error("Ton rôle le plus élevé doit être strictement supérieur à celui du membre ciblé.");
+      }
+      const hierarchy = checkHierarchy(interaction, actor, target, 0n);
+      if (!hierarchy.allowed && hierarchy.reason !== "Ce membre est administrateur.") {
+        throw new Error(hierarchy.reason ?? "Action refusée.");
+      }
+ else {
           const derankRoleIds = [...new Set([...(moderation.staffRoleIds ?? []), settings.sysPlus?.roleId].filter(Boolean))];
           const removable = derankRoleIds.filter((id) => actor.roles.cache.has(id));
           if (!removable.length) {
