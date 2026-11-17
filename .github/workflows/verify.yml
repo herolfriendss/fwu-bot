@@ -35,4 +35,4 @@ jobs:
       - name: Lint changed bot security files
         run: npx eslint bot/index.js bot/guild-guard.js bot/guild-guard.test.js --rule "prettier/prettier: off"
       - name: Check bot JavaScript syntax
-        run: node --check bot/index.js && node --check bot/guild-guard.js
+        run: node --check bot/index.js && node --check bot/guild-guard.js && node --check bot/voice-access-requests.js && node --check bot/voice-access-request-policy.js
