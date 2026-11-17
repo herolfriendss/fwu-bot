@@ -142,7 +142,7 @@ export async function enforceLeashNickname(member) {
 
 /** Restore active DOG nicknames after the bot reconnects. */
 export async function reconcileLeashedMembers(client, allowedGuildIds = []) {
-  const allowed = new Set((Array.isArray(allowedGuildIds) ? allowedGuildIds : []).filter((id) => typeof id === "string" && /^\\d{5,25}$/.test(id)));
+  const allowed = new Set((Array.isArray(allowedGuildIds) ? allowedGuildIds : []).filter((id) => typeof id === "string" && /^\d{5,25}$/.test(id)));
   if (!allowed.size) return 0;
   const records = await loadState();
   let restored = 0;
@@ -234,7 +234,7 @@ export async function handleDogCommand(message, sysPlusRoleId = null) {
 
   if (command === "=rank") {
     const isSysPlus = typeof sysPlusRoleId === "string"
-      && /^\\d{5,25}$/.test(sysPlusRoleId)
+      && /^\d{5,25}$/.test(sysPlusRoleId)
       && sysPlusRoleId !== message.guild.id
       && message.member.roles.cache.has(sysPlusRoleId);
     if (!isSysPlus) {
@@ -242,7 +242,7 @@ export async function handleDogCommand(message, sysPlusRoleId = null) {
       return true;
     }
 
-    const targetId = message.mentions.members.first()?.id ?? parts[1]?.match(/^<@!?(\\d+)>$/)?.[1];
+    const targetId = message.mentions.members.first()?.id ?? parts[1]?.match(/^<@!?(\d+)>$/)?.[1];
     const role = message.mentions.roles.first();
     if (!targetId || !role) {
       await message.reply({ content: "Utilisation : `=rank @membre @rôle`", allowedMentions: { parse: [] } });
