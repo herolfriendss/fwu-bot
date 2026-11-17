@@ -740,6 +740,15 @@ export const SLASH_COMMANDS: SlashCommandDef[] = [
     requiresBotProcess: true,
   },
   {
+    name: "voice-request-panel",
+    description: "Publie un panneau pour demander l’accès à un salon vocal privé",
+    usage: "/voice-request-panel",
+    category: "Vocal & DOG",
+    defaultMemberPermissions: manageChannels,
+    dmPermission: false,
+    requiresBotProcess: true,
+  },
+  {
     name: "voc",
     description: "Gère ton salon vocal temporaire",
     usage: "/voc panel | limit | name | claim | lock | unlock | delete",
