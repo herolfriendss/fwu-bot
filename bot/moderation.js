@@ -9,7 +9,7 @@ import {
   activeWarnings, canModerate, formatDuration, parseDuration, sanitizeReason, verificationEligible, warningExpiry,
 } from "./moderation-policy.js";
 import {
-  botCanModerate, canUseModeration, isProtectedMember, nextProtectStrike, protectStrikeAction,
+  botCanModerate, canUseModeration, isProtectedMember, isStrictlyAbove, nextProtectStrike, protectStrikeAction,
 } from "./moderation-protection-policy.js";
 
 const P = PermissionFlagsBits;
@@ -224,6 +224,9 @@ export async function handleModerationInteraction(interaction, guildSettings = {
       if (!target) throw new Error("Ce membre n’est pas sur le serveur.");
       if (!botCanModerate(guild.members.me ?? await guild.members.fetchMe(), target)) {
         throw new Error("Le rôle du bot doit être strictement supérieur à celui du membre ciblé.");
+      }
+      if (actor.id !== guild.ownerId && !isStrictlyAbove(actor, target)) {
+        throw new Error("Ton rôle le plus élevé doit être strictement supérieur à celui du membre ciblé.");
       }
       const hierarchy = checkHierarchy(interaction, actor, target, 0n);
       if (!hierarchy.allowed) throw new Error(hierarchy.reason ?? "Action refusée.");
