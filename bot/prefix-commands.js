@@ -12,3 +12,9 @@ export function resolvePrefixCommand(commands, content, memberPermissions = "0")
   } catch { /* Fail closed for restricted commands. */ }
   return { content: allowed ? command.response : "Tu n’as pas la permission d’utiliser cette commande.", allowed };
 }
+
+/** Normalize the requested "+" alias to the canonical "=" prefix. */
+export function normalizePrefixAlias(content) {
+  const value = String(content ?? "");
+  return value.replace(/^(\\s*)\\+/, "$1=");
+}
