@@ -186,7 +186,7 @@ async function handleDmCampaignControl(interaction, action) {
   }
   const rows = db.prepare("SELECT status,COUNT(*) AS count FROM sysplus_dm_campaign_recipients WHERE campaign_id=? GROUP BY status").all(id);
   const counts = Object.fromEntries(rows.map((row) => [row.status, Number(row.count)]));
-  await interaction.reply({ content: "📬 Campagne #" + id + " — " + campaign.status + "\nEnvoyés : " + (counts.sent ?? 0) + " · Échecs : " + (counts.failed ?? 0) + " · En attente : " + (counts.pending ?? 0) + " · Ignorés : " + (counts.skipped ?? 0), flags: MessageFlags.Ephemeral });
+  await interaction.reply({ content: "📬 Campagne #" + id + " — " + (campaign.confirmed_at ? campaign.status : "awaiting_confirmation") + "\nEnvoyés : " + (counts.sent ?? 0) + " · Échecs : " + (counts.failed ?? 0) + " · En attente : " + (counts.pending ?? 0) + " · Ignorés : " + (counts.skipped ?? 0), flags: MessageFlags.Ephemeral });
   return true;
 }
 
