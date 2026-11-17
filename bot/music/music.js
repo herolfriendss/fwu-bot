@@ -283,11 +283,12 @@ function scheduleRadioReconnect(guild, state, config) {
   timer.unref?.();
 }
 
-export async function startConfiguredRadios(client) {
+export async function startConfiguredRadios(client, allowedGuildIds = []) {
   const configs = await loadRadioConfigs();
   let started = 0;
+  const allowed = new Set((Array.isArray(allowedGuildIds) ? allowedGuildIds : []).filter((id) => typeof id === "string" && /^\\d{5,25}$/.test(id)));
   for (const [guildId, config] of Object.entries(configs)) {
-    if (!config?.voiceChannelId || !config?.playlistUrl) continue;
+    if (!allowed.has(guildId) || !config?.voiceChannelId || !config?.playlistUrl) continue;
     const guild = client.guilds.cache.get(guildId);
     if (!guild) continue;
     try {
