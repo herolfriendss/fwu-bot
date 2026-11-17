@@ -26,3 +26,9 @@ export function canRequestFromVoiceChat(permissionBitfield) {
 export function isVoiceAccessRequestExpired(createdAt, now = Date.now()) {
   return !Number.isFinite(createdAt) || now - createdAt > VOICE_ACCESS_REQUEST_TTL;
 }
+
+
+/** Grant only the permissions required to discover and join an approved private voice channel. */
+export function voiceAccessGrantPermissions() {
+  return { ViewChannel: true, Connect: true };
+}
