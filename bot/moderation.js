@@ -60,7 +60,7 @@ async function confirm(interaction, content) {
   await interaction.editReply({ content, allowedMentions: { parse: [] } });
 }
 
-export async function handleModerationInteraction(interaction, guildSettings = {}) {
+export async function handleModerationInteraction(interaction, guildSettings = {}, { apiUrl, secret } = {}) {
   if (interaction.isButton() && interaction.customId === "verify:claim") {
     await claimVerification(interaction, guildSettings);
     return true;
@@ -116,12 +116,30 @@ export async function handleModerationInteraction(interaction, guildSettings = {
       if (subcommand === "role") {
         const role = interaction.options.getRole("role", true);
         if (role.managed || role.id === guild.id) throw new Error("Choisis un rôle normal du serveur.");
-        settings.moderation = { ...(settings.moderation ?? {}), protectRoleId: role.id };
+        const nextModeration = { ...(settings.moderation ?? {}), protectRoleId: role.id };
+        const response = await fetch(apiUrl, {
+          method: "POST",
+          headers: { Authorization: `Bearer ${secret}`, "Content-Type": "application/json" },
+          signal: AbortSignal.timeout(10_000),
+          body: JSON.stringify({ action: "module-settings", module: "moderation", guildId: guild.id, settings: nextModeration }),
+        });
+        if (!response.ok) throw new Error(`Impossible d’enregistrer Protect (HTTP ${response.status}).`);
+        const saved = await response.json();
+        Object.assign(settings.moderation ?? (settings.moderation = {}), saved.settings?.moderation ?? nextModeration);
         await confirm(interaction, `🛡️ Le rôle Protect est maintenant ${role}. Ses membres ne pourront être sanctionnés par aucune commande de modération.`);
         return true;
       }
       if (subcommand === "reset") {
-        settings.moderation = { ...(settings.moderation ?? {}), protectRoleId: null };
+        const nextModeration = { ...(settings.moderation ?? {}), protectRoleId: null };
+        const response = await fetch(apiUrl, {
+          method: "POST",
+          headers: { Authorization: `Bearer ${secret}`, "Content-Type": "application/json" },
+          signal: AbortSignal.timeout(10_000),
+          body: JSON.stringify({ action: "module-settings", module: "moderation", guildId: guild.id, settings: nextModeration }),
+        });
+        if (!response.ok) throw new Error(`Impossible d’enregistrer Protect (HTTP ${response.status}).`);
+        const saved = await response.json();
+        Object.assign(settings.moderation ?? (settings.moderation = {}), saved.settings?.moderation ?? nextModeration);
         await confirm(interaction, "Le rôle Protect a été désactivé.");
         return true;
       }
