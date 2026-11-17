@@ -1,15 +1,18 @@
 // Her? V4 — règles de modération pures, testables sans Discord.
 // Aucune fonction ne lit la base : les décisions sont déterministes.
 
-export function parseDuration(raw, fallbackMinutes = 10) {
+export function parseDuration(raw) {
   const text = String(raw ?? "").trim().toLowerCase();
-  const match = /^(\d+)\s*(s|m|h|d|j)?$/.exec(text);
-  const fallback = Math.min(10_080, Math.max(1, Math.floor(fallbackMinutes)));
-  if (!match) return fallback;
+  const match = /^(\\d+)\\s*(m|h|d|j)?$/.exec(text);
+  if (!match) return null;
+
   const value = Number(match[1]);
+  if (!Number.isSafeInteger(value) || value <= 0) return null;
+
   const unit = match[2] ?? "m";
-  const minutes = unit === "s" ? value / 60 : unit === "h" ? value * 60 : unit === "d" || unit === "j" ? value * 1440 : value;
-  return Math.min(10_080, Math.max(1, Math.round(minutes)));
+  const minutes = unit === "h" ? value * 60 : unit === "d" || unit === "j" ? value * 1440 : value;
+  if (!Number.isSafeInteger(minutes) || minutes > 40_320) return null;
+  return minutes;
 }
 
 export function hasPermission(bitfield, bit) {
