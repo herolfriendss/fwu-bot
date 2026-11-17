@@ -20,12 +20,12 @@ import { economySnapshot, handleEconomyMessage, handleEconomyInteraction, recove
 import { handleV4SlashInteraction } from "./v4-commands.js";
 import { handleSocialMessage } from "./social.js";
 import { handleCardsMessage } from "./cards.js";
-import { handleGuildGuardInteraction } from "./guild-guard-commands.js";
+import { handleGuildGuardInteraction, handleGuildGuardMessage } from "./guild-guard-commands.js";
 import { handleGuildCreate, handleGuildGuardJoin, restrictGuildSettings } from "./guild-guard.js";
 import { handleModerationInteraction, handleModerationMessage } from "./moderation.js";
-import { handleVoiceV2Interaction, handleVoiceV2State, forgetGuildTempVoices, forgetTempVoice } from "./voice-v2.js";
+import { handleVoiceV2Interaction, handleVoiceV2Message, handleVoiceV2State, forgetGuildTempVoices, forgetTempVoice } from "./voice-v2.js";
 import { handleGamesInteraction, handleGamesMessage, startGamesScheduler } from "./games.js";
-import { handleTicketChannelDelete, handleTicketsInteraction } from "./tickets.js";
+import { handleTicketChannelDelete, handleTicketsInteraction, handleTicketsMessage } from "./tickets.js";
 import { handleAutomationInteraction, handleAutomationJoin, handleAutomationMessage, startAutomationScheduler } from "./automation.js";
 import { getPndPresenceFrame, PND_PRESENCE_INTERVAL_MS } from "./rich-presence-policy.js";
 
@@ -201,6 +201,9 @@ client.on("messageCreate", async (msg) => {
     ["cards", () => handleCardsMessage(commandMessage)],
     ["games", () => handleGamesMessage(commandMessage, record)],
     ["automation", () => handleAutomationMessage(commandMessage, s, { apiUrl: API, secret: BOT_SYNC_SECRET, record })],
+    ["guild_guard", () => handleGuildGuardMessage(commandMessage, s, { apiUrl: API, secret: BOT_SYNC_SECRET, record })],
+    ["tickets", () => handleTicketsMessage(commandMessage, s, { apiUrl: API, secret: BOT_SYNC_SECRET, record })],
+    ["temp_voice", () => handleVoiceV2Message(commandMessage, s)],
   ];
   for (const [moduleName, handler] of handlers) {
     try {
