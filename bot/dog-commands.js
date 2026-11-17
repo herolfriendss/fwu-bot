@@ -1,6 +1,6 @@
 import { readFile, writeFile, rename, mkdir } from "node:fs/promises";
 import { PermissionFlagsBits } from "discord.js";
-import { canApplyDogAction, isBotAboveDogTarget } from "./dog-hierarchy-policy.js";
+import { canApplyDogAction, canRemoveDogLeash, isBotAboveDogTarget } from "./dog-hierarchy-policy.js";
 
 const stateFile = new URL("./data/dog-state.json", import.meta.url);
 let state;
@@ -72,8 +72,13 @@ function dogNickname(ownerName) {
   return `🐶 de ${ownerName}`.slice(0, 32);
 }
 
-function isAuthorized(member) {
-  return member.permissions.has(PermissionFlagsBits.ManageNicknames)
+function isAuthorized(member, sysPlusRoleId = null) {
+  const isSysPlus = typeof sysPlusRoleId === "string"
+    && sysPlusRoleId !== member.guild?.id
+    && member.roles.cache.has(sysPlusRoleId);
+  return member.id === member.guild?.ownerId
+    || isSysPlus
+    || member.permissions.has(PermissionFlagsBits.ManageNicknames)
     || member.permissions.has(PermissionFlagsBits.Administrator);
 }
 
@@ -220,13 +225,13 @@ export async function handleLeashVoiceState(oldState, newState) {
   return moved;
 }
 
-export async function handleDogCommand(message) {
+export async function handleDogCommand(message, sysPlusRoleId = null) {
   const parts = message.content.trim().split(/\s+/);
   const command = parts[0]?.toLowerCase();
   if (!["=dog", "=undog", "=doginfo"].includes(command)) return false;
 
   if (!message.guild || !message.member) return true;
-  if (!isAuthorized(message.member)) {
+  if (!isAuthorized(message.member, sysPlusRoleId)) {
     await message.reply({
       content: "⛔ Tu dois avoir la permission **Gérer les surnoms** pour utiliser cette commande.",
       allowedMentions: { parse: [] },
@@ -257,6 +262,14 @@ export async function handleDogCommand(message) {
   const records = await loadState();
   const id = key(message.guild.id, target.id);
   const existing = records[id];
+
+  if (command === "=undog" && !canRemoveDogLeash(message.member, message.guild.ownerId, sysPlusRoleId)) {
+    await message.reply({
+      content: "⛔ Seul le rôle **Perm SYS+** (ou le propriétaire du serveur) peut retirer une laisse DOG.",
+      allowedMentions: { parse: [] },
+    });
+    return true;
+  }
 
   // DOG info is read-only. Ignore the system leash marker when comparing the
   // target's real role hierarchy so the original owner can still use =undog.
