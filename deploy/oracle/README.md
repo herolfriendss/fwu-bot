@@ -7,14 +7,14 @@ Ce guide prépare l’hôte uniquement lorsque tu décideras de déployer. Rien 
 Dans le dossier du projet, avec Node 24 LTS :
 
 ```bash
-npm install
-npm --prefix bot install
+npm ci
+npm ci --prefix bot
 cp .env.example .env
 cp bot/.env.example bot/.env
 chmod 600 .env bot/.env
 ```
 
-Le dépôt fournit `package-lock.json` pour le dashboard et `bot/package-lock.json` pour le bot. Conserve ces fichiers pour des installations reproductibles ; `npm install` et `npm --prefix bot install` doivent rester cohérents avec eux.
+Le dépôt fournit `package-lock.json` pour le dashboard et `bot/package-lock.json` pour le bot. Conserve ces fichiers pour des installations reproductibles ; `npm ci` et `npm ci --prefix bot` installent exactement les versions verrouillées.
 
 Renseigne les fichiers `.env` avec un éditeur de confiance. Génère `SESSION_SECRET` et `BOT_SYNC_SECRET` avec des valeurs aléatoires distinctes d’au moins 32 octets. La même valeur `BOT_SYNC_SECRET` doit figurer dans les deux fichiers. Configure les clés Discord et Supabase dans `.env`, puis le token Discord, l’URL HTTPS finale et `PND_ALLOWED_GUILD_ID` dans `bot/.env`. Cette dernière variable est obligatoire : elle doit contenir l’identifiant Snowflake du serveur principal PND. Sans identifiant valide, le bot refuse de démarrer ; les autres serveurs sont quittés automatiquement. Ne renseigne pas l’identifiant du serveur MZ.
 
