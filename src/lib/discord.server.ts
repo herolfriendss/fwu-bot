@@ -1,4 +1,4 @@
-import { useSession } from "@tanstack/react-start/server";
+import { useSession as getRequestSession } from "@tanstack/react-start/server";
 import { redirect } from "@tanstack/react-router";
 
 export type GateSession = { owner?: boolean };
@@ -17,9 +17,8 @@ export const sessionConfig = () => ({
 });
 
 export async function isOwner() {
-  // TanStack Start's useSession is a server request-context API here, not a React hook.
-  // eslint-disable-next-line react-hooks/rules-of-hooks
-  const session = await useSession<GateSession>(sessionConfig());
+  // This is a TanStack Start request-context API, not a React hook.
+  const session = await getRequestSession<GateSession>(sessionConfig());
   return !!session.data.owner;
 }
 
