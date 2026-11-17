@@ -228,9 +228,54 @@ export async function handleLeashVoiceState(oldState, newState) {
 export async function handleDogCommand(message, sysPlusRoleId = null) {
   const parts = message.content.trim().split(/\s+/);
   const command = parts[0]?.toLowerCase();
-  if (!["=dog", "=undog", "=doginfo"].includes(command)) return false;
+  if (!["=dog", "=undog", "=doginfo", "=rank"].includes(command)) return false;
 
   if (!message.guild || !message.member) return true;
+
+  if (command === "=rank") {
+    const isSysPlus = typeof sysPlusRoleId === "string"
+      && /^\\d{5,25}$/.test(sysPlusRoleId)
+      && sysPlusRoleId !== message.guild.id
+      && message.member.roles.cache.has(sysPlusRoleId);
+    if (!isSysPlus) {
+      await message.reply({ content: "⛔ Cette commande est réservée au rôle **Perm SYS+**.", allowedMentions: { parse: [] } });
+      return true;
+    }
+
+    const targetId = message.mentions.members.first()?.id ?? parts[1]?.match(/^<@!?(\\d+)>$/)?.[1];
+    const role = message.mentions.roles.first();
+    if (!targetId || !role) {
+      await message.reply({ content: "Utilisation : `=rank @membre @rôle`", allowedMentions: { parse: [] } });
+      return true;
+    }
+    const target = await message.guild.members.fetch(targetId).catch(() => null);
+    if (!target) {
+      await message.reply({ content: "❌ Je ne trouve pas ce membre sur le serveur.", allowedMentions: { parse: [] } });
+      return true;
+    }
+    const botMember = await message.guild.members.fetchMe();
+    if (target.id === message.guild.ownerId || !isBotAboveDogTarget(botMember, target)) {
+      await message.reply({ content: "❌ Je ne peux pas modifier ce membre : son rôle le plus élevé est égal ou supérieur à celui du bot, ou il est propriétaire du serveur.", allowedMentions: { parse: [] } });
+      return true;
+    }
+    if (role.id === message.guild.id || role.managed || role.position >= botMember.roles.highest.position) {
+      await message.reply({ content: "❌ Ce rôle ne peut pas être attribué : @everyone, les rôles gérés et les rôles au-dessus du bot sont interdits.", allowedMentions: { parse: [] } });
+      return true;
+    }
+    if (target.roles.cache.has(role.id)) {
+      await message.reply({ content: `ℹ️ **${target.user.username}** possède déjà le rôle ${role}.`, allowedMentions: { parse: [] } });
+      return true;
+    }
+    try {
+      await target.roles.add(role, `Rôle attribué par Perm SYS+ : ${message.author.tag}`);
+      await message.reply({ content: `✅ Le rôle ${role} a été attribué à **${target.user.username}**.`, allowedMentions: { parse: [] } });
+    } catch (error) {
+      console.error("[DOG rank] Attribution impossible:", error.message);
+      await message.reply({ content: "❌ Impossible d'attribuer ce rôle. Vérifie les permissions et la hiérarchie du bot.", allowedMentions: { parse: [] } });
+    }
+    return true;
+  }
+
   if (!isAuthorized(message.member, sysPlusRoleId)) {
     await message.reply({
       content: "⛔ Tu dois avoir la permission **Gérer les surnoms** pour utiliser cette commande.",
