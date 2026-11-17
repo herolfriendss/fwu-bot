@@ -6,6 +6,7 @@ import {
   isVoiceAccessRequestExpired,
   parseVoiceChannelId,
   VOICE_ACCESS_REQUEST_TTL,
+  voiceAccessGrantPermissions,
 } from "./voice-access-request-policy.js";
 
 const CHANNEL_ID = "12345678901234567";
@@ -38,4 +39,12 @@ test("requests expire after 24 hours", () => {
   assert.equal(isVoiceAccessRequestExpired(now - VOICE_ACCESS_REQUEST_TTL, now), false);
   assert.equal(isVoiceAccessRequestExpired(now, now), false);
   assert.equal(isVoiceAccessRequestExpired(Number.NaN, now), true);
+});
+
+
+test("approval grants only private-channel visibility and voice connection", () => {
+  assert.deepEqual(voiceAccessGrantPermissions(), {
+    ViewChannel: true,
+    Connect: true,
+  });
 });
