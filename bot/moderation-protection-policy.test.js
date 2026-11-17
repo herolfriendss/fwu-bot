@@ -54,9 +54,20 @@ test("third-strike derank includes only unmanaged configured roles below the bot
     ["managed", role("managed", 2, true)],
     ["above-bot", role("above-bot", 12)],
   ]);
-  const actor = { guild: { id: "guild" }, roles: { cache: memberRoles } };
+  const actor = {
+    guild: { id: "guild" },
+    roles: { cache: memberRoles, highest: role("actor-highest", 8) },
+  };
   const botHighest = role("bot-highest", 10);
   const bot = { roles: { highest: botHighest } };
   assert.deepEqual(getRemovableConfiguredRoleIds(actor, bot, ["staff", "sys", "managed", "above-bot", "missing"]), ["staff", "sys"]);
   assert.deepEqual(getRemovableConfiguredRoleIds(actor, bot, ["above-bot"]), []);
+
+  // Même si un rôle staff bas est techniquement sous le bot, le bot ne doit
+  // pas tenter de modifier un membre dont le rôle le plus élevé le dépasse.
+  const higherActor = {
+    guild: { id: "guild" },
+    roles: { cache: memberRoles, highest: role("actor-higher", 11) },
+  };
+  assert.deepEqual(getRemovableConfiguredRoleIds(higherActor, bot, ["staff", "sys"]), []);
 });
