@@ -154,6 +154,35 @@ db.exec(`
     next_run_at INTEGER NOT NULL, enabled INTEGER NOT NULL DEFAULT 1, created_at INTEGER NOT NULL
   );
   CREATE INDEX IF NOT EXISTS automation_messages_due_idx ON automation_messages(enabled,next_run_at);
+
+  -- Préférences SYS+ : consentement explicite aux réveils et annonces privées.
+  CREATE TABLE IF NOT EXISTS sysplus_member_preferences (
+    guild_id TEXT NOT NULL, user_id TEXT NOT NULL,
+    wakeup_opt_in INTEGER NOT NULL DEFAULT 0 CHECK(wakeup_opt_in IN (0,1)),
+    dm_opt_in INTEGER NOT NULL DEFAULT 0 CHECK(dm_opt_in IN (0,1)),
+    updated_at INTEGER NOT NULL,
+    PRIMARY KEY (guild_id,user_id)
+  );
+  CREATE TABLE IF NOT EXISTS sysplus_wakeup_cooldowns (
+    guild_id TEXT NOT NULL, target_id TEXT NOT NULL, last_used_at INTEGER NOT NULL,
+    PRIMARY KEY (guild_id,target_id)
+  );
+  CREATE TABLE IF NOT EXISTS sysplus_dm_campaigns (
+    id INTEGER PRIMARY KEY AUTOINCREMENT, guild_id TEXT NOT NULL, actor_id TEXT NOT NULL,
+    message TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'pending'
+      CHECK(status IN ('pending','sending','completed','cancelled')),
+    total_count INTEGER NOT NULL DEFAULT 0, sent_count INTEGER NOT NULL DEFAULT 0,
+    failed_count INTEGER NOT NULL DEFAULT 0, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS sysplus_dm_campaigns_status_idx ON sysplus_dm_campaigns(status,created_at);
+  CREATE TABLE IF NOT EXISTS sysplus_dm_campaign_recipients (
+    campaign_id INTEGER NOT NULL, user_id TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'pending'
+      CHECK(status IN ('pending','processing','sent','failed','skipped')),
+    updated_at INTEGER NOT NULL,
+    PRIMARY KEY (campaign_id,user_id)
+  );
+  CREATE INDEX IF NOT EXISTS sysplus_dm_campaign_recipients_status_idx ON sysplus_dm_campaign_recipients(campaign_id,status);
 `);
 
 // Migration additive de la V3 : la banque PND est ajoutée sans toucher aux soldes.
