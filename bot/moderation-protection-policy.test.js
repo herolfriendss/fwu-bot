@@ -8,7 +8,7 @@ import {
 function member(id, roles = [], position = 1) {
   const roleMap = new Map(roles.map((r) => [r, true]));
   const highest = { position, comparePositionTo(other) { return this.position - other.position; } };
-  return { id, roles: { cache: roleMap, highest } };
+  return { id, guild: { id: "guild" }, roles: { cache: roleMap, highest } };
 }
 
 test("only configured staff, SYS+ and owner can moderate", () => {
@@ -17,6 +17,14 @@ test("only configured staff, SYS+ and owner can moderate", () => {
   assert.equal(canUseModeration(member("owner"), "owner", "sys", []), true);
   assert.equal(canUseModeration(member("random"), "owner", "sys", ["mod"]), false);
   assert.equal(canUseModeration(member("random"), "owner", null, []), false);
+});
+
+test("the @everyone role can never authorize or protect every member", () => {
+  const everyoneMember = member("regular", ["guild"]);
+  assert.equal(canUseModeration(everyoneMember, "owner", null, ["guild"]), false);
+  assert.equal(canUseModeration(everyoneMember, "owner", "guild", []), false);
+  assert.equal(isProtectedMember(everyoneMember, "owner", "guild", []), false);
+  assert.equal(isProtectedMember(everyoneMember, "owner", null, ["guild"]), false);
 });
 
 test("Protect role, untouchable roles and server owner cannot be sanctioned", () => {
