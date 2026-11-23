@@ -102,9 +102,23 @@ const BOT_LABEL = RUNTIME.config.label;
 // domain right now. With no dedicated bot running, FWU serves everything.
 const gate = createDomainGate({ profile: RUNTIME.profile });
 const serves = (domain) => gate.serves(domain);
-gate.tick();
+// A dedicated bot takes over its domain only once it is connected AND present on every
+// protected server. Otherwise FWU keeps handling it: no protection gap if, for example,
+// GUARD was never invited or got kicked from a server.
+function dedicatedBotReady() {
+  if (!client?.isReady?.()) return false;
+  const servers = ALLOWED_GUILDS.filter((guildId) => !isLogsHub(guildId));
+  return servers.length > 0 && servers.every((guildId) => client.guilds.cache.has(guildId));
+}
+function tickDomainLease() {
+  if (IS_FWU) return gate.tick();
+  if (dedicatedBotReady()) return gate.tick();
+  if (gate.held) gate.release(); // FWU takes the domain back within a minute
+  return false;
+}
+if (IS_FWU) gate.tick();
 if (!IS_FWU) {
-  setInterval(() => { gate.tick(); }, LEASE_RENEW_MS).unref?.();
+  setInterval(() => { tickDomainLease(); }, LEASE_RENEW_MS).unref?.();
   // Dedicated bots hand their logs to FWU (Logs Hub owner, RESUME source).
   setCentralLogRelay(({ guild, embed, fallbackChannelIds, components, allowedUserIds }) => enqueueRelayedLog({
     guildId: guild.id, sourceProfile: RUNTIME.profile, embed, fallbackChannelIds, components, allowedUserIds,
@@ -802,7 +816,7 @@ client.on("guildBanRemove", (ban) => {
   const stillBlacklisted = isBlacklisted(ban.guild.id, ban.user.id);
   auditLog(ban.guild, settings[ban.guild.id], "✅ Bannissement retiré", `Membre : <@${ban.user.id}>\nID : \`${ban.user.id}\`${stillBlacklisted ? "\n⚠️ Ce compte est toujours **blacklisté** : il sera rebanni s'il revient. Retire-le avec \`/blacklist remove\` si c'est voulu." : ""}` , 0x22c55e);
 });
-client.on("guildDelete", (guild) => { forgetGuildTempVoices(guild.id); });
+client.on("guildDelete", (guild) => { forgetGuildTempVoices(guild.id); if (!IS_FWU) tickDomainLease(); });
 client.on("messageUpdate", (oldMessage, newMessage) => {
   const guild = newMessage.guild;
   if (!serves("fwu") || !guild || !guildAllowed(guild.id, ALLOWED_GUILDS) || isLogsHub(guild.id) || newMessage.author?.bot) return;
@@ -852,6 +866,7 @@ async function reconcileDogLeashes() {
 }
 
 client.once("ready", () => {
+  if (!IS_FWU) tickDomainLease();
   // Creator Studio scheduler: publishes due drafts only on allowlisted guilds (MZ stays excluded).
   const studioSender = createClientStudioSender(client, { isAllowedGuild: (gid) => guildAllowed(gid, ALLOWED_GUILDS) && !isLogsHub(gid) });
   // Each scheduled job checks its domain at every tick: exactly one process runs it.
@@ -1081,6 +1096,7 @@ client.on("shardResume", () => {
   void enforceGuildAllowlist(client, ALLOWED_GUILDS, record);
 });
 client.on("guildCreate", (guild) => {
+  if (!IS_FWU) tickDomainLease();
   void handleGuildCreate(guild, ALLOWED_GUILDS, record);
   if (serves("fwu") && guildAllowed(guild.id, ALLOWED_GUILDS) && !isLogsHub(guild.id)) {
     void captureGuildInviteSnapshot(guild).then((result) => { if (!result.captured) record("invite_snapshot_unavailable"); }).catch(() => record("invite_snapshot_error"));
