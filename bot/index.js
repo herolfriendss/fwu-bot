@@ -74,6 +74,7 @@ import { handleWebhookInteraction } from "./webhooks.js";
 import { handlePanelSetupInteraction } from "./systems/setup/panel-setup.js";
 import { getPndPrivilegedIds } from "./pnd-owner-policy.js";
 import { checkInteractionHierarchy } from "./hierarchy-guard.js";
+import { installOwnerShield, runAsActor } from "./owner-shield.js";
 import { assertOwnerConfig } from "./owner-config.js";
 import { LOGS_HUB_GUILD_ID, ACTIVE_SOURCE_GUILD_IDS, allowedRuntimeGuild, filterInactiveSourceGuilds, isLogsHub, provisionLogsHub } from "./logs-hub.js";
 
@@ -238,6 +239,8 @@ function auditSlashUsage(interaction, category) {
     `Membre : <@${interaction.user.id}>\nAction : \`${action}\`\nSalon : ${interaction.channelId ? `<#${interaction.channelId}>` : "inconnu"}`);
 }
 
+// Nobody can touch the OWNER, whatever the path (commands, panels, jobs, automatic protections).
+installOwnerShield({ report: () => record("owner_shield_blocked") });
 const client = new Client({
   intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildVoiceStates, GatewayIntentBits.GuildMessages, GatewayIntentBits.GuildMessageReactions, GatewayIntentBits.GuildInvites, GatewayIntentBits.MessageContent, GatewayIntentBits.GuildMembers, GatewayIntentBits.GuildModeration],
   partials: [Partials.Channel, Partials.Message, Partials.Reaction],
@@ -1270,7 +1273,7 @@ function slashifyInteractionReplies(interaction) {
 
 client.on("interactionCreate", (interaction) => {
   slashifyInteractionReplies(interaction);
-  (async () => {
+  runAsActor(interaction.user?.id, async () => {
     if (interaction.guildId && (!guildAllowed(interaction.guildId, ALLOWED_GUILDS)
       || (isLogsHub(interaction.guildId) && !interaction.customId?.startsWith("moderation:appeal-review:")))) return;
     // A slash command is handled only by the bot that owns its domain. Buttons
@@ -1365,7 +1368,12 @@ client.on("interactionCreate", (interaction) => {
     if (await handleMusicInteraction(interaction)) { auditSlashUsage(interaction, "Musique & radio"); return; }
     await handleVoiceInteraction(interaction, settings[interaction.guildId]);
     await handleSavedSlashCommand(interaction);
-  })().catch(async (error) => {
+  }).catch(async (error) => {
+    if (error?.code === "OWNER_PROTECTED") {
+      const payload = { content: error.message, ephemeral: true, allowedMentions: { parse: [] } };
+      await (interaction.deferred || interaction.replied ? interaction.followUp(payload) : interaction.reply(payload)).catch(() => {});
+      return;
+    }
     console.error("[bot] interaction_error:", error?.message ?? "Unknown error");
     record("interaction_error");
     await reportInteractionFailure(interaction);

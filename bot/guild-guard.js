@@ -4,6 +4,7 @@
 // processus Oracle ne fait ensuite qu’appliquer l’action (expulsion, rôle de
 // quarantaine ou journalisation). Aucune donnée d’un serveur n’est lue par un
 // autre : les réglages et les compteurs sont indexés par identifiant de serveur.
+import { parsePndOwnerId } from "./pnd-owner-policy.js";
 import { EmbedBuilder, PermissionFlagsBits } from "discord.js";
 import { sendCentralLog } from "./logs.js";
 import {
@@ -82,6 +83,8 @@ export async function handleGuildGuardJoin(member, guard, record = () => {}) {
     timer.unref?.();
   }
 
+  // The OWNER is never kicked or quarantined, even during a raid.
+  if (member.id && member.id === parsePndOwnerId(process.env.PND_OWNER_DISCORD_ID)) return false;
   const decision = evaluateJoin({ createdAt: member.user.createdAt, now, guard, raidMode });
   if (decision.action === "allow") return false;
   const ageDays = accountAgeDays(member.user.createdAt, now);
