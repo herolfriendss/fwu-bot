@@ -13,11 +13,21 @@ export function buildLogAllowedMentions(userIds = []) {
 // FWU multi-bot: a dedicated bot installs a relay so its logs are posted by FWU
 // (which owns the Logs Hub). Observers (RESUME) see every log once, in the
 // process that actually delivers it.
+import { slashifyPayload as slashifyPayloadForLog } from "./prefix-to-slash.js";
+
 let centralLogRelay = null;
 const centralLogObservers = new Set();
 
 export function setCentralLogRelay(relay) {
   centralLogRelay = typeof relay === "function" ? relay : null;
+}
+
+function slashifyEmbedForLog(embed) {
+  try {
+    return slashifyPayloadForLog({ embeds: [embed] }).embeds[0];
+  } catch {
+    return embed;
+  }
 }
 
 export function addCentralLogObserver(observer) {
@@ -34,6 +44,8 @@ export async function sendCentralLog(guild, settings, embed, fallbackChannelIds 
       return false;
     }
   }
+  // Log texts point to slash commands (the "=" commands were abandoned).
+  embed = slashifyEmbedForLog(embed);
   for (const observer of centralLogObservers) {
     try { observer(guild, typeof embed?.toJSON === "function" ? embed.toJSON() : embed); } catch { /* never block a log */ }
   }

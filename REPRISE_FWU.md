@@ -53,6 +53,7 @@ Voir la section « État » en bas, mise à jour à chaque étape.
 - [x] Vérifié : 556/556 tests bot, 230/230 vitest, tsc 0, build OK, banc d'essai 2 240 / 0
 
 - [x] Commandes `=` abandonnées (décision du 23/11) : équivalents slash créés, rappel automatique, test de parité `bot/slash-parity.test.js`, secours `PND_PREFIX_COMMANDS=on`
+- [x] Textes d'aide « `=…` » traduits automatiquement en commandes slash (`bot/prefix-to-slash.js`), réponses et logs
 - [ ] `/afk`, `/dmall`, `/blacklist`, `/live` : apparaîtront à la mise en service de GUARD (FWU à 100/100)
 
 ## Prochaines étapes possibles

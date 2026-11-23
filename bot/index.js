@@ -61,6 +61,7 @@ import { captureGuildInviteSnapshot, resolveMemberInvite, recordInviteLifecycle 
 import { addCentralLogObserver, setCentralLogRelay, systemLogEmbed, sendCentralLog } from "./logs.js";
 import { BOT_PROFILES, LEASE_RENEW_MS, createDomainGate, enqueueRelayedLog, prefixCommandOwner, resolveBotRuntime, slashCommandOwner, slashRegistrationPlan, takeRelayedLogs } from "./bot-runtime.js";
 import { handleLiveInteraction, handleLiveMessage } from "./live-commands.js";
+import { slashifyPayload } from "./prefix-to-slash.js";
 import { enforceBlacklistOnJoin, handleBlacklistInteraction, handleBlacklistMessage, isBlacklisted } from "./blacklist.js";
 import { handleDmAllInteraction, handleDmAllMessage, recoverInterruptedDmAllJobs } from "./dmall.js";
 import { handleResumeInteraction, handleResumeMessage, pruneResumeEvents, recordResumeEvent } from "./resume.js";
@@ -1257,7 +1258,17 @@ async function handleSavedSlashCommand(interaction) {
   return true;
 }
 
+/** Every answer to a slash command points to slash commands, never to the former "=" ones. */
+function slashifyInteractionReplies(interaction) {
+  for (const method of ["reply", "editReply", "followUp", "update"]) {
+    const original = interaction[method];
+    if (typeof original !== "function") continue;
+    interaction[method] = (payload, ...rest) => original.call(interaction, slashifyPayload(payload), ...rest);
+  }
+}
+
 client.on("interactionCreate", (interaction) => {
+  slashifyInteractionReplies(interaction);
   (async () => {
     if (interaction.guildId && (!guildAllowed(interaction.guildId, ALLOWED_GUILDS)
       || (isLogsHub(interaction.guildId) && !interaction.customId?.startsWith("moderation:appeal-review:")))) return;
