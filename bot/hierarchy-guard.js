@@ -40,6 +40,7 @@ export const HIERARCHY_TARGETS = Object.freeze({
   menotte: "membre",
   unmenotte: "membre",
   "blacklist add": "membre",
+  "rolepanel membre": "membre",
 });
 
 export const HIERARCHY_MESSAGES = Object.freeze({

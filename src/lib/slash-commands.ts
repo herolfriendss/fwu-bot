@@ -342,12 +342,15 @@ export const SLASH_COMMANDS: SlashCommandDef[] = [
   {
     name: "rolepanel",
     description: "Panneau SYS+ de rôles personnalisés et gestion des rôles membres",
-    usage: "/rolepanel panel | create | rename | color | delete | list | manage",
+    usage: "/rolepanel panel | membre | create | rename | color | delete | list | manage",
     category: "SYS+",
     dmPermission: false,
     requiresBotProcess: true,
     options: [
       sub("panel", "Ouvre le panneau interactif des rôles personnalisés"),
+      sub("membre", "Crée ou modifie le rôle perso d'un membre (nom, couleur)", [
+        opt(6, "membre", "Membre concerné", { required: true }),
+      ]),
       sub("manage", "Ouvre l'ancien panneau d'attribution de rôles aux membres"),
       sub("create", "Crée un rôle sans permissions Discord", [
         opt(3, "nom", "Nom (2 à 32 caractères)", { required: true, min_length: 2, max_length: 32 }),

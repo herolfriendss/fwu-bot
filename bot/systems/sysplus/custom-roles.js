@@ -19,6 +19,7 @@ import {
   normalizeCustomRoleColor,
   normalizeCustomRoleName,
 } from "./custom-roles-policy.js";
+import { MEMBER_ROLE_PREFIX, handleMemberRoleComponent, memberRolePanel, memberRolePickerComponents } from "./member-roles.js";
 
 const P = PermissionFlagsBits;
 const PREFIX = "rolepanel:custom";
@@ -161,6 +162,7 @@ function customRoleComponents(guild, selectedRole = null) {
   const records = rowsForGuild.all(guild.id).slice(0, 25);
   const rows = [new ActionRowBuilder().addComponents(
     new ButtonBuilder().setCustomId(`${PREFIX}:create`).setLabel("Créer un rôle").setStyle(ButtonStyle.Success),
+    new ButtonBuilder().setCustomId(`${PREFIX}:member`).setLabel("Rôle perso d'un membre").setEmoji("🎨").setStyle(ButtonStyle.Primary),
   )];
   if (records.length) {
     const options = records.map((record) => {
@@ -227,7 +229,7 @@ export async function handleCustomRolesMessage(message, settings = {}) {
 
 export async function handleCustomRolesInteraction(interaction, settings = {}) {
   const isCommand = interaction.isChatInputCommand?.() && interaction.commandName === "rolepanel";
-  const isCustomComponent = (interaction.isButton?.() || interaction.isStringSelectMenu?.() || interaction.isModalSubmit?.())
+  const isCustomComponent = (interaction.isButton?.() || interaction.isStringSelectMenu?.() || interaction.isUserSelectMenu?.() || interaction.isModalSubmit?.())
     && interaction.customId?.startsWith(`${PREFIX}:`);
   if (!isCommand && !isCustomComponent) return false;
   if (!interaction.guild) {
@@ -237,8 +239,15 @@ export async function handleCustomRolesInteraction(interaction, settings = {}) {
   if (isCommand && interaction.options.getSubcommand() === "manage") return false;
   try {
     const { actor, botMember } = await authorizeActor(interaction.guild, interaction.user.id, settings);
+    if (isCustomComponent && interaction.customId.startsWith(`${MEMBER_ROLE_PREFIX}:`)) {
+      return await handleMemberRoleComponent(interaction, { actor, botMember });
+    }
     if (isCommand) {
       const action = interaction.options.getSubcommand();
+      if (action === "membre") {
+        await interaction.reply({ ...(await memberRolePanel(interaction.guild, actor, interaction.options.getUser("membre", true).id)), ephemeral: true });
+        return true;
+      }
       if (action === "panel" || action === "list") {
         const records = rowsForGuild.all(interaction.guild.id);
         const summary = records.map((row) => {
@@ -285,6 +294,10 @@ export async function handleCustomRolesInteraction(interaction, settings = {}) {
     }
     if (interaction.isButton?.()) {
       const [, , action, roleId] = interaction.customId.split(":");
+      if (action === "member") {
+        await interaction.update({ content: "", embeds: [new EmbedBuilder().setColor(0x6d28d9).setTitle("🎨 Rôle perso d'un membre").setDescription("Choisis le membre. Tu pourras créer son rôle (nom + couleur), le modifier ou le retirer. Le rôle n'a aucune permission Discord.")], components: memberRolePickerComponents(), allowedMentions: { parse: [] } });
+        return true;
+      }
       if (action === "home") {
         await interaction.update({ embeds: [customRolesEmbed(interaction.guild)], components: customRoleComponents(interaction.guild), allowedMentions: { parse: [] } });
         return true;
