@@ -84,7 +84,7 @@ test("only the OWNER, the server owner and administrators may use /undogall", as
   const handled = await handleUndogAllInteraction({
     isChatInputCommand: () => true, commandName: "undogall", user: { id: "x" },
     guild: { id: "g", ownerId: "go", members: { fetch: async () => m("x") } },
-    reply: async (p) => replies.push(p),
+    deferReply: async () => {}, editReply: async (p) => replies.push(p),
   });
   assert.equal(handled, true);
   assert.match(replies[0].content, /réservé/);

@@ -618,14 +618,22 @@ export async function handleUndogAllInteraction(interaction, guildSettings = nul
     await interaction.reply({ content: "Cette commande s'utilise sur un serveur.", ephemeral: true });
     return true;
   }
-  const member = await interaction.guild.members.fetch({ user: interaction.user.id }).catch(() => null);
+  // Acknowledge Discord immediately (3-second limit), then check and work.
+  await interaction.deferReply({ ephemeral: true });
+  const member = interaction.member?.permissions?.has ? interaction.member : await interaction.guild.members.fetch({ user: interaction.user.id }).catch(() => null);
   if (!canUndogAll(member)) {
-    await interaction.reply({ content: UNDOG_ALL_DENIED, ephemeral: true });
+    await interaction.editReply({ content: UNDOG_ALL_DENIED });
     return true;
   }
   const scope = interaction.options.getString?.("portee") ?? "serveur";
-  await interaction.deferReply({ ephemeral: true });
-  const r = await undogAll({ guild: interaction.guild, client: interaction.client, scope, actorTag: interaction.user.tag ?? interaction.user.id });
+  let r;
+  try {
+    r = await undogAll({ guild: interaction.guild, client: interaction.client, scope, actorTag: interaction.user.tag ?? interaction.user.id });
+  } catch (error) {
+    console.error("[dog] undogall:", error?.message ?? error);
+    await interaction.editReply({ content: "❌ Le nettoyage a échoué. Vérifie que mon rôle est au-dessus du rôle DOG et des membres concernés, puis relance." }).catch(() => {});
+    return true;
+  }
   try { recordSysPlusAudit(interaction.guild.id, interaction.user.id, "dog.undog_all", null, { scope, ...r }); } catch { /* audit is best effort */ }
   await sendCentralLog(interaction.guild, guildSettings, systemLogEmbed({ title: "🦴 DOG — laisses retirées en masse", description: `Acteur : <@${interaction.user.id}>\nPortée : ${scope}\nLibérées : ${r.released} · membres partis : ${r.forgotten} · anciennes laisses : ${r.orphans} · anciens serveurs : ${r.oldServers} · échecs : ${r.failed}` })).catch(() => {});
   const lines = [
