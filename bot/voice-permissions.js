@@ -37,11 +37,15 @@ export function connectState(allow, deny) {
 }
 
 // Lock every existing role AND member overwrite: @everyone alone is insufficient.
-export function privateVoicePlan(overwrites, everyoneId, actorId, botId) {
+// A private voice blocks everyone except: the SYS+ role, the OWNER, the channel owner
+// (who locked it) and the bot. Individual /access grants can be added afterwards.
+export function privateVoicePlan(overwrites, everyoneId, actorId, botId, { sysPlusRoleId = null, pndOwnerId = null } = {}) {
   const targets = new Map(overwrites.map((o) => [o.id, { id: o.id, type: o.type, Connect: false }]));
   targets.set(everyoneId, { id: everyoneId, type: 0, Connect: false });
-  targets.set(actorId, { id: actorId, type: 1, Connect: true });
-  targets.set(botId, { id: botId, type: 1, Connect: true });
+  if (sysPlusRoleId && sysPlusRoleId !== everyoneId) targets.set(sysPlusRoleId, { id: sysPlusRoleId, type: 0, Connect: true });
+  if (pndOwnerId) targets.set(pndOwnerId, { id: pndOwnerId, type: 1, Connect: true });
+  if (actorId) targets.set(actorId, { id: actorId, type: 1, Connect: true });
+  if (botId) targets.set(botId, { id: botId, type: 1, Connect: true });
   return [...targets.values()];
 }
 

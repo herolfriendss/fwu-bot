@@ -74,6 +74,7 @@ import { handleWebhookInteraction } from "./webhooks.js";
 import { handlePanelSetupInteraction } from "./systems/setup/panel-setup.js";
 import { getPndPrivilegedIds } from "./pnd-owner-policy.js";
 import { checkInteractionHierarchy } from "./hierarchy-guard.js";
+import { STAFF_ONLY_MESSAGE, isServerStaff } from "./server-staff.js";
 import { installOwnerShield, runAsActor } from "./owner-shield.js";
 import { assertOwnerConfig } from "./owner-config.js";
 import { LOGS_HUB_GUILD_ID, ACTIVE_SOURCE_GUILD_IDS, allowedRuntimeGuild, filterInactiveSourceGuilds, isLogsHub, provisionLogsHub } from "./logs-hub.js";
@@ -1137,6 +1138,10 @@ async function handleCoreSlashInteraction(interaction) {
   }
 
   if (command === "sondage") {
+    if (!isServerStaff(interaction.member, settings[interaction.guildId])) {
+      await interaction.reply({ content: STAFF_ONLY_MESSAGE, ephemeral: true });
+      return true;
+    }
     const question = interaction.options.getString("question", true);
     const options = [1, 2, 3, 4, 5]
       .map((n) => interaction.options.getString(`option_${n}`))

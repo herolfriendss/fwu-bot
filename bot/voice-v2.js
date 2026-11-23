@@ -254,7 +254,7 @@ export async function handleVoiceV2Interaction(interaction, guildSettings = {}) 
       await interaction.editReply({ content: "👑 Tu es maintenant propriétaire de ce salon.", allowedMentions: { parse: [] } });
     } else if (subcommand === "lock" || subcommand === "unlock") {
       const locked = subcommand === "lock";
-      if (locked) await lockPrivateVoiceChannel(channel, member, interaction.client);
+      if (locked) await lockPrivateVoiceChannel(channel, member, guild.members.me ?? interaction.client, guildSettings?.sysPlus?.roleId ?? null);
       else await unlockPrivateVoiceChannel(channel);
       await interaction.editReply({ content: locked ? "🔒 Salon verrouillé. Les demandes d'accès sont activées." : "🔓 Salon déverrouillé. Les demandes en attente sont annulées.", allowedMentions: { parse: [] } });
     } else if (subcommand === "delete") {

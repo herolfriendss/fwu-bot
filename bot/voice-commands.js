@@ -77,13 +77,13 @@ async function apply(channel, plan) {
   }
 }
 
-async function lock(channel, member, bot) {
+async function lock(channel, member, bot, sysPlusRoleId = null) {
   ensureLegacyImport();
   const tempOwner = db.prepare("SELECT owner_id FROM temp_voice WHERE guild_id=? AND channel_id=?").get(channel.guild.id, channel.id);
   const ownerId = tempOwner?.owner_id ?? member.id;
   // Snapshot BEFORE any overwrite edit; the first snapshot always wins.
   saveVoiceLockSnapshotIfAbsent({ guildId: channel.guild.id, channelId: channel.id, ownerId, overwrites: serialOverwrites(channel) });
-  await apply(channel, privateVoicePlan(serialOverwrites(channel), channel.guild.id, ownerId, bot.id));
+  await apply(channel, privateVoicePlan(serialOverwrites(channel), channel.guild.id, ownerId, bot?.user?.id ?? bot?.id, { sysPlusRoleId, pndOwnerId: parsePndOwnerId(process.env.PND_OWNER_DISCORD_ID) }));
   registerPrivateVoiceChannel({
     guildId: channel.guild.id,
     channelId: channel.id,
@@ -116,8 +116,8 @@ async function unlock(channel) {
 // Shared entry points used by both prefix commands and /voc lock|unlock.
 // Keeping one implementation preserves overwrite snapshots and the Voice
 // Access registry regardless of how the owner invokes the action.
-export async function lockPrivateVoiceChannel(channel, member, bot) {
-  return withVoiceChannelLock(channel.id, () => lock(channel, member, bot));
+export async function lockPrivateVoiceChannel(channel, member, bot, sysPlusRoleId = null) {
+  return withVoiceChannelLock(channel.id, () => lock(channel, member, bot, sysPlusRoleId));
 }
 
 export async function unlockPrivateVoiceChannel(channel) {
@@ -509,7 +509,7 @@ export async function handleVoiceMessage(message, rawSettings) {
       await unlockPrivateVoiceChannel(channel);
       await message.reply({ content: `🔓 **${channel.name}** est de nouveau accessible : les permissions d’origine sont restaurées.`, allowedMentions: { parse: [] } });
     } else if (command === "=pv") {
-      await withVoiceChannelLock(channel.id, () => lock(channel, member, bot));
+      await withVoiceChannelLock(channel.id, () => lock(channel, member, bot, settings.sysPlus?.roleId ?? null));
       await message.reply({
         content: `🔒 **${channel.name}** est privé. Les membres sans accès ne peuvent plus rejoindre ; les administrateurs Discord et le propriétaire restent exemptés selon les règles Discord. Les personnes déjà présentes restent dans le vocal.`,
         allowedMentions: { parse: [] },
@@ -579,7 +579,7 @@ export async function handleVoiceInteraction(interaction, rawSettings) {
       if (action === "lock" || action === "unlock") {
         const canUsePv = canUseVoiceCommand("=pv", memberPermissions, roles, settings.voiceAccess, interaction.guild.ownerId === member.id, adminPlusRoleId, sysPlusRoleId);
         if (!canUsePv) throw new Error("Le verrouillage demande aussi l'accès à =pv.");
-        if (action === "lock") await lock(channel, member, bot);
+        if (action === "lock") await lock(channel, member, bot, sysPlusRoleId);
         else await unlock(channel);
       } else if ((action === "allow" || action === "block") && interaction.isUserSelectMenu()) {
         const targetId = interaction.values[0];
