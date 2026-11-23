@@ -19,7 +19,7 @@ const seed = () => writeFileSync(statePath, JSON.stringify({
 }));
 seed();
 
-const { undogAll, pruneDepartedLeashes, canUndogAll, isMemberDogged, handleUndogAllInteraction } = await import("./dog-commands.js");
+const { undogAll, pruneDepartedLeashes, canUndogAll, isMemberDogged, handleUndogAllInteraction, orphanLeashParts } = await import("./dog-commands.js");
 const { db } = await import("./database.js");
 
 function guild() {
@@ -49,7 +49,7 @@ test("/undogall serveur: releases members still here, forgets departed ones, kee
   utimesSync(statePath, new Date(), new Date(Date.now() + 5000));
   const { g, calls } = guild();
   const r = await undogAll({ guild: g, client, scope: "serveur" });
-  assert.deepEqual(r, { released: 1, forgotten: 1, oldServers: 0, failed: 0 });
+  assert.deepEqual(r, { released: 1, forgotten: 1, oldServers: 0, orphans: 0, failed: 0 });
   assert.deepEqual(calls, [["nick", "old"], ["remove", "dogrole"]]);
   assert.deepEqual(Object.keys(JSON.parse(readFileSync(statePath, "utf8"))).sort(), ["keptguild:y", "oldguild:x"]);
 });
@@ -88,4 +88,19 @@ test("only the OWNER, the server owner and administrators may use /undogall", as
   });
   assert.equal(handled, true);
   assert.match(replies[0].content, /réservé/);
+});
+
+test("leashes left by the old bot (DOG role or 🐶 nickname, nothing saved) are removed by /undogall", async () => {
+  writeFileSync(statePath, JSON.stringify({}));
+  utimesSync(statePath, new Date(), new Date(Date.now() + 20000));
+  const calls = [];
+  const legacyRole = { id: "lr", name: "🐶 En laisse · Her?", managed: false };
+  const orphan = { id: "o1", nickname: "🐶 de Ancien", roles: { cache: new Map([["lr", legacyRole]]), remove: async (r) => calls.push(["remove", r.id]) }, setNickname: async (n) => calls.push(["nick", n]) };
+  const clean = { id: "c1", nickname: "Normal", roles: { cache: new Map(), remove: async () => calls.push(["bad"]) }, setNickname: async () => calls.push(["bad"]) };
+  const g = { id: "g", ownerId: "go", members: { fetch: async (arg) => (arg === undefined ? new Map([["o1", orphan], ["c1", clean]]) : new Map()) } };
+  assert.equal(orphanLeashParts(orphan).any, true);
+  assert.equal(orphanLeashParts(clean).any, false);
+  const r = await undogAll({ guild: g, client, scope: "serveur" });
+  assert.equal(r.orphans, 1);
+  assert.deepEqual(calls, [["remove", "lr"], ["nick", null]]);
 });
