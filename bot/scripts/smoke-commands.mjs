@@ -383,6 +383,7 @@ const load = async (path, name) => (await import(path))[name];
 const chain = [
   ["resume", await load("../resume.js", "handleResumeInteraction"), (i, s) => [i, s[GUILD_ID]]],
   ["dmall", await load("../dmall.js", "handleDmAllInteraction"), (i, s) => [i, s[GUILD_ID]]],
+  ["undogall", await load("../dog-commands.js", "handleUndogAllInteraction"), (i, s) => [i, s[GUILD_ID]]],
   ["blacklist", await load("../blacklist.js", "handleBlacklistInteraction"), (i, s) => [i, s[GUILD_ID]]],
   ["live", await load("../live-commands.js", "handleLiveInteraction"), (i, s) => [i, s, { apiUrl: "http://127.0.0.1:9", secret: "x".repeat(32) }]],
   [

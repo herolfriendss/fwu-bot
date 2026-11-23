@@ -24,7 +24,7 @@ import { createClientStudioSender, publishDueDrafts, recoverInterruptedStudioPub
 import { handleWhitelistInteraction } from "./systems/sysplus/whitelist-commands.js";
 import { enforceProtectedNickname, handleLocknameInteraction, handleLocknameMessage, reconcileProtectedNicknames } from "./systems/lockname/commands.js";
 import { expireWaoufActions, handleWaoufInteraction, handleWaoufMessage } from "./systems/waouf/commands.js";
-import { enforceLeashNickname, handleDogCommand, handleLeashVoiceState, reconcileLeashedMembers } from "./dog-commands.js";
+import { enforceLeashNickname, handleDogCommand, handleLeashVoiceState, handleUndogAllInteraction, reconcileLeashedMembers } from "./dog-commands.js";
 import { handleMusicMessage, handleMusicInteraction, handleRadioMessage, startConfiguredRadios } from "./music/music.js";
 import { economySnapshot, handleEconomyMessage, handleEconomyInteraction, reconcilePendingEconomy, recoverBlackjackGames, settleExpiredEconomyAuctions, transferEconomyRole } from "./economy.js";
 import { handleV4SlashInteraction, runPrefixFromSlash } from "./v4-commands.js";
@@ -1317,6 +1317,7 @@ client.on("interactionCreate", (interaction) => {
     }
     if (await handleResumeInteraction(interaction, settings[interaction.guildId])) { auditSlashUsage(interaction, "RESUME"); return; }
     if (await handleDmAllInteraction(interaction, settings[interaction.guildId])) return;
+    if (await handleUndogAllInteraction(interaction, settings[interaction.guildId])) return;
     if (await handleBlacklistInteraction(interaction, settings[interaction.guildId])) return;
     if (await handleLiveInteraction(interaction, settings, { apiUrl: API, secret: BOT_SYNC_SECRET })) { auditSlashUsage(interaction, "Alertes LIVE"); return; }
     if (interaction.isChatInputCommand?.() && interaction.commandName === "ia" && ["demande", "historique"].includes(interaction.options.getSubcommand(false))) {

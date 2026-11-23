@@ -57,7 +57,7 @@ test("every bot keeps at most 100 root commands, FWU included before any delegat
   // Historical mode: FWU wants 103 names (100 + 3 extras): the plan registers the historical 100 and skips the extras.
   const legacy = slashRegistrationPlan({ profile: "fwu", delegated: [] }, SLASH_COMMANDS, EXTRA_SLASH_COMMANDS);
   assert.equal(legacy.register.length, 100);
-  assert.deepEqual(legacy.skipped, ["live", "blacklist", "dmall", "afk"]);
+  assert.deepEqual(legacy.skipped, ["live", "blacklist", "dmall", "undogall", "afk"]);
   assert.deepEqual(legacy.register.map((c) => c.name), SLASH_COMMANDS.map((c) => c.name), "mode historique identique");
   assert.deepEqual(legacy.retire, []);
   // Once GUARD is delegated, /afk fits and the GUARD commands leave FWU.

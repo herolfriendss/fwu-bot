@@ -1,5 +1,5 @@
 import { dataPath } from "./data-dir.js";
-import { readFile, writeFile, rename, mkdir } from "node:fs/promises";
+import { readFile, writeFile, rename, mkdir, stat } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { PermissionFlagsBits } from "discord.js";
@@ -62,14 +62,23 @@ async function getLeashRole(guild) {
   return role;
 }
 
+let stateMtimeMs = null;
+async function fileMtime() {
+  try { return (await stat(stateFile)).mtimeMs; } catch (error) { if (error.code === "ENOENT") return null; throw error; }
+}
+
+// Several FWU bots share this file (shared data folder): reload it when another
+// process changed it, so every bot sees the same leashes.
 async function loadState() {
-  if (state) return state;
+  const mtime = await fileMtime();
+  if (state && mtime === stateMtimeMs) return state;
   try {
     state = JSON.parse(await readFile(stateFile, "utf8"));
   } catch (error) {
     if (error.code !== "ENOENT") throw error;
     state = {};
   }
+  stateMtimeMs = mtime;
   return state;
 }
 
@@ -79,6 +88,7 @@ async function saveState() {
     await mkdir(dirname(stateFile), { recursive: true, mode: 0o700 });
     await writeFile(stateTempFile, snapshot, { mode: 0o600 });
     await rename(stateTempFile, stateFile);
+    stateMtimeMs = await fileMtime();
   });
   pendingWrite = write;
   await write;
@@ -300,6 +310,14 @@ export async function handleDogCommand(message, guildSettings = null) {
 
   const target = await message.guild.members.fetch(targetId).catch(() => null);
   if (!target) {
+    // A leash on someone who left the server can always be cleared (nothing to restore on Discord).
+    const records = await loadState();
+    if (command === "=undog" && records[key(message.guild.id, targetId)]) {
+      delete records[key(message.guild.id, targetId)];
+      await saveState();
+      await message.reply({ content: "🦴 Laisse supprimée : ce membre n'est plus sur le serveur.", allowedMentions: { parse: [] } });
+      return true;
+    }
     await message.reply({ content: "❌ Je ne trouve pas ce membre sur le serveur.", allowedMentions: { parse: [] } });
     return true;
   }
@@ -350,6 +368,7 @@ export async function handleDogCommand(message, guildSettings = null) {
 
   if (command === "=dog") {
     return withCommandLock(`${message.guild.id}:dog-state`, async () => {
+      await pruneDepartedLeashes(message.guild);
       const freshRecords = await loadState();
       const freshExisting = freshRecords[id];
       if (freshExisting && !freshExisting.releasing) {
@@ -460,7 +479,8 @@ export async function handleDogCommand(message, guildSettings = null) {
 
   return withCommandLock(`${message.guild.id}:dog-state`, async () => {
   // Re-read the record after acquiring the owner's lock to avoid racing another release.
-  const latest = (await loadState())[id];
+  const current = await loadState();
+  const latest = current[id];
   if (!latest || latest.releasing) {
     await message.reply({ content: "🐾 Cette laisse n'est plus active.", allowedMentions: { parse: [] } });
     return true;
@@ -468,7 +488,7 @@ export async function handleDogCommand(message, guildSettings = null) {
 
   try {
     // Mark release before changing the nickname so the update event won't reapply the leash.
-    records[id] = { ...latest, releasing: true };
+    current[id] = { ...latest, releasing: true };
     await saveState();
     await target.setNickname(latest.previousNickname ?? null, `Laisse retirée par ${message.author.tag}`);
     if (latest.leashRoleId) {
@@ -476,10 +496,10 @@ export async function handleDogCommand(message, guildSettings = null) {
         ?? await message.guild.roles.fetch(latest.leashRoleId).catch(() => null);
       if (role && target.roles.cache.has(role.id)) await target.roles.remove(role, `Laisse retirée par ${message.author.tag}`);
     }
-    delete records[id];
+    delete current[id];
     await saveState();
   } catch (error) {
-    records[id] = latest;
+    current[id] = latest;
     await saveState().catch(() => {});
     console.error("UNDOG command failed:", error.message);
     await message.reply({
@@ -495,4 +515,105 @@ export async function handleDogCommand(message, guildSettings = null) {
   });
   return true;
   });
+}
+
+/**
+ * Forget leashes of members who left this server: they no longer count in the
+ * per-SYS+ quota. Only a definitive "unknown member" answer removes a record.
+ */
+export async function pruneDepartedLeashes(guild) {
+  const records = await loadState();
+  const ids = Object.values(records).filter((r) => r?.guildId === guild.id && r.memberId).map((r) => r.memberId);
+  if (!ids.length) return 0;
+  const present = new Set();
+  try {
+    for (let i = 0; i < ids.length; i += 100) {
+      const found = await guild.members.fetch({ user: ids.slice(i, i + 100) });
+      if (!found || typeof found.keys !== "function") return 0;
+      for (const id of found.keys()) present.add(id);
+    }
+  } catch {
+    return 0; // transient error: keep everything
+  }
+  let removed = 0;
+  for (const memberId of ids) {
+    if (!present.has(memberId)) { delete records[key(guild.id, memberId)]; removed += 1; }
+  }
+  if (removed) await saveState();
+  return removed;
+}
+
+export const UNDOG_ALL_DENIED = "⛔ /undogall est réservé à l'OWNER, au propriétaire du serveur et aux administrateurs.";
+
+export function canUndogAll(member) {
+  if (!member?.id || !member.guild) return false;
+  if (member.id === parsePndOwnerId(process.env.PND_OWNER_DISCORD_ID) || member.id === member.guild.ownerId) return true;
+  return Boolean(member.permissions?.has?.(PermissionFlagsBits.Administrator));
+}
+
+/**
+ * Release leashes in bulk. scope: "serveur" (this server), "anciens" (records of
+ * servers this bot is no longer on, e.g. the old bot's servers), "tout" (both).
+ * Members still here get their old nickname back and lose the DOG role.
+ */
+export async function undogAll({ guild, client, scope = "serveur", actorTag = "FWU" }) {
+  const result = { released: 0, forgotten: 0, oldServers: 0, failed: 0 };
+  await withCommandLock(`${guild.id}:dog-state`, async () => {
+    const records = await loadState();
+    for (const [id, record] of Object.entries(records)) {
+      if (!record?.guildId) { delete records[id]; result.oldServers += 1; continue; }
+      if (record.guildId !== guild.id) {
+        if ((scope === "anciens" || scope === "tout") && !client?.guilds?.cache?.has?.(record.guildId)) {
+          delete records[id];
+          result.oldServers += 1;
+        }
+        continue;
+      }
+      if (scope === "anciens") continue;
+      const member = await guild.members.fetch({ user: record.memberId }).catch((error) => (error?.code === 10007 ? null : undefined));
+      if (member === null) { delete records[id]; result.forgotten += 1; continue; }
+      if (member === undefined) { result.failed += 1; continue; }
+      try {
+        records[id] = { ...record, releasing: true };
+        await saveState();
+        await member.setNickname(record.previousNickname ?? null, `Laisses retirées en masse par ${actorTag}`);
+        if (record.leashRoleId && member.roles.cache.has(record.leashRoleId)) {
+          await member.roles.remove(record.leashRoleId, `Laisses retirées en masse par ${actorTag}`);
+        }
+        delete records[id];
+        result.released += 1;
+      } catch {
+        records[id] = record;
+        result.failed += 1;
+      }
+    }
+    await saveState();
+  });
+  return result;
+}
+
+export async function handleUndogAllInteraction(interaction, guildSettings = null) {
+  if (!interaction.isChatInputCommand?.() || interaction.commandName !== "undogall") return false;
+  if (!interaction.guild) {
+    await interaction.reply({ content: "Cette commande s'utilise sur un serveur.", ephemeral: true });
+    return true;
+  }
+  const member = await interaction.guild.members.fetch({ user: interaction.user.id }).catch(() => null);
+  if (!canUndogAll(member)) {
+    await interaction.reply({ content: UNDOG_ALL_DENIED, ephemeral: true });
+    return true;
+  }
+  const scope = interaction.options.getString?.("portee") ?? "serveur";
+  await interaction.deferReply({ ephemeral: true });
+  const r = await undogAll({ guild: interaction.guild, client: interaction.client, scope, actorTag: interaction.user.tag ?? interaction.user.id });
+  try { recordSysPlusAudit(interaction.guild.id, interaction.user.id, "dog.undog_all", null, { scope, ...r }); } catch { /* audit is best effort */ }
+  await sendCentralLog(interaction.guild, guildSettings, systemLogEmbed({ title: "🦴 DOG — laisses retirées en masse", description: `Acteur : <@${interaction.user.id}>\nPortée : ${scope}\nLibérées : ${r.released} · membres partis : ${r.forgotten} · anciens serveurs : ${r.oldServers} · échecs : ${r.failed}` })).catch(() => {});
+  const lines = [
+    "🦴 **Laisses DOG retirées**",
+    scope !== "anciens" ? `• Sur ce serveur : **${r.released}** libérée(s), **${r.forgotten}** supprimée(s) (membres partis).` : null,
+    scope !== "serveur" ? `• Anciens serveurs : **${r.oldServers}** laisse(s) supprimée(s).` : null,
+    r.failed ? `⚠️ ${r.failed} échec(s) : vérifie que le rôle du bot est au-dessus des membres concernés, puis relance.` : null,
+  ].filter(Boolean);
+  await interaction.editReply({ content: lines.join("\n"), allowedMentions: { parse: [] } });
+  return true;
 }

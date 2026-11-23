@@ -19,6 +19,16 @@ Déjà connecté au VPS ? Après avoir envoyé le dossier : `bash /home/opc/FWU-
 
 Ensuite, passe directement à l'étape **4. Dans Discord** plus bas.
 
+## Mettre à jour les 4 bots plus tard (FWU non touché)
+
+Depuis le dossier `FWU-installation` sur ton ordinateur :
+
+```bash
+bash METTRE-A-JOUR-BOTS.sh opc@ADRESSE_DU_VPS
+```
+
+Les tokens sont conservés. À la fin, l'état des processus s'affiche, avec un avertissement si un ancien bot tourne encore.
+
 ---
 
 ## La méthode manuelle (détail des mêmes étapes)

@@ -1685,6 +1685,21 @@ export const EXTRA_SLASH_COMMANDS: SlashCommandDef[] = [
     ],
   },
   {
+    name: "undogall",
+    description: "Retire toutes les laisses DOG : ce serveur, les anciens serveurs, ou tout",
+    usage: "/undogall [portee]",
+    category: "SYS+",
+    dmPermission: false,
+    requiresBotProcess: true,
+    options: [
+      opt(3, "portee", "Quelles laisses retirer (par défaut : ce serveur)", { choices: [
+        { name: "Ce serveur", value: "serveur" },
+        { name: "Anciens serveurs (où le bot n'est plus)", value: "anciens" },
+        { name: "Tout", value: "tout" },
+      ] }),
+    ],
+  },
+  {
     name: "afk",
     description: "RESUME : signale ton absence et retrouve ce qui s’est passé pendant ce temps",
     usage: "/afk on [raison] · /afk off · /afk resume [heures]",
