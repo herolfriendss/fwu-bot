@@ -68,7 +68,7 @@ export function evaluateTargetHierarchy({
   if (targetPosition >= botPosition)
     return refuse(HIERARCHY_CODES.BOT_BELOW_TARGET);
 
-  if (enforceActorRank && !(guildOwnerId && actor?.id === guildOwnerId)) {
+  if (enforceActorRank && !(guildOwnerId && actor?.id === guildOwnerId) && !(pndOwnerId && actor?.id === pndOwnerId)) {
     const actorPosition = position(actor);
     if (actorPosition === null) return refuse(HIERARCHY_CODES.UNREADABLE);
     if (targetPosition >= actorPosition)

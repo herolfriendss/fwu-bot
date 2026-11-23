@@ -73,6 +73,7 @@ import { checkLiveAlerts } from "./live-alerts.js";
 import { handleWebhookInteraction } from "./webhooks.js";
 import { handlePanelSetupInteraction } from "./systems/setup/panel-setup.js";
 import { getPndPrivilegedIds } from "./pnd-owner-policy.js";
+import { checkInteractionHierarchy } from "./hierarchy-guard.js";
 import { assertOwnerConfig } from "./owner-config.js";
 import { LOGS_HUB_GUILD_ID, ACTIVE_SOURCE_GUILD_IDS, allowedRuntimeGuild, filterInactiveSourceGuilds, isLogsHub, provisionLogsHub } from "./logs-hub.js";
 
@@ -1282,6 +1283,13 @@ client.on("interactionCreate", (interaction) => {
         }
         return;
       }
+    }
+    // Hierarchy: a member can only be targeted by someone ranked above them (OWNER: full access).
+    const hierarchyRefusal = await checkInteractionHierarchy(interaction).catch(() => "⛔ Hiérarchie des rôles illisible : action refusée par sécurité.");
+    if (hierarchyRefusal) {
+      record("hierarchy_refused");
+      await interaction.reply({ content: hierarchyRefusal, ephemeral: true, allowedMentions: { parse: [] } }).catch(() => {});
+      return;
     }
     if (await handleResumeInteraction(interaction, settings[interaction.guildId])) { auditSlashUsage(interaction, "RESUME"); return; }
     if (await handleDmAllInteraction(interaction, settings[interaction.guildId])) return;

@@ -40,6 +40,7 @@ function hierarchyError(actor, target, role, botMember) {
   return roleAssignmentDecision({
     actorId: actor.id,
     ownerId: actor.guild.ownerId,
+    pndOwnerId: parsePndOwnerId(process.env.PND_OWNER_DISCORD_ID),
     targetId: target.id,
     actorPosition: actor.roles.highest.position,
     targetPosition: target.roles.highest.position,

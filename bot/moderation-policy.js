@@ -25,19 +25,22 @@ export function hasPermission(bitfield, bit) {
  * @returns {{ allowed: boolean, reason: string | null }}
  */
 export function canModerate({
-  actorId, targetId, guildOwnerId, actorPermissions, targetPermissions = "0",
+  actorId, targetId, guildOwnerId, pndOwnerId = null, actorPermissions, targetPermissions = "0",
   actorPosition = 0, targetPosition = 0, botPosition = 0, requiredBit,
 }) {
   if (!actorId || !targetId) return { allowed: false, reason: "Membre introuvable." };
   if (actorId === targetId) return { allowed: false, reason: "Tu ne peux pas t’appliquer cette action." };
   if (targetId === guildOwnerId) return { allowed: false, reason: "Le propriétaire du serveur est protégé." };
-  if (actorId !== guildOwnerId && !hasPermission(actorPermissions, requiredBit)) {
+  if (pndOwnerId && targetId === pndOwnerId) return { allowed: false, reason: "L'OWNER est protégé." };
+  // Full access: the server owner and the configured OWNER skip the actor-side checks.
+  const fullAccess = actorId === guildOwnerId || (pndOwnerId && actorId === pndOwnerId);
+  if (!fullAccess && !hasPermission(actorPermissions, requiredBit)) {
     return { allowed: false, reason: "Permission Discord insuffisante." };
   }
-  if (actorId !== guildOwnerId && hasPermission(targetPermissions, "8")) {
+  if (!fullAccess && hasPermission(targetPermissions, "8")) {
     return { allowed: false, reason: "Ce membre est administrateur." };
   }
-  if (actorId !== guildOwnerId && actorPosition <= targetPosition) {
+  if (!fullAccess && actorPosition <= targetPosition) {
     return { allowed: false, reason: "Ton rôle doit être au-dessus de celui de ce membre." };
   }
   if (targetPosition >= botPosition) {

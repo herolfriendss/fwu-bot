@@ -3,6 +3,7 @@
 // Les avertissements, le journal et l’éligibilité sont stockés localement dans
 // SQLite, toujours par serveur. Les permissions Discord sont revérifiées à chaque
 // commande ; aucune sanction ne peut viser un rôle supérieur au bot.
+import { parsePndOwnerId } from "./pnd-owner-policy.js";
 import { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder, ModalBuilder, PermissionFlagsBits, TextInputBuilder, TextInputStyle } from "discord.js";
 import { createHash, randomInt, timingSafeEqual } from "node:crypto";
 import { db, transaction } from "./database.js";
@@ -156,6 +157,7 @@ function checkHierarchy(interaction, actor, target, requiredBit) {
     actorId: interaction.user.id,
     targetId: target.id,
     guildOwnerId: interaction.guild.ownerId,
+    pndOwnerId: parsePndOwnerId(process.env.PND_OWNER_DISCORD_ID),
     actorPermissions: actor.permissions.bitfield.toString(),
     targetPermissions: target.permissions?.bitfield?.toString() ?? "0",
     actorPosition: actor.roles.highest.position,

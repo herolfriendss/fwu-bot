@@ -1,3 +1,4 @@
+import { parsePndOwnerId } from "../../pnd-owner-policy.js";
 import { PermissionFlagsBits } from "discord.js";
 import { db } from "../../database.js";
 import { sendCentralLog, systemLogEmbed } from "../../logs.js";
@@ -47,11 +48,11 @@ async function changeLock(guild, actorId, targetId, action, rawSettings) {
       ownerId: guild.ownerId,
       targetId: target.id,
       targetIsOwner: target.id === guild.ownerId,
-      actorIsGuildOwner: actor.id === guild.ownerId,
+      actorIsGuildOwner: actor.id === guild.ownerId || actor.id === parsePndOwnerId(process.env.PND_OWNER_DISCORD_ID),
       actorRolePosition: actor.roles.highest.position,
       targetRolePosition: target.roles.highest.position,
       botRolePosition: bot.roles.highest.position,
-      actorCanManageNicknames: actor.permissions.has(PermissionFlagsBits.ManageNicknames),
+      actorCanManageNicknames: actor.permissions.has(PermissionFlagsBits.ManageNicknames) || actor.id === parsePndOwnerId(process.env.PND_OWNER_DISCORD_ID),
       botCanManageNicknames: bot.permissions.has(PermissionFlagsBits.ManageNicknames),
       privileged: true,
     });
