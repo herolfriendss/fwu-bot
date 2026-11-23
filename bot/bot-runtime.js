@@ -18,6 +18,7 @@ const profilesModule = await import((existsSync(sharedProfiles) ? sharedProfiles
 export const {
   BOT_PROFILES,
   BOT_PROFILE_IDS,
+  PREFIX_COMMAND_OWNERS,
   SHARED_SLASH_COMMANDS,
   isBotProfileId,
   parseDelegatedProfiles,

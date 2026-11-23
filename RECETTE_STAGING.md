@@ -17,6 +17,10 @@ npm --prefix bot ci && npm --prefix bot test && npm --prefix bot start
 
 Coche chaque ligne. Si une ligne échoue, note l'heure et la commande, puis envoie-moi la sortie de `pm2 logs` ou de la console (sans les secrets).
 
+## Commandes slash uniquement
+- [ ] Taper `=play` : aucune exécution, un court message (effacé après 15 s) indique d'utiliser `/play`.
+- [ ] `/verify reaction`, `/automation regles liste`, `/ia historique`, `/pv liste` répondent.
+
 ## Sécurité et propriétaire
 - [ ] Le bot démarre. Avec `PND_OWNER_DISCORD_IDS=1,2` ajouté dans `bot/.env`, il **refuse** de démarrer (retirer ensuite cette ligne).
 - [ ] `/sysp diagnostic matrice` correspond à ce que tu attends (qui peut faire quoi).
@@ -29,16 +33,16 @@ Coche chaque ligne. Si une ligne échoue, note l'heure et la commande, puis envo
 - [ ] `/wakeup B` (B en vocal) : B passe une fois par chaque salon public, reçoit un MP à chaque passage et termine dans le dernier salon. Les salons privés, d'attente, AFK et Owner sont sautés. Le bilan s'affiche dans **un seul** message édité.
 
 ## Anti-Move
-- [ ] `=anti-moove config on`, puis `=anti-moove proteger @B`. Avec le compte staff, déplace B : **il revient** dans son salon (log dans `logs-vocaux`).
+- [ ] `/anti-moove config etat:on`, puis `/anti-moove proteger membre:B`. Avec le compte staff, déplace B : **il revient** dans son salon (log dans `logs-vocaux`).
 - [ ] Une minute plus tard, déplace-le de nouveau : il revient encore.
 - [ ] B change de salon lui-même : il **ne revient pas**.
 - [ ] Déconnecte B : un log est publié, sans retour (normal).
 - [ ] 4 déplacements en moins d'une minute : 3 retours, puis l'alerte « restauration suspendue ».
 
 ## PV / UNPV
-- [ ] `=pv` dans un vocal : le salon devient privé. `=pv liste` l'affiche.
-- [ ] Redémarre le bot, puis `=unpv` : les permissions d'origine sont restaurées.
-- [ ] `=pv`, arrête le bot, retire à la main le refus de connexion de `@everyone`, redémarre le bot : le salon redevient privé.
+- [ ] `/pv activer` dans un vocal : le salon devient privé. `/pv liste` l'affiche.
+- [ ] Redémarre le bot, puis `/pv retirer` : les permissions d'origine sont restaurées.
+- [ ] `/pv activer`, arrête le bot, retire à la main le refus de connexion de `@everyone`, redémarre le bot : le salon redevient privé.
 
 ## rankall
 - [ ] `/rankall` sur un rôle **cosmétique** : un aperçu s'affiche → Confirmer → progression → bilan. Puis « Annuler l'attribution » : le rôle est retiré **seulement** à ceux qui l'ont reçu.
@@ -57,8 +61,8 @@ Coche chaque ligne. Si une ligne échoue, note l'heure et la commande, puis envo
 ## Économie, jeux, social
 - [ ] `/coinflip 100` : résultat affiché, solde modifié (cette commande plantait avant).
 - [ ] Avec le compte B : `/casino pause duree:24 heures`, puis `/coinflip 100` : refusé. L'auto-exclusion ne peut volontairement pas être annulée : elle expire seule après 24 h, et ce n'est que la base de test.
-- [ ] `=pay` depuis un compte de moins de 7 jours : refusé, aucun PND ne bouge.
-- [ ] `/rep B` : accepté ; un second `/rep B` dans la foulée est refusé ; `=rep historique @B` affiche le point.
+- [ ] `/pay` depuis un compte de moins de 7 jours : refusé, aucun PND ne bouge.
+- [ ] `/rep donner B` : accepté ; un second `/rep donner B` dans la foulée est refusé ; `/rep historique B` affiche le point.
 - [ ] `/profil` : la ligne « Badges » s'affiche.
 - [ ] Giveaway de 1 minute avec 2 participants : gagnant annoncé, `/giveaway verifier` ✅, `/giveaway reroll` donne un autre gagnant.
 - [ ] Marché : mettre un rôle en vente, l'acheter avec B, puis redémarrer le bot pendant l'achat (difficile, facultatif). Au redémarrage, l'achat est réglé une seule fois ou l'annonce est rouverte.

@@ -8,7 +8,7 @@
 |---|---|---|---|
 | **FWU** | `her-v5-bot` (inchangé) | Tous les événements et logs, `/ban`, `/blacklist`, `/live`, `/sondage`, `/nettoyer`, tickets, candidatures, social, cartes, jeux, giveaways, événements, RESUME (`/afk`), commandes personnalisées du site, mots-clés, alertes LIVE. **Reprend tout seul** le travail d'un bot arrêté. | `DISCORD_TOKEN` (inchangé) |
 | **GUARD** | `fwu-guard` | GuildGuard, `/warn`, `/mute`, `/kick`, `/purge`, `/lock`, `/verify`, anti-spam, filtre d'insultes, Guardian | `PND_GUARD_TOKEN` |
-| **FDPDLAVOC** | `fwu-fdpdlavoc` | Musique, radio, vocaux temporaires, `/pv` `=pv` `=unpv`, `/access`, `/voc` | `PND_FDPDLAVOC_TOKEN` |
+| **FDPDLAVOC** | `fwu-fdpdlavoc` | Musique, radio, vocaux temporaires, `/pv activer|liste|retirer`, `/access`, `/voc` | `PND_FDPDLAVOC_TOKEN` |
 | **SUCK ME** | `fwu-suckme` | `/sysp`, rôles, `/rankall`, `/dmall` (toi seul), DOG, MENOTTE, WAKEUP, WOUAF, LOCKNAME, Anti-Move, automatisations, webhooks, `/panel`, `/setup` | `PND_SUCKME_TOKEN` |
 | **LE FISC** | `fwu-fisc` | Toute l'économie : solde, banque, boutique, marché, enchères, casino, roulette, blackjack, entreprises, investissements | `PND_FISC_TOKEN` |
 
@@ -18,7 +18,7 @@ La liste exacte, commande par commande, est dans `src/lib/bot-profiles.ts`. Pour
 ## Comment ils travaillent ensemble
 
 - **Une seule base partagée** (`bot/data/economy.sqlite`) : les rôles SYS+/ADMIN+, la WHITELIST, l'économie, les dossiers… sont vus par les 5 bots.
-- **Un verrou par domaine** : un bot spécialisé « réserve » son domaine toutes les 20 s. Tant qu'il le tient, lui seul traite ce domaine (commandes `=`, événements, tâches planifiées). S'il s'arrête, FWU reprend ce domaine **en moins d'une minute**, tout seul.
+- **Un verrou par domaine** : un bot spécialisé « réserve » son domaine toutes les 20 s. Tant qu'il le tient, lui seul traite ce domaine (événements, tâches planifiées). S'il s'arrête, FWU reprend ce domaine **en moins d'une minute**, tout seul.
 - **Les logs passent par FWU** : les autres bots lui confient leurs logs, il les publie dans le Logs Hub. Les nouveaux bots n'ont donc pas besoin d'être sur le serveur de logs.
 - **RESUME** voit ainsi tous les logs des 5 bots.
 
@@ -71,15 +71,15 @@ PND_FWU_DELEGATED=guard
 ```bash
 pm2 restart her-v5-bot her-v5-web --update-env
 ```
-FWU supprime ses propres `/warn`, `/kick`… une par une (jamais de remplacement global). **`/afk` (RESUME), `/dmall`, `/blacklist` et `/live` apparaissent à ce moment** : avant, FWU est à 100 commandes, le maximum de Discord. `=afk`, `=dmall`, `=blacklist` et `=live` fonctionnent dès maintenant.
+FWU supprime ses propres `/warn`, `/kick`… une par une (jamais de remplacement global). **`/afk` (RESUME), `/dmall`, `/blacklist` et `/live` apparaissent à ce moment** : avant, FWU est à 100 commandes, le maximum de Discord. D'ici là, ces quatre commandes attendent : les commandes `=` sont abandonnées.
 
 ### 5. Vérifier (5 minutes)
 - `/warn` sur un compte de test → réponse de GUARD, log dans le Logs Hub (publié par FWU).
-- `=guardian-review list` → une seule réponse.
-- `pm2 stop fwu-guard`, attendre 1 minute : `=guardian-review list` → FWU répond. `pm2 start fwu-guard`.
+- `/guildguard review` → une seule réponse.
+- `pm2 stop fwu-guard`, attendre 1 minute : les événements et tâches de GUARD sont repris par FWU (visible dans `/sysp diagnostic bots`). `pm2 start fwu-guard`.
 
 ## Suivre l'état des bots
-- **`/sysp diagnostic bots`** (ou `=sysp bots`) : pour chaque bot, s'il est en ligne ou si FWU fait son travail, plus le nombre de logs en attente.
+- **`/sysp diagnostic bots`** : pour chaque bot, s'il est en ligne ou si FWU fait son travail, plus le nombre de logs en attente.
 - Sur le site, la liste des commandes indique le bot qui porte chaque commande intégrée.
 
 ## Identité visuelle
@@ -87,7 +87,7 @@ Chaque bot signe ses messages : « FWU », « FWU • GUARD », « FWU • FDPDL
 Pour changer un bot, ajouter dans `bot/.env` par exemple `PND_GUARD_COLOR=#dc2626` ou `PND_GUARD_FOOTER=GUARD`, puis redémarrer ce bot.
 
 ## Retour arrière
-- **Immédiat** : `pm2 stop fwu-guard`. FWU reprend le domaine en moins d'une minute (commandes `=`, événements, tâches).
+- **Immédiat** : `pm2 stop fwu-guard`. FWU reprend le domaine en moins d'une minute (événements, tâches, filtre anti-spam).
 - **Complet** : retirer `guard` de `PND_FWU_DELEGATED` dans les deux `.env`, puis `pm2 restart her-v5-bot her-v5-web --update-env` : FWU réenregistre ses commandes slash.
 
 ## Mises à jour
@@ -97,23 +97,26 @@ Pour changer un bot, ajouter dans `bot/.env` par exemple `PND_GUARD_COLOR=#dc262
 - `/afk on [raison]` : début de l'absence.
 - `/afk off` : fin de l'absence, avec le résumé de ce qui s'est passé.
 - `/afk resume [heures]` : le résumé, sans terminer l'absence (24 h par défaut si tu n'es pas absent).
-- Équivalents `=afk on|off|resume` : le résumé arrive en MP, jamais dans le salon.
 - Réservé à l'OWNER, aux SYS+ et aux ADMIN+. Contenu : les événements par domaine, et en priorité les alertes 🚨 et ⚠️ (bans, permissions dangereuses, exclusions…). Conservation 14 jours, sans contenu de messages.
 - `/resume` reste la commande musique (sur FDPDLAVOC) : aucun conflit.
 
 ## DM ALL (toi seul)
-- `/dmall message:<texte> [role:@rôle]` ou `=dmall [@rôle] ton message`.
+- `/dmall message:<texte> [role:@rôle]` .
 - Un aperçu montre le nombre de destinataires, la durée estimée et le message tel qu'il sera reçu. Rien n'est envoyé avant ta confirmation (60 s).
 - Pendant l'envoi, le même message affiche la progression et un bouton « Arrêter ». À la fin : le nombre de MP envoyés et le nombre de MP fermés.
 - Limites par défaut : 1 000 destinataires, un MP toutes les 1,5 s, 1 h entre deux envois. Réglables dans `bot/.env`.
 
 ## Blacklist (OWNER et SYS+, sur FWU)
-- `/blacklist add membre|id [raison]` ou `=blacklist add @membre|id [raison]` : banni tout de suite, même s'il n'est pas sur le serveur, et rebanni automatiquement s'il revient.
-- `/blacklist remove`, `/blacklist list`, `/blacklist check` (et `=blacklist remove|list|check`).
+- `/blacklist add membre|id [raison]` : banni tout de suite, même s'il n'est pas sur le serveur, et rebanni automatiquement s'il revient.
+- `/blacklist remove`, `/blacklist list`, `/blacklist check`.
 - Retirer un compte de la blacklist le débannit aussi.
 
 ## Alertes LIVE depuis Discord (OWNER et SYS+, sur FWU)
 - `/live etat` · `/live activer` · `/live desactiver` · `/live salon #salon` · `/live role @rôle` (sans rôle : plus de mention).
 - `/live ajouter plateforme nom flux` : flux RSS/Atom en HTTPS public. `/live retirer nom`.
-- Équivalents : `=live`, `=live on|off`, `=live salon #salon`, `=live role @rôle|aucun`, `=live ajouter youtube <flux> <nom>`, `=live retirer <nom>`.
 - Les changements sont enregistrés sur le site : les deux restent toujours d'accord.
+
+## Commandes slash uniquement (décision du 23/11)
+- Les anciennes commandes `=` ne sont plus exécutées. Taper `=play` affiche un court message (effacé après 15 s, au plus toutes les 10 min par membre) qui indique la commande slash à utiliser.
+- Nouvelles commandes slash pour ce qui n'existait qu'en `=` : `/pv activer|liste|retirer`, `/rep donner|historique`, `/verify reaction|reaction-off`, `/automation regles …`, `/ia demande|historique`.
+- En cas d'urgence seulement : `PND_PREFIX_COMMANDS=on` dans `bot/.env` réactive les commandes `=`.

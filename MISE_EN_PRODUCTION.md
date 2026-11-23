@@ -78,8 +78,8 @@ Dans Discord, tape `/sysp diagnostic sante` : tout doit être 🟢. Une alerte �
 
 ## Ce qui change pour les membres (à annoncer)
 
-- `=pay` / `/pay` : refusés pour les comptes Discord de moins de 7 jours ou arrivés depuis moins de 3 jours. Plafond de 50 000 PND et de 20 transferts par 24 h.
-- `=rep` / `/rep` : mêmes conditions d'ancienneté, 5 points maximum par 24 h.
+- `/pay` : refusés pour les comptes Discord de moins de 7 jours ou arrivés depuis moins de 3 jours. Plafond de 50 000 PND et de 20 transferts par 24 h.
+- `/rep donner` : mêmes conditions d'ancienneté, 5 points maximum par 24 h.
 - Le pile ou face fonctionne à nouveau, et respecte l'auto-exclusion du casino.
 - Les giveaways sont vérifiables (`/giveaway verifier`).
 

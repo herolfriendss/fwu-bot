@@ -303,6 +303,18 @@ export async function handleModerationInteraction(interaction, guildSettings = {
   try {
     if (command === "verify") {
       const subcommand = interaction.options.getSubcommand();
+      if (subcommand === "reaction" || subcommand === "reaction-off") {
+        const { runPrefixFromSlash } = await import("./v4-commands.js");
+        const { handleReactionVerificationCommand } = await import("./reaction-verification.js");
+        const channel = subcommand === "reaction" ? interaction.options.getChannel("salon", true) : null;
+        const role = subcommand === "reaction" ? interaction.options.getRole("role", true) : null;
+        return runPrefixFromSlash(
+          interaction,
+          subcommand === "reaction" ? `=verification <#${channel.id}> <@&${role.id}>` : "=verification off",
+          (message) => handleReactionVerificationCommand(message),
+          { mentions: channel ? { channels: [guild.channels.cache.get(channel.id) ?? channel], roles: [guild.roles.cache.get(role.id) ?? role] } : {} },
+        );
+      }
       if (subcommand === "panel") {
         if (!actor.permissions.has(P.ManageGuild)) throw new Error("Permission Gérer le serveur requise.");
         if (!settings.verification?.enabled || !settings.verification?.roleId) {

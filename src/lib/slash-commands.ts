@@ -118,6 +118,10 @@ export const SLASH_COMMANDS: SlashCommandDef[] = [
         ] }),
       ]),
       sub("oublier", "Efface immédiatement tes conversations mémorisées sur ce serveur"),
+      sub("demande", "PND Intelligence : demande une action (aperçu puis confirmation)", [
+        opt(3, "texte", "Ta demande, ex. « crée un rôle Animateur »", { required: true, max_length: 1500 }),
+      ]),
+      sub("historique", "PND Intelligence : tes 10 dernières actions"),
     ],
   },
   { name: "status", description: "Affiche l’état du bot et sa durée de fonctionnement", usage: "/status", category: "Général" },
@@ -315,6 +319,11 @@ export const SLASH_COMMANDS: SlashCommandDef[] = [
       sub("panel", "Publie le panneau de vérification", [
         opt(7, "salon", "Salon où publier le panneau", { channel_types: [0] }),
       ]),
+      sub("reaction", "Vérification par réaction : publie le message dans un salon", [
+        opt(7, "salon", "Salon d’accès", { required: true, channel_types: [0] }),
+        opt(8, "role", "Rôle donné après réaction", { required: true }),
+      ]),
+      sub("reaction-off", "Désactive la vérification par réaction"),
     ],
   },
   {
@@ -648,6 +657,27 @@ export const SLASH_COMMANDS: SlashCommandDef[] = [
       sub("schedule-remove", "Supprime un message planifié", [
         opt(4, "id", "Identifiant du message planifié", { required: true, min_value: 1 }),
       ]),
+      { type: 2, name: "regles", description: "Règles d’automatisation avec validation du staff", options: [
+        sub("salon", "Salon où le staff valide les déclenchements", [opt(7, "salon", "Salon de validation", { required: true, channel_types: [0] })]),
+        sub("creer", "Crée une règle (aperçu puis confirmation staff à chaque déclenchement)", [
+          opt(3, "declencheur", "Quand la règle se déclenche", { required: true, choices: [
+            { name: "Arrivée d’un membre", value: "member_join" }, { name: "Départ d’un membre", value: "member_leave" },
+            { name: "Message envoyé", value: "message_created" }, { name: "Entrée en vocal", value: "voice_join" },
+            { name: "Sortie de vocal", value: "voice_leave" }, { name: "Planifiée", value: "scheduled" },
+          ] }),
+          opt(3, "nom", "Nom de la règle", { required: true, max_length: 80 }),
+          opt(3, "action", "Ce que fait la règle", { required: true, choices: [
+            { name: "Envoyer un message", value: "message" }, { name: "Ajouter un rôle", value: "add-role" }, { name: "Retirer un rôle", value: "remove-role" },
+          ] }),
+          opt(7, "salon", "Salon du message (action « message »)", { channel_types: [0] }),
+          opt(3, "texte", "Texte du message (action « message »)", { max_length: 1500 }),
+          opt(8, "role", "Rôle (actions sur les rôles)"),
+          opt(4, "intervalle", "Minutes entre deux déclenchements (planifiée, 60 minimum)", { min_value: 60, max_value: 10080 }),
+        ]),
+        sub("liste", "Liste les règles"),
+        sub("desactiver", "Désactive une règle", [opt(3, "id", "Identifiant de la règle", { required: true, max_length: 36 })]),
+        sub("confirmer", "Confirme un déclenchement en attente", [opt(3, "run", "Identifiant du déclenchement", { required: true, max_length: 36 })]),
+      ] },
       sub("schedule-list", "Liste les messages planifiés"),
     ],
   },
@@ -935,14 +965,19 @@ export const SLASH_COMMANDS: SlashCommandDef[] = [
   },
   {
     name: "rep",
-    description: "Donne un point de réputation à un membre",
-    usage: "/rep membre [raison]",
+    description: "Réputation : donner un point ou voir l’historique",
+    usage: "/rep donner membre [raison] · /rep historique [membre]",
     category: "Social & cartes",
     dmPermission: false,
     requiresBotProcess: true,
     options: [
-      opt(6, "membre", "Membre à récompenser", { required: true }),
-      opt(3, "raison", "Raison (facultative)", { max_length: 200 }),
+      sub("donner", "Donne un point de réputation à un membre", [
+        opt(6, "membre", "Membre à récompenser", { required: true }),
+        opt(3, "raison", "Raison (facultative)", { max_length: 200 }),
+      ]),
+      sub("historique", "Historique des points de réputation", [
+        opt(6, "membre", "Membre concerné (toi par défaut)"),
+      ]),
     ],
   },
   {
@@ -1414,11 +1449,16 @@ export const SLASH_COMMANDS: SlashCommandDef[] = [
   },
   {
     name: "pv",
-    description: "Rend ton salon vocal privé",
-    usage: "/pv",
+    description: "Salon vocal privé : activer, lister ou rétablir",
+    usage: "/pv activer | liste | retirer",
     category: "Vocal & DOG",
     dmPermission: false,
     requiresBotProcess: true,
+    options: [
+      sub("activer", "Rend ton salon vocal actuel privé"),
+      sub("liste", "Liste les salons privatisés du serveur"),
+      sub("retirer", "Rétablit les permissions d’origine de ton salon vocal"),
+    ],
   },
   {
     name: "panel",

@@ -27,7 +27,7 @@ import { expireWaoufActions, handleWaoufInteraction, handleWaoufMessage } from "
 import { enforceLeashNickname, handleDogCommand, handleLeashVoiceState, reconcileLeashedMembers } from "./dog-commands.js";
 import { handleMusicMessage, handleMusicInteraction, handleRadioMessage, startConfiguredRadios } from "./music/music.js";
 import { economySnapshot, handleEconomyMessage, handleEconomyInteraction, reconcilePendingEconomy, recoverBlackjackGames, settleExpiredEconomyAuctions, transferEconomyRole } from "./economy.js";
-import { handleV4SlashInteraction } from "./v4-commands.js";
+import { handleV4SlashInteraction, runPrefixFromSlash } from "./v4-commands.js";
 import { handleSocialMessage } from "./social.js";
 import { handleCardsMessage } from "./cards.js";
 import { handleGuildGuardInteraction } from "./guild-guard-commands.js";
@@ -89,6 +89,10 @@ if (!DISCORD_TOKEN || !SITE_URL || !BOT_SYNC_SECRET) {
   process.exit(1);
 }
 const IS_FWU = RUNTIME.profile === "fwu";
+// Owner decision (23/11/2026): every command is a slash command. The former "="
+// commands are off; PND_PREFIX_COMMANDS=on re-enables them as an emergency fallback.
+const PREFIX_COMMANDS_ENABLED = String(process.env.PND_PREFIX_COMMANDS ?? "").trim().toLowerCase() === "on";
+const prefixHintCooldown = new Map();
 const BOT_LABEL = RUNTIME.config.label;
 // One gate per process: serves(domain) says whether this process handles that
 // domain right now. With no dedicated bot running, FWU serves everything.
@@ -348,6 +352,27 @@ function pruneSpamState(now) {
   }
 }
 
+/** One discreet hint (deleted after 15 s, at most every 10 min per member) towards the slash command. */
+async function sendPrefixHint(msg, owner) {
+  const key = `${msg.guild.id}:${msg.author.id}`;
+  const now = Date.now();
+  if (now - (prefixHintCooldown.get(key) ?? 0) < 10 * 60_000) return;
+  prefixHintCooldown.set(key, now);
+  if (prefixHintCooldown.size > 5_000) for (const [k, at] of prefixHintCooldown) if (now - at > 10 * 60_000) prefixHintCooldown.delete(k);
+  const token = String(msg.content).trim().slice(1).split(/\s+/, 1)[0].toLowerCase();
+  const root = [...SLASH_COMMANDS, ...EXTRA_SLASH_COMMANDS].some((command) => command.name === token) ? `/${token}` : null;
+  // A command this application cannot register yet (FWU already at Discord's 100) arrives with the new bots.
+  const pending = root && !slashRegistrationPlan(RUNTIME, SLASH_COMMANDS, EXTRA_SLASH_COMMANDS).register.some((command) => command.name === token);
+  const botLabel = owner !== RUNTIME.profile ? ` (bot **${BOT_PROFILES[owner].label}**)` : "";
+  const reply = await msg.reply({
+    content: pending
+      ? `ℹ️ Les commandes \`=\` ont été remplacées par les commandes slash. **${root}** sera disponible dès la mise en service des nouveaux bots FWU.`
+      : `ℹ️ Les commandes \`=\` ont été remplacées par les commandes slash${root ? ` : utilise **${root}**${botLabel}` : ` : tape **/** et choisis la commande${botLabel}`}.`,
+    allowedMentions: { parse: [], repliedUser: false },
+  }).catch(() => null);
+  if (reply) setTimeout(() => { reply.delete().catch(() => {}); }, 15_000).unref?.();
+}
+
 client.on("messageCreate", async (msg) => {
   if (msg.author.bot || !msg.guild) return;
   // Defense in depth: a guild outside the allowlist is ignored even while the
@@ -359,7 +384,8 @@ client.on("messageCreate", async (msg) => {
   // single-bot mode every check below is true, exactly as before.
   const allDomains = gate.servesAll();
   const prefixOwner = prefixCommandOwner(msg.content);
-  const runCmd = (domain) => allDomains || (prefixOwner ? prefixOwner === domain && serves(domain) : serves(domain));
+  const prefixBlocked = !PREFIX_COMMANDS_ENABLED && /^=[a-z]/i.test(String(msg.content ?? "").trim());
+  const runCmd = (domain) => !prefixBlocked && (allDomains || (prefixOwner ? prefixOwner === domain && serves(domain) : serves(domain)));
   if (serves("fwu")) recordAnalyticsMetric(msg.guild.id, "messages");
   if (serves("guard")) {
   const guardianNow = Date.now();
@@ -413,6 +439,10 @@ client.on("messageCreate", async (msg) => {
       }
       return;
     }
+  }
+  if (prefixBlocked && prefixOwner && serves(prefixOwner)) {
+    await sendPrefixHint(msg, prefixOwner);
+    return;
   }
   try {
     if (runCmd("fwu") && await handleResumeMessage(msg, s)) { auditPrefixUsage(msg, "RESUME"); return; }
@@ -486,7 +516,7 @@ client.on("messageCreate", async (msg) => {
     // Dashboard prefix commands, AI mentions and keywords: FWU answers alone.
     if (!serves("fwu")) return;
     // Message commands are checked before AI and keyword responses.
-    const command = resolvePrefixCommand(s.prefixCommands ?? [], msg.content, msg.member?.permissions.bitfield.toString() ?? "0");
+    const command = prefixBlocked ? null : resolvePrefixCommand(s.prefixCommands ?? [], msg.content, msg.member?.permissions.bitfield.toString() ?? "0");
     if (command) {
       await msg.reply({ content: command.content, allowedMentions: { parse: [], repliedUser: false } });
       return;
@@ -1246,6 +1276,15 @@ client.on("interactionCreate", (interaction) => {
     if (await handleDmAllInteraction(interaction, settings[interaction.guildId])) return;
     if (await handleBlacklistInteraction(interaction, settings[interaction.guildId])) return;
     if (await handleLiveInteraction(interaction, settings, { apiUrl: API, secret: BOT_SYNC_SECRET })) { auditSlashUsage(interaction, "Alertes LIVE"); return; }
+    if (interaction.isChatInputCommand?.() && interaction.commandName === "ia" && ["demande", "historique"].includes(interaction.options.getSubcommand(false))) {
+      // PND Intelligence (former =pndia): same engine, preview then confirmation button.
+      const sub = interaction.options.getSubcommand();
+      await runPrefixFromSlash(interaction, sub === "historique" ? "=pndia history" : `=pndia ${interaction.options.getString("texte", true)}`,
+        (message) => handlePndIntelligenceMessage(message, { apiUrl: API, secret: BOT_SYNC_SECRET, instructions: settings[interaction.guildId]?.ai?.instructions ?? "", settings, ownerIds: getPndPrivilegedIds(process.env.PND_OWNER_DISCORD_ID, process.env.PND_COFOUNDER_DISCORD_IDS) }),
+        { ephemeral: false });
+      auditSlashUsage(interaction, "PND Intelligence");
+      return;
+    }
     if (await handleAiMemoryInteraction(interaction)) return;
     if (await handlePndIntelligenceInteraction(interaction, { settings, ownerIds: getPndPrivilegedIds(process.env.PND_OWNER_DISCORD_ID, process.env.PND_COFOUNDER_DISCORD_IDS) })) { auditSlashUsage(interaction, "PND Intelligence"); return; }
     if (await handlePackInteraction(interaction, { configuredOwners: process.env.PND_OWNER_DISCORD_ID })) return;

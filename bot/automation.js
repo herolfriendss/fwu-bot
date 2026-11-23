@@ -115,6 +115,31 @@ export async function handleAutomationInteraction(interaction, guildSettings = {
   const automation = { ...(settings.automation ?? { autoRoleIds: [], welcomeDm: false, welcomeDmMessage: "" }) };
   const subcommand = interaction.options.getSubcommand();
 
+  if (interaction.options.getSubcommandGroup(false) === "regles") {
+    // Same engine as the former =autorule (preview + staff confirmation).
+    const { runPrefixFromSlash } = await import("./v4-commands.js");
+    const { handleAutomationRulesMessage } = await import("./automation-rules-commands.js");
+    const o = interaction.options;
+    const clean = (value) => String(value ?? "").replace(/\|/g, "¦").trim();
+    let content = "=autorule list";
+    if (subcommand === "salon") content = `=autorule channel <#${o.getChannel("salon", true).id}>`;
+    else if (subcommand === "desactiver") content = `=autorule disable ${clean(o.getString("id", true))}`;
+    else if (subcommand === "confirmer") content = `=autorule confirm ${clean(o.getString("run", true))}`;
+    else if (subcommand === "creer") {
+      const trigger = o.getString("declencheur", true);
+      const action = o.getString("action", true);
+      const channel = o.getChannel("salon");
+      const role = o.getRole("role");
+      const actionSpec = action === "message" ? `message ${channel ? `<#${channel.id}>` : ""}` : `${action} ${role ? `<@&${role.id}>` : ""}`;
+      const fields = [trigger, clean(o.getString("nom", true))];
+      if (trigger === "scheduled") fields.push(`every ${o.getInteger("intervalle") ?? 60}`);
+      fields.push(actionSpec.trim());
+      if (action === "message") fields.push(clean(o.getString("texte")));
+      content = `=autorule create ${fields.join(" | ")}`;
+    }
+    return runPrefixFromSlash(interaction, content, (message) => handleAutomationRulesMessage(message));
+  }
+
   try {
     if (subcommand === "status") {
       const schedules = db.prepare("SELECT COUNT(*) AS count FROM automation_messages WHERE guild_id=? AND enabled=1").get(guild.id).count;

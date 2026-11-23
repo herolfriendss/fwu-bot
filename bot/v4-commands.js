@@ -223,6 +223,12 @@ function buildPlan(interaction) {
     case "bio":
       return { handler: "social", content: `=bio ${options.getString("texte", true)}`, mentions, ephemeral: true };
     case "rep": {
+      if (options.getSubcommand(false) === "historique") {
+        const target = options.getUser("membre");
+        return target
+          ? userPlan(`=rep historique <@${target.id}>`, target, { handler: "social", ephemeral: true })
+          : { handler: "social", content: "=rep historique", mentions, ephemeral: true };
+      }
       const user = options.getUser("membre", true);
       const reason = options.getString("raison");
       return userPlan(`=rep <@${user.id}>${reason ? ` ${reason}` : ""}`, user, { handler: "social" });
@@ -301,8 +307,11 @@ function buildPlan(interaction) {
       const user = options.getUser("membre", true);
       return userPlan(`=unaccess <@${user.id}>`, user, { handler: "voice", ephemeral: true });
     }
-    case "pv":
-      return { handler: "voice", content: "=pv", mentions, ephemeral: true };
+    case "pv": {
+      const subcommand = options.getSubcommand(false) ?? "activer";
+      const content = subcommand === "liste" ? "=pv liste" : subcommand === "retirer" ? "=unpv" : "=pv";
+      return { handler: "voice", content, mentions, ephemeral: true };
+    }
     case "vocal-panel":
       return { handler: "voice", content: "=panel", mentions, ephemeral: true };
 
@@ -478,6 +487,28 @@ function buildPlan(interaction) {
  * à ce routeur, afin que les gestionnaires généraux (SYS+, aide, boutons…)
  * continuent de fonctionner.
  */
+/**
+ * Runs an existing message handler from a slash command (same rules, same data).
+ * Used by modules whose slash entry point is outside this adapter.
+ * `run(message)` must return true when it handled the command.
+ */
+export async function runPrefixFromSlash(interaction, content, run, { mentions = {}, ephemeral = true } = {}) {
+  if (!interaction.deferred && !interaction.replied) await interaction.deferReply(ephemeral ? { flags: MessageFlags.Ephemeral } : {});
+  const member = await interaction.guild.members.fetch({ user: interaction.user.id, force: true }).catch(() => null);
+  if (!member) {
+    await interaction.editReply("❌ Je ne trouve pas ton profil sur ce serveur. Réessaie dans un instant.");
+    return true;
+  }
+  const message = makeMessage(interaction, member, { content, ephemeral, mentions: { ...emptyMentions(), ...mentions } });
+  try {
+    if (!(await run(message))) await message.reply("Cette commande n’est pas disponible pour le moment.");
+  } catch (error) {
+    console.error("[bot] slash_bridge_error:", error?.message ?? "Unknown error");
+    await interaction.editReply({ content: "❌ Une erreur est survenue pendant cette commande. Réessaie dans un instant." }).catch(() => {});
+  }
+  return true;
+}
+
 export async function handleV4SlashInteraction(interaction, guildSettings = null) {
   if (!interaction.isChatInputCommand() || !interaction.inGuild()) return false;
   const plan = buildPlan(interaction);
