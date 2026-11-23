@@ -74,6 +74,7 @@ import { handleWebhookInteraction } from "./webhooks.js";
 import { handlePanelSetupInteraction } from "./systems/setup/panel-setup.js";
 import { getPndPrivilegedIds } from "./pnd-owner-policy.js";
 import { checkInteractionHierarchy } from "./hierarchy-guard.js";
+import { armSlowCommandWatchdog } from "./interaction-watchdog.js";
 import { STAFF_ONLY_MESSAGE, isServerStaff } from "./server-staff.js";
 import { installOwnerShield, runAsActor } from "./owner-shield.js";
 import { assertOwnerConfig } from "./owner-config.js";
@@ -1293,6 +1294,7 @@ function slashifyInteractionReplies(interaction) {
 }
 
 client.on("interactionCreate", (interaction) => {
+  armSlowCommandWatchdog(interaction);
   slashifyInteractionReplies(interaction);
   runAsActor(interaction.user?.id, async () => {
     if (interaction.guildId && (!guildAllowed(interaction.guildId, ALLOWED_GUILDS)
