@@ -1,3 +1,4 @@
+import { RANK_SHIELD_MESSAGE, rankAllows } from "./owner-shield.js";
 import {
   ActionRowBuilder,
   ButtonBuilder,
@@ -589,6 +590,9 @@ export async function handleVoiceInteraction(interaction, rawSettings) {
           throw new Error("Discord ne permet pas de bloquer un administrateur ou le propriétaire du serveur.");
         }
         if (target.roles.highest.position >= bot.roles.highest.position) throw new Error("Je ne peux pas modifier ce membre à cause de la hiérarchie des rôles.");
+        if (action === "block" && !rankAllows({ actorId: member.id, targetId: target.id, actorPosition: member.roles.highest.position, targetPosition: target.roles.highest.position, guildOwnerId: interaction.guild.ownerId })) {
+          throw new Error(RANK_SHIELD_MESSAGE.replace(/^⛔ /, ""));
+        }
         if (action === "block" && target.voice.channelId === channel.id && !botPermissions.has(PermissionFlagsBits.MoveMembers)) {
           throw new Error("Le bot doit avoir « Déplacer les membres » pour sortir cette personne du vocal.");
         }

@@ -1,3 +1,4 @@
+import { runAsActor } from "./owner-shield.js";
 import { randomInt, randomUUID } from "node:crypto";
 import { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder, PermissionFlagsBits } from "discord.js";
 import { db, transaction } from "./database.js";
@@ -373,11 +374,12 @@ export async function transferEconomyRole(guild, { sellerId, buyerId, roleId, re
   if (!from.roles.cache.has(roleId) || to.roles.cache.has(roleId)) throw new Error("État de possession du rôle incohérent.");
   let removed = false;
   try {
-    await from.roles.remove(role, "Transfert de rôle PND");
+    // The holder consented by listing the role: the removal is done on their behalf (rank rule N/A).
+    await runAsActor(from.id, () => from.roles.remove(role, "Transfert de rôle PND"));
     removed = true;
     await to.roles.add(role, "Transfert de rôle PND");
   } catch (error) {
-    if (to.roles.cache.has(roleId)) await to.roles.remove(role, "Annulation du transfert PND").catch(() => {});
+    if (to.roles.cache.has(roleId)) await runAsActor(to.id, () => to.roles.remove(role, "Annulation du transfert PND")).catch(() => {});
     if (removed && !from.roles.cache.has(roleId)) await from.roles.add(role, "Restauration après échec PND").catch(() => {});
     throw error;
   }

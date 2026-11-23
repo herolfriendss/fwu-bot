@@ -1,3 +1,4 @@
+import { runAsActor } from "./owner-shield.js";
 import { randomBytes } from "node:crypto";
 import { db } from "./database.js";
 import { roleAssignmentDecision } from "./role-policy.js";
@@ -350,7 +351,8 @@ export async function undoRankAllJob({
         skipped += 1;
         continue;
       }
-      await member.roles.remove(role, `FWU rankall ${job.id} annulé`);
+      // Undo only takes back what this job added: a system step, not a rank-checked action.
+      await runAsActor(null, () => member.roles.remove(role, `FWU rankall ${job.id} annulé`));
       removed += 1;
     } catch {
       failed += 1;

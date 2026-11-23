@@ -8,18 +8,24 @@
 //   disconnect, and any channel permission that denies the OWNER something.
 // Harmless changes stay possible (adding a role, moving into a voice channel, lifting a
 // timeout or a mute), and the OWNER's own commands are never blocked.
+//
+// Same layer, for everyone: during an action started by a member (an interaction), a
+// harmful change to ANOTHER member is refused unless the actor's highest role is
+// strictly above the target's. Full access: the OWNER and the server owner. Automatic
+// protections (no member behind them) are configured by the staff and are not ranked.
 import { AsyncLocalStorage } from "node:async_hooks";
 import { GuildBanManager, GuildChannelManager, GuildMemberManager, GuildMemberRoleManager, PermissionOverwriteManager, PermissionsBitField } from "discord.js";
 import { parsePndOwnerId } from "./pnd-owner-policy.js";
 
 export const OWNER_SHIELD_MESSAGE = "⛔ L'OWNER est protégé : aucune action ne peut le viser.";
+export const RANK_SHIELD_MESSAGE = "⛔ Tu ne peux agir que sur un membre dont le rôle le plus élevé est en dessous du tien.";
 const context = new AsyncLocalStorage();
 let installed = false;
 let onBlocked = () => {};
 
 export class OwnerShieldError extends Error {
-  constructor(action) {
-    super(OWNER_SHIELD_MESSAGE);
+  constructor(action, message = OWNER_SHIELD_MESSAGE) {
+    super(message);
     this.name = "OwnerShieldError";
     this.code = "OWNER_PROTECTED";
     this.action = action;
@@ -40,9 +46,36 @@ function shielded(targetId) {
   return Boolean(owner) && targetId === owner && context.getStore()?.actorId !== owner;
 }
 
-function block(action) {
+function block(action, message) {
   try { onBlocked(action); } catch { /* reporting must never unblock */ }
-  throw new OwnerShieldError(action);
+  throw new OwnerShieldError(action, message);
+}
+
+/** Pure rank rule between two members (positions = highest role positions). */
+export function rankAllows({ actorId, targetId, actorPosition, targetPosition, guildOwnerId = null, owner = ownerId() }) {
+  if (!actorId || !targetId || actorId === targetId) return true;
+  if (actorId === owner || actorId === guildOwnerId) return true;
+  if (targetPosition === null || targetPosition === undefined) return true; // not on the server (ban by ID)
+  if (!Number.isFinite(actorPosition) || !Number.isFinite(targetPosition)) return false;
+  return actorPosition > targetPosition;
+}
+
+async function position(guild, id) {
+  const member = guild?.members?.cache?.get?.(id) ?? (await guild?.members?.fetch?.({ user: id }).catch(() => null));
+  if (!member) return null;
+  const value = member.roles?.highest?.position;
+  return Number.isFinite(value) ? value : Number.NaN;
+}
+
+/** Refuse a harmful change to `targetId` when the member behind the current action is not ranked above. */
+async function enforceRank(guild, targetId, action) {
+  const actorId = context.getStore()?.actorId;
+  if (!actorId || !guild || actorId === targetId) return;
+  if (actorId === ownerId() || actorId === guild.ownerId) return;
+  const [actorPosition, targetPosition] = await Promise.all([position(guild, actorId), position(guild, targetId)]);
+  if (!rankAllows({ actorId, targetId, actorPosition: actorPosition ?? Number.NaN, targetPosition, guildOwnerId: guild.ownerId })) {
+    block(action, RANK_SHIELD_MESSAGE);
+  }
 }
 
 const deniesSomething = (deny) => {
@@ -88,25 +121,38 @@ export function installOwnerShield({ report = () => {} } = {}) {
       }
       const harms = harmfulMemberEdit(options, current);
       if (harms.length) block(harms.join(", "));
+    } else if (context.getStore()?.actorId) {
+      let current = null;
+      if (options.roles) {
+        const member = this.cache.get(id) ?? (await this.fetch({ user: id }).catch(() => null));
+        current = member ? new Set(member.roles.cache.keys()) : null;
+      }
+      const harms = harmfulMemberEdit(options, current);
+      if (harms.length) await enforceRank(this.guild, id, harms.join(", "));
     }
     return edit.call(this, user, options);
   };
 
   const kick = GuildMemberManager.prototype.kick;
   GuildMemberManager.prototype.kick = async function (user, reason) {
-    if (shielded(resolveUserId(this, user))) block("expulsion");
+    const id = resolveUserId(this, user);
+    if (shielded(id)) block("expulsion");
+    await enforceRank(this.guild, id, "expulsion");
     return kick.call(this, user, reason);
   };
 
   const ban = GuildBanManager.prototype.create;
   GuildBanManager.prototype.create = async function (user, options) {
-    if (shielded(resolveUserId(this, user))) block("bannissement");
+    const id = resolveUserId(this, user);
+    if (shielded(id)) block("bannissement");
+    await enforceRank(this.guild, id, "bannissement");
     return ban.call(this, user, options);
   };
 
   const removeRole = GuildMemberRoleManager.prototype.remove;
   GuildMemberRoleManager.prototype.remove = async function (roles, reason) {
     if (shielded(this.member?.id)) block("retrait de rôle");
+    await enforceRank(this.guild ?? this.member?.guild, this.member?.id, "retrait de rôle");
     return removeRole.call(this, roles, reason);
   };
 
