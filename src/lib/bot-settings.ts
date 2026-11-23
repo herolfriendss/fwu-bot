@@ -53,6 +53,8 @@ export type LiveAlertsSettings = {
   enabled: boolean;
   channelId: string | null;
   animated: boolean;
+  /** Role mentioned in each LIVE announcement (null = no ping). */
+  mentionRoleId: string | null;
   creators: LiveAlertCreator[];
 };
 export type DogSettings = { maxActiveLeashes: number };
@@ -81,7 +83,7 @@ export type BotSettings = {
   wakeup?: WakeupSettings;
 };
 
-export const BOT_MODULE_SETTINGS_KEYS = ["spam", "guildGuard", "moderation", "verification", "tickets", "tempVoice", "automation", "dog", "wakeup"] as const;
+export const BOT_MODULE_SETTINGS_KEYS = ["spam", "guildGuard", "moderation", "verification", "tickets", "tempVoice", "automation", "dog", "wakeup", "liveAlerts"] as const;
 
 // Per-guild DOG leash limit. Same bounds as bot/dog-policy.js (kept in sync by tests).
 export const DOG_LEASH_LIMIT = Object.freeze({ min: 1, max: 10, default: 3 });
@@ -124,7 +126,7 @@ export const DEFAULT_SETTINGS: BotSettings = {
     nameTemplate: "Salon de {user}",
   },
   automation: { autoRoleIds: [], welcomeDm: false, welcomeDmMessage: "Bienvenue sur **{server}** !" },
-  liveAlerts: { enabled: false, channelId: null, animated: true, creators: [] },
+  liveAlerts: { enabled: false, channelId: null, animated: true, mentionRoleId: null, creators: [] },
 };
 
 const str = (v: unknown, max: number) => String(v ?? "").trim().slice(0, max);
@@ -229,6 +231,7 @@ function sanitizeCoreSettings(raw: unknown): BotSettings {
       enabled: bool(r.liveAlerts?.enabled, false),
       channelId: snowflakeId(r.liveAlerts?.channelId),
       animated: bool(r.liveAlerts?.animated, true),
+      mentionRoleId: snowflakeId(r.liveAlerts?.mentionRoleId),
       creators: (Array.isArray(r.liveAlerts?.creators) ? r.liveAlerts.creators : []).slice(0, 30).flatMap((c: any, index: number) => {
         const platform = ["youtube", "tiktok", "twitch", "other"].includes(str(c?.platform, 20)) ? str(c.platform, 20) as LiveAlertCreator["platform"] : null;
         const displayName = str(c?.displayName, 80);

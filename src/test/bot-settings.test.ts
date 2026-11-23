@@ -111,3 +111,12 @@ describe("bot settings", () => {
     expect(BOT_MODULE_SETTINGS_KEYS).toContain("spam");
   });
 });
+
+describe("LIVE mention role", () => {
+  it("keeps a valid role id and drops anything else", async () => {
+    const { sanitizeSettings } = await import("@/lib/bot-settings");
+    expect(sanitizeSettings({ liveAlerts: { mentionRoleId: "123456789" } }).liveAlerts.mentionRoleId).toBe("123456789");
+    expect(sanitizeSettings({ liveAlerts: { mentionRoleId: "@everyone" } }).liveAlerts.mentionRoleId).toBeNull();
+    expect(sanitizeSettings({}).liveAlerts.mentionRoleId).toBeNull();
+  });
+});

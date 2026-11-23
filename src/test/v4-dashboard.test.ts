@@ -47,7 +47,7 @@ describe("V4 dashboard wiring", () => {
     // checks both the wiring and the exact allowed set.
     expect(botSync).toContain("new Set<string>(BOT_MODULE_SETTINGS_KEYS)");
     expect([...BOT_MODULE_SETTINGS_KEYS].sort()).toEqual(
-      ["automation", "dog", "guildGuard", "moderation", "spam", "tempVoice", "tickets", "verification", "wakeup"],
+      ["automation", "dog", "guildGuard", "liveAlerts", "moderation", "spam", "tempVoice", "tickets", "verification", "wakeup"],
     );
     expect(botSync).toContain("sanitizeSettings({ ...current, [module]: body.settings })");
   });

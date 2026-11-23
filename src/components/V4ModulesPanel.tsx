@@ -231,10 +231,14 @@ export function V4ModulesPanel({ guildId, channels, roles }: { guildId: string; 
 
       <Section title="Alertes LIVE — TikTok, YouTube, Twitch…" icon={Sparkles} description="Le bot surveille les flux RSS/Atom HTTPS des créateurs choisis et publie une alerte dans le salon configuré lorsqu’un nouvel élément annonce explicitement un LIVE.">
         <label className="flex items-center gap-2 text-sm"><Switch checked={s.liveAlerts.enabled} onCheckedChange={(v) => set("liveAlerts", { enabled: v })} /> Activer les alertes LIVE</label>
-        <label className="flex items-center gap-2 text-sm"><Switch checked={s.liveAlerts.animated} onCheckedChange={(v) => set("liveAlerts", { animated: v })} /> Afficher les bannières LIVE animées 1942</label>
+        <label className="flex items-center gap-2 text-sm"><Switch checked={s.liveAlerts.animated} onCheckedChange={(v) => set("liveAlerts", { animated: v })} /> Afficher les bannières LIVE animées FWU</label>
         <div>
           <Label>Salon de diffusion des alertes</Label>
           <ChannelSelect value={s.liveAlerts.channelId} channels={channels} onChange={(v) => set("liveAlerts", { channelId: v })} placeholder="Choisir le salon des annonces" />
+        </div>
+        <div>
+          <Label>Rôle mentionné à chaque LIVE</Label>
+          <RoleSelect value={s.liveAlerts.mentionRoleId} roles={roles} onChange={(v) => set("liveAlerts", { mentionRoleId: v })} placeholder="Aucune mention" />
         </div>
         <div className="grid gap-2 sm:grid-cols-3">
           <div>

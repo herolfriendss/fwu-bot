@@ -1588,6 +1588,27 @@ export const SLASH_COMMANDS: SlashCommandDef[] = [
  */
 export const EXTRA_SLASH_COMMANDS: SlashCommandDef[] = [
   {
+    name: "live",
+    description: "OWNER et SYS+ : règle les alertes LIVE (créateurs, salon, rôle mentionné)",
+    usage: "/live etat|activer|desactiver|salon|role|ajouter|retirer",
+    category: "Automatisation",
+    dmPermission: false,
+    requiresBotProcess: true,
+    options: [
+      sub("etat", "Affiche le réglage des alertes LIVE"),
+      sub("activer", "Active les alertes LIVE"),
+      sub("desactiver", "Désactive les alertes LIVE"),
+      sub("salon", "Choisit le salon des annonces", [opt(7, "salon", "Salon textuel", { required: true, channel_types: [0, 5] })]),
+      sub("role", "Rôle mentionné à chaque LIVE (vide = aucun)", [opt(8, "role", "Rôle à mentionner")]),
+      sub("ajouter", "Suit un nouveau créateur", [
+        opt(3, "plateforme", "Plateforme", { required: true, choices: [{ name: "YouTube", value: "youtube" }, { name: "TikTok", value: "tiktok" }, { name: "Twitch", value: "twitch" }, { name: "Autre", value: "other" }] }),
+        opt(3, "nom", "Nom affiché du créateur", { required: true, max_length: 80 }),
+        opt(3, "flux", "Adresse HTTPS du flux RSS/Atom", { required: true, max_length: 1000 }),
+      ]),
+      sub("retirer", "Arrête de suivre un créateur", [opt(3, "nom", "Nom du créateur", { required: true, max_length: 80 })]),
+    ],
+  },
+  {
     name: "blacklist",
     description: "OWNER et SYS+ : bannit un compte et le rebannit automatiquement s’il revient",
     usage: "/blacklist add membre|id [raison] · remove · list · check",
@@ -1600,7 +1621,7 @@ export const EXTRA_SLASH_COMMANDS: SlashCommandDef[] = [
         opt(3, "id", "Ou identifiant Discord du compte", { max_length: 25 }),
         opt(3, "raison", "Raison (facultatif)", { max_length: 300 }),
       ]),
-      sub("remove", "Retire un compte de la blacklist (le bannissement reste)", [
+      sub("remove", "Retire un compte de la blacklist et le débannit", [
         opt(6, "membre", "Membre concerné"),
         opt(3, "id", "Ou identifiant Discord du compte", { max_length: 25 }),
       ]),

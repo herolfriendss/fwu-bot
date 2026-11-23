@@ -148,7 +148,13 @@ export async function checkLiveAlerts(client, settings, record = () => {}) {
             // A feed must explicitly identify a live item; ordinary uploads are ignored.
             if (!LIVE_WORDS.test(item.title)) continue;
             const embed = buildLiveAlertEmbed(creator, item, cfg.animated !== false);
-            await channel.send({ embeds: [embed], allowedMentions: { parse: [] } });
+            // Optional role ping, restricted to that single role (never @everyone).
+            const mentionRoleId = /^\d{5,25}$/.test(String(cfg.mentionRoleId ?? "")) && cfg.mentionRoleId !== guild.id ? cfg.mentionRoleId : null;
+            await channel.send({
+              ...(mentionRoleId ? { content: `<@&${mentionRoleId}>` } : {}),
+              embeds: [embed],
+              allowedMentions: { parse: [], roles: mentionRoleId ? [mentionRoleId] : [] },
+            });
             // Mark only after successful publication so transient Discord errors retry next cycle.
             markSeen.run(guild.id, creator.id, item.id, Date.now());
             await sendCentralLog(guild, settings[guild.id], systemLogEmbed({

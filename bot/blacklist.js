@@ -4,8 +4,8 @@
 //
 // Access: the OWNER and SYS+. Discord's hierarchy still applies to a present
 // member: nobody blacklists the owner, a higher role, the bot or themselves.
-// Removing someone from the blacklist never unbans them: that stays a
-// deliberate Discord action.
+// Removing someone from the blacklist also lifts their Discord ban (owner
+// decision, 23/11/2026).
 import { db } from "./database.js";
 import { sendCentralLog, systemLogEmbed } from "./logs.js";
 import { parsePndOwnerId } from "./pnd-owner-policy.js";
@@ -83,6 +83,16 @@ export function removeFromBlacklist(guildId, userId) {
   return Number(db.prepare("DELETE FROM blacklist_entries WHERE guild_id=? AND user_id=?").run(guildId, userId).changes) > 0;
 }
 
+/** Lifts the Discord ban. Returns "unbanned", "not_banned" or "failed". */
+export async function liftBlacklistBan(guild, userId, actorId) {
+  try {
+    await guild.bans.remove(userId, `FWU : retiré de la blacklist par ${actorId}`.slice(0, 500));
+    return "unbanned";
+  } catch (error) {
+    return error?.code === 10026 ? "not_banned" : "failed";
+  }
+}
+
 /** guildMemberAdd: a blacklisted account is banned again at once. */
 export async function enforceBlacklistOnJoin(member, record = () => {}) {
   if (!member?.guild || !isBlacklisted(member.guild.id, member.id)) return false;
@@ -127,13 +137,16 @@ export async function runBlacklistAction({ guild, actor, action, userId = null, 
   if (action === "remove") {
     const removed = removeFromBlacklist(guild.id, userId);
     if (!removed) return `ℹ️ <@${userId}> n'était pas blacklisté.`;
-    recordSysPlusAudit(guild.id, actor.id, "blacklist.remove", userId, {});
+    const unban = await liftBlacklistBan(guild, userId, actor.id);
+    recordSysPlusAudit(guild.id, actor.id, "blacklist.remove", userId, { unban });
+    const unbanText = unban === "unbanned" ? "Débanni" : unban === "not_banned" ? "N'était plus banni" : "Débannissement impossible (permission « Bannir des membres » ?)";
     await sendCentralLog(guild, settings, systemLogEmbed({
       title: "✅ Blacklist — compte retiré",
-      description: `Compte : <@${userId}> (\`${userId}\`)\nPar : <@${actor.id}>\nLe bannissement Discord reste en place.`,
+      description: `Compte : <@${userId}> (\`${userId}\`)\nPar : <@${actor.id}>\n${unbanText}.`,
       color: 0x22c55e,
     })).catch(() => {});
-    return `✅ <@${userId}> est retiré de la blacklist. Son bannissement Discord reste en place : débannis-le depuis Discord si tu le souhaites.`;
+    if (unban === "failed") return `⚠️ <@${userId}> est retiré de la blacklist, mais je n'ai pas pu le débannir (permission « Bannir des membres » ?). Débannis-le depuis Discord.`;
+    return `✅ <@${userId}> est retiré de la blacklist${unban === "unbanned" ? " et débanni" : " (il n'était plus banni)"}.`;
   }
   throw new Error("Action inconnue : add, remove, list ou check.");
 }

@@ -33,7 +33,10 @@ function makeGuild({ canBan = true } = {}) {
     id: "g",
     ownerId: GUILD_OWNER,
     client: { user: { id: "999999999999999999" } },
-    bans: { create: async (id, opts) => { if (!canBan) throw new Error("perm"); bans.push({ id, opts }); } },
+    bans: {
+      create: async (id, opts) => { if (!canBan) throw new Error("perm"); bans.push({ id, opts }); },
+      remove: async (id) => { if (!canBan) throw new Error("perm"); const i = bans.findIndex((b) => b.id === id); if (i < 0) throw Object.assign(new Error("unknown ban"), { code: 10026 }); bans.splice(i, 1); },
+    },
     banned: bans,
     members: {
       fetch: async ({ user }) => { if (present.has(user)) return present.get(user); throw Object.assign(new Error("unknown"), { code: 10007 }); },
@@ -84,13 +87,15 @@ test("missing ban permission: still listed, honest message", async () => {
   assert.equal(isBlacklisted("g", MEMBER), true);
 });
 
-test("remove never unbans; list and check", async () => {
+test("remove also unbans (owner decision); list and check", async () => {
   reset();
   const guild = makeGuild();
   await runBlacklistAction({ guild, actor: makeMember(OWNER, 5), action: "add", userId: MEMBER, reason: "spam" });
   assert.match(await runBlacklistAction({ guild, actor: makeMember(OWNER, 5), action: "list" }), /Blacklist \(1\)[\s\S]*spam/);
   assert.match(await runBlacklistAction({ guild, actor: makeMember(OWNER, 5), action: "check", userId: MEMBER }), /Blacklisté/);
-  assert.match(await runBlacklistAction({ guild, actor: makeMember(OWNER, 5), action: "remove", userId: MEMBER }), /bannissement Discord reste/);
+  assert.equal(guild.banned.length, 1);
+  assert.match(await runBlacklistAction({ guild, actor: makeMember(OWNER, 5), action: "remove", userId: MEMBER }), /retiré de la blacklist et débanni/);
+  assert.equal(guild.banned.length, 0, "le bannissement Discord est levé");
   assert.equal(removeFromBlacklist("g", MEMBER), false);
   assert.match(await runBlacklistAction({ guild, actor: makeMember(OWNER, 5), action: "list" }), /vide/);
 });
@@ -116,4 +121,16 @@ test("prefix parsing and refusal", async () => {
   const message = { content: "=blacklist list", guild: { id: "g" }, member: makeMember(MEMBER, 1), reply: async (p) => replies.push(p) };
   assert.equal(await handleBlacklistMessage(message, {}), true);
   assert.equal(replies[0].content, BLACKLIST_DENIED);
+});
+
+test("remove: honest messages when not banned anymore or permission missing", async () => {
+  reset();
+  const guild = makeGuild();
+  await runBlacklistAction({ guild, actor: makeMember(OWNER, 5), action: "add", userId: MEMBER });
+  guild.banned.length = 0; // unbanned by hand meanwhile
+  assert.match(await runBlacklistAction({ guild, actor: makeMember(OWNER, 5), action: "remove", userId: MEMBER }), /n'était plus banni/);
+  const noPerm = makeGuild({ canBan: false });
+  await runBlacklistAction({ guild: noPerm, actor: makeMember(OWNER, 5), action: "add", userId: MEMBER });
+  assert.match(await runBlacklistAction({ guild: noPerm, actor: makeMember(OWNER, 5), action: "remove", userId: MEMBER }), /pas pu le débannir/);
+  assert.equal(isBlacklisted("g", MEMBER), false);
 });

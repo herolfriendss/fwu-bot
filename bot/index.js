@@ -60,6 +60,7 @@ import { handleStaffMemberHistoryMessage } from "./staff-audit.js";
 import { captureGuildInviteSnapshot, resolveMemberInvite, recordInviteLifecycle } from "./invite-attribution.js";
 import { addCentralLogObserver, setCentralLogRelay, systemLogEmbed, sendCentralLog } from "./logs.js";
 import { BOT_PROFILES, LEASE_RENEW_MS, createDomainGate, enqueueRelayedLog, prefixCommandOwner, resolveBotRuntime, slashCommandOwner, slashRegistrationPlan, takeRelayedLogs } from "./bot-runtime.js";
+import { handleLiveInteraction, handleLiveMessage } from "./live-commands.js";
 import { enforceBlacklistOnJoin, handleBlacklistInteraction, handleBlacklistMessage, isBlacklisted } from "./blacklist.js";
 import { handleDmAllInteraction, handleDmAllMessage, recoverInterruptedDmAllJobs } from "./dmall.js";
 import { handleResumeInteraction, handleResumeMessage, pruneResumeEvents, recordResumeEvent } from "./resume.js";
@@ -416,6 +417,7 @@ client.on("messageCreate", async (msg) => {
   try {
     if (runCmd("fwu") && await handleResumeMessage(msg, s)) { auditPrefixUsage(msg, "RESUME"); return; }
     if (runCmd("fwu") && await handleBlacklistMessage(msg, s)) { auditPrefixUsage(msg, "Blacklist"); return; }
+    if (runCmd("fwu") && await handleLiveMessage(msg, settings, { apiUrl: API, secret: BOT_SYNC_SECRET })) { auditPrefixUsage(msg, "Alertes LIVE"); return; }
     if (runCmd("suckme") && await handleDmAllMessage(msg, s)) { auditPrefixUsage(msg, "DM ALL"); return; }
     if (runCmd("suckme") && await handleDogCommand(msg, s)) { auditPrefixUsage(msg, "DOG"); return; }
     if (runCmd("suckme") && await handleLocknameMessage(msg, s)) { auditPrefixUsage(msg, "LOCKNAME"); return; }
@@ -1243,6 +1245,7 @@ client.on("interactionCreate", (interaction) => {
     if (await handleResumeInteraction(interaction, settings[interaction.guildId])) { auditSlashUsage(interaction, "RESUME"); return; }
     if (await handleDmAllInteraction(interaction, settings[interaction.guildId])) return;
     if (await handleBlacklistInteraction(interaction, settings[interaction.guildId])) return;
+    if (await handleLiveInteraction(interaction, settings, { apiUrl: API, secret: BOT_SYNC_SECRET })) { auditSlashUsage(interaction, "Alertes LIVE"); return; }
     if (await handleAiMemoryInteraction(interaction)) return;
     if (await handlePndIntelligenceInteraction(interaction, { settings, ownerIds: getPndPrivilegedIds(process.env.PND_OWNER_DISCORD_ID, process.env.PND_COFOUNDER_DISCORD_IDS) })) { auditSlashUsage(interaction, "PND Intelligence"); return; }
     if (await handlePackInteraction(interaction, { configuredOwners: process.env.PND_OWNER_DISCORD_ID })) return;

@@ -57,7 +57,7 @@ test("every bot keeps at most 100 root commands, FWU included before any delegat
   // Historical mode: FWU wants 103 names (100 + 3 extras): the plan registers the historical 100 and skips the extras.
   const legacy = slashRegistrationPlan({ profile: "fwu", delegated: [] }, SLASH_COMMANDS, EXTRA_SLASH_COMMANDS);
   assert.equal(legacy.register.length, 100);
-  assert.deepEqual(legacy.skipped, ["blacklist", "dmall", "afk"]);
+  assert.deepEqual(legacy.skipped, ["live", "blacklist", "dmall", "afk"]);
   assert.deepEqual(legacy.register.map((c) => c.name), SLASH_COMMANDS.map((c) => c.name), "mode historique identique");
   assert.deepEqual(legacy.retire, []);
   // Once GUARD is delegated, /afk fits and the GUARD commands leave FWU.
@@ -67,7 +67,7 @@ test("every bot keeps at most 100 root commands, FWU included before any delegat
   assert.ok(afterGuard.retire.includes("warn") && afterGuard.retire.includes("guildguard"));
   assert.deepEqual(afterGuard.skipped, []);
   const guard = slashRegistrationPlan({ profile: "guard", delegated: [] }, SLASH_COMMANDS, EXTRA_SLASH_COMMANDS);
-  assert.deepEqual(guard.register.map((c) => c.name).sort(), ["aide", "status", "guildguard", "warn", "warnings", "mute", "unmute", "kick", "purge", "slowmode", "lock", "unlock", "verify", "nettoyer"].sort());
+  assert.deepEqual(guard.register.map((c) => c.name).sort(), ["aide", "status", "guildguard", "warn", "warnings", "mute", "unmute", "kick", "purge", "slowmode", "lock", "unlock", "verify"].sort());
   assert.deepEqual(guard.retire, []);
 });
 

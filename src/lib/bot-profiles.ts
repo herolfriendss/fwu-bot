@@ -61,15 +61,15 @@ export const SHARED_SLASH_COMMANDS: readonly string[] = ["aide", "status"];
 /** Explicit slash ownership (never derived from help categories, which change). */
 export const SLASH_COMMAND_OWNERS: Record<BotProfileId, readonly string[]> = {
   fwu: [
-    "ia", "ticket", "candidature", "ban", "sondage",
+    "ia", "ticket", "candidature", "ban", "sondage", "nettoyer",
     "profil", "bio", "rep", "toprep", "color", "cards", "card", "pack", "trade",
     "academy", "award", "story", "radar", "wrapped",
     "dice", "coinflip", "trivia", "giveaway", "event", "pndevent",
-    "afk", "blacklist",
+    "afk", "blacklist", "live",
   ],
   guard: [
     "guildguard", "warn", "warnings", "mute", "unmute", "kick", "purge", "slowmode",
-    "lock", "unlock", "verify", "nettoyer",
+    "lock", "unlock", "verify",
   ],
   fdpdlavoc: [
     "access", "unaccess", "pv", "voc",
@@ -95,7 +95,7 @@ export const PREFIX_COMMAND_OWNERS: Record<BotProfileId, readonly string[]> = {
     "profil", "profile", "bio", "color", "couleur", "rep", "rephistorique", "rephistory", "toprep",
     "card", "cards", "pack", "trade", "trades",
     "dice", "coinflip", "trivia", "giveaway", "event", "pndevent",
-    "academy", "award", "story", "radar", "wrapped", "afk", "blacklist",
+    "academy", "award", "story", "radar", "wrapped", "afk", "blacklist", "live",
   ],
   guard: ["guardian-review", "verification"],
   fdpdlavoc: [

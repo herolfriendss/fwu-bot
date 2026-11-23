@@ -6,8 +6,8 @@
 
 | Bot | Processus PM2 | Ce qu'il fait | Token dans `bot/.env` |
 |---|---|---|---|
-| **FWU** | `her-v5-bot` (inchangé) | Tous les événements et logs, `/ban`, `/blacklist`, tickets, candidatures, social, cartes, jeux, giveaways, événements, RESUME (`/afk`), commandes personnalisées du site, mots-clés, alertes LIVE. **Reprend tout seul** le travail d'un bot arrêté. | `DISCORD_TOKEN` (inchangé) |
-| **GUARD** | `fwu-guard` | GuildGuard, `/warn`, `/mute`, `/kick`, `/purge`, `/lock`, `/verify`, `/nettoyer`, anti-spam, filtre d'insultes, Guardian | `PND_GUARD_TOKEN` |
+| **FWU** | `her-v5-bot` (inchangé) | Tous les événements et logs, `/ban`, `/blacklist`, `/live`, `/sondage`, `/nettoyer`, tickets, candidatures, social, cartes, jeux, giveaways, événements, RESUME (`/afk`), commandes personnalisées du site, mots-clés, alertes LIVE. **Reprend tout seul** le travail d'un bot arrêté. | `DISCORD_TOKEN` (inchangé) |
+| **GUARD** | `fwu-guard` | GuildGuard, `/warn`, `/mute`, `/kick`, `/purge`, `/lock`, `/verify`, anti-spam, filtre d'insultes, Guardian | `PND_GUARD_TOKEN` |
 | **FDPDLAVOC** | `fwu-fdpdlavoc` | Musique, radio, vocaux temporaires, `/pv` `=pv` `=unpv`, `/access`, `/voc` | `PND_FDPDLAVOC_TOKEN` |
 | **SUCK ME** | `fwu-suckme` | `/sysp`, rôles, `/rankall`, `/dmall` (toi seul), DOG, MENOTTE, WAKEUP, WOUAF, LOCKNAME, Anti-Move, automatisations, webhooks, `/panel`, `/setup` | `PND_SUCKME_TOKEN` |
 | **LE FISC** | `fwu-fisc` | Toute l'économie : solde, banque, boutique, marché, enchères, casino, roulette, blackjack, entreprises, investissements | `PND_FISC_TOKEN` |
@@ -71,7 +71,7 @@ PND_FWU_DELEGATED=guard
 ```bash
 pm2 restart her-v5-bot her-v5-web --update-env
 ```
-FWU supprime ses propres `/warn`, `/kick`… une par une (jamais de remplacement global). **`/afk` (RESUME), `/dmall` et `/blacklist` apparaissent à ce moment** : avant, FWU est à 100 commandes, le maximum de Discord. `=afk`, `=dmall` et `=blacklist` fonctionnent dès maintenant.
+FWU supprime ses propres `/warn`, `/kick`… une par une (jamais de remplacement global). **`/afk` (RESUME), `/dmall`, `/blacklist` et `/live` apparaissent à ce moment** : avant, FWU est à 100 commandes, le maximum de Discord. `=afk`, `=dmall`, `=blacklist` et `=live` fonctionnent dès maintenant.
 
 ### 5. Vérifier (5 minutes)
 - `/warn` sur un compte de test → réponse de GUARD, log dans le Logs Hub (publié par FWU).
@@ -110,4 +110,10 @@ Pour changer un bot, ajouter dans `bot/.env` par exemple `PND_GUARD_COLOR=#dc262
 ## Blacklist (OWNER et SYS+, sur FWU)
 - `/blacklist add membre|id [raison]` ou `=blacklist add @membre|id [raison]` : banni tout de suite, même s'il n'est pas sur le serveur, et rebanni automatiquement s'il revient.
 - `/blacklist remove`, `/blacklist list`, `/blacklist check` (et `=blacklist remove|list|check`).
-- Retirer de la blacklist ne débannit pas : débannis depuis Discord si c'est voulu.
+- Retirer un compte de la blacklist le débannit aussi.
+
+## Alertes LIVE depuis Discord (OWNER et SYS+, sur FWU)
+- `/live etat` · `/live activer` · `/live desactiver` · `/live salon #salon` · `/live role @rôle` (sans rôle : plus de mention).
+- `/live ajouter plateforme nom flux` : flux RSS/Atom en HTTPS public. `/live retirer nom`.
+- Équivalents : `=live`, `=live on|off`, `=live salon #salon`, `=live role @rôle|aucun`, `=live ajouter youtube <flux> <nom>`, `=live retirer <nom>`.
+- Les changements sont enregistrés sur le site : les deux restent toujours d'accord.

@@ -49,7 +49,10 @@ Voir la section « État » en bas, mise à jour à chaque étape.
 - [x] Page Statut : état des 5 bots
 - [x] **Sauvegarde GitHub** envoyée le 23/11 sur le dépôt privé (ancien nom `her-v3-`, renommé FWU par le propriétaire), branche `main`, commit `d8a0dc85`. Envoi sans écrasement : l'historique V3/V4 reste consultable. Branche `pnd-v5` du dépôt laissée intacte. Pour les prochaines sauvegardes : `git push https://github.com/herolfriendss/her-v3- github-fwu:refs/heads/main` après avoir reconstruit `github-fwu` sur le dernier commit envoyé.
 
+- [x] Réponses du 23/11 appliquées : blacklist débannit au retrait (par serveur) ; `/nettoyer` et `/sondage` sur FWU ; `/live` (réglage LIVE depuis Discord) et rôle mentionné
+- [x] Vérifié : 556/556 tests bot, 230/230 vitest, tsc 0, build OK, banc d'essai 2 240 / 0
+
 ## Prochaines étapes possibles
 
 1. Toi : créer les applications de **test** et suivre `MULTI_BOTS_FWU.md` sur le serveur de test.
-2. Moi, sur demande : couleurs choisies par bot, ajustements de la blacklist (débannir au retrait ? tous les serveurs ?), ce qui manque aux alertes LIVE.
+2. Moi, sur demande : couleurs choisies par bot, nouvelles fonctionnalités.
