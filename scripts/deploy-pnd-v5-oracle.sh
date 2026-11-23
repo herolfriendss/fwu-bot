@@ -123,6 +123,22 @@ tar -czf "$BACKUP_DIR/pnd-v5-private-backup.tar.gz" "${BACKUP_ITEMS[@]}"
 chmod 600 "$BACKUP_DIR/pnd-v5-private-backup.tar.gz"
 printf 'Sauvegarde privée créée : %s/pnd-v5-private-backup.tar.gz\n' "$BACKUP_DIR"
 
+info "Mémoire disponible pour la vérification et le build"
+# Small VPS (1 GB): TypeScript and the build need ~1.5 GB. Add a swap file once if needed,
+# and give Node a bigger heap for this script only (the bots keep their own limits).
+MEM_MB="$(awk '/MemTotal/ {print int($2/1024)}' /proc/meminfo)"
+SWAP_MB="$(awk '/SwapTotal/ {print int($2/1024)}' /proc/meminfo)"
+if (( MEM_MB + SWAP_MB < 3500 )) && [[ ! -e /swapfile-fwu ]]; then
+  if sudo -n true 2>/dev/null; then
+    sudo dd if=/dev/zero of=/swapfile-fwu bs=1M count=4096 status=none \
+      && sudo chmod 600 /swapfile-fwu && sudo mkswap /swapfile-fwu >/dev/null && sudo swapon /swapfile-fwu \
+      && { grep -q '^/swapfile-fwu ' /etc/fstab || echo '/swapfile-fwu none swap sw 0 0' | sudo tee -a /etc/fstab >/dev/null; } \
+      && echo "Fichier d'échange de 4 Go ajouté (/swapfile-fwu)." || echo "Ajout du fichier d'échange impossible : on continue."
+  else
+    echo "Mémoire faible (${MEM_MB} Mo) et sudo indisponible : pas de fichier d'échange ajouté."
+  fi
+fi
+export NODE_OPTIONS="${NODE_OPTIONS:-} --max-old-space-size=2048"
 info "Installation reproductible des dépendances (dashboard)"
 npm ci --no-audit --no-fund
 info "Installation reproductible des dépendances (bot)"
@@ -152,6 +168,7 @@ if ! command -v pm2 >/dev/null 2>&1; then
 fi
 command -v pm2 >/dev/null 2>&1 || fail "PM2 n'est pas disponible dans le PATH après installation."
 
+unset NODE_OPTIONS
 info "Activation de la configuration PM2 V5"
 # Ne jamais supprimer les processus V4 historiques. Vérifier que les processus
 # V5 existants pointent déjà vers cette racine avant de les recharger.
