@@ -11,7 +11,8 @@ const count = (max: number) => z.number().int().min(0).max(max);
 export const economyWalletSchema = z.object({
   userId: snowflake,
   displayName: z.string().min(1).max(80).nullable(),
-  balance: z.number().int().min(0).max(1_000_000_000_000),
+  // A wallet row exposes balance + bank; each side is capped at 1e12.
+  balance: z.number().int().min(0).max(2_000_000_000_000),
 }).strict();
 
 export const economyShopItemSchema = z.object({

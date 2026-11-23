@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { BOT_PROFILES, SHARED_SLASH_COMMANDS, slashCommandOwner } from "@/lib/bot-profiles";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { Copy, ExternalLink, Pencil, Plus, RefreshCw, Save, Trash2 } from "lucide-react";
@@ -67,7 +68,7 @@ export function CommandManager({ guildId }: { guildId: string }) {
       {status.error && <p role="alert" className="text-sm text-destructive">{status.error.message}</p>}
       {status.data?.missing.length ? <div className="flex flex-wrap items-center gap-2 text-sm"><span className="text-muted-foreground">Commandes intégrées manquantes : {status.data.missing.map((n) => `/${n}`).join(", ")}</span><Button variant="outline" size="sm" disabled={busy} onClick={() => run(() => restore(), "Commandes intégrées restaurées")}>Restaurer les commandes intégrées</Button></div> : null}
       <ul className="divide-y divide-border">{status.data?.registered.filter((c) => c.name.includes(search.toLowerCase())).map((c) => <li key={c.id} className="flex items-start gap-2 py-4">
-        <div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-2"><span className="break-all font-mono text-sm">/{c.name}</span><span className="text-xs text-muted-foreground">{c.ours ? "Intégrée" : c.custom ? "Personnalisée" : "Externe"}</span></div><p className="mt-1 break-words text-sm text-muted-foreground">{c.description}</p>{c.custom && <p className="mt-2 line-clamp-2 break-words text-sm">{c.response}</p>}</div>
+        <div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-2"><span className="break-all font-mono text-sm">/{c.name}</span><span className="text-xs text-muted-foreground">{c.ours ? `Intégrée · ${SHARED_SLASH_COMMANDS.includes(c.name) ? "tous les bots" : BOT_PROFILES[slashCommandOwner(c.name) ?? "fwu"].label}` : c.custom ? "Personnalisée" : "Externe"}</span></div><p className="mt-1 break-words text-sm text-muted-foreground">{c.description}</p>{c.custom && <p className="mt-2 line-clamp-2 break-words text-sm">{c.response}</p>}</div>
         <Button variant="ghost" size="icon" aria-label={`Modifier /${c.name}`} title={`Modifier /${c.name}`} disabled={busy || c.type !== 1} onClick={() => edit(c)}><Pencil className="h-4 w-4" /></Button>
         <Button variant="ghost" size="icon" className="text-destructive" aria-label={`Supprimer /${c.name}`} title={`Supprimer /${c.name}`} disabled={busy} onClick={() => { setDeleting(c); setError(""); }}><Trash2 className="h-4 w-4" /></Button>
       </li>)}</ul>

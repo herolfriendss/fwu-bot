@@ -23,9 +23,9 @@ const overviewQuery = queryOptions({ queryKey: ["discord", "overview"], queryFn:
 export const Route = createFileRoute("/configuration")({
   head: () => ({
     meta: [
-      { title: "Configuration — Her? V4" },
-      { name: "description", content: "Analyses du serveur, profil, salons, rôles, membres, modération et annonces de votre bot Discord Her?." },
-      { property: "og:title", content: "Configuration — Her? V4" },
+      { title: "Configuration — 1942" },
+      { name: "description", content: "Analyses du serveur, profil, salons, rôles, membres, modération et annonces de votre bot Discord 1942." },
+      { property: "og:title", content: "Configuration — 1942" },
       { property: "og:description", content: "Configuration et statistiques des serveurs de votre bot Discord." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },

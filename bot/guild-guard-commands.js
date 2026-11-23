@@ -1,17 +1,32 @@
 // Her? V4 — configuration de GuildGuard depuis Discord.
 import { EmbedBuilder, PermissionFlagsBits } from "discord.js";
 import { updateModuleSettings } from "./module-settings.js";
+import { herBotAvatar, themePanelEmbed } from "./theme.js";
+import { authorize } from "./platform/policy/authorize.js";
+import { listGuardianReviews, resolveGuardianReview } from "./guardian-risk.js";
+import { respondInPlaceSafe } from "./interaction-reply.js";
 
 function canManage(guild, member) {
-  return guild.ownerId === member.id
-    || member.permissions.has(PermissionFlagsBits.Administrator)
-    || member.permissions.has(PermissionFlagsBits.ManageGuild);
+  const capabilities = [];
+  if (guild.ownerId === member.id) capabilities.push("guildguard.manage");
+  if (member.permissions.has(PermissionFlagsBits.Administrator)) capabilities.push("guildguard.manage");
+  if (member.permissions.has(PermissionFlagsBits.ManageGuild)) capabilities.push("guildguard.manage");
+  return authorize({
+    guildId: guild.id,
+    actor: { id: member.id },
+    actionPolicy: { key: "guardian.configure", requiredCapabilities: ["guildguard.manage"] },
+    resolved: {
+      guildId: guild.id,
+      guildStatus: "active",
+      moduleEnabled: true,
+      capabilities,
+    },
+  }).allow;
 }
 
 function statusEmbed(guild, guard) {
-  return new EmbedBuilder()
-    .setColor(guard.enabled ? 0x22c55e : 0x6b7280)
-    .setTitle("🛡️ GuildGuard")
+  return themePanelEmbed(new EmbedBuilder()
+    .setTitle("🌙 GuildGuard")
     .setDescription(guard.enabled ? "La protection est active sur ce serveur." : "La protection est désactivée.")
     .addFields(
       { name: "Âge minimal du compte", value: guard.minAccountAgeDays ? `${guard.minAccountAgeDays} jour(s)` : "Désactivé", inline: true },
@@ -22,7 +37,7 @@ function statusEmbed(guild, guard) {
       { name: "Confinement", value: guard.lockdown ? "Activé" : "Désactivé", inline: true },
       { name: "Serveur", value: `${guild.name} (${guild.id})`, inline: false },
     )
-    .setFooter({ text: "Chaque serveur possède ses propres réglages et données." });
+    .setFooter({ text: "Chaque serveur possède ses propres réglages et données." }), { thumbnailUrl: herBotAvatar(guild) });
 }
 
 export async function handleGuildGuardInteraction(interaction, guildSettings, { apiUrl, secret, record = () => {} }) {
@@ -51,6 +66,25 @@ export async function handleGuildGuardInteraction(interaction, guildSettings, { 
   };
 
   try {
+    if (subcommand === "review") {
+      const rows = listGuardianReviews(guild.id);
+      const lines = rows.map((item) => `• **#${item.id}** · <@${item.userId}> · **${item.score}/100** (${item.severity}) · ${item.signals.map((signal) => signal.signal).join(", ")}`);
+      await interaction.reply({
+        content: `🛡️ **GuildGuard — revue humaine**\n${lines.length ? lines.join("\n") : "Aucun dossier en attente."}\n\nLe score est indicatif : aucune sanction n'est appliquée automatiquement.`,
+        ephemeral: true,
+        allowedMentions: { parse: [] },
+      });
+      return true;
+    }
+    if (subcommand === "resolve") {
+      const reviewId = interaction.options.getInteger("id", true);
+      const decision = interaction.options.getString("decision", true);
+      const note = interaction.options.getString("note") ?? "";
+      const outcome = decision === "examined" ? "reviewed" : "cleared";
+      const resolved = resolveGuardianReview({ guildId: guild.id, reviewId, reviewerId: interaction.user.id, outcome, note });
+      await interaction.reply({ content: `✅ Dossier Guardian **#${resolved.id}** clôturé : ${decision === "examined" ? "examiné" : "classé sans suite"}. Aucune sanction n'a été déclenchée.`, ephemeral: true, allowedMentions: { parse: [] } });
+      return true;
+    }
     if (subcommand === "status") {
       await interaction.reply({ embeds: [statusEmbed(guild, guard)], ephemeral: true, allowedMentions: { parse: [] } });
       return true;
@@ -94,7 +128,7 @@ export async function handleGuildGuardInteraction(interaction, guildSettings, { 
       return true;
     }
   } catch (error) {
-    await interaction.reply({ content: `❌ ${error instanceof Error ? error.message : "Impossible d’enregistrer ce réglage."}`, ephemeral: true }).catch(() => {});
+    await respondInPlaceSafe(interaction, { content: `❌ ${error instanceof Error ? error.message : "Impossible d’enregistrer ce réglage."}`, ephemeral: true }).catch(() => {});
     return true;
   }
 

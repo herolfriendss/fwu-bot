@@ -1,22 +1,10 @@
 import { createServerFn } from "@tanstack/react-start";
-import { createHash, timingSafeEqual } from "node:crypto";
 import { useSession } from "@tanstack/react-start/server";
 import { sessionConfig, requireOwner, discord, snowflake, cache, type GateSession } from "./discord.server";
 import { readRuntimeStatus } from "./bot-status.server";
 
-export const login = createServerFn({ method: "POST" })
-  .inputValidator((d: { password: string }) => ({ password: String(d.password ?? "") }))
-  .handler(async ({ data }) => {
-    const expected = process.env["DASHBOARD_PASSWORD"];
-    if (!expected) throw new Error("DASHBOARD_PASSWORD is not set");
-    const a = createHash("sha256").update(data.password).digest();
-    const b = createHash("sha256").update(expected).digest();
-    if (!timingSafeEqual(a, b)) return { ok: false as const };
-    const session = await useSession<GateSession>(sessionConfig());
-    await session.update({ owner: true });
-    return { ok: true as const };
-  });
-
+// Dashboard owner authentication is exclusively Discord OAuth2 (identify + PKCE).
+// The old shared-password endpoint is intentionally removed.
 export const logout = createServerFn({ method: "POST" }).handler(async () => {
   const session = await useSession<GateSession>(sessionConfig());
   await session.clear();

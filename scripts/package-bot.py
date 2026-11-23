@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""Build the public, source-only Oracle bot archive with an explicit allowlist.
+"""Build a source-only PND Assist bot archive from the complete bot tree.
 
-Never add .env, data/, node_modules or repository metadata here. The shared
-slash-command definitions are copied from src/lib so an isolated extraction of
-the archive still works.
+The previous hand-maintained allowlist drifted behind index.js and silently
+omitted newly integrated V5 modules. Package the whole bot source tree while
+excluding runtime state, credentials, dependencies, VCS metadata and caches.
 """
 from pathlib import Path
 import zipfile
@@ -11,76 +11,60 @@ import zipfile
 ROOT = Path(__file__).resolve().parent.parent
 BOT = ROOT / "bot"
 OUT = ROOT / "public" / "downloads" / "bot-oracle.zip"
-
-BOT_FILES = [
-    "README.md",
-    ".env.example",
-    "package.json",
-    "index.js",
-    "database.js",
-    "v4-commands.js",
-    "module-settings.js",
-    "prefix-commands.js",
-    "prefix-commands.d.ts",
-    "voice-commands.js",
-    "voice-permissions.js",
-    "voice-permissions.d.ts",
-    "voice-v2.js",
-    "voice-v2-policy.js",
-    "voice-v2-policy.d.ts",
-    "dog-commands.js",
-    "economy.js",
-    "economy-policy.js",
-    "economy-policy.d.ts",
-    "moderation.js",
-    "moderation-policy.js",
-    "moderation-policy.d.ts",
-    "guild-guard.js",
-    "guild-guard-policy.js",
-    "guild-guard-policy.d.ts",
-    "guild-guard-commands.js",
-    "social.js",
-    "social-policy.js",
-    "social-policy.d.ts",
-    "cards.js",
-    "cards-data.js",
-    "cards-data.d.ts",
-    "cards-policy.js",
-    "cards-policy.d.ts",
-    "games.js",
-    "games-policy.js",
-    "games-policy.d.ts",
-    "tickets.js",
-    "tickets-policy.js",
-    "tickets-policy.d.ts",
-    "automation.js",
-    "automation-policy.js",
-    "automation-policy.d.ts",
-    "music/music.js",
-    "music/music-policy.js",
-    "systems/sysplus/commands.js",
-    "systems/sysplus/permissions.js",
-    "systems/sysplus/permissions.test.js",
-    "systems/sysplus/audit.js",
-    "scripts/export-economy.js",
-]
-SHARED_FILES = {
-    "src/lib/slash-commands.ts": "slash-commands.ts",
+EXCLUDED_DIRS = {
+    ".git", "node_modules", "data", "coverage", ".cache", ".output",
+    ".vite", ".nitro", "dist", "build", "tmp", "temp",
 }
+EXCLUDED_SUFFIXES = {".sqlite", ".sqlite3", ".db", ".log", ".zip", ".tar", ".gz"}
 
-missing = [rel for rel in BOT_FILES if not (BOT / rel).is_file()]
-missing += [rel for rel in SHARED_FILES if not (ROOT / rel).is_file()]
-if missing:
-    raise SystemExit("Fichiers manquants pour l’archive : " + ", ".join(missing))
+if not (BOT / "index.js").is_file() or not (BOT / "package.json").is_file():
+    raise SystemExit("Racine bot invalide : index.js ou package.json absent.")
+
+files = []
+for path in sorted(BOT.rglob("*")):
+    if not path.is_file():
+        continue
+    rel = path.relative_to(BOT)
+    if any(part in EXCLUDED_DIRS for part in rel.parts):
+        continue
+    name = path.name
+    if name == ".env" or (name.startswith(".env.") and name != ".env.example"):
+        continue
+    if name in {"*.sqlite", "*.db"} or path.suffix.lower() in EXCLUDED_SUFFIXES:
+        continue
+    if name.endswith((".pem", ".key", ".p12", ".pfx")):
+        continue
+    files.append((path, rel.as_posix()))
+
+# The bot imports the central command catalogue from the dashboard source.
+shared = ROOT / "src" / "lib" / "slash-commands.ts"
+if not shared.is_file():
+    raise SystemExit("Catalogue partagé src/lib/slash-commands.ts absent.")
+files.append((shared, "slash-commands.ts"))
+# FWU multi-bot ownership map, also shared with the dashboard.
+profiles = ROOT / "src" / "lib" / "bot-profiles.ts"
+if not profiles.is_file():
+    raise SystemExit("Répartition partagée src/lib/bot-profiles.ts absente.")
+files.append((profiles, "bot-profiles.ts"))
+
+names = [name for _, name in files]
+if len(names) != len(set(names)):
+    raise SystemExit("Chemins en double dans l’archive.")
 
 OUT.parent.mkdir(parents=True, exist_ok=True)
 with zipfile.ZipFile(OUT, "w", zipfile.ZIP_DEFLATED) as archive:
-    for rel in BOT_FILES:
-        archive.write(BOT / rel, rel)
-    for source, destination in SHARED_FILES.items():
-        archive.write(ROOT / source, destination)
+    for source, name in files:
+        archive.write(source, name)
 
-print(f"✅ Archive écrite dans {OUT}")
 with zipfile.ZipFile(OUT) as archive:
-    for info in archive.infolist():
-        print(f"   {info.filename} ({info.file_size} octets)")
+    bad = archive.testzip()
+    if bad:
+        raise SystemExit(f"CRC invalide : {bad}")
+    entries = archive.namelist()
+    forbidden = [n for n in entries if any(part in EXCLUDED_DIRS for part in Path(n).parts)
+                 or n == ".env" or (Path(n).name.startswith(".env.") and Path(n).name != ".env.example")]
+    if forbidden:
+        raise SystemExit("Fichiers interdits dans l’archive : " + ", ".join(forbidden))
+
+print(f"Archive source-only créée : {OUT}")
+print(f"Entrées : {len(names)} | Taille : {OUT.stat().st_size} octets | CRC : OK")

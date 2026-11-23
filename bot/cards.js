@@ -2,6 +2,7 @@
 import { randomInt, randomUUID } from "node:crypto";
 import { EmbedBuilder } from "discord.js";
 import { db, transaction } from "./database.js";
+import { brandEmbed } from "./theme.js";
 import { CARDS, CARDS_BY_ID, RARITIES } from "./cards-data.js";
 import {
   PACK_COST, PACK_SIZE, TRADE_TTL_MS, cardForRarity, collectionValue, normalizeCardId, packValue, rarityForRoll, tradeIsValid,
@@ -47,11 +48,11 @@ export async function handleCardsMessage(message) {
         return card ? cardLine(card, Number(row.quantity)) : null;
       }).filter(Boolean);
       await message.reply({
-        embeds: [new EmbedBuilder()
+        embeds: [brandEmbed(new EmbedBuilder()
           .setColor(0xa855f7)
           .setTitle(`🃏 Collection de ${user.username}`)
           .setDescription(lines.length ? lines.join("\n") : "_Aucune carte. Ouvre un pack avec `/pack`._")
-          .setFooter({ text: `${total} carte(s) · valeur ${collectionValue(rows).toLocaleString("fr-FR")} PND` })],
+          .setFooter({ text: `${total} carte(s) · valeur ${collectionValue(rows).toLocaleString("fr-FR")} PND` }))],
         allowedMentions: { parse: [] },
       });
     } else if (command === "=card") {
@@ -60,7 +61,7 @@ export async function handleCardsMessage(message) {
       if (!card) throw new Error(`Carte inconnue. IDs : ${CARDS.map((c) => c.id).join(", ")}`);
       const rarity = RARITIES[card.rarity];
       await message.reply({
-        embeds: [new EmbedBuilder()
+        embeds: [brandEmbed(new EmbedBuilder()
           .setColor(rarity.color)
           .setTitle(`${card.emoji} ${card.name}`)
           .addFields(
@@ -68,7 +69,7 @@ export async function handleCardsMessage(message) {
             { name: "Valeur", value: `${rarity.value.toLocaleString("fr-FR")} PND`, inline: true },
             { name: "Possédée", value: `×${owned(gid, uid, card.id)}`, inline: true },
             { name: "Identifiant", value: card.id, inline: true },
-          )],
+          ))],
         allowedMentions: { parse: [] },
       });
     } else if (command === "=pack") {
@@ -85,11 +86,11 @@ export async function handleCardsMessage(message) {
         return drawn;
       });
       await message.reply({
-        embeds: [new EmbedBuilder()
+        embeds: [brandEmbed(new EmbedBuilder()
           .setColor(0xa855f7)
           .setTitle("🎁 Pack ouvert !")
           .setDescription(pack.map((card) => cardLine(card)).join("\n"))
-          .setFooter({ text: `Coût : ${PACK_COST} PND · valeur du pack : ${packValue(pack).toLocaleString("fr-FR")} PND` })],
+          .setFooter({ text: `Coût : ${PACK_COST} PND · valeur du pack : ${packValue(pack).toLocaleString("fr-FR")} PND` }))],
         allowedMentions: { parse: [] },
       });
     } else if (command === "=trade") {
@@ -97,8 +98,12 @@ export async function handleCardsMessage(message) {
       if (action === "propose" || action === "proposer") {
         const target = message.mentions.users.first();
         if (!target || target.bot || target.id === uid) throw new Error("Utilisation : `=trade propose @membre offre demande`.");
-        const offerId = normalizeCardId(parts[2]);
-        const requestId = normalizeCardId(parts[3]);
+        // The message content includes the mention as its own token. Slash
+        // commands and prefix commands therefore both need it stripped before
+        // reading the offered and requested card ids.
+        const cardArgs = parts.slice(2).filter((part) => !/^<@!?\d+>$/.test(part));
+        const offerId = normalizeCardId(cardArgs[0]);
+        const requestId = normalizeCardId(cardArgs[1]);
         const offer = CARDS_BY_ID.get(offerId);
         const request = CARDS_BY_ID.get(requestId);
         if (!offer || !request) throw new Error("Les deux identifiants de carte doivent exister (voir `/cards`).");
@@ -148,7 +153,7 @@ export async function handleCardsMessage(message) {
         return `• \`${trade.trade_id}\` ${direction} — ${offer?.emoji ?? "?"} ${offer?.name ?? trade.offer_card_id} ↔ ${request?.emoji ?? "?"} ${request?.name ?? trade.request_card_id}`;
       });
       await message.reply({
-        embeds: [new EmbedBuilder().setColor(0xa855f7).setTitle("🤝 Échanges en attente").setDescription(lines.length ? lines.join("\n") : "Aucun échange en attente.")],
+        embeds: [brandEmbed(new EmbedBuilder().setTitle("🤝 Échanges en attente").setDescription(lines.length ? lines.join("\n") : "Aucun échange en attente."))],
         allowedMentions: { parse: [] },
       });
     }

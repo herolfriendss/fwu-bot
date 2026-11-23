@@ -134,6 +134,33 @@ export type Database = {
         }
         Relationships: []
       }
+      bot_ai_memory: {
+        Row: {
+          id: number
+          guild_id: string
+          user_id: string
+          role: "user" | "assistant"
+          content: string
+          created_at: string
+        }
+        Insert: {
+          id?: never
+          guild_id: string
+          user_id: string
+          role: "user" | "assistant"
+          content: string
+          created_at?: string
+        }
+        Update: {
+          id?: never
+          guild_id?: string
+          user_id?: string
+          role?: "user" | "assistant"
+          content?: string
+          created_at?: string
+        }
+        Relationships: []
+      }
       discord_custom_commands: {
         Row: {
           application_id: string

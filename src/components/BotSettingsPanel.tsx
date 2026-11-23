@@ -57,7 +57,7 @@ export function BotSettingsPanel({ guildId, channels }: { guildId: string; chann
 
   return (
     <section className="space-y-8">
-      <div className="rounded-lg border border-border p-4 space-y-3">
+      <div className="console-theme-panel p-4 space-y-3">
         <h2 className="flex items-center gap-2 font-semibold"><Server className="h-5 w-5" /> Liaison avec ton serveur (VPS)</h2>
         <p className="text-sm text-muted-foreground">Le bot tourne sur ton VPS et lit ces réglages toutes les minutes. Mets ces deux valeurs dans le fichier <code>.env</code> du bot (voir le guide du dossier <code>bot</code>).</p>
         <div className="flex flex-wrap items-center gap-2 text-sm">
@@ -71,7 +71,7 @@ export function BotSettingsPanel({ guildId, channels }: { guildId: string; chann
         </div>
       </div>
 
-      <div className="space-y-3">
+      <div className="console-theme-panel p-4 space-y-3">
         <h3 className="font-semibold">Mots-clés → réponses</h3>
         {s.keywords.map((k, i) => (
           <div key={i} className="grid gap-2 sm:grid-cols-[1fr_2fr_auto_auto] items-center">
@@ -84,7 +84,7 @@ export function BotSettingsPanel({ guildId, channels }: { guildId: string; chann
         <Button variant="outline" size="sm" onClick={() => set("keywords", [...s.keywords, { trigger: "", response: "", exact: false }])}><Plus className="h-4 w-4" /> Ajouter un mot-clé</Button>
       </div>
 
-      <div className="space-y-3">
+      <div className="console-theme-panel p-4 space-y-3">
         <div className="flex items-center gap-3"><Switch checked={s.filter.enabled} onCheckedChange={(v) => set("filter", { enabled: v })} /><h3 className="font-semibold">Filtre anti-insultes</h3></div>
         <Label>Mots interdits (séparés par des virgules)</Label>
         <Textarea value={words} onChange={(e) => setWords(e.target.value)} rows={3} />
@@ -93,16 +93,20 @@ export function BotSettingsPanel({ guildId, channels }: { guildId: string; chann
         <Input value={s.filter.warn} onChange={(e) => set("filter", { warn: e.target.value })} />
       </div>
 
-      <div className="space-y-3">
+      <div className="console-theme-panel p-4 space-y-3">
         <div className="flex items-center gap-3"><Switch checked={s.spam.enabled} onCheckedChange={(v) => set("spam", { enabled: v })} /><h3 className="font-semibold">Anti-spam</h3></div>
         <div className="flex flex-wrap items-center gap-2 text-sm">
           Plus de <Input type="number" className="w-20" value={s.spam.maxMessages} onChange={(e) => set("spam", { maxMessages: Number(e.target.value) })} /> messages en
           <Input type="number" className="w-20" value={s.spam.perSeconds} onChange={(e) => set("spam", { perSeconds: Number(e.target.value) })} /> secondes → sourdine de
           <Input type="number" className="w-24" value={s.spam.timeoutMinutes} onChange={(e) => set("spam", { timeoutMinutes: Number(e.target.value) })} /> minutes
         </div>
+        <label className="flex flex-wrap items-center gap-2 text-sm">
+          Maximum de mentions par message : <Input type="number" min={2} max={20} className="w-20" value={s.spam.maxMentions} onChange={(e) => set("spam", { maxMentions: Number(e.target.value) })} />
+        </label>
+        <p className="text-xs text-muted-foreground">Une rafale supprime le message et applique le même timeout. Le bot doit avoir Gérer les messages et Modérer les membres.</p>
       </div>
 
-      <div className="space-y-3">
+      <div className="console-theme-panel p-4 space-y-3">
         <div className="flex items-center gap-3"><Switch checked={s.welcome.enabled} onCheckedChange={(v) => set("welcome", { enabled: v })} /><h3 className="font-semibold">Message de bienvenue</h3></div>
         <select className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm" value={s.welcome.channelId} onChange={(e) => set("welcome", { channelId: e.target.value })}>
           <option value="">— Choisir un salon —</option>
@@ -112,7 +116,7 @@ export function BotSettingsPanel({ guildId, channels }: { guildId: string; chann
         <Textarea value={s.welcome.message} onChange={(e) => set("welcome", { message: e.target.value })} rows={2} />
       </div>
 
-      <div className="space-y-3">
+      <div className="console-theme-panel p-4 space-y-3">
         <div className="flex items-center gap-3"><Switch checked={s.ai.enabled} onCheckedChange={(v) => set("ai", { enabled: v })} /><h3 className="font-semibold">Réponses par l’IA (quand on mentionne le bot)</h3></div>
         <Label>Personnalité du bot</Label>
         <Textarea value={s.ai.instructions} onChange={(e) => set("ai", { instructions: e.target.value })} rows={3} />

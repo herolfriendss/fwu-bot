@@ -6,6 +6,10 @@
 import { ChannelType, EmbedBuilder, PermissionFlagsBits } from "discord.js";
 import { db } from "./database.js";
 import { canManageTempVoice, clampVoiceLimit, renderVoiceName, tempVoiceNameIsValid } from "./voice-v2-policy.js";
+import { herBotAvatar, themePanelEmbed } from "./theme.js";
+import { handleVoiceAccessRequestMessage } from "./voice-access-requests.js";
+import { handleVoiceMessage, lockPrivateVoiceChannel, unlockPrivateVoiceChannel } from "./voice-commands.js";
+import { removeVoiceAccessBlock } from "./voice-access-store.js";
 
 const P = PermissionFlagsBits;
 
@@ -92,6 +96,40 @@ export async function handleVoiceV2State(oldState, newState, settings, record = 
   return false;
 }
 
+
+/** Réconcilie les salons temporaires persistés après un redémarrage.
+ * Les lignes orphelines sont supprimées ; les salons existants restent intacts.
+ */
+export async function reconcileTempVoices(client, record = () => {}) {
+  const rows = db.prepare("SELECT channel_id,guild_id FROM temp_voice").all();
+  let removed = 0;
+  let emptiedDeleted = 0;
+  for (const row of rows) {
+    const guild = client.guilds.cache.get(row.guild_id);
+    if (!guild) continue; // serveur momentanément indisponible : conserver la ligne
+    // Only "Unknown Channel" (10003) proves deletion; any other error is transient
+    // and must not drop the row (the channel would then stay orphaned forever).
+    const channel = await guild.channels.fetch(row.channel_id).catch((error) => (error?.code === 10003 ? null : undefined));
+    if (channel === undefined) continue;
+    if (!channel) {
+      db.prepare("DELETE FROM temp_voice WHERE channel_id=?").run(row.channel_id);
+      removed++;
+      continue;
+    }
+    // Emptied while the bot was offline: the leave event was missed, clean it now.
+    if (channel.members?.size === 0) {
+      try {
+        await channel.delete("Vocal V2 : salon temporaire vidé pendant l'arrêt du bot");
+        db.prepare("DELETE FROM temp_voice WHERE channel_id=?").run(row.channel_id);
+        emptiedDeleted++;
+      } catch { record("temp_voice_error"); }
+    }
+  }
+  if (removed) record("temp_voice_orphans_cleaned");
+  if (emptiedDeleted) record("temp_voice_deleted");
+  return { checked: rows.length, removed, emptiedDeleted };
+}
+
 /** Utilisé quand un salon temporaire est supprimé manuellement. */
 export function forgetTempVoice(channelId) {
   db.prepare("DELETE FROM temp_voice WHERE channel_id=?").run(channelId);
@@ -108,27 +146,80 @@ export async function handleVoiceV2Interaction(interaction, guildSettings = {}) 
     await interaction.reply({ content: "Cette commande doit être utilisée sur un serveur.", ephemeral: true });
     return true;
   }
-  const member = interaction.member ?? await guild.members.fetch(interaction.user.id).catch(() => null);
-  const channelId = member?.voice?.channelId;
+  const member = await guild.members.fetch({ user: interaction.user.id, force: true }).catch(() => null);
+  if (!member) {
+    await interaction.reply({ content: "Impossible d’actualiser ton profil serveur. Réessaie.", ephemeral: true });
+    return true;
+  }
+  const channelId = member.voice?.channelId;
   const row = channelId ? tempRow(channelId) : null;
   const subcommand = interaction.options.getSubcommand();
 
   try {
+    if (subcommand === "demander" || subcommand === "demander-id") {
+      const target = subcommand === "demander"
+        ? interaction.options.getChannel("salon", true)
+        : null;
+      const targetId = target?.id ?? interaction.options.getString("id", true).trim();
+      if (target && (target.guildId !== guild.id || target.type !== ChannelType.GuildVoice)) {
+        throw new Error("Choisis une vocale de ce serveur.");
+      }
+      if (!/^\d{5,25}$/.test(targetId)) throw new Error("L’ID de la vocale est invalide.");
+      await interaction.deferReply({ ephemeral: true });
+      const adaptedMessage = {
+        guild,
+        member,
+        author: interaction.user,
+        client: interaction.client,
+        channel: interaction.channel,
+        content: `=demandevocal ${target ? `<#${target.id}>` : targetId}`,
+        mentions: { channels: { first: () => null } },
+        reply: (payload) => interaction.editReply(typeof payload === "string" ? { content: payload } : payload),
+      };
+      await handleVoiceAccessRequestMessage(adaptedMessage, guildSettings);
+      return true;
+    }
+    if (subcommand === "debloquer") {
+      const targetChannel = interaction.options.getChannel("salon", true);
+      const targetMember = interaction.options.getMember("membre") ?? await guild.members.fetch(interaction.options.getUser("membre", true).id).catch(() => null);
+      if (targetChannel.guildId !== guild.id || targetChannel.type !== ChannelType.GuildVoice || !targetMember) throw new Error("Choisis une vocale et un membre de ce serveur.");
+      const result = removeVoiceAccessBlock({
+        guildId: guild.id, channelId: targetChannel.id, userId: targetMember.id, actorId: member.id,
+        authorizeActor: ({ actorId }) => actorId === guild.ownerId || member.permissions.has(PermissionFlagsBits.ManageChannels) || member.permissions.has(PermissionFlagsBits.Administrator),
+      });
+      await interaction.reply({ content: result.removed ? `✅ <@${targetMember.id}> peut à nouveau demander l'accès à **${targetChannel.name}**.` : "Ce membre n'était pas bloqué sur cette vocale.", ephemeral: true, allowedMentions: { parse: [] } });
+      return true;
+    }
+    if (subcommand === "vocal-panel") {
+      await interaction.deferReply({ ephemeral: true });
+      const adaptedMessage = {
+        id: interaction.id,
+        guild,
+        member,
+        author: interaction.user,
+        client: interaction.client,
+        channel: interaction.channel,
+        content: "=panel",
+        mentions: { users: { first: () => null }, members: { first: () => null } },
+        reply: (payload) => interaction.editReply(typeof payload === "string" ? { content: payload } : payload),
+      };
+      await handleVoiceMessage(adaptedMessage, guildSettings);
+      return true;
+    }
     if (subcommand === "panel") {
       if (!row) throw new Error("Tu dois être dans un salon temporaire.");
       const channel = await guild.channels.fetch(row.channel_id).catch(() => null);
       if (!channel) throw new Error("Salon temporaire introuvable.");
       const owner = await guild.members.fetch(row.owner_id).catch(() => null);
       await interaction.reply({
-        embeds: [new EmbedBuilder()
-          .setColor(0x5865f2)
-          .setTitle("🎙️ Salon vocal temporaire")
+        embeds: [themePanelEmbed(new EmbedBuilder()
+          .setTitle("🌙 Salon vocal temporaire")
           .addFields(
             { name: "Salon", value: `<#${channel.id}>`, inline: true },
             { name: "Propriétaire", value: owner ? `<@${row.owner_id}>` : `<@${row.owner_id}> (parti)`, inline: true },
             { name: "Limite", value: channel.userLimit ? `${channel.userLimit} membre(s)` : "Illimitée", inline: true },
             { name: "Commandes", value: "`/voc limit` · `/voc name` · `/voc lock` · `/voc unlock` · `/voc claim` · `/voc delete`" },
-          )],
+          ), { thumbnailUrl: guild.client.user?.displayAvatarURL?.({ extension: "png", size: 128 }) })],
         ephemeral: true,
         allowedMentions: { parse: [] },
       });
@@ -163,8 +254,9 @@ export async function handleVoiceV2Interaction(interaction, guildSettings = {}) 
       await interaction.editReply({ content: "👑 Tu es maintenant propriétaire de ce salon.", allowedMentions: { parse: [] } });
     } else if (subcommand === "lock" || subcommand === "unlock") {
       const locked = subcommand === "lock";
-      await channel.permissionOverwrites.edit(guild.roles.everyone, { Connect: locked ? false : null }, { reason: `Vocal V2 par ${interaction.user.tag}` });
-      await interaction.editReply({ content: locked ? "🔒 Salon verrouillé." : "🔓 Salon déverrouillé.", allowedMentions: { parse: [] } });
+      if (locked) await lockPrivateVoiceChannel(channel, member, interaction.client);
+      else await unlockPrivateVoiceChannel(channel);
+      await interaction.editReply({ content: locked ? "🔒 Salon verrouillé. Les demandes d'accès sont activées." : "🔓 Salon déverrouillé. Les demandes en attente sont annulées.", allowedMentions: { parse: [] } });
     } else if (subcommand === "delete") {
       db.prepare("DELETE FROM temp_voice WHERE channel_id=?").run(channel.id);
       await channel.delete(`Vocal V2 : suppression par ${interaction.user.tag}`).catch(() => {});

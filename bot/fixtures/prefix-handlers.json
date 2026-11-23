@@ -1,0 +1,272 @@
+{
+ "=access": [
+  "voice"
+ ],
+ "=addrole": [
+  "roles"
+ ],
+ "=anti-moove": [
+  "voice"
+ ],
+ "=anti-move": [
+  "voice"
+ ],
+ "=auction": [
+  "economy"
+ ],
+ "=automation": [
+  "automation"
+ ],
+ "=autorule": [
+  "autorules"
+ ],
+ "=balance": [
+  "economy"
+ ],
+ "=bank": [
+  "economy"
+ ],
+ "=bio": [
+  "social"
+ ],
+ "=blackjack": [
+  "economy"
+ ],
+ "=buy": [
+  "economy"
+ ],
+ "=candidatures": [
+  "organization"
+ ],
+ "=card": [
+  "cards"
+ ],
+ "=cards": [
+  "cards"
+ ],
+ "=casino": [
+  "casino"
+ ],
+ "=clearqueue": [
+  "music"
+ ],
+ "=coinflip": [
+  "games"
+ ],
+ "=color": [
+  "social"
+ ],
+ "=couleur": [
+  "social"
+ ],
+ "=daily": [
+  "economy"
+ ],
+ "=demandevocal": [
+  "voice"
+ ],
+ "=dice": [
+  "games"
+ ],
+ "=dog": [
+  "dog"
+ ],
+ "=doginfo": [
+  "dog"
+ ],
+ "=doglist": [
+  "dog"
+ ],
+ "=event": [
+  "games"
+ ],
+ "=giveaway": [
+  "games"
+ ],
+ "=history": [
+  "economy"
+ ],
+ "=inventory": [
+  "economy"
+ ],
+ "=job": [
+  "economy"
+ ],
+ "=join": [
+  "music"
+ ],
+ "=leaderboard": [
+  "economy"
+ ],
+ "=leave": [
+  "music"
+ ],
+ "=lockname": [
+  "lockname"
+ ],
+ "=locknamelist": [
+  "lockname"
+ ],
+ "=loop": [
+  "music"
+ ],
+ "=lottery": [
+  "economy"
+ ],
+ "=market": [
+  "economy"
+ ],
+ "=menotte": [
+  "voice"
+ ],
+ "=menotteinfo": [
+  "voice"
+ ],
+ "=mission": [
+  "economy"
+ ],
+ "=musicpanel": [
+  "music"
+ ],
+ "=nowplaying": [
+  "music"
+ ],
+ "=np": [
+  "music"
+ ],
+ "=pack": [
+  "cards"
+ ],
+ "=panel": [
+  "voice"
+ ],
+ "=pause": [
+  "music"
+ ],
+ "=pay": [
+  "economy"
+ ],
+ "=play": [
+  "music"
+ ],
+ "=pnd": [
+  "economy"
+ ],
+ "=pnd-audit": [
+  "economy"
+ ],
+ "=pnd-history": [
+  "economy"
+ ],
+ "=profil": [
+  "social"
+ ],
+ "=profile": [
+  "social"
+ ],
+ "=pv": [
+  "voice"
+ ],
+ "=queue": [
+  "music"
+ ],
+ "=radio": [
+  "radio"
+ ],
+ "=rank": [
+  "roles"
+ ],
+ "=rankall": [
+  "roles"
+ ],
+ "=remove": [
+  "music"
+ ],
+ "=removerole": [
+  "roles"
+ ],
+ "=rep": [
+  "social"
+ ],
+ "=rephistorique": [
+  "social"
+ ],
+ "=rephistory": [
+  "social"
+ ],
+ "=resume": [
+  "music"
+ ],
+ "=rob": [
+  "economy"
+ ],
+ "=roulette": [
+  "economy"
+ ],
+ "=shop": [
+  "economy"
+ ],
+ "=shuffle": [
+  "music"
+ ],
+ "=skip": [
+  "music"
+ ],
+ "=solde": [
+  "economy"
+ ],
+ "=staffhistory": [
+  "staff-audit"
+ ],
+ "=stop": [
+  "music"
+ ],
+ "=sysp": [
+  "sysplus"
+ ],
+ "=toprep": [
+  "social"
+ ],
+ "=trade": [
+  "cards"
+ ],
+ "=trades": [
+  "cards"
+ ],
+ "=trivia": [
+  "games"
+ ],
+ "=unaccess": [
+  "voice"
+ ],
+ "=undog": [
+  "dog"
+ ],
+ "=unlockname": [
+  "lockname"
+ ],
+ "=unmenotte": [
+  "voice"
+ ],
+ "=unpv": [
+  "voice"
+ ],
+ "=vocalpresence": [
+  "voice"
+ ],
+ "=vol": [
+  "music"
+ ],
+ "=volume": [
+  "music"
+ ],
+ "=wakeup": [
+  "voice"
+ ],
+ "=work": [
+  "economy"
+ ],
+ "=wrapped": [
+  "organization"
+ ]
+}

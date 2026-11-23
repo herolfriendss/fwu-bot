@@ -11,7 +11,7 @@ export const Route = createFileRoute("/api/incident")({
   server: {
     handlers: {
       POST: async ({ request }) => {
-        // Owner-only: same password session cookie as the rest of the dashboard.
+        // Owner-only: verified Discord OAuth session; shared dashboard passwords are not accepted.
         const { isOwner } = await import("@/lib/discord.server");
         if (!(await isOwner())) return json(401, "Session expirée : reconnectez-vous.");
 

@@ -1,0 +1,219 @@
+#!/usr/bin/env bash
+# PND Assist V5 deployment for the existing Oracle/Linux project directory.
+# Run as the project owner (e.g. opc), never as a public/anonymous user.
+# Requires a separately confirmed Supabase migration step before the first release.
+set -Eeuo pipefail
+
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+# FWU multi-bots : agit seulement sur les bots spécialisés déjà déclarés dans PM2
+# (jamais de démarrage automatique d'un nouveau bot).
+fwu_bots() {
+  local action="$1" name
+  for name in fwu-guard fwu-fdpdlavoc fwu-suckme fwu-fisc; do
+    pm2 describe "$name" >/dev/null 2>&1 || continue
+    if [[ "$action" == "stop" ]]; then
+      pm2 stop "$name" >/dev/null 2>&1 || true
+    else
+      { [[ -f "$ROOT/ecosystem.fwu-bots.config.cjs" ]] && (cd "$ROOT" && pm2 startOrReload ecosystem.fwu-bots.config.cjs --only "$name" --update-env >/dev/null 2>&1); } || pm2 restart "$name" >/dev/null 2>&1 || true
+    fi
+  done
+}
+
+cd "$ROOT"
+
+fail() { printf 'ERREUR: %s\n' "$*" >&2; exit 1; }
+info() { printf '\n==> %s\n' "$*"; }
+
+[[ -f package.json && -f bot/index.js && -f package-lock.json && -f bot/package-lock.json ]] \
+  || fail "Lance ce script depuis le projet PND Assist V5 complet (package.json et bot/index.js requis)."
+
+EXPECTED_ROOT="${PND_EXPECTED_ROOT:-/home/opc/her-v5-production}"
+[[ "$(pwd -P)" == "$EXPECTED_ROOT" ]] \
+  || fail "Racine inattendue : $(pwd -P). La production attendue est $EXPECTED_ROOT. Pour une recette staging, ne lance pas ce script de production."
+[[ -f .env && -f bot/.env ]] || fail "Fichiers .env manquants. Copie les deux .env.example et renseigne-les avant le déploiement."
+
+NODE_MAJOR="$(node -p 'Number(process.versions.node.split(".")[0])' 2>/dev/null || echo 0)"
+(( NODE_MAJOR >= 24 )) || fail "Node.js 24 minimum requis (version actuelle : $(node --version 2>/dev/null || echo absente))."
+command -v npm >/dev/null 2>&1 || fail "npm est introuvable."
+
+# Confirm migrations explicitly; they are applied in Supabase SQL Editor, never by this script.
+[[ "${PND_SUPABASE_MIGRATIONS_APPLIED:-}" == "YES" ]] \
+  || fail "Après avoir appliqué les migrations supabase/migrations dans Supabase, relance avec PND_SUPABASE_MIGRATIONS_APPLIED=YES."
+
+# Validate configuration without printing any secret values.
+node --input-type=module <<'NODE'
+import fs from 'node:fs';
+const parse = (file) => {
+  const out = {};
+  for (const line of fs.readFileSync(file, 'utf8').split(/\r?\n/)) {
+    const m = line.match(/^\s*(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*?)\s*$/);
+    if (!m) continue;
+    let value = m[2];
+    if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) value = value.slice(1, -1);
+    out[m[1]] = value;
+  }
+  return out;
+};
+const web = parse('.env');
+const bot = parse('bot/.env');
+const requiredWeb = [
+  'VITE_SUPABASE_URL','VITE_SUPABASE_PUBLISHABLE_KEY','SUPABASE_URL',
+  'SUPABASE_PUBLISHABLE_KEY','SUPABASE_SERVICE_ROLE_KEY','DISCORD_CLIENT_ID',
+  'DISCORD_CLIENT_SECRET','DISCORD_OAUTH_REDIRECT_URI','DISCORD_BOT_TOKEN',
+  'PND_OWNER_DISCORD_ID','SESSION_SECRET','BOT_SYNC_SECRET',
+];
+const requiredBot = ['DISCORD_TOKEN','SITE_URL','BOT_SYNC_SECRET','V4_ALLOWED_GUILD_IDS','PND_OWNER_DISCORD_ID','WEBHOOK_ENCRYPTION_KEY'];
+const placeholder = /^(?:REPLACE_|YOUR_|OWNER_DISCORD_ID|sb_(?:publishable|secret)_REPLACE|https:\/\/(?:YOUR_|REPLACE))/i;
+const missing = [
+  ...requiredWeb.filter(k => !web[k] || placeholder.test(web[k])).map(k => `.env:${k}`),
+  ...requiredBot.filter(k => !bot[k] || placeholder.test(bot[k])).map(k => `bot/.env:${k}`),
+];
+if (missing.length) { console.error(`Configuration incomplète : ${missing.join(', ')}`); process.exit(2); }
+if (web.SESSION_SECRET.length < 32 || web.BOT_SYNC_SECRET.length < 32 || bot.BOT_SYNC_SECRET.length < 32 || web.SESSION_SECRET === web.BOT_SYNC_SECRET) {
+  console.error('SESSION_SECRET et BOT_SYNC_SECRET doivent contenir au moins 32 caractères et être différents.'); process.exit(2);
+}
+if (web.BOT_SYNC_SECRET !== bot.BOT_SYNC_SECRET) { console.error('BOT_SYNC_SECRET doit être identique dans .env et bot/.env.'); process.exit(2); }
+if (web.DISCORD_INTERACTIONS_PUBLIC_KEY) { console.error('Laisse DISCORD_INTERACTIONS_PUBLIC_KEY vide : le bot Oracle traite les interactions via sa passerelle.'); process.exit(2); }
+if (web.VITE_SUPABASE_PUBLISHABLE_KEY !== web.SUPABASE_PUBLISHABLE_KEY) { console.error('VITE_SUPABASE_PUBLISHABLE_KEY et SUPABASE_PUBLISHABLE_KEY doivent être identiques.'); process.exit(2); }
+if (web.DISCORD_BOT_TOKEN !== bot.DISCORD_TOKEN) { console.error('DISCORD_BOT_TOKEN et DISCORD_TOKEN doivent être le même token de bot.'); process.exit(2); }
+// Single-owner policy (bot/owner-config.js refuses the same cases at startup).
+if (web.PND_OWNER_DISCORD_ID !== bot.PND_OWNER_DISCORD_ID) { console.error('PND_OWNER_DISCORD_ID doit être identique dans .env et bot/.env.'); process.exit(2); }
+if (web.PND_OWNER_DISCORD_IDS || bot.PND_OWNER_DISCORD_IDS) { console.error('PND_OWNER_DISCORD_IDS (pluriel) est interdit : un seul PND_OWNER_DISCORD_ID.'); process.exit(2); }
+const owner = web.PND_OWNER_DISCORD_ID.trim();
+if (!/^\d{5,25}$/.test(owner)) { console.error('PND_OWNER_DISCORD_ID doit être un seul identifiant Discord numérique.'); process.exit(2); }
+const cofounders = String(bot.PND_COFOUNDER_DISCORD_IDS ?? '').split(',').map(s => s.trim()).filter(Boolean);
+if (cofounders.includes(owner)) { console.error('Le propriétaire ne peut pas figurer dans PND_COFOUNDER_DISCORD_IDS (le bot refuserait de démarrer).'); process.exit(2); }
+try {
+  const site = new URL(bot.SITE_URL);
+  const callback = new URL(web.DISCORD_OAUTH_REDIRECT_URI);
+  if (site.protocol !== 'https:' || callback.protocol !== 'https:' || site.origin !== callback.origin) throw new Error();
+} catch { console.error('SITE_URL et DISCORD_OAUTH_REDIRECT_URI doivent être des URL HTTPS valides.'); process.exit(2); }
+if (!/^[0-9a-f]{64}$/i.test(bot.WEBHOOK_ENCRYPTION_KEY)) {
+  console.error('WEBHOOK_ENCRYPTION_KEY doit contenir exactement 64 caractères hexadécimaux.'); process.exit(2);
+}
+if (String(bot.PND_MZ_ENABLED ?? 'false').toLowerCase() === 'true') {
+  console.error('Sécurité : PND_MZ_ENABLED=true est interdit dans ce déploiement PND.'); process.exit(2);
+}
+const allowed = bot.V4_ALLOWED_GUILD_IDS.split(/[\s,;]+/).filter(Boolean);
+const permitted = new Set(['1562643485981544559', '1570484435239833701']);
+if (!allowed.includes('1562643485981544559') || allowed.some(id => !permitted.has(id))) {
+  console.error('V4_ALLOWED_GUILD_IDS doit contenir le serveur PND et éventuellement le hub de logs, sans autre serveur.'); process.exit(2);
+}
+console.log('Configuration validée : propriétaires PND, secrets synchronisés, token bot partagé et allowlist PND uniquement.');
+NODE
+
+chmod 600 .env bot/.env
+
+# Preserve private configuration and SQLite runtime data before installing anything.
+BACKUP_BASE="${PND_BACKUP_DIR:-$HOME/pnd-v5-backups}"
+STAMP="$(date -u +%Y%m%dT%H%M%SZ)"
+BACKUP_DIR="$BACKUP_BASE/$STAMP"
+install -d -m 700 "$BACKUP_DIR"
+BACKUP_ITEMS=(.env bot/.env)
+[[ ! -d bot/data ]] || BACKUP_ITEMS+=(bot/data)
+# Consistent online copies of every SQLite database (VACUUM INTO), safe while the bot runs.
+if [[ -d bot/data ]]; then
+  install -d -m 700 "$BACKUP_DIR/sqlite"
+  BACKUP_SQLITE_DIR="$BACKUP_DIR/sqlite" node --no-warnings --input-type=module <<'NODE'
+import { readdirSync } from 'node:fs';
+import { DatabaseSync } from 'node:sqlite';
+const out = process.env.BACKUP_SQLITE_DIR;
+for (const name of readdirSync('bot/data').filter((f) => f.endsWith('.sqlite'))) {
+  const db = new DatabaseSync(`bot/data/${name}`);
+  db.exec(`VACUUM INTO '${out}/${name.replace(/'/g, "''")}'`);
+  db.close();
+  console.log(`Copie cohérente SQLite : ${name}`);
+}
+NODE
+fi
+tar -czf "$BACKUP_DIR/pnd-v5-private-backup.tar.gz" "${BACKUP_ITEMS[@]}"
+chmod 600 "$BACKUP_DIR/pnd-v5-private-backup.tar.gz"
+printf 'Sauvegarde privée créée : %s/pnd-v5-private-backup.tar.gz\n' "$BACKUP_DIR"
+
+info "Installation reproductible des dépendances (dashboard)"
+npm ci --no-audit --no-fund
+info "Installation reproductible des dépendances (bot)"
+npm --prefix bot ci --no-audit --no-fund
+
+info "Tests complets du bot"
+npm --prefix bot test
+info "Banc d'essai : toutes les commandes slash et préfixe"
+npm --prefix bot run smoke
+info "Lint (informatif : ~10 000 écarts de formatage Prettier préexistants, non bloquant)"
+npm run lint >/dev/null 2>&1 && echo "Lint propre." || echo "Lint : écarts présents (formatage). Non bloquant."
+info "Contrôle du catalogue de commandes (100 maximum, aucun doublon)"
+npm --prefix bot run audit:commands
+info "Tests dashboard"
+npm test
+info "Vérification TypeScript"
+./node_modules/.bin/tsc --noEmit
+info "Regénération du paquet bot isolé"
+npm run package:bot
+info "Build de production du dashboard"
+npm run build
+[[ -s .output/server/index.mjs ]] || fail "Build terminé sans produire .output/server/index.mjs."
+
+if ! command -v pm2 >/dev/null 2>&1; then
+  info "Installation PM2 dans l'environnement Node courant"
+  npm install --global pm2 --no-audit --no-fund
+fi
+command -v pm2 >/dev/null 2>&1 || fail "PM2 n'est pas disponible dans le PATH après installation."
+
+info "Activation de la configuration PM2 V5"
+# Ne jamais supprimer les processus V4 historiques. Vérifier que les processus
+# V5 existants pointent déjà vers cette racine avant de les recharger.
+pm2 jlist | ROOT_FOR_PM2="$ROOT" node --input-type=module -e '
+let raw = "";
+for await (const chunk of process.stdin) raw += chunk;
+const rows = JSON.parse(raw);
+const expected = process.env.ROOT_FOR_PM2;
+// ecosystem.v5.config.cjs: the web runs from the root, the bot from bot/.
+const expectedCwd = { "her-v5-web": expected, "her-v5-bot": `${expected}/bot` };
+for (const name of ["her-v5-web", "her-v5-bot"]) {
+  const current = rows.find((p) => p.name === name);
+  if (current && current.pm2_env?.pm_cwd !== expectedCwd[name]) {
+    console.error(`${name} existe déjà avec cwd=${current.pm2_env?.pm_cwd}; attendu=${expectedCwd[name]}. Arrêt préventif.`);
+    process.exit(2);
+  }
+}
+console.log("Processus V5 existants compatibles avec la racine cible.");
+' 
+pm2 startOrReload ecosystem.v5.config.cjs --update-env
+fwu_bots reload
+
+info "Contrôle des processus V5"
+for attempt in $(seq 1 20); do
+  if pm2 jlist | node --input-type=module -e '
+    let raw=""; for await (const chunk of process.stdin) raw += chunk;
+    const rows = JSON.parse(raw);
+    const names = new Set(rows.filter(p => p.pm2_env?.status === "online").map(p => p.name));
+    process.exit(names.has("her-v5-web") && names.has("her-v5-bot") ? 0 : 1);
+  '; then break; fi
+  [[ "$attempt" -lt 20 ]] || { pm2 status; pm2 logs --lines 60 --nostream; fail "Les deux processus PM2 V5 ne sont pas en ligne."; }
+  sleep 2
+done
+
+info "Contrôle HTTP local du dashboard"
+node --input-type=module <<'NODE'
+let last = 'aucune réponse';
+for (let i = 0; i < 25; i++) {
+  try {
+    const response = await fetch('http://127.0.0.1:3000/', { redirect: 'manual', signal: AbortSignal.timeout(3000) });
+    if (response.status >= 200 && response.status < 400) {
+      console.log(`Dashboard HTTP ${response.status} sur 127.0.0.1:3000`);
+      process.exit(0);
+    }
+    last = `HTTP ${response.status}`;
+  } catch (error) { last = error instanceof Error ? error.message : String(error); }
+  await new Promise(resolve => setTimeout(resolve, 1000));
+}
+console.error(`Dashboard non disponible après redémarrage : ${last}`);
+process.exit(1);
+NODE
+pm2 save
+
+printf '\nDéploiement V5 local terminé.\n'
+printf 'Processus : her-v5-web et her-v5-bot\n'
+printf 'Sauvegarde : %s\n' "$BACKUP_DIR/pnd-v5-private-backup.tar.gz"
+printf 'À faire une seule fois pour la persistance au redémarrage système : exécuter la commande affichée par « pm2 startup ».\n'
+printf 'Vérification : pm2 status && pm2 logs her-v5-bot --lines 80\n'

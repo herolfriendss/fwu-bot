@@ -1,0 +1,21 @@
+Nous reprenons PND Assist V5 directement depuis l'archive jointe `PND_Assist_V5_Claude_Resume_20261116.zip`.
+
+IMPORTANT :
+- Travaille sur cette copie comme base courante. N'écrase pas les changements déjà présents.
+- Le dépôt historique original n'est pas inclus dans le ZIP. Le commit local `4b5d98a` est une baseline d'export, pas le vrai historique Git.
+- Les lots P1-B et P1-C/D/E sont déjà dans la base. La copie contient aussi des changements locaux plus récents (P1-A OAuth, autorisations P2, automatisations, PND Intelligence, organisation/entreprises/investissements, vocal, casino, logs, analytics, événements/candidatures/radar/wrapped et intégrations). Ceux-ci sont un travail en cours : ne les considère pas comme validés sans revue et tests.
+- Le travail P1-A initial que tu avais fait (rapporté sur ton commit local `07d9cee`) n'est pas forcément identique aux fichiers présents ici. Compare les deux approches et fusionne proprement. Ne remplace pas cette copie par ton ancien snapshot.
+- PND est le seul serveur en périmètre. MZ reste inactif, non configuré, sans nouveaux salons, intégrations ni commandes.
+- Exactement deux propriétaires PND, IDs fixes via `PND_OWNER_DISCORD_ID`. Ne crée aucun moyen d'accorder OWNER via rôle, commande, dashboard ou webhook. PRIME est un statut de serveur, pas une permission membre. SYS+ reste distinct.
+- Aucune action de production, migration appliquée, redémarrage Oracle, déploiement ou utilisation de vrais secrets sans autorisation explicite.
+
+TA MISSION :
+1. Auditer toute l'archive et lire les notes de reprise. Identifier clairement les fichiers déjà existants, les changements locaux et les conflits éventuels.
+2. Faire tourner les tests sur l'environnement Node >=24 requis par le projet. Installer les dépendances depuis les lockfiles si nécessaire. Ne pas interpréter un test qui ne démarre pas comme un test fonctionnel échoué.
+3. Examiner en priorité les changements non validés : OAuth Discord/PKCE, politique propriétaire, autorisations centrales, permissions SYS+/ADMIN+/WHITELIST, demandes vocales, reprise des sessions vocales, casino/ledger, automatisations, PND Intelligence, dashboard et analytics.
+4. Corriger les bugs et les intégrations manquantes. Vérifier les commandes prefix/slash, les services partagés, les permissions, le multi-guild et les flux de données. Aucune commande ne doit être seulement décorative : elle doit appeler un vrai service.
+5. Garder le périmètre demandé : terminer V5 en réutilisant ce qui existe déjà, pas reconstruire depuis zéro. Ajouter des tests unitaires et d'intégration utiles.
+6. Ne pas annoncer une fonctionnalité comme terminée si elle est seulement partiellement codée. Produire un état précis : terminé, partiel, absent, bloqué.
+7. Ne pas déployer. À la fin, fournir les commits, fichiers modifiés, résultats exacts des tests, limites restantes et la prochaine étape prioritaire.
+
+Commence par un audit de l'état fourni, pas par un nouveau plan générique. Puis code directement les correctifs sûrs et réversibles.

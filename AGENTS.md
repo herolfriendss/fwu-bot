@@ -25,3 +25,21 @@
 - Installation downloads contain only public configuration and empty credential fields; connection functions return secret presence only, never stored secret values.
 - The live status page renders client-side after its owner-protected loader, preventing heartbeat changes between SSR and hydration from producing mismatched live data.
 - The public/downloads/bot-oracle.zip archive is a public source-only distribution; regenerate and inspect it whenever bot sources change, using an explicit allowlist, never including .env, data, repository metadata or dependencies. Updates preserve the VPS's existing configuration.
+
+## PND Assist + product and development rules
+
+- The official product name is **PND Assist +**. Keep the existing Her? V5 implementation and validated features; migrate identity and presentation incrementally rather than rebuilding the project.
+- Discord First: Discord is the primary administration surface. The dashboard may configure and observe the bot, but everyday administration must not require it. Keep the current bot sync/API dependency server-side while designing a safe transition; never expose AI keys or sync credentials to Discord clients.
+- Maintain strict per-guild configuration and data isolation for the PND main server and MZ secondary server. MZ stays disabled until its configuration is explicitly validated. Central logs must retain the source guild identity and must never cross-post private data between source servers.
+- Provide an interactive `/setup` flow using Discord buttons, selects and modals. Recheck permissions and guild context on every interaction; bind privileged component actions to their author where applicable.
+- Preserve the existing SYS+ and ADMIN+ tiers and add WHITELIST as an internal limit exemption only. WHITELIST must never bypass Discord-native permissions, role hierarchy, ownership checks, or authorization for privileged actions.
+- DOG's marker role must be named exactly `En laisse`; do not append a product name or guild-specific suffix. Preserve persistent leash state and safe restoration behavior.
+- LOCKNAME must restore the protected nickname automatically and isolate its state by guild/member. Do not overwrite a member's state from another guild.
+- WAOUF is SYS+-only and may be used only in text channels explicitly allowed by that guild's configuration.
+- `/pnd-add` is restricted to the configured Discord owner ID only. Do not treat guild ownership, Administrator, SYS+, or ADMIN+ as equivalent. Keep the owner ID in trusted server-side configuration and never print secrets.
+- Keep MZ Stream Center and streaming integrations isolated to MZ configuration. Do not activate MZ or connect production services while developing or testing.
+- No faction system. Preserve approved community, economy, administration, AI, music and automation capabilities; do not remove existing features as a shortcut.
+- For ordinary workspace changes, bug fixes, tests, refactors, documentation, and compatible dependencies, proceed autonomously in coherent reviewable batches. Ask for human approval only for production deployment, Oracle/VPS access, secrets/tokens, destructive production data operations, activating a Discord server, changing sensitive production permissions, purchases, or a product decision that changes the accepted specification.
+- Never use the production bot token for tests. Prefer local mocks and a separate staging bot/application and guild. Redact secrets and sensitive member data from test output and reports.
+- Keep a reversible checkpoint before substantial batches. Do not rewrite published Lovable history, force-push, or copy V3/V4 Git metadata as the V5 history. If the workspace Git metadata is unavailable, recover the matching V5 source history or establish a clearly documented local baseline without claiming it is prior history.
+- Do not mark a feature complete until relevant automated tests pass and any Discord-dependent behavior has a staging validation plan. Report exact commands and distinguish executed tests from manual checks.

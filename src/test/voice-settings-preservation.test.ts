@@ -6,7 +6,7 @@ import { DEFAULT_SETTINGS } from "@/lib/bot-settings";
 
 describe("voice settings preservation", () => {
   it.each([false, true])("preserves saved role restrictions when unrelated settings save updates commands: %s", async (updateCommands) => {
-    const voiceAccess = { panelRoleIds: ["11111"], pvRoleIds: ["22222"] };
+    const voiceAccess = { panelRoleIds: ["11111"], pvRoleIds: ["22222"], requestChannelId: "333333333333333333" };
     mocks.read.mockResolvedValue({ data: { settings: { ...DEFAULT_SETTINGS, voiceAccess } }, error: null });
     const saved = await writeBotSettings("99999", DEFAULT_SETTINGS, updateCommands);
     expect(saved.voiceAccess).toEqual(voiceAccess);

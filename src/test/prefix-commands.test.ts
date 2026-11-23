@@ -5,7 +5,7 @@ import { prefixCommandFormSchema } from "@/lib/prefix-commands";
 
 describe("prefix commands", () => {
   it("reserves names handled by built-in voice, DOG, SYS+ and music commands", () => {
-    for (const name of ["access", "panel", "pv", "sysp", "dog", "undog", "doginfo", "play", "stop", "queue"]) {
+    for (const name of ["access", "panel", "pv", "sysp", "dog", "undog", "doginfo", "menotte", "unmenotte", "menotteinfo", "lockname", "unlockname", "locknamelist", "play", "stop", "queue"]) {
       expect(prefixCommandFormSchema.safeParse({ name, response: "test", permission: "0" }).success).toBe(false);
     }
     expect(prefixCommandFormSchema.safeParse({ name: "regles", response: "test", permission: "0" }).success).toBe(true);

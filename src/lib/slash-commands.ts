@@ -1,4 +1,4 @@
-// Shared, client-safe definitions of the bot's slash commands (Her? V4).
+// Shared, client-safe definitions of the bot's slash commands (1942).
 // No secrets here: imported by the panel UI, the interactions server module and
 // the standalone Oracle bot. Keeping one list guarantees that the dashboard and
 // the bot always register and document the exact same command surface.
@@ -6,7 +6,7 @@
 export type SlashOptionChoice = { name: string; value: string | number };
 
 export type SlashOption = {
-  type: number; // 1 = SUB_COMMAND, 3 = STRING, 4 = INTEGER, 6 = USER, 7 = CHANNEL, 8 = ROLE
+  type: number; // 1 = SUB_COMMAND, 2 = SUB_COMMAND_GROUP, 3 = STRING, 4 = INTEGER, 5 = BOOLEAN, 6 = USER, 7 = CHANNEL, 8 = ROLE
   name: string;
   description: string;
   required?: boolean;
@@ -45,9 +45,61 @@ const sub = (name: string, description: string, options?: SlashOption[]): SlashO
   ...(options?.length ? { options } : {}),
 });
 
+/** Discord limits: 25 options per command level, 100 top-level commands per application. */
+export const DISCORD_MAX_OPTIONS = 25;
+export const DISCORD_MAX_ROOT_COMMANDS = 100;
+
+export type SubcommandLayoutEntry = string | { group: string; description: string; members: string[] };
+
+/**
+ * Layout of /sysp: some subcommands stay at the top level (the most used ones),
+ * the others are nested in Discord subcommand groups (type 2). Every subcommand
+ * must appear exactly once; groupSubcommands() throws at load time otherwise.
+ */
+export const SYSP_LAYOUT: SubcommandLayoutEntry[] = [
+  "panel", "audit", "add", "remove", "permissions", "permissions-edit", "incident",
+  { group: "config", description: "Rôles, ADMIN+ et PND Intelligence", members: ["role", "admin-role", "whitelist-role", "intelligence-channel", "intelligence-toggle"] },
+  { group: "staff", description: "Responsables et hiérarchie du staff", members: ["supervisor-set", "supervisor-remove", "supervisor-list"] },
+  { group: "whitelist", description: "Exemption WHITELIST (propriétaire)", members: ["whitelist-add", "whitelist-remove", "whitelist-list"] },
+  { group: "outils", description: "Ghost, composer, recherche, blueprints, clone, studio, packs", members: ["ghost", "composer", "search", "blueprint", "clone", "studio", "pack"] },
+  { group: "diagnostic", description: "Audit ACL, santé du bot et couverture des logs (lecture seule)", members: ["acl", "sante", "logs-couverture", "matrice", "economie", "bots"] },
+  { group: "market", description: "Marketplace d'extensions (désactivé par défaut)", members: ["catalog", "installed", "publish", "withdraw", "submit", "validate", "reject", "install", "uninstall", "rollback"] },
+];
+
+/** Nests flat subcommands into Discord subcommand groups per the layout. Throws on any drift. */
+export function groupSubcommands(flat: SlashOption[], layout: SubcommandLayoutEntry[]): SlashOption[] {
+  const byName = new Map<string, SlashOption>();
+  for (const option of flat) {
+    if (option.type !== 1) throw new Error(`« ${option.name} » : seules les sous-commandes peuvent être regroupées.`);
+    if (byName.has(option.name)) throw new Error(`Sous-commande en double : ${option.name}`);
+    byName.set(option.name, option);
+  }
+  const used = new Set<string>();
+  const take = (name: string): SlashOption => {
+    const leaf = byName.get(name);
+    if (!leaf) throw new Error(`Disposition : sous-commande inconnue « ${name} ».`);
+    if (used.has(name)) throw new Error(`Disposition : « ${name} » est rangée deux fois.`);
+    used.add(name);
+    return leaf;
+  };
+  const out: SlashOption[] = [];
+  for (const entry of layout) {
+    if (typeof entry === "string") {
+      out.push(take(entry));
+      continue;
+    }
+    if (entry.members.length < 1 || entry.members.length > DISCORD_MAX_OPTIONS) throw new Error(`Groupe « ${entry.group} » : entre 1 et ${DISCORD_MAX_OPTIONS} sous-commandes.`);
+    if (entry.description.length < 1 || entry.description.length > 100) throw new Error(`Groupe « ${entry.group} » : description de 1 à 100 caractères.`);
+    out.push({ type: 2, name: entry.group, description: entry.description, options: entry.members.map(take) });
+  }
+  const missing = [...byName.keys()].filter((name) => !used.has(name));
+  if (missing.length) throw new Error(`Sous-commandes non rangées : ${missing.join(", ")}`);
+  if (out.length > DISCORD_MAX_OPTIONS) throw new Error(`Trop d'entrées au premier niveau (${out.length} / ${DISCORD_MAX_OPTIONS}).`);
+  return out;
+}
+
 const manageServer = "32"; // MANAGE_GUILD
 const manageMessages = "8192"; // MANAGE_MESSAGES
-const manageNicknames = "268435456"; // MANAGE_NICKNAMES
 const moderateMembers = "1099511627776"; // MODERATE_MEMBERS
 const kickMembers = "2"; // KICK_MEMBERS
 const banMembers = "4"; // BAN_MEMBERS
@@ -56,7 +108,18 @@ const manageChannels = "16"; // MANAGE_CHANNELS
 export const SLASH_COMMANDS: SlashCommandDef[] = [
   // ── Général ────────────────────────────────────────────────────────────────
   { name: "aide", description: "Affiche la liste des commandes du bot", usage: "/aide", category: "Général" },
-  { name: "salut", description: "Le bot te salue", usage: "/salut", category: "Général" },
+  {
+    name: "ia", description: "Gère ta mémoire de conversation avec FWU", usage: "/ia memoire etat:activer|desactiver · /ia oublier", category: "Général", dmPermission: false, requiresBotProcess: true,
+    options: [
+      sub("memoire", "Choisis si FWU peut conserver le contexte de tes conversations", [
+        opt(3, "etat", "Ton choix de consentement", { required: true, choices: [
+          { name: "Activer la mémoire pour moi", value: "on" },
+          { name: "Désactiver la mémoire pour moi", value: "off" },
+        ] }),
+      ]),
+      sub("oublier", "Efface immédiatement tes conversations mémorisées sur ce serveur"),
+    ],
+  },
   { name: "status", description: "Affiche l’état du bot et sa durée de fonctionnement", usage: "/status", category: "Général" },
   {
     name: "sondage",
@@ -73,13 +136,6 @@ export const SLASH_COMMANDS: SlashCommandDef[] = [
     ],
   },
   {
-    name: "info-serveur",
-    description: "Affiche les informations du serveur",
-    usage: "/info-serveur",
-    category: "Général",
-    dmPermission: false,
-  },
-  {
     name: "nettoyer",
     description: "Supprime les derniers messages de ce salon",
     usage: "/nettoyer nombre",
@@ -93,8 +149,8 @@ export const SLASH_COMMANDS: SlashCommandDef[] = [
   {
     name: "guildguard",
     description: "Configure GuildGuard : admission, anti-raid et confinement",
-    usage: "/guildguard status | enable | disable | account-age | raid | quarantine | log | lockdown",
-    category: "Sécurité",
+    usage: "/guildguard status | enable | disable | account-age | raid | quarantine | log | lockdown | review | resolve",
+    category: "Administration & sécurité",
     defaultMemberPermissions: manageServer,
     dmPermission: false,
     requiresBotProcess: true,
@@ -120,6 +176,15 @@ export const SLASH_COMMANDS: SlashCommandDef[] = [
           { name: "Activer", value: "on" },
           { name: "Désactiver", value: "off" },
         ] }),
+      ]),
+      sub("review", "Affiche les dossiers Guardian à examiner"),
+      sub("resolve", "Clôt un dossier de revue humaine", [
+        opt(4, "id", "Identifiant du dossier", { required: true, min_value: 1 }),
+        opt(3, "decision", "Décision", { required: true, choices: [
+          { name: "Examiné", value: "examined" },
+          { name: "Classé sans suite", value: "cleared" },
+        ] }),
+        opt(3, "note", "Note interne facultative", { max_length: 300 }),
       ]),
     ],
   },
@@ -253,21 +318,241 @@ export const SLASH_COMMANDS: SlashCommandDef[] = [
     ],
   },
   {
-    name: "sysp",
-    description: "Gestion du système SYS+",
-    usage: "/sysp panel ou /sysp role",
+    name: "removerole",
+    description: "Retire un rôle à un membre (SYS+ / ADMIN+)",
+    usage: "/removerole membre rôle",
     category: "SYS+",
     dmPermission: false,
+    requiresBotProcess: true,
     options: [
+      opt(6, "membre", "Membre à modifier", { required: true }),
+      opt(8, "role", "Rôle à retirer", { required: true }),
+    ],
+  },
+  {
+    name: "rolepanel",
+    description: "Panneau SYS+ de rôles personnalisés et gestion des rôles membres",
+    usage: "/rolepanel panel | create | rename | color | delete | list | manage",
+    category: "SYS+",
+    dmPermission: false,
+    requiresBotProcess: true,
+    options: [
+      sub("panel", "Ouvre le panneau interactif des rôles personnalisés"),
+      sub("manage", "Ouvre l'ancien panneau d'attribution de rôles aux membres"),
+      sub("create", "Crée un rôle sans permissions Discord", [
+        opt(3, "nom", "Nom (2 à 32 caractères)", { required: true, min_length: 2, max_length: 32 }),
+        opt(3, "couleur", "Couleur hexadécimale #RRGGBB", { required: true, min_length: 7, max_length: 7 }),
+      ]),
+      sub("rename", "Renomme un rôle personnalisé", [
+        opt(8, "role", "Rôle personnalisé", { required: true }),
+        opt(3, "nom", "Nouveau nom (2 à 32 caractères)", { required: true, min_length: 2, max_length: 32 }),
+      ]),
+      sub("color", "Change la couleur d'un rôle personnalisé", [
+        opt(8, "role", "Rôle personnalisé", { required: true }),
+        opt(3, "couleur", "Couleur hexadécimale #RRGGBB", { required: true, min_length: 7, max_length: 7 }),
+      ]),
+      sub("delete", "Supprime un rôle personnalisé", [
+        opt(8, "role", "Rôle personnalisé", { required: true }),
+        opt(5, "confirmer", "Confirmer explicitement la suppression", { required: true }),
+      ]),
+      sub("list", "Liste les rôles personnalisés du serveur"),
+    ],
+  },
+  {
+    name: "rank",
+    description: "Attribue un rôle à un membre (SYS+ / ADMIN+)",
+    usage: "/rank membre rôle",
+    category: "SYS+",
+    dmPermission: false,
+    requiresBotProcess: true,
+    options: [
+      opt(6, "membre", "Membre à promouvoir", { required: true }),
+      opt(8, "role", "Rôle à attribuer", { required: true }),
+    ],
+  },
+  {
+    name: "rankall",
+    description: "Attribue un rôle à tous les membres éligibles (propriétaires du bot uniquement)",
+    usage: "/rankall role",
+    category: "Administration & sécurité",
+    dmPermission: false,
+    requiresBotProcess: true,
+    options: [opt(8, "role", "Rôle à attribuer à tous les membres éligibles", { required: true })],
+  },
+  {
+    name: "sysp",
+    description: "Gestion du système SYS+",
+    usage: "/sysp panel|audit|role|add|remove|permissions|whitelist-*|supervisor-*|diagnostic acl|sante|logs-couverture|matrice|economie|bots",
+    category: "SYS+",
+    dmPermission: false,
+    requiresBotProcess: true,
+    options: groupSubcommands([
       sub("panel", "Ouvre le centre de contrôle SYS+"),
       sub("audit", "Affiche les dernières actions staff"),
       sub("role", "Configure le rôle Perm SYS+", [opt(8, "role", "Rôle à attribuer comme Perm SYS+", { required: true })]),
-    ],
+      sub("admin-role", "Configure le rôle ADMIN+ (permissions administratives limitées)", [opt(8, "role", "Rôle à attribuer comme ADMIN+", { required: true })]),
+      sub("whitelist-role", "Configure le rôle exact WHITELIST (propriétaire uniquement)", [opt(8, "role", "Rôle nommé WHITELIST", { required: true })]),
+      sub("intelligence-channel", "Configure le salon réservé à PND Intelligence", [opt(7, "salon", "Salon texte réservé à PND Intelligence", { required: true, channel_types: [0] })]),
+      sub("intelligence-toggle", "Active ou désactive PND Intelligence", [opt(5, "etat", "Vrai = actif, faux = désactivé", { required: true })]),
+      sub("supervisor-set", "Assigne un responsable direct à un membre du staff", [
+        opt(6, "membre", "Modérateur ou membre du staff", { required: true }),
+        opt(6, "responsable", "Chef ou superviseur en charge", { required: true }),
+      ]),
+      sub("supervisor-remove", "Retire le responsable direct d'un membre du staff", [
+        opt(6, "membre", "Modérateur ou membre du staff", { required: true }),
+      ]),
+      sub("supervisor-list", "Affiche la hiérarchie des responsables configurés"),
+      sub("ghost", "Ghost Mode : consultation staff privée et non intrusive"),
+      sub("composer", "Command Composer : gérer les procédures staff réutilisables", [
+        opt(3, "action", "Opération", { required: true, choices: [{ name: "Créer", value: "create" }, { name: "Lister", value: "list" }, { name: "Consulter", value: "show" }, { name: "Supprimer", value: "delete" }] }),
+        opt(3, "nom", "Nom du runbook", { max_length: 40 }),
+        opt(3, "description", "Description", { max_length: 180 }),
+        opt(3, "contenu", "Procédure documentée", { max_length: 6000 }),
+      ]),
+      sub("search", "Smart Search : recherche dans les données SYS+ du serveur", [
+        opt(3, "requete", "Termes à rechercher", { required: true, max_length: 120 }),
+      ]),
+      sub("incident", "Centre de gestion des incidents SYS+", [
+        opt(3, "action", "Opération", { required: true, choices: [{ name: "Créer", value: "create" }, { name: "Lister", value: "list" }, { name: "Consulter", value: "show" }, { name: "Assigner", value: "assign" }, { name: "Résoudre", value: "resolve" }, { name: "Changer le statut", value: "status" }, { name: "Rapport (Markdown)", value: "report" }] }),
+        opt(3, "titre", "Titre (création)", { max_length: 100 }),
+        opt(3, "resume", "Résumé (création)", { max_length: 1500 }),
+        opt(3, "gravite", "Gravité (création)", { choices: [{ name: "Faible", value: "low" }, { name: "Moyenne", value: "medium" }, { name: "Élevée", value: "high" }, { name: "Critique", value: "critical" }] }),
+        opt(3, "id", "Identifiant incident (action)", { max_length: 36 }),
+        opt(6, "membre", "Responsable (assignation)"),
+        opt(3, "resolution", "Résolution (fermeture)", { max_length: 1500 }),
+        opt(3, "statut", "Statut", { choices: [{ name: "Ouvert", value: "open" }, { name: "En cours", value: "in_progress" }] }),
+      ]),
+      sub("studio", "Creator Studio : annonces, stories, événements, validation et planification", [
+        opt(3, "action", "Action à effectuer", { required: true, choices: [
+          { name: "create", value: "create" },
+          { name: "edit", value: "edit" },
+          { name: "submit", value: "submit" },
+          { name: "approve", value: "approve" },
+          { name: "reject", value: "reject" },
+          { name: "schedule", value: "schedule" },
+          { name: "cancel", value: "cancel" },
+          { name: "publish", value: "publish" },
+          { name: "preview", value: "preview" },
+          { name: "list", value: "list" },
+          { name: "fav", value: "fav" },
+          { name: "history", value: "history" },
+          { name: "template-save", value: "template-save" },
+          { name: "template-use", value: "template-use" },
+          { name: "templates", value: "templates" },
+        ] }),
+        opt(3, "type", "Type de publication (création)", { choices: [
+          { name: "Annonce", value: "announcement" },
+          { name: "Story", value: "story" },
+          { name: "Événement", value: "event" },
+        ] }),
+        opt(3, "id", "Identifiant du brouillon (au moins 4 caractères)", { max_length: 36 }),
+        opt(3, "titre", "Titre (2 à 256 caractères)", { max_length: 256 }),
+        opt(3, "contenu", "Contenu (4000 caractères max)", { max_length: 4000 }),
+        opt(3, "couleur", "Couleur hexadécimale, ex. #7C3AED", { max_length: 8 }),
+        opt(3, "image", "Image https (optionnel)", { max_length: 500 }),
+        opt(3, "note", "Note de relecture ou raison de refus", { max_length: 300 }),
+        opt(4, "minutes", "Délai avant publication (1 à 525600 minutes)"),
+        opt(7, "salon", "Salon de publication", { channel_types: [0] }),
+        opt(3, "modele", "Nom du modèle", { max_length: 40 }),
+        opt(3, "mentions", "Membres à mentionner (identifiants séparés par des espaces)", { max_length: 300 }),
+      ]),
+      sub("pack", "Packs premium du serveur : attribuer, révoquer ou lister (propriétaires PND)", [
+        opt(3, "action", "Action à effectuer", { required: true, choices: [
+          { name: "Attribuer (grant)", value: "grant" },
+          { name: "Révoquer (revoke)", value: "revoke" },
+          { name: "Lister (list)", value: "list" },
+        ] }),
+        opt(3, "pack", "Pack premium (pour grant)", { choices: [
+          { name: "ai.advanced", value: "ai.advanced" },
+          { name: "automation.advanced", value: "automation.advanced" },
+          { name: "analytics.advanced", value: "analytics.advanced" },
+          { name: "commands.exclusive", value: "commands.exclusive" },
+          { name: "creator.studio", value: "creator.studio" },
+          { name: "server.tools", value: "server.tools" },
+          { name: "social.advanced", value: "social.advanced" },
+          { name: "economy.advanced", value: "economy.advanced" },
+          { name: "games.premium", value: "games.premium" },
+          { name: "studio.personal", value: "studio.personal" },
+          { name: "cloud", value: "cloud" },
+          { name: "marketplace", value: "marketplace" },
+          { name: "extensions", value: "extensions" },
+          { name: "lab", value: "lab" },
+        ] }),
+        opt(4, "jours", "Durée en jours 1 à 730 ; vide = sans expiration (grant)"),
+        opt(4, "id", "Identifiant de l'attribution (revoke)"),
+        opt(3, "note", "Note interne, 200 caractères max (grant)"),
+      ]),
+      sub("clone", "Server Clone : aperçu ou restauration additive d'un blueprint", [
+        opt(3, "action", "Aperçu (plan) ou application (apply)", { required: true, choices: [
+          { name: "Aperçu (plan)", value: "plan" },
+          { name: "Appliquer (apply)", value: "apply" },
+        ] }),
+        opt(3, "blueprint", "Identifiant du blueprint (au moins 4 caractères)", { required: true }),
+        opt(3, "jeton", "Jeton du plan (obligatoire pour apply)"),
+      ]),
+      sub("blueprint", "Time Machine : sauvegarde ou compare la structure du serveur", [
+        opt(3, "action", "Opération", { required: true, choices: [{ name: "Créer une sauvegarde", value: "create" }, { name: "Lister les sauvegardes", value: "list" }, { name: "Comparer avec le serveur actuel", value: "compare" }, { name: "Exporter en JSON", value: "export" }] }),
+        opt(3, "nom", "Nom de la sauvegarde (pour créer)", { max_length: 80 }),
+        opt(3, "id", "Identifiant de sauvegarde (pour comparer)", { max_length: 36 }),
+      ]),
+      sub("acl", "Détecte les permissions et overwrites risqués (lecture seule)"),
+      sub("sante", "État de santé du bot : Gateway, permissions, base, logs"),
+      sub("logs-couverture", "Matrice de couverture des événements du Logs Hub"),
+      sub("matrice", "Matrice des permissions par niveau (calculée depuis le code)"),
+      sub("economie", "Intégrité du grand livre PND et signaux de fraude"),
+      sub("bots", "Bots FWU : quel bot traite chaque domaine en ce moment"),
+      sub("add", "Attribue le rôle SYS+ à un membre (propriétaire)", [opt(6, "membre", "Membre concerné", { required: true })]),
+      sub("remove", "Retire le rôle SYS+ à un membre (propriétaire)", [opt(6, "membre", "Membre concerné", { required: true })]),
+      sub("permissions", "Consulte les scopes ADMIN+"),
+      sub("permissions-edit", "Modifie un scope ADMIN+", [
+        opt(3, "module", "Module à configurer", { required: true, choices: [
+          { name: "Gestion des rôles", value: "roles" }, { name: "Administration vocale et MENOTTE", value: "voice" },
+          { name: "LOCKNAME", value: "lockname" }, { name: "Gestion du support", value: "tickets" },
+        ] }),
+        opt(5, "autorise", "Autoriser ADMIN+ sur ce module", { required: true }),
+      ]),
+      sub("whitelist-add", "Attribue WHITELIST (propriétaire)", [opt(6, "membre", "Membre concerné", { required: true })]),
+      sub("whitelist-remove", "Retire WHITELIST (propriétaire)", [opt(6, "membre", "Membre concerné", { required: true })]),
+      sub("whitelist-list", "Liste les membres WHITELIST (propriétaire)"),
+      sub("catalog", "Catalogue du Marketplace (lecture)"),
+      sub("installed", "Extensions installées sur ce serveur"),
+      sub("publish", "Propriétaires : ajouter une extension au catalogue", [
+        opt(3, "id", "Identifiant slug (3 à 40 caractères)", { required: true, max_length: 40 }),
+        opt(3, "nom", "Nom affiché", { required: true, max_length: 80 }),
+        opt(3, "resume", "Résumé court", { max_length: 200 }),
+      ]),
+      sub("withdraw", "Propriétaires : retirer une extension du catalogue", [
+        opt(3, "id", "Identifiant de l'extension", { required: true, max_length: 40 }),
+      ]),
+      sub("submit", "Propriétaires : soumettre un manifeste JSON à revue", [
+        opt(3, "id", "Identifiant de l'extension", { required: true, max_length: 40 }),
+        opt(3, "manifeste", "Manifeste JSON déclaratif (16 Ko maximum)", { required: true, max_length: 6000 }),
+      ]),
+      sub("validate", "Propriétaires : valider une version en revue", [
+        opt(3, "id", "Identifiant de l'extension", { required: true, max_length: 40 }),
+        opt(3, "version", "Version x.y.z", { required: true, max_length: 12 }),
+      ]),
+      sub("reject", "Propriétaires : rejeter une version en revue", [
+        opt(3, "id", "Identifiant de l'extension", { required: true, max_length: 40 }),
+        opt(3, "version", "Version x.y.z", { required: true, max_length: 12 }),
+      ]),
+      sub("install", "Installe une version validée (consentement requis)", [
+        opt(3, "id", "Identifiant de l'extension", { required: true, max_length: 40 }),
+        opt(3, "version", "Version x.y.z", { required: true, max_length: 12 }),
+        opt(5, "confirmer", "Vrai pour accepter les permissions affichées"),
+      ]),
+      sub("uninstall", "Désinstalle une extension (historique conservé)", [
+        opt(3, "id", "Identifiant de l'extension", { required: true, max_length: 40 }),
+      ]),
+      sub("rollback", "Revient à la version précédente (sans élargir les permissions)", [
+        opt(3, "id", "Identifiant de l'extension", { required: true, max_length: 40 }),
+      ]),
+    ], SYSP_LAYOUT),
   },
   {
     name: "ticket",
     description: "Gère les tickets de support",
-    usage: "/ticket panel | close | add | remove | list",
+    usage: "/ticket panel | close | add | remove | list | assign | historique | transcript",
     category: "SYS+",
     dmPermission: false,
     requiresBotProcess: true,
@@ -283,6 +568,51 @@ export const SLASH_COMMANDS: SlashCommandDef[] = [
         opt(6, "membre", "Membre à retirer", { required: true }),
       ]),
       sub("list", "Liste les tickets du serveur"),
+      sub("assign", "Assigne le ticket courant à un membre du staff", [
+        opt(6, "membre", "Membre du staff support", { required: true }),
+      ]),
+      sub("historique", "Historique (métadonnées) d’un ticket", [
+        opt(4, "id", "Identifiant du ticket (sinon le ticket courant)", { min_value: 1 }),
+      ]),
+      sub("transcript", "Transcription d’un ticket fermé (si activée)", [
+        opt(4, "id", "Identifiant du ticket (sinon le ticket courant)", { min_value: 1 }),
+      ]),
+    ],
+  },
+
+  {
+    name: "webhook",
+    description: "Gère les webhooks et les publications automatiques",
+    usage: "/webhook create | list | delete | publish | edit | animation",
+    category: "Automatisation",
+    // Runtime checks in bot/webhooks.js enforce SYS+/owner/admin. Do not hide
+    // the command behind MANAGE_GUILD: a configured SYS+ role may lack it.
+    dmPermission: false,
+    requiresBotProcess: true,
+    options: [
+      sub("create", "Crée un webhook sécurisé dans un salon", [
+        opt(7, "salon", "Salon textuel", { required: true, channel_types: [0] }),
+        opt(3, "nom", "Nom du webhook", { required: true, max_length: 80 }),
+      ]),
+      sub("list", "Liste les webhooks gérés par FWU"),
+      sub("delete", "Supprime un webhook géré", [
+        opt(3, "id", "Identifiant du webhook", { required: true, max_length: 25 }),
+      ]),
+      sub("publish", "Publie un message via un webhook", [
+        opt(3, "id", "Identifiant du webhook", { required: true, max_length: 25 }),
+        opt(3, "message", "Contenu à publier", { required: true, max_length: 2000 }),
+      ]),
+      sub("edit", "Modifie le dernier message publié", [
+        opt(3, "id", "Identifiant du webhook", { required: true, max_length: 25 }),
+        opt(3, "message", "Nouveau contenu", { required: true, max_length: 2000 }),
+      ]),
+      sub("animation", "Active ou désactive l'animation des publications (tous ou un webhook)", [
+        opt(3, "etat", "État de l'animation", { required: true, choices: [
+          { name: "Activer", value: "on" },
+          { name: "Désactiver", value: "off" },
+        ] }),
+        opt(3, "id", "ID du webhook (facultatif : sinon tous)", { max_length: 25 }),
+      ]),
     ],
   },
 
@@ -347,6 +677,59 @@ export const SLASH_COMMANDS: SlashCommandDef[] = [
     category: "Économie PND",
     dmPermission: false,
     requiresBotProcess: true,
+  },
+  {
+    name: "job",
+    description: "Choisis et suis ton métier PND sur ce serveur",
+    usage: "/job list | status | choose métier",
+    category: "Économie PND",
+    dmPermission: false,
+    requiresBotProcess: true,
+    options: [
+      sub("list", "Affiche les métiers disponibles"),
+      sub("status", "Affiche ton métier et ta progression"),
+      sub("choose", "Choisis ou changes de métier", [
+        opt(3, "metier", "Métier choisi", {
+          required: true,
+          choices: [
+            { name: "Artisane", value: "artisan" },
+            { name: "Explorateur", value: "explorer" },
+            { name: "Hôte communautaire", value: "host" },
+            { name: "Mécanicien", value: "mechanic" },
+            { name: "Coursier", value: "courier" },
+          ],
+        }),
+      ]),
+      opt(2, "mission", "Consulte et réclame tes missions quotidiennes", {
+        options: [
+          sub("status", "Affiche ta progression du jour"),
+          sub("claim", "Réclame les récompenses terminées"),
+        ],
+      }),
+      opt(2, "contract", "Crée et réalise des contrats communautaires avec escrow PND", {
+        options: [
+          sub("create", "Publie une mission rémunérée", [
+            opt(3, "titre", "Titre du contrat", { required: true, max_length: 80 }),
+            opt(3, "description", "Travail demandé", { required: true, max_length: 500 }),
+            opt(4, "recompense", "Récompense réservée en PND", { required: true, min_value: 1, max_value: 1_000_000_000 }),
+          ]),
+          sub("list", "Consulte les contrats de ce serveur", [
+            opt(3, "etat", "État à afficher", { choices: [
+              { name: "Ouverts", value: "open" }, { name: "En cours", value: "claimed" },
+              { name: "À valider", value: "submitted" }, { name: "Terminés", value: "completed" },
+              { name: "Tous", value: "all" },
+            ] }),
+          ]),
+          sub("claim", "Réclame un contrat ouvert", [opt(4, "id", "Identifiant du contrat", { required: true, min_value: 1 })]),
+          sub("submit", "Soumets le compte rendu du travail", [
+            opt(4, "id", "Identifiant du contrat", { required: true, min_value: 1 }),
+            opt(3, "compte-rendu", "Compte rendu à valider", { required: true, max_length: 500 }),
+          ]),
+          sub("approve", "Valide un compte rendu et libère la récompense", [opt(4, "id", "Identifiant du contrat", { required: true, min_value: 1 })]),
+          sub("cancel", "Annule un contrat encore ouvert et récupère l’escrow", [opt(4, "id", "Identifiant du contrat", { required: true, min_value: 1 })]),
+        ],
+      }),
+    ],
   },
   {
     name: "bank",
@@ -441,6 +824,32 @@ export const SLASH_COMMANDS: SlashCommandDef[] = [
       sub("retirer", "Retire un rôle de la boutique (administration)", [
         opt(8, "role", "Rôle à retirer", { required: true }),
       ]),
+      opt(2, "market", "Revends des rôles de ta collection sur le marché du serveur", {
+        options: [
+          sub("list", "Affiche les annonces ouvertes"),
+          sub("sell", "Met un rôle de boutique que tu possèdes en vente", [
+            opt(8, "role", "Rôle à vendre", { required: true }),
+            opt(4, "prix", "Prix en PND", { required: true, min_value: 1, max_value: 1_000_000_000 }),
+          ]),
+          sub("buy", "Achète et reçois un rôle annoncé", [opt(4, "id", "Identifiant de l’annonce", { required: true, min_value: 1 })]),
+          sub("cancel", "Retire ta propre annonce ouverte", [opt(4, "id", "Identifiant de l’annonce", { required: true, min_value: 1 })]),
+        ],
+      }),
+      opt(2, "auction", "Mets aux enchères un rôle acheté ou enchéris sur ce serveur", {
+        options: [
+          sub("list", "Affiche les enchères ouvertes"),
+          sub("create", "Ouvre une enchère de 10 minutes à 7 jours", [
+            opt(8, "role", "Rôle de boutique que tu possèdes", { required: true }),
+            opt(4, "prix-initial", "Prix minimal en PND", { required: true, min_value: 1, max_value: 1_000_000_000 }),
+            opt(4, "duree-minutes", "Durée de l’enchère en minutes", { required: true, min_value: 10, max_value: 10_080 }),
+          ]),
+          sub("bid", "Place une offre qui sera retenue en escrow", [
+            opt(4, "id", "Identifiant de l’enchère", { required: true, min_value: 1 }),
+            opt(4, "montant", "Offre PND, supérieure à la meilleure offre", { required: true, min_value: 1, max_value: 1_000_000_000 }),
+          ]),
+          sub("cancel", "Annule ta propre enchère sans offre", [opt(4, "id", "Identifiant de l’enchère", { required: true, min_value: 1 })]),
+        ],
+      }),
     ],
   },
   {
@@ -454,10 +863,9 @@ export const SLASH_COMMANDS: SlashCommandDef[] = [
   },
   {
     name: "pnd",
-    description: "Gère le solde PND d’un membre (administration)",
-    usage: "/pnd ajouter | retirer | definir",
+    description: "Gère le solde PND (identifiant propriétaire configuré)",
+    usage: "/pnd ajouter|retirer|definir|historique|audit",
     category: "Économie PND",
-    defaultMemberPermissions: manageServer,
     dmPermission: false,
     requiresBotProcess: true,
     options: [
@@ -473,6 +881,8 @@ export const SLASH_COMMANDS: SlashCommandDef[] = [
         opt(6, "membre", "Membre concerné", { required: true }),
         opt(4, "montant", "Nouveau solde", { required: true, min_value: 0, max_value: 1_000_000_000 }),
       ]),
+      sub("historique", "Consulte l’historique PND d’un membre", [opt(6, "membre", "Membre (facultatif)")]),
+      sub("audit", "Consulte l’audit des opérations PND"),
     ],
   },
   {
@@ -637,7 +1047,7 @@ export const SLASH_COMMANDS: SlashCommandDef[] = [
   {
     name: "giveaway",
     description: "Crée et gère des giveaways",
-    usage: "/giveaway start | end | list",
+    usage: "/giveaway start | end | list | reroll | verifier",
     category: "Jeux & événements",
     dmPermission: false,
     requiresBotProcess: true,
@@ -651,6 +1061,13 @@ export const SLASH_COMMANDS: SlashCommandDef[] = [
         opt(3, "id", "Identifiant du giveaway", { required: true, max_length: 12 }),
       ]),
       sub("list", "Liste les giveaways du serveur"),
+      sub("reroll", "Nouveau tirage vérifiable (anciens gagnants exclus)", [
+        opt(3, "id", "Identifiant du giveaway", { required: true, max_length: 12 }),
+        opt(4, "gagnants", "Nombre de gagnants (1–10)", { min_value: 1, max_value: 10 }),
+      ]),
+      sub("verifier", "Rejoue et vérifie les tirages d'un giveaway", [
+        opt(3, "id", "Identifiant du giveaway", { required: true, max_length: 12 }),
+      ]),
     ],
   },
   {
@@ -673,31 +1090,303 @@ export const SLASH_COMMANDS: SlashCommandDef[] = [
     ],
   },
 
+  // ── Extensions PND V5 ──────────────────────────────────────────────────────
+  {
+    name: "business",
+    description: "Gère les entreprises et leur trésorerie PND",
+    usage: "/business list | create | info | hire | salary | fire | deposit | withdraw | payroll",
+    category: "Économie PND",
+    dmPermission: false,
+    requiresBotProcess: true,
+    options: [
+      sub("list", "Liste les entreprises du serveur"),
+      sub("create", "Crée une entreprise", [opt(3, "nom", "Nom de l’entreprise", { required: true, max_length: 40 })]),
+      sub("info", "Affiche une entreprise", [opt(3, "id", "Identifiant de l’entreprise", { required: true, max_length: 36 })]),
+      sub("hire", "Recrute un membre", [opt(3, "id", "Identifiant de l’entreprise", { required: true, max_length: 36 }), opt(6, "membre", "Membre à recruter", { required: true })]),
+      sub("salary", "Définit le salaire d’un employé", [opt(3, "id", "Identifiant de l’entreprise", { required: true, max_length: 36 }), opt(6, "membre", "Employé", { required: true }), opt(4, "montant", "Salaire en PND", { required: true, min_value: 0, max_value: 1000000000 })]),
+      sub("fire", "Retire un membre de l’entreprise", [opt(3, "id", "Identifiant de l’entreprise", { required: true, max_length: 36 }), opt(6, "membre", "Membre à retirer", { required: true })]),
+      sub("deposit", "Verse des PND à la trésorerie", [opt(3, "id", "Identifiant de l’entreprise", { required: true, max_length: 36 }), opt(4, "montant", "Montant en PND", { required: true, min_value: 1, max_value: 1000000000 })]),
+      sub("withdraw", "Retire des PND de la trésorerie", [opt(3, "id", "Identifiant de l’entreprise", { required: true, max_length: 36 }), opt(4, "montant", "Montant en PND", { required: true, min_value: 1, max_value: 1000000000 })]),
+      sub("payroll", "Verse la paie de la période", [opt(3, "id", "Identifiant de l’entreprise", { required: true, max_length: 36 })]),
+    ],
+  },
+  {
+    name: "invest",
+    description: "Gère tes placements virtuels PND",
+    usage: "/invest list | create | close | policy | status",
+    category: "Économie PND",
+    dmPermission: false,
+    requiresBotProcess: true,
+    options: [
+      sub("list", "Liste tes placements"),
+      sub("create", "Ouvre un placement", [opt(4, "montant", "Capital investi en PND", { required: true, min_value: 1, max_value: 1000000000 }), opt(4, "risque", "Risque en points de base (facultatif)", { min_value: 1, max_value: 1000 })]),
+      sub("close", "Clôture un placement", [opt(3, "id", "Identifiant du placement", { required: true, max_length: 36 })]),
+      sub("policy", "Configure le risque maximal du serveur", [opt(4, "defaut", "Risque par défaut en points de base", { required: true, min_value: 1, max_value: 1000 }), opt(4, "maximum", "Risque maximal en points de base", { required: true, min_value: 1, max_value: 1000 })]),
+      sub("status", "Affiche la politique de risque du serveur"),
+    ],
+  },
+  {
+    name: "casino",
+    description: "Joue au Casino PND avec de la monnaie virtuelle",
+    usage: "/casino roulette | slots | coinflip | dice | historique | stats",
+    category: "Jeux & événements",
+    dmPermission: false,
+    requiresBotProcess: true,
+    options: [
+      sub("roulette", "Mise sur une couleur ou un numéro", [opt(4, "mise", "Mise en PND", { required: true, min_value: 1, max_value: 1000000000 }), opt(3, "choix", "rouge, noir, vert ou numéro 0–36", { required: true, max_length: 5 })]),
+      sub("slots", "Lance la machine à sous", [opt(4, "mise", "Mise en PND", { required: true, min_value: 1, max_value: 1000000000 })]),
+      sub("coinflip", "Joue à pile ou face", [opt(4, "mise", "Mise en PND", { required: true, min_value: 1, max_value: 1000000000 }), opt(3, "choix", "pile ou face", { required: true, choices: [{ name: "Pile", value: "pile" }, { name: "Face", value: "face" }] })]),
+      sub("dice", "Parie sur une face du dé", [opt(4, "mise", "Mise en PND", { required: true, min_value: 1, max_value: 1000000000 }), opt(3, "choix", "Face attendue (1 à 6)", { required: true, choices: [1,2,3,4,5,6].map((n) => ({ name: String(n), value: String(n) })) })]),
+      sub("historique", "Consulte tes dernières parties"),
+      sub("stats", "Consulte tes statistiques Casino"),
+      sub("limites", "Consulte tes protections de jeu"),
+      sub("limite", "Fixe ta limite quotidienne de mises", [opt(4, "montant", "Maximum quotidien en PND", { required: true, min_value: 1, max_value: 1000000000 })]),
+      sub("limite-off", "Désactive ta limite quotidienne de mises"),
+      sub("pause", "Active une auto-exclusion personnelle", [opt(3, "duree", "Durée de l'auto-exclusion", { required: true, choices: [{ name: "24 heures", value: "24h" }, { name: "7 jours", value: "7j" }, { name: "30 jours", value: "30j" }, { name: "Permanente", value: "permanent" }] })]),
+    ],
+  },
+  {
+    name: "pndevent",
+    description: "Gère les événements de la communauté PND",
+    usage: "/pndevent liste | creer | join | leave | cancel",
+    category: "Jeux & événements",
+    dmPermission: false,
+    requiresBotProcess: true,
+    options: [
+      sub("liste", "Liste les prochains événements"),
+      sub("creer", "Crée un événement", [opt(3, "date", "Date ISO avec fuseau, ex. 2026-12-01T20:00:00+01:00", { required: true, max_length: 40 }), opt(3, "titre", "Titre", { required: true, max_length: 100 }), opt(3, "description", "Description", { max_length: 1000 })]),
+      sub("join", "Inscris-toi à un événement", [opt(4, "id", "Numéro de l’événement", { required: true, min_value: 1 })]),
+      sub("leave", "Désinscris-toi d’un événement", [opt(4, "id", "Numéro de l’événement", { required: true, min_value: 1 })]),
+      sub("cancel", "Annule un événement (organisateur ou staff)", [opt(4, "id", "Numéro de l’événement", { required: true, min_value: 1 })]),
+    ],
+  },
+  {
+    name: "academy",
+    description: "Accède aux parcours PND Academy",
+    usage: "/academy liste | creer | show | complete",
+    category: "Social & cartes",
+    dmPermission: false,
+    requiresBotProcess: true,
+    options: [
+      sub("liste", "Liste les parcours de formation"),
+      sub("creer", "Crée un parcours (staff)", [opt(3, "titre", "Titre du parcours", { required: true, max_length: 80 }), opt(3, "etapes", "Étapes séparées par ; au format Titre:Description", { required: true, max_length: 1500 })]),
+      sub("show", "Affiche un parcours ou le détail d’une étape", [opt(3, "id", "Identifiant du parcours", { required: true, max_length: 36 }), opt(4, "etape", "Numéro d’étape (facultatif)", { min_value: 1, max_value: 20 })]),
+      sub("complete", "Valide une étape", [opt(3, "id", "Identifiant du parcours", { required: true, max_length: 36 }), opt(4, "etape", "Numéro de l’étape", { required: true, min_value: 1, max_value: 20 }), opt(3, "reponses", "Réponses numériques séparées par des virgules (1-based)", { max_length: 100 })]),
+      sub("progress", "Consulte ta progression", [opt(3, "id", "Identifiant du parcours", { required: true, max_length: 36 })]),
+      sub("quiz", "Ajoute une question à une étape (staff)", [opt(3, "id", "Identifiant du parcours", { required: true, max_length: 36 }), opt(4, "etape", "Numéro de l’étape", { required: true, min_value: 1, max_value: 20 }), opt(3, "configuration", "Question | choix 1 | choix 2 | bonne réponse (1-based)", { required: true, max_length: 900 })]),
+    ],
+  },
+  {
+    name: "award",
+    description: "Organise les votes et récompenses communautaires",
+    usage: "/award liste | creer | vote | close",
+    category: "Social & cartes",
+    dmPermission: false,
+    requiresBotProcess: true,
+    options: [
+      sub("liste", "Liste les campagnes ouvertes"),
+      sub("creer", "Crée une campagne (staff)", [opt(3, "fin", "Date ISO avec fuseau", { required: true, max_length: 40 }), opt(3, "titre", "Titre", { required: true, max_length: 100 }), opt(3, "choix", "Options séparées par |", { required: true, max_length: 500 })]),
+      sub("vote", "Vote pour une option", [opt(3, "id", "Identifiant de campagne", { required: true, max_length: 36 }), opt(4, "option", "Numéro de l’option", { required: true, min_value: 1, max_value: 10 })]),
+      sub("close", "Clôture une campagne (staff)", [opt(3, "id", "Identifiant de campagne", { required: true, max_length: 36 })]),
+    ],
+  },
+  {
+    name: "story",
+    description: "Propose et publie des stories communautaires",
+    usage: "/story liste | creer | approve | publish",
+    category: "Social & cartes",
+    dmPermission: false,
+    requiresBotProcess: true,
+    options: [
+      sub("liste", "Liste les stories publiées"),
+      sub("creer", "Propose une story", [opt(3, "titre", "Titre", { required: true, max_length: 100 }), opt(3, "texte", "Texte", { required: true, max_length: 1500 })]),
+      sub("approve", "Valide une story (staff)", [opt(3, "id", "Identifiant de story", { required: true, max_length: 36 })]),
+      sub("publish", "Publie une story validée (staff)", [opt(3, "id", "Identifiant de story", { required: true, max_length: 36 })]),
+    ],
+  },
+  {
+    name: "radar",
+    description: "Consulte les statistiques PND agrégées (staff)",
+    usage: "/radar [du] [au]",
+    category: "Social & cartes",
+    dmPermission: false,
+    requiresBotProcess: true,
+    options: [opt(3, "du", "Date de début AAAA-MM-JJ", { max_length: 10 }), opt(3, "au", "Date de fin AAAA-MM-JJ", { max_length: 10 })],
+  },
+  {
+    name: "wrapped",
+    description: "Affiche ton bilan PND des 30 derniers jours",
+    usage: "/wrapped",
+    category: "Social & cartes",
+    dmPermission: false,
+    requiresBotProcess: true,
+  },
+  {
+    name: "candidature",
+    description: "Dépose et gère les candidatures PND",
+    usage: "/candidature deposer|liste|questions|voir|review|assign|entretien|entretiens|evaluation|annuler-entretien",
+    category: "SYS+",
+    dmPermission: false,
+    requiresBotProcess: true,
+    options: [
+      sub("deposer", "Dépose une candidature pour rejoindre l’équipe PND", [opt(3, "reponses", "Réponses séparées par |, sans données sensibles", { required: true, max_length: 1000 })]),
+      sub("liste", "Liste les candidatures en attente"),
+      sub("questions", "Configure les questions du formulaire de candidature", [opt(3, "configuration", "Questions séparées par | (1 à 10)", { required: true, max_length: 2000 })]),
+      sub("voir", "Affiche un dossier", [opt(3, "id", "Identifiant de candidature", { required: true, max_length: 36 })]),
+      sub("review", "Prend une décision sur un dossier", [opt(3, "id", "Identifiant de candidature", { required: true, max_length: 36 }), opt(3, "decision", "Décision", { required: true, choices: [{ name: "Accepter", value: "accepted" }, { name: "Refuser", value: "rejected" }, { name: "À revoir", value: "review" }] }), opt(3, "note", "Note interne", { max_length: 300 })]),
+      sub("assign", "Affecte un responsable à une candidature", [opt(3, "id", "Identifiant de candidature", { required: true, max_length: 36 }), opt(6, "responsable", "Membre responsable", { required: true })]),
+      sub("entretien", "Planifie un entretien", [opt(3, "id", "Identifiant de candidature", { required: true, max_length: 36 }), opt(3, "date", "Date ISO avec fuseau horaire", { required: true, max_length: 40 }), opt(6, "evaluateur", "Membre évaluateur", { required: true }), opt(7, "salon", "Salon textuel facultatif")]),
+      sub("entretiens", "Liste les entretiens à venir"),
+      sub("evaluation", "Évalue un entretien terminé", [opt(3, "id", "Identifiant de l'entretien", { required: true, max_length: 36 }), opt(4, "note", "Note de 1 à 5", { required: true, min_value: 1, max_value: 5 }), opt(3, "commentaire", "Évaluation interne", { max_length: 1000 })]),
+      sub("annuler-entretien", "Annule un entretien planifié", [opt(3, "id", "Identifiant de l'entretien", { required: true, max_length: 36 })]),
+    ],
+  },
+
+  {
+    name: "anti-moove",
+    description: "Protège individuellement les membres contre les déplacements vocaux forcés",
+    usage: "/anti-moove config|proteger|retirer|liste|exception-ajouter|exception-retirer|exceptions",
+    category: "Vocal & DOG",
+    dmPermission: false,
+    requiresBotProcess: true,
+    options: [
+      sub("config", "Active, désactive ou affiche l’état global", [
+        opt(3, "etat", "Nouvel état global (facultatif)", { choices: [
+          { name: "Activer", value: "on" },
+          { name: "Désactiver", value: "off" },
+        ] }),
+      ]),
+      sub("proteger", "Protège un membre contre les déplacements forcés", [opt(6, "membre", "Membre à protéger", { required: true })]),
+      sub("retirer", "Retire la protection individuelle", [opt(6, "membre", "Membre à déprotéger", { required: true })]),
+      sub("liste", "Liste les membres protégés et les exceptions"),
+      sub("exception-ajouter", "Autorise un membre à déplacer les membres protégés", [opt(6, "membre", "Membre autorisé", { required: true })]),
+      sub("exception-retirer", "Retire une exception individuelle", [opt(6, "membre", "Membre concerné", { required: true })]),
+      sub("exceptions", "Liste les membres autorisés à déplacer les membres protégés"),
+    ],
+  },
+
+  {
+    name: "wakeup",
+    description: "Réveille un membre en le faisant passer par chaque salon vocal public",
+    usage: "/wakeup membre [message]",
+    category: "Vocal & DOG",
+    dmPermission: false,
+    requiresBotProcess: true,
+    options: [
+      opt(6, "membre", "Membre à réveiller (connecté en vocal)", { required: true }),
+      opt(3, "message", "Message d'accompagnement (facultatif)", { max_length: 300 }),
+    ],
+  },
+  {
+    name: "vocalpresence",
+    description: "Consulte les présences vocales historiques observées",
+    usage: "/vocalpresence date",
+    category: "SYS+",
+    dmPermission: false,
+    requiresBotProcess: true,
+    options: [opt(3, "date", "Date ISO ou timestamp Unix", { required: true, max_length: 40 })],
+  },
+
+  {
+    name: "staffhistory",
+    description: "Consulte l'historique de modération et de présence d'un membre",
+    usage: "/staffhistory membre",
+    category: "SYS+",
+    dmPermission: false,
+    requiresBotProcess: true,
+    options: [opt(6, "membre", "Membre concerné", { required: true })],
+  },
+
   // ── DOG ────────────────────────────────────────────────────────────────────
   {
     name: "dog",
-    description: "Met un membre en laisse (surnom et rappel vocal)",
-    usage: "/dog membre",
+    description: "Met un membre en laisse ou liste les laisses actives",
+    usage: "/dog [membre]",
     category: "Vocal & DOG",
-    defaultMemberPermissions: manageNicknames,
     dmPermission: false,
     requiresBotProcess: true,
-    options: [opt(6, "membre", "Membre à mettre en laisse", { required: true })],
+    options: [opt(6, "membre", "Membre à mettre en laisse (vide pour afficher la liste)")],
   },
   {
     name: "undog",
     description: "Retire la laisse d’un membre",
     usage: "/undog membre",
     category: "Vocal & DOG",
-    defaultMemberPermissions: manageNicknames,
     dmPermission: false,
     requiresBotProcess: true,
     options: [opt(6, "membre", "Membre à libérer", { required: true })],
   },
   {
+    name: "lockname",
+    description: "Protège les pseudonymes contre les modifications ultérieures",
+    usage: "/lockname proteger|retirer|liste",
+    category: "SYS+",
+    dmPermission: false,
+    requiresBotProcess: true,
+    options: [
+      sub("proteger", "Mémorise le pseudonyme actuel d’un membre", [opt(6, "membre", "Membre concerné", { required: true })]),
+      sub("retirer", "Désactive la protection d’un membre", [opt(6, "membre", "Membre concerné", { required: true })]),
+      sub("liste", "Affiche les pseudonymes protégés de ce serveur"),
+    ],
+  },
+  {
+    name: "wouaf",
+    description: "Configure et active le remplacement temporaire des messages par WOUAF",
+    usage: "/wouaf canal-ajouter|activer|stop|statut",
+    category: "Vocal & DOG",
+    dmPermission: false,
+    requiresBotProcess: true,
+    options: [
+      sub("canal-ajouter", "Autorise un salon textuel", [opt(7, "salon", "Salon où WAOUF peut agir", { required: true, channel_types: [0] })]),
+      sub("canal-retirer", "Retire un salon autorisé", [opt(7, "salon", "Salon à retirer", { required: true, channel_types: [0] })]),
+      sub("phrase-ajouter", "Ajoute une phrase humoristique", [opt(3, "phrase", "Utilise {membre} pour mentionner la cible", { required: true, max_length: 180 })]),
+      sub("phrase-retirer", "Retire une phrase par son numéro", [opt(4, "numero", "Numéro affiché par /wouaf statut", { required: true, min_value: 1, max_value: 20 })]),
+      sub("duree", "Règle la durée par défaut", [opt(4, "minutes", "Durée entre 1 et 1 440 minutes", { required: true, min_value: 1, max_value: 1440 })]),
+      sub("repetitions", "Règle après combien de messages utiliser les phrases", [opt(4, "nombre", "Nombre entre 2 et 20", { required: true, min_value: 2, max_value: 20 })]),
+      sub("cooldown", "Règle l’intervalle minimum des réponses", [opt(4, "secondes", "Durée entre 5 et 300 secondes", { required: true, min_value: 5, max_value: 300 })]),
+      sub("activer", "Active WAOUF temporairement pour un membre", [
+        opt(6, "membre", "Membre cible", { required: true }),
+        opt(4, "duree_minutes", "Durée facultative (1 à 1 440 minutes)", { min_value: 1, max_value: 1440 }),
+      ]),
+      sub("stop", "Arrête immédiatement WAOUF pour un membre", [opt(6, "membre", "Membre cible", { required: true })]),
+      sub("stop-tout", "Arrête immédiatement toutes les activations"),
+      sub("statut", "Affiche la configuration et les activations en cours"),
+    ],
+  },
+  {
     name: "doginfo",
     description: "Affiche la laisse DOG d’un membre",
     usage: "/doginfo membre",
+    category: "Vocal & DOG",
+    dmPermission: false,
+    requiresBotProcess: true,
+    options: [opt(6, "membre", "Membre à consulter", { required: true })],
+  },
+  {
+    name: "menotte",
+    description: "Immobilise un membre dans ton salon vocal avec durée facultative",
+    usage: "/menotte membre [duree_minutes]",
+    category: "Vocal & DOG",
+    dmPermission: false,
+    requiresBotProcess: true,
+    options: [
+      opt(6, "membre", "Membre à menotter", { required: true }),
+      opt(4, "duree_minutes", "Durée en minutes (1 à 30 jours)", { min_value: 1, max_value: 43_200 }),
+    ],
+  },
+  {
+    name: "unmenotte",
+    description: "Libère un membre du système MENOTTE",
+    usage: "/unmenotte membre",
+    category: "Vocal & DOG",
+    dmPermission: false,
+    requiresBotProcess: true,
+    options: [opt(6, "membre", "Membre à libérer", { required: true })],
+  },
+  {
+    name: "menotteinfo",
+    description: "Consulte l’état et l’échéance d’une MENOTTE",
+    usage: "/menotteinfo membre",
     category: "Vocal & DOG",
     dmPermission: false,
     requiresBotProcess: true,
@@ -733,21 +1422,66 @@ export const SLASH_COMMANDS: SlashCommandDef[] = [
   },
   {
     name: "panel",
-    description: "Ouvre le panneau de contrôle de ton salon vocal",
+    description: "Ouvre le centre de contrôle FWU",
     usage: "/panel",
-    category: "Vocal & DOG",
+    category: "Général",
     dmPermission: false,
     requiresBotProcess: true,
   },
   {
+    name: "setup",
+    description: "Configure les modules du serveur avec aperçu avant application",
+    usage: "/setup",
+    category: "Général",
+    dmPermission: false,
+    requiresBotProcess: true,
+  },
+  {
+    name: "knowledge",
+    description: "Consulte et modifie les rubriques d'information du serveur",
+    usage: "/knowledge panel | show | edit",
+    category: "Général",
+    dmPermission: false,
+    requiresBotProcess: true,
+    options: [
+      sub("panel", "Publie le panneau interactif PND Knowledge"),
+      sub("show", "Affiche une rubrique", [
+        opt(3, "rubrique", "Rubrique à consulter", { required: true, choices: [
+          { name: "Permissions & hiérarchie", value: "permissions" },
+          { name: "Recrutement", value: "recruitment" },
+          { name: "Tickets & assistance", value: "tickets" },
+          { name: "Règlement", value: "rules" },
+          { name: "Guide du serveur", value: "guide" },
+          { name: "Guide SYS+", value: "sysplus" },
+        ] }),
+      ]),
+      sub("edit", "Modifie une rubrique (Gérer le serveur)", [
+        opt(3, "rubrique", "Rubrique à modifier", { required: true, choices: [
+          { name: "Permissions & hiérarchie", value: "permissions" },
+          { name: "Recrutement", value: "recruitment" },
+          { name: "Tickets & assistance", value: "tickets" },
+          { name: "Règlement", value: "rules" },
+          { name: "Guide du serveur", value: "guide" },
+          { name: "Guide SYS+", value: "sysplus" },
+        ] }),
+        opt(3, "titre", "Titre affiché", { required: true, min_length: 2, max_length: 100 }),
+        opt(3, "contenu", "Texte de la rubrique", { required: true, min_length: 5, max_length: 4000 }),
+      ]),
+    ],
+  },
+  {
     name: "voc",
     description: "Gère ton salon vocal temporaire",
-    usage: "/voc panel | limit | name | claim | lock | unlock | delete",
+    usage: "/voc panel | vocal-panel | demander | demander-id | limit | name | claim | lock | unlock | delete",
     category: "Vocal & DOG",
     dmPermission: false,
     requiresBotProcess: true,
     options: [
       sub("panel", "Affiche les informations du salon temporaire"),
+      sub("vocal-panel", "Ouvre le panneau de contrôle d’accès vocal classique"),
+      sub("demander", "Demande l’accès à une vocale privée", [opt(7, "salon", "Vocale privée à rejoindre", { required: true, channel_types: [2] })]),
+      sub("demander-id", "Demande l’accès à une vocale cachée via son ID", [opt(3, "id", "ID de la vocale privée", { required: true, min_length: 5, max_length: 25 })]),
+      sub("debloquer", "Autorise un membre à refaire une demande vocale", [opt(7, "salon", "Vocale privée", { required: true, channel_types: [2] }), opt(6, "membre", "Membre à débloquer", { required: true })]),
       sub("limit", "Règle la limite de membres", [
         opt(4, "nombre", "0 = illimité, 1–99", { required: true, min_value: 0, max_value: 99 }),
       ]),
@@ -764,12 +1498,12 @@ export const SLASH_COMMANDS: SlashCommandDef[] = [
   // ── Musique ────────────────────────────────────────────────────────────────
   {
     name: "play",
-    description: "Joue une musique ou une playlist YouTube",
-    usage: "/play recherche ou lien YouTube",
+    description: "Joue un lien YouTube/SoundCloud ou recherche un titre",
+    usage: "/play lien YouTube ou titre",
     category: "Musique & radio",
     dmPermission: false,
     requiresBotProcess: true,
-    options: [opt(3, "recherche", "Nom de la musique ou lien YouTube", { required: true, max_length: 250 })],
+    options: [opt(3, "recherche", "Lien YouTube/SoundCloud ou titre à rechercher", { required: true, max_length: 500 })],
   },
   { name: "pause", description: "Met la musique en pause", usage: "/pause", category: "Musique & radio", dmPermission: false, requiresBotProcess: true },
   { name: "resume", description: "Reprend la lecture de la musique", usage: "/resume", category: "Musique & radio", dmPermission: false, requiresBotProcess: true },
@@ -818,11 +1552,11 @@ export const SLASH_COMMANDS: SlashCommandDef[] = [
   { name: "leave", description: "Déconnecte le bot du salon vocal", usage: "/leave", category: "Musique & radio", dmPermission: false, requiresBotProcess: true },
   { name: "musicpanel", description: "Affiche le panneau de contrôle musical", usage: "/musicpanel", category: "Musique & radio", dmPermission: false, requiresBotProcess: true },
 
-  // ── Radio PartyNextDoor ────────────────────────────────────────────────────
+  // ── Radio PND ──────────────────────────────────────────────────────────────
   {
     name: "radio",
-    description: "Gère la radio PartyNextDoor 24/7",
-    usage: "/radio status | set | start | stop | clear",
+    description: "Gère la radio PND 24/7 et ses hôtes autorisés",
+    usage: "/radio status | host-add | host-remove | host-list | set | start | stop | clear",
     category: "Musique & radio",
     dmPermission: false,
     requiresBotProcess: true,
@@ -830,14 +1564,91 @@ export const SLASH_COMMANDS: SlashCommandDef[] = [
       sub("status", "Affiche l’état de la radio"),
       sub("set", "Configure et lance la radio (administration)", [
         opt(7, "salon", "Salon vocal de diffusion", { required: true, channel_types: [2] }),
-        opt(3, "playlist", "URL de la playlist YouTube", { required: true, max_length: 500 }),
+        opt(3, "source", "URL de flux audio HTTPS direct", { required: true, max_length: 2000 }),
       ]),
+      sub("host-add", "Autorise un hôte audio HTTPS pour ce serveur", [
+        opt(3, "hote", "Nom DNS exact, par exemple audio.example.org", { required: true, max_length: 253 }),
+      ]),
+      sub("host-remove", "Retire un hôte audio autorisé", [
+        opt(3, "hote", "Nom DNS exact", { required: true, max_length: 253 }),
+      ]),
+      sub("host-list", "Liste les hôtes audio autorisés"),
       sub("start", "Démarre la radio configurée (administration)"),
       sub("stop", "Arrête la radio sans effacer sa configuration (administration)"),
       sub("clear", "Supprime la configuration radio (administration)"),
     ],
   },
 ];
+
+/**
+ * Commands that live only on a dedicated FWU application. They are kept out of
+ * SLASH_COMMANDS so the historical single application (already 100/100) and the
+ * dashboard's "register all" button stay within Discord's limit. Each bot
+ * registers them when its own application has room (see bot-profiles.ts).
+ */
+export const EXTRA_SLASH_COMMANDS: SlashCommandDef[] = [
+  {
+    name: "blacklist",
+    description: "OWNER et SYS+ : bannit un compte et le rebannit automatiquement s’il revient",
+    usage: "/blacklist add membre|id [raison] · remove · list · check",
+    category: "Modération",
+    dmPermission: false,
+    requiresBotProcess: true,
+    options: [
+      sub("add", "Blackliste et bannit un compte (même absent du serveur)", [
+        opt(6, "membre", "Membre à blacklister"),
+        opt(3, "id", "Ou identifiant Discord du compte", { max_length: 25 }),
+        opt(3, "raison", "Raison (facultatif)", { max_length: 300 }),
+      ]),
+      sub("remove", "Retire un compte de la blacklist (le bannissement reste)", [
+        opt(6, "membre", "Membre concerné"),
+        opt(3, "id", "Ou identifiant Discord du compte", { max_length: 25 }),
+      ]),
+      sub("list", "Affiche la blacklist du serveur"),
+      sub("check", "Vérifie si un compte est blacklisté", [
+        opt(6, "membre", "Membre concerné"),
+        opt(3, "id", "Ou identifiant Discord du compte", { max_length: 25 }),
+      ]),
+    ],
+  },
+  {
+    name: "dmall",
+    description: "Propriétaire : envoie un message privé à tous les membres (aperçu et confirmation)",
+    usage: "/dmall message:<texte> [role:@rôle]",
+    category: "SYS+",
+    dmPermission: false,
+    requiresBotProcess: true,
+    options: [
+      opt(3, "message", "Message à envoyer (1 800 caractères maximum)", { required: true, max_length: 1800 }),
+      opt(8, "role", "Limiter aux membres de ce rôle (facultatif)"),
+    ],
+  },
+  {
+    name: "afk",
+    description: "RESUME : signale ton absence et retrouve ce qui s’est passé pendant ce temps",
+    usage: "/afk on [raison] · /afk off · /afk resume [heures]",
+    category: "Administration & sécurité",
+    dmPermission: false,
+    requiresBotProcess: true,
+    options: [
+      sub("on", "Démarre ton absence : les événements importants sont gardés pour toi", [
+        opt(3, "raison", "Raison visible par le staff (facultatif)", { max_length: 200 }),
+      ]),
+      sub("off", "Termine ton absence et affiche le résumé de ce que tu as manqué"),
+      sub("resume", "Affiche le résumé sans terminer ton absence", [
+        opt(4, "heures", "Période à résumer si tu n’es pas absent (1 à 168 h)", { min_value: 1, max_value: 168 }),
+      ]),
+    ],
+  },
+];
+
+const slashRootNames = SLASH_COMMANDS.map((command) => command.name);
+if (slashRootNames.length > DISCORD_MAX_ROOT_COMMANDS) {
+  throw new Error(`Catalogue Discord invalide : ${slashRootNames.length} commandes racine (maximum ${DISCORD_MAX_ROOT_COMMANDS}).`);
+}
+if (new Set([...slashRootNames, ...EXTRA_SLASH_COMMANDS.map((command) => command.name)]).size !== slashRootNames.length + EXTRA_SLASH_COMMANDS.length) {
+  throw new Error("Catalogue Discord invalide : noms de commandes racine dupliqués.");
+}
 
 /** Valid Discord application command payload, including nested subcommands. */
 export const toDiscordCommand = (c: SlashCommandDef) => ({

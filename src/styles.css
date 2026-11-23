@@ -66,32 +66,32 @@
 
 :root {
   --radius: 0.5rem;
-  --background: oklch(0.16 0.004 240);
-  --foreground: oklch(0.94 0.006 220);
-  --card: oklch(0.195 0.005 240);
+  --background: oklch(0.13 0.018 300);
+  --foreground: oklch(0.95 0.012 300);
+  --card: oklch(0.18 0.025 300);
   --card-foreground: var(--foreground);
-  --popover: oklch(0.22 0.005 240);
+  --popover: oklch(0.205 0.028 300);
   --popover-foreground: var(--foreground);
-  --primary: oklch(0.8 0.115 205);
-  --primary-foreground: oklch(0.18 0.025 205);
-  --secondary: oklch(0.25 0.006 240);
+  --primary: oklch(0.74 0.17 300);
+  --primary-foreground: oklch(0.16 0.025 300);
+  --secondary: oklch(0.235 0.025 300);
   --secondary-foreground: var(--foreground);
-  --muted: oklch(0.24 0.005 240);
-  --muted-foreground: oklch(0.7 0.008 240);
-  --accent: oklch(0.25 0.028 205);
-  --accent-foreground: oklch(0.86 0.09 205);
+  --muted: oklch(0.22 0.02 300);
+  --muted-foreground: oklch(0.72 0.025 300);
+  --accent: oklch(0.27 0.08 300);
+  --accent-foreground: oklch(0.88 0.12 300);
   --destructive: oklch(0.65 0.22 25);
   --destructive-foreground: oklch(0.98 0 0);
-  --border: oklch(0.29 0.006 240);
-  --input: oklch(0.32 0.008 240);
+  --border: oklch(0.31 0.045 300);
+  --input: oklch(0.29 0.035 300);
   --ring: var(--primary);
   --chart-1: var(--primary);
-  --chart-2: oklch(0.7 0.15 200);
-  --chart-3: oklch(0.75 0.15 60);
+  --chart-2: oklch(0.72 0.16 285);
+  --chart-3: oklch(0.75 0.14 330);
   --chart-4: oklch(0.65 0.2 20);
   --chart-5: oklch(0.7 0.1 280);
-  --sidebar: oklch(0.18 0.004 240);
-  --sidebar-surface: oklch(0.215 0.005 240);
+  --sidebar: oklch(0.12 0.025 300);
+  --sidebar-surface: oklch(0.18 0.035 300);
   --sidebar-foreground: var(--foreground);
   --sidebar-primary: var(--primary);
   --sidebar-primary-foreground: var(--primary-foreground);
@@ -100,7 +100,7 @@
   --sidebar-border: var(--border);
   --sidebar-ring: var(--ring);
   --signal: oklch(0.81 0.15 145);
-  --glow: 0 0 0 1px color-mix(in oklab, var(--primary) 18%, transparent), 0 4px 16px -8px color-mix(in oklab, var(--primary) 22%, transparent);
+  --glow: 0 0 0 1px color-mix(in oklab, var(--primary) 24%, transparent), 0 8px 28px -12px color-mix(in oklab, var(--primary) 36%, transparent);
 }
 
 @layer base {
@@ -147,4 +147,71 @@
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
   .console-nav-item:hover, .console-nav-item:hover svg { transform: none; }
+}
+
+
+/* Her? V5 identity: black night city, restrained violet glow and glass surfaces. */
+.console-shell {
+  position: relative;
+  isolation: isolate;
+  background-color: var(--background);
+  background-image:
+    linear-gradient(180deg, color-mix(in oklab, var(--background) 84%, transparent), color-mix(in oklab, var(--background) 96%, transparent)),
+    url("/media/her-v5-city-loop.gif");
+  background-size: cover, cover;
+  background-position: center top;
+  background-attachment: fixed;
+}
+.console-header {
+  background: linear-gradient(105deg, rgba(8, 5, 15, .96), rgba(24, 10, 39, .93) 58%, rgba(8, 5, 15, .96));
+  border-color: color-mix(in oklab, var(--primary) 24%, var(--border));
+  box-shadow: 0 12px 36px -28px rgba(168, 85, 247, .7);
+  backdrop-filter: blur(18px);
+}
+.console-nav {
+  background: linear-gradient(180deg, rgba(9, 6, 17, .96), rgba(16, 8, 25, .94));
+  border-color: color-mix(in oklab, var(--primary) 20%, var(--border));
+  backdrop-filter: blur(18px);
+}
+.console-main { position: relative; }
+.console-main > * { position: relative; }
+.console-theme-panel {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid color-mix(in oklab, var(--primary) 24%, var(--border));
+  border-radius: 1rem;
+  background: linear-gradient(135deg, rgba(30, 13, 47, .91), rgba(12, 8, 19, .96) 66%, rgba(23, 10, 34, .92));
+  box-shadow: 0 12px 34px -28px rgba(168, 85, 247, .62), inset 0 1px rgba(255,255,255,.035);
+  backdrop-filter: blur(14px);
+  transition: border-color 220ms ease, box-shadow 220ms ease, transform 220ms ease;
+}
+.console-theme-panel::after {
+  content: "";
+  pointer-events: none;
+  position: absolute;
+  inset: 0 0 auto;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, rgba(196, 132, 252, .75), rgba(124, 58, 237, .18), transparent);
+  opacity: .65;
+}
+.console-theme-panel:hover {
+  border-color: color-mix(in oklab, var(--primary) 42%, var(--border));
+  box-shadow: 0 16px 42px -26px rgba(168, 85, 247, .68), inset 0 1px rgba(255,255,255,.05);
+}
+.console-nav-item[aria-pressed="true"] {
+  background: linear-gradient(100deg, rgba(109, 40, 217, .22), rgba(48, 20, 68, .58));
+  border-color: rgba(168, 85, 247, .32);
+  box-shadow: inset 0 0 24px rgba(124, 58, 237, .08);
+}
+.console-main input:not([type="checkbox"]):not([type="file"]):not([type="color"]),
+.console-main select,
+.console-main textarea {
+  border-color: rgba(139, 92, 246, .22);
+  background-color: rgba(12, 8, 20, .78);
+}
+.console-main input:focus, .console-main select:focus, .console-main textarea:focus {
+  box-shadow: 0 0 0 3px rgba(139, 92, 246, .14);
+}
+@media (prefers-reduced-motion: reduce) {
+  .console-shell { background-image: linear-gradient(180deg, rgba(9, 6, 16, .95), rgba(9, 6, 16, .98)); }
 }

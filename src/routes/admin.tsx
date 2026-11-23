@@ -9,9 +9,9 @@ import { Button } from "@/components/ui/button";
 const overviewQuery = queryOptions({ queryKey: ["discord", "overview"], queryFn: () => getOverview(), staleTime: 60_000 });
 export const Route = createFileRoute("/admin")({
   head: () => ({ meta: [
-    { title: "Admin vocal — Her? V4" },
+    { title: "Administration vocale — 1942" },
     { name: "description", content: "Gérez les rôles autorisés aux commandes /panel et /pv de votre bot Discord." },
-    { property: "og:title", content: "Admin vocal — Her? V4" },
+    { property: "og:title", content: "Administration vocale — 1942" },
     { property: "og:description", content: "Administration propriétaire des accès aux commandes vocales Discord." },
     { property: "og:type", content: "website" }, { name: "twitter:card", content: "summary" },
   ] }),

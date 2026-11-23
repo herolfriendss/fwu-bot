@@ -6,6 +6,9 @@ describe("Bot runtime", () => {
   it("accepts every fixed event code emitted by the bot process", () => {
     expect(runtimeEventCodes).toEqual(expect.arrayContaining([
       "interaction_error", "dog_enforcement_error", "sysplus_role_updated",
+      "lockname_restored", "lockname_reconcile_error", "lockname_restore_error",
+      "menotte_expired", "menotte_expiration_error",
+      "waouf_expired", "waouf_expiration_error", "waouf_error", "waouf_permission_error",
     ]));
   });
   it("uses process start time for uptime while connected", () => {
@@ -33,5 +36,32 @@ describe("Bot runtime", () => {
     const event = { at: lastSeen, code: "sync_ok" };
     expect(runtimeReportSchema.safeParse({ ...report, events: Array(50).fill(event) }).success).toBe(true);
     expect(runtimeReportSchema.safeParse({ ...report, events: Array(51).fill(event) }).success).toBe(false);
+  });
+});
+
+describe("bot event codes", () => {
+  it("lists every fixed code the bot records, otherwise the whole status report is rejected", async () => {
+    const { readFileSync, readdirSync } = await import("node:fs");
+    const files = (readdirSync("bot", { recursive: true }) as string[])
+      .filter((f) => f.endsWith(".js") && !f.endsWith(".test.js") && !f.includes("node_modules") && !f.startsWith("scripts"))
+      .map((f) => `bot/${f}`);
+    const codes = new Set<string>();
+    for (const file of files) for (const m of readFileSync(file, "utf8").matchAll(/record\(\s*"([a-z_]+)"\s*\)/g)) codes.add(m[1] as string);
+    const known = new Set<string>(runtimeEventCodes);
+    expect([...codes].filter((code) => !known.has(code))).toEqual([]);
+  });
+});
+
+describe("FWU multi-bot status", () => {
+  it("stores FWU in the historical row and each dedicated bot in its own row", async () => {
+    const { runtimeStatusRowId } = await import("@/lib/bot-status");
+    expect(runtimeStatusRowId(undefined)).toBe("primary");
+    expect(runtimeStatusRowId("fwu")).toBe("primary");
+    expect(runtimeStatusRowId("guard")).toBe("guard");
+  });
+  it("accepts a known profile and refuses an unknown one", () => {
+    const report = { connected: true, startedAt: "2026-10-30T10:00:00Z", lastSync: null, events: [], guilds: [] };
+    expect(runtimeReportSchema.safeParse({ ...report, profile: "fisc" }).success).toBe(true);
+    expect(runtimeReportSchema.safeParse({ ...report, profile: "core" }).success).toBe(false);
   });
 });

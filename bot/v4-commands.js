@@ -13,6 +13,10 @@ import { handleVoiceMessage } from "./voice-commands.js";
 import { handleMusicMessage, handleRadioMessage } from "./music/music.js";
 import { handleSocialMessage } from "./social.js";
 import { handleCardsMessage } from "./cards.js";
+import { handleBusinessInvestmentMessage } from "./business-investments-commands.js";
+import { handleCasinoMessage } from "./casino.js";
+import { handleOrganizationMessage } from "./organization-commands.js";
+import { handleStaffMemberHistoryMessage } from "./staff-audit.js";
 
 const emptyMentions = () => ({ users: [], members: [], roles: [], channels: [] });
 
@@ -36,8 +40,10 @@ function makeMessage(interaction, member, plan) {
     guild: interaction.guild,
     member,
     author: interaction.user,
-    channel: interaction.channel,
+    channel: interaction.channel ?? { id: interaction.channelId },
+    client: interaction.client,
     content: plan.content,
+    economyContract: plan.economyContract,
     mentions: {
       users: collectionOf(plan.mentions.users),
       members: collectionOf(plan.mentions.members),
@@ -71,6 +77,36 @@ function buildPlan(interaction) {
       return { handler: "economy", content: "=daily", mentions };
     case "work":
       return { handler: "economy", content: "=work", mentions };
+    case "job": {
+      if (options.getSubcommandGroup(false) === "contract") {
+        const action = options.getSubcommand();
+        const payload = { action };
+        if (action === "create") {
+          payload.title = options.getString("titre", true);
+          payload.description = options.getString("description", true);
+          payload.reward = options.getInteger("recompense", true);
+        } else if (action === "list") {
+          payload.status = options.getString("etat") ?? "open";
+        } else if (action === "submit") {
+          payload.contractId = options.getInteger("id", true);
+          payload.submission = options.getString("compte-rendu", true);
+        } else {
+          payload.contractId = options.getInteger("id", true);
+        }
+        return { handler: "economy", content: `=job contract ${action}`, mentions, ephemeral: true, economyContract: payload };
+      }
+      if (options.getSubcommandGroup(false) === "mission") {
+        return {
+          handler: "economy",
+          content: `=mission ${options.getSubcommand()}`,
+          mentions,
+          ephemeral: true,
+        };
+      }
+      const subcommand = options.getSubcommand();
+      if (subcommand === "choose") return { handler: "economy", content: `=job choose ${options.getString("metier", true)}`, mentions, ephemeral: true };
+      return { handler: "economy", content: `=job ${subcommand === "status" ? "status" : "list"}`, mentions, ephemeral: true };
+    }
     case "bank": {
       const subcommand = options.getSubcommand();
       if (subcommand === "solde") return { handler: "economy", content: "=bank solde", mentions };
@@ -99,6 +135,34 @@ function buildPlan(interaction) {
     case "inventory":
       return { handler: "economy", content: "=inventory", mentions };
     case "shop": {
+      if (options.getSubcommandGroup(false) === "market") {
+        const action = options.getSubcommand();
+        if (action === "sell") {
+          const role = options.getRole("role", true);
+          const price = options.getInteger("prix", true);
+          return rolePlan(`=market sell <@&${role.id}> ${price}`, role, { handler: "economy", ephemeral: true });
+        }
+        if (action === "buy" || action === "cancel") {
+          return { handler: "economy", content: `=market ${action} ${options.getInteger("id", true)}`, mentions, ephemeral: true };
+        }
+        return { handler: "economy", content: "=market list", mentions, ephemeral: true };
+      }
+      if (options.getSubcommandGroup(false) === "auction") {
+        const action = options.getSubcommand();
+        if (action === "create") {
+          const role = options.getRole("role", true);
+          const start = options.getInteger("prix-initial", true);
+          const duration = options.getInteger("duree-minutes", true);
+          return rolePlan(`=auction create <@&${role.id}> ${start} ${duration}`, role, { handler: "economy", ephemeral: true });
+        }
+        if (action === "bid") {
+          const id = options.getInteger("id", true);
+          const amount = options.getInteger("montant", true);
+          return { handler: "economy", content: `=auction bid ${id} ${amount}`, mentions, ephemeral: true };
+        }
+        if (action === "cancel") return { handler: "economy", content: `=auction cancel ${options.getInteger("id", true)}`, mentions, ephemeral: true };
+        return { handler: "economy", content: "=auction list", mentions, ephemeral: true };
+      }
       const subcommand = options.getSubcommand();
       if (subcommand === "ajouter") {
         const role = options.getRole("role", true);
@@ -117,11 +181,29 @@ function buildPlan(interaction) {
     }
     case "pnd": {
       const subcommand = options.getSubcommand();
+      if (subcommand === "historique") {
+        const user = options.getUser("membre");
+        return userPlan(`=pnd-history${user ? ` <@${user.id}>` : ""}`, user, { handler: "economy", ephemeral: true });
+      }
+      if (subcommand === "audit") return { handler: "economy", content: "=pnd-audit", mentions, ephemeral: true };
       const action = subcommand === "ajouter" ? "add" : subcommand === "retirer" ? "remove" : "set";
       const user = options.getUser("membre", true);
       const amount = options.getInteger("montant", true);
       return userPlan(`=pnd ${action} <@${user.id}> ${amount}`, user, { handler: "economy", ephemeral: true });
     }
+    case "pnd-add":
+    case "pnd-remove": {
+      const user = options.getUser("membre", true);
+      const amount = options.getInteger("montant", true);
+      const action = name === "pnd-add" ? "add" : "remove";
+      return userPlan(`=pnd ${action} <@${user.id}> ${amount}`, user, { handler: "economy", ephemeral: true });
+    }
+    case "pnd-history": {
+      const user = options.getUser("membre");
+      return userPlan(`=pnd-history${user ? ` <@${user.id}>` : ""}`, user, { handler: "economy", ephemeral: true });
+    }
+    case "pnd-audit":
+      return { handler: "economy", content: "=pnd-audit", mentions, ephemeral: true };
     case "roulette": {
       const bet = options.getInteger("mise", true);
       const choice = options.getString("choix", true);
@@ -175,7 +257,8 @@ function buildPlan(interaction) {
 
     // ── DOG ─────────────────────────────────────────────────────────────────
     case "dog": {
-      const user = options.getUser("membre", true);
+      const user = options.getUser("membre");
+      if (!user) return { handler: "dog", content: "=doglist", mentions, ephemeral: true };
       return userPlan(`=dog <@${user.id}>`, user, { handler: "dog", ephemeral: true });
     }
     case "undog": {
@@ -185,6 +268,28 @@ function buildPlan(interaction) {
     case "doginfo": {
       const user = options.getUser("membre", true);
       return userPlan(`=doginfo <@${user.id}>`, user, { handler: "dog", ephemeral: true });
+    }
+    case "anti-moove": {
+      const subcommand = options.getSubcommand();
+      const target = options.getUser("membre");
+      const state = subcommand === "config" ? options.getString("etat") : null;
+      const content = `=anti-moove ${subcommand}${state ? ` ${state}` : ""}${target ? ` <@${target.id}>` : ""}`;
+      return target
+        ? userPlan(content, target, { handler: "voice", ephemeral: true })
+        : { handler: "voice", content, mentions, ephemeral: true };
+    }
+    case "menotte": {
+      const user = options.getUser("membre", true);
+      const duration = options.getInteger("duree_minutes");
+      return userPlan(`=menotte <@${user.id}>${duration ? ` ${duration}m` : ""}`, user, { handler: "voice", ephemeral: true });
+    }
+    case "unmenotte": {
+      const user = options.getUser("membre", true);
+      return userPlan(`=unmenotte <@${user.id}>`, user, { handler: "voice", ephemeral: true });
+    }
+    case "menotteinfo": {
+      const user = options.getUser("membre", true);
+      return userPlan(`=menotteinfo <@${user.id}>`, user, { handler: "voice", ephemeral: true });
     }
 
     // ── Vocal ───────────────────────────────────────────────────────────────
@@ -198,7 +303,7 @@ function buildPlan(interaction) {
     }
     case "pv":
       return { handler: "voice", content: "=pv", mentions, ephemeral: true };
-    case "panel":
+    case "vocal-panel":
       return { handler: "voice", content: "=panel", mentions, ephemeral: true };
 
     // ── Musique ─────────────────────────────────────────────────────────────
@@ -240,13 +345,17 @@ function buildPlan(interaction) {
       const subcommand = options.getSubcommand();
       if (subcommand === "set") {
         const channel = options.getChannel("salon", true);
-        const playlist = options.getString("playlist", true);
+        const source = options.getString("source", true);
         return {
           handler: "radio",
-          content: `=radio set <#${channel.id}> ${playlist}`,
+          content: `=radio set <#${channel.id}> ${source}`,
           mentions: { ...emptyMentions(), channels: [channel] },
           ephemeral: true,
         };
+      }
+      if (subcommand === "host-add" || subcommand === "host-remove") {
+        const host = options.getString("hote", true);
+        return { handler: "radio", content: `=radio ${subcommand} ${host}`, mentions, ephemeral: true };
       }
       return {
         handler: "radio",
@@ -254,6 +363,109 @@ function buildPlan(interaction) {
         mentions,
         ephemeral: subcommand !== "status",
       };
+    }
+
+    // ── Entreprises et investissements PND ──────────────────────────────────
+    case "business": {
+      const action = options.getSubcommand();
+      if (action === "create") return { handler: "business", content: `=business create ${options.getString("nom", true)}`, mentions, ephemeral: true };
+      if (action === "info") return { handler: "business", content: `=business info ${options.getString("id", true)}`, mentions, ephemeral: true };
+      if (action === "hire" || action === "fire") {
+        const user = options.getUser("membre", true);
+        return userPlan(`=business ${action} ${options.getString("id", true)} <@${user.id}>`, user, { handler: "business", ephemeral: true });
+      }
+      if (action === "salary") {
+        const user = options.getUser("membre", true);
+        const salary = options.getInteger("montant", true);
+        return userPlan(`=business salary ${options.getString("id", true)} <@${user.id}> ${salary}`, user, { handler: "business", ephemeral: true });
+      }
+      if (action === "deposit" || action === "withdraw") return { handler: "business", content: `=business ${action} ${options.getString("id", true)} ${options.getInteger("montant", true)}`, mentions, ephemeral: true };
+      if (action === "payroll") return { handler: "business", content: `=business payroll ${options.getString("id", true)}`, mentions, ephemeral: true };
+      return { handler: "business", content: "=business list", mentions, ephemeral: true };
+    }
+    case "invest": {
+      const action = options.getSubcommand();
+      if (action === "create") {
+        const risk = options.getInteger("risque");
+        return { handler: "business", content: `=invest create ${options.getInteger("montant", true)}${risk == null ? "" : ` ${risk}`}`, mentions, ephemeral: true };
+      }
+      if (action === "close") return { handler: "business", content: `=invest close ${options.getString("id", true)}`, mentions, ephemeral: true };
+      if (action === "policy") return { handler: "business", content: `=invest policy ${options.getInteger("defaut", true)} ${options.getInteger("maximum", true)}`, mentions, ephemeral: true };
+      if (action === "status") return { handler: "business", content: "=invest status", mentions, ephemeral: true };
+      return { handler: "business", content: "=invest list", mentions, ephemeral: true };
+    }
+    // ── PND Casino (monnaie virtuelle uniquement) ───────────────────────────
+    case "casino": {
+      const action = options.getSubcommand();
+      if (["roulette", "coinflip", "dice"].includes(action)) return { handler: "casino", content: `=casino ${action} ${options.getInteger("mise", true)} ${options.getString("choix", true)}`, mentions, ephemeral: true };
+      if (action === "slots") return { handler: "casino", content: `=casino slots ${options.getInteger("mise", true)}`, mentions, ephemeral: true };
+      if (action === "stats") return { handler: "casino", content: "=casino stats", mentions, ephemeral: true };
+      if (action === "historique") return { handler: "casino", content: "=casino historique", mentions, ephemeral: true };
+      if (action === "limites") return { handler: "casino", content: "=casino limites", mentions, ephemeral: true };
+      if (action === "limite") return { handler: "casino", content: `=casino limite ${options.getInteger("montant", true)}`, mentions, ephemeral: true };
+      if (action === "limite-off") return { handler: "casino", content: "=casino limite off", mentions, ephemeral: true };
+      if (action === "pause") return { handler: "casino", content: `=casino pause ${options.getString("duree", true)}`, mentions, ephemeral: true };
+      return { handler: "casino", content: "=casino aide", mentions, ephemeral: true };
+    }
+    // ── Communauté PND ───────────────────────────────────────────────────────
+    case "pndevent": {
+      const action = options.getSubcommand();
+      if (action === "creer") return { handler: "organization", content: `=pndevent create ${options.getString("date", true)} | ${options.getString("titre", true)} | ${options.getString("description") ?? ""}`, mentions, ephemeral: true };
+      if (action === "join" || action === "leave") return { handler: "organization", content: `=pndevent ${action} ${options.getInteger("id", true)}`, mentions, ephemeral: true };
+      if (action === "cancel") return { handler: "organization", content: `=pndevent cancel ${options.getInteger("id", true)}`, mentions, ephemeral: true };
+      return { handler: "organization", content: "=pndevent list", mentions, ephemeral: true };
+    }
+    case "academy": {
+      const action = options.getSubcommand();
+      if (action === "creer") return { handler: "organization", content: `=academy create ${options.getString("titre", true)} | ${options.getString("etapes", true)}`, mentions, ephemeral: true };
+      if (action === "show") return { handler: "organization", content: `=academy show ${options.getString("id", true)}${options.getInteger("etape") == null ? "" : ` ${options.getInteger("etape")}`}`, mentions, ephemeral: true };
+      if (action === "complete") return { handler: "organization", content: `=academy complete ${options.getString("id", true)} ${options.getInteger("etape", true)} | ${options.getString("reponses") ?? ""}`, mentions, ephemeral: true };
+      if (action === "progress") return { handler: "organization", content: `=academy progress ${options.getString("id", true)}`, mentions, ephemeral: true };
+      if (action === "quiz") return { handler: "organization", content: `=academy quiz ${options.getString("id", true)} ${options.getInteger("etape", true)} | ${options.getString("configuration", true)}`, mentions, ephemeral: true };
+      return { handler: "organization", content: "=academy list", mentions, ephemeral: true };
+    }
+    case "award": {
+      const action = options.getSubcommand();
+      if (action === "creer") return { handler: "organization", content: `=award create ${options.getString("fin", true)} | ${options.getString("titre", true)} | ${options.getString("choix", true)}`, mentions, ephemeral: true };
+      if (action === "vote") return { handler: "organization", content: `=award vote ${options.getString("id", true)} ${options.getInteger("option", true)}`, mentions, ephemeral: true };
+      if (action === "close") return { handler: "organization", content: `=award close ${options.getString("id", true)}`, mentions, ephemeral: true };
+      return { handler: "organization", content: "=award list", mentions, ephemeral: true };
+    }
+    case "story": {
+      const action = options.getSubcommand();
+      if (action === "creer") return { handler: "organization", content: `=story create ${options.getString("titre", true)} | ${options.getString("texte", true)}`, mentions, ephemeral: true };
+      if (action === "approve" || action === "publish") return { handler: "organization", content: `=story ${action} ${options.getString("id", true)}`, mentions, ephemeral: true };
+      return { handler: "organization", content: "=story list", mentions, ephemeral: true };
+    }
+    case "radar": {
+      const from = options.getString("du");
+      const to = options.getString("au");
+      return { handler: "organization", content: `=radar${from ? ` ${from}` : ""}${to ? ` ${to}` : ""}`, mentions, ephemeral: true };
+    }
+    case "wrapped":
+      return { handler: "organization", content: "=wrapped", mentions, ephemeral: true };
+    case "vocalpresence":
+      return { handler: "voice", content: `=vocalpresence ${options.getString("date", true)}`, mentions, ephemeral: true };
+    case "staffhistory": {
+      const user = options.getUser("membre", true);
+      return { handler: "staffaudit", content: `=staffhistory <@${user.id}>`, mentions: { ...mentions, users: [user] }, ephemeral: true };
+    }
+
+    case "candidature": {
+      const action = options.getSubcommand();
+      if (action === "deposer") return { handler: "organization", content: `=candidature ${options.getString("reponses", true)}`, mentions, ephemeral: true };
+      if (action === "questions") return { handler: "organization", content: `=candidatures questions ${options.getString("configuration", true)}`, mentions, ephemeral: true };
+      if (action === "voir") return { handler: "organization", content: `=candidatures voir ${options.getString("id", true)}`, mentions, ephemeral: true };
+      if (action === "review") return { handler: "organization", content: `=candidatures review ${options.getString("id", true)} ${options.getString("decision", true)} ${options.getString("note") ?? ""}`, mentions, ephemeral: true };
+      if (action === "assign") return { handler: "organization", content: `=candidatures assign ${options.getString("id", true)} <@${options.getUser("responsable", true).id}>`, mentions, ephemeral: true };
+      if (action === "entretien") {
+        const channel = options.getChannel("salon");
+        return { handler: "organization", content: `=candidatures entretien ${options.getString("id", true)} ${options.getString("date", true)} <@${options.getUser("evaluateur", true).id}>${channel ? ` <#${channel.id}>` : ""}`, mentions, ephemeral: true };
+      }
+      if (action === "evaluation") return { handler: "organization", content: `=candidatures evaluation ${options.getString("id", true)} ${options.getInteger("note", true)} | ${options.getString("commentaire") ?? ""}`, mentions, ephemeral: true };
+      if (action === "annuler-entretien") return { handler: "organization", content: `=candidatures annuler-entretien ${options.getString("id", true)}`, mentions, ephemeral: true };
+      if (action === "entretiens") return { handler: "organization", content: "=candidatures entretiens", mentions, ephemeral: true };
+      return { handler: "organization", content: "=candidatures", mentions, ephemeral: true };
     }
 
     default:
@@ -284,18 +496,23 @@ export async function handleV4SlashInteraction(interaction, guildSettings = null
   const message = makeMessage(interaction, member, plan);
   try {
     let handled = false;
-    if (plan.handler === "economy") handled = await handleEconomyMessage(message);
-    else if (plan.handler === "dog") handled = await handleDogCommand(message);
-    else if (plan.handler === "voice") handled = await handleVoiceMessage(message, guildSettings?.voiceAccess);
+    if (plan.handler === "economy") handled = await handleEconomyMessage(message, guildSettings);
+    else if (plan.handler === "dog") handled = await handleDogCommand(message, guildSettings);
+    else if (plan.handler === "voice") handled = await handleVoiceMessage(message, guildSettings);
     else if (plan.handler === "music") handled = await handleMusicMessage(message);
     else if (plan.handler === "radio") handled = await handleRadioMessage(message);
     else if (plan.handler === "social") handled = await handleSocialMessage(message);
     else if (plan.handler === "cards") handled = await handleCardsMessage(message);
+    else if (plan.handler === "business") handled = await handleBusinessInvestmentMessage(message);
+    else if (plan.handler === "casino") handled = await handleCasinoMessage(message);
+    else if (plan.handler === "organization") handled = await handleOrganizationMessage(message, { settings: { [interaction.guild.id]: guildSettings }, ownerIds: (process.env.PND_OWNER_DISCORD_ID ? [process.env.PND_OWNER_DISCORD_ID.trim()] : []) });
+    else if (plan.handler === "staffaudit") handled = await handleStaffMemberHistoryMessage(message, { settings: { [interaction.guild.id]: guildSettings }, ownerIds: (process.env.PND_OWNER_DISCORD_ID ? [process.env.PND_OWNER_DISCORD_ID.trim()] : []) });
 
     if (!handled) await message.reply("Cette commande n’est pas disponible pour le moment.");
   } catch (error) {
     console.error("[bot] v4_slash_error:", error?.message ?? "Unknown error");
-    await message.reply("❌ Une erreur est survenue pendant cette commande. Réessaie dans un instant.").catch(() => {});
+    // Late error: edit the existing reply instead of posting a second message under it.
+    await interaction.editReply({ content: "❌ Une erreur est survenue pendant cette commande. Réessaie dans un instant." }).catch(() => {});
   }
   return true;
 }

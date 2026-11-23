@@ -1,7 +1,8 @@
 import { createServerFn } from "@tanstack/react-start";
 import { discord, discordWrite, invalidateCache, requireOwner, snowflake } from "@/lib/discord.server";
-import { SLASH_COMMANDS, toDiscordCommand } from "@/lib/slash-commands";
+import { EXTRA_SLASH_COMMANDS, SLASH_COMMANDS, toDiscordCommand } from "@/lib/slash-commands";
 import { commandFormSchema } from "@/lib/custom-commands";
+import { parseDelegatedProfiles, slashCommandNamesDelegatedAway } from "@/lib/bot-profiles";
 import { listCustomCommands } from "@/lib/custom-commands.server";
 
 type RegisteredCommand = { id: string; name: string; description: string; type?: number; default_member_permissions?: string | null };
@@ -11,7 +12,7 @@ export const getSlashStatus = createServerFn({ method: "GET" }).handler(async ()
   const app = await discord<{ id: string; verify_key?: string; interactions_endpoint_url?: string | null; bot_require_code_grant?: boolean; bot?: { username?: string } }>("applications/@me");
   const registered = await discord<RegisteredCommand[]>(`applications/${app.id}/commands`);
   const custom = await listCustomCommands(app.id);
-  const ours = new Set(SLASH_COMMANDS.map((c) => c.name));
+  const ours = new Set([...SLASH_COMMANDS, ...EXTRA_SLASH_COMMANDS].map((c) => c.name));
   return {
     appId: app.id,
     botName: app.bot?.username ?? "Bot Discord",
@@ -25,7 +26,9 @@ export const getSlashStatus = createServerFn({ method: "GET" }).handler(async ()
           response: saved?.response ?? "", ephemeral: saved?.ephemeral ?? false, permission: saved?.permission ?? c.default_member_permissions ?? "0" };
       })
       .sort((a, b) => Number(b.ours) - Number(a.ours) || a.name.localeCompare(b.name)),
-    missing: SLASH_COMMANDS.filter((c) => !registered.some((r) => r.name === c.name)).map((c) => c.name),
+    missing: SLASH_COMMANDS
+      .filter((c) => !slashCommandNamesDelegatedAway(parseDelegatedProfiles(process.env["PND_FWU_DELEGATED"])).includes(c.name))
+      .filter((c) => !registered.some((r) => r.name === c.name)).map((c) => c.name),
   };
 });
 
@@ -38,8 +41,11 @@ export const registerSlashCommands = createServerFn({ method: "POST" }).handler(
   const existing = await discord<RegisteredCommand[]>(`applications/${app.id}/commands`);
   const ours = new Set(SLASH_COMMANDS.map((c) => c.name));
   const byName = new Map(existing.map((command) => [command.name, command]));
+  // Domains already moved to a dedicated FWU bot are not re-added to this application.
+  const delegatedAway = new Set(slashCommandNamesDelegatedAway(parseDelegatedProfiles(process.env["PND_FWU_DELEGATED"])));
   // Upsert each built-in separately; never bulk-overwrite unrelated definitions.
   for (const c of SLASH_COMMANDS) {
+    if (delegatedAway.has(c.name)) continue;
     const current = byName.get(c.name);
     const body = JSON.stringify(toDiscordCommand(c));
     if (current) await discord(`applications/${app.id}/commands/${current.id}`, { method: "PATCH", body });
@@ -61,7 +67,7 @@ export const saveSlashCommand = createServerFn({ method: "POST" })
     if (existing.some((c) => c.name === data.name && c.id !== data.id)) throw new Error("Ce nom de commande existe déjà.");
     const builtIn = current && SLASH_COMMANDS.find((c) => c.name === current.name);
     if (builtIn && data.name !== builtIn.name) throw new Error("Le nom d’une commande intégrée ne peut pas être changé.");
-    if (!builtIn && SLASH_COMMANDS.some((c) => c.name === data.name)) throw new Error("Ce nom est réservé à une commande intégrée.");
+    if (!builtIn && [...SLASH_COMMANDS, ...EXTRA_SLASH_COMMANDS].some((c) => c.name === data.name)) throw new Error("Ce nom est réservé à une commande intégrée.");
     const payload = builtIn ? {
       ...toDiscordCommand(builtIn),
       description: data.description,

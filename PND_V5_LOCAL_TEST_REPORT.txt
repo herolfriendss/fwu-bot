@@ -1,0 +1,11 @@
+
+============================================================
+PND ASSIST V5 — PREPARATION ET RECETTE LOCALE
+============================================================
+Dossier : /mnt/data/pnd_prepare/PND_Assist_V5_FINAL_UPDATED
+Date : 2026-11-19T03:46:03+00:00
+Machine : Linux 52d819e1cdd8 6.18.57 #1 SMP Tue Oct 20 21:56:04 UTC 2026 x86_64 GNU/Linux
+Node : v22.16.0
+npm  : 10.9.2
+
+BLOQUANT: Node.js 24 minimum requis. Version détectée : v22.16.0. Rien n'a été installé.

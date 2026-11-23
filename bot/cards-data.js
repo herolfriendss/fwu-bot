@@ -2,7 +2,7 @@
 export const RARITIES = {
   common: { label: "Commune", weight: 60, value: 50, color: 0x9ca3af },
   uncommon: { label: "Peu commune", weight: 25, value: 120, color: 0x22c55e },
-  rare: { label: "Rare", weight: 10, value: 300, color: 0x3b82f6 },
+  rare: { label: "Rare", weight: 10, value: 300, color: 0x7c3aed },
   epic: { label: "Épique", weight: 4, value: 800, color: 0xa855f7 },
   legendary: { label: "Légendaire", weight: 1, value: 2500, color: 0xf59e0b },
 };

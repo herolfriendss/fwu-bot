@@ -4,21 +4,31 @@ import {
 } from "discord.js";
 import {
   joinVoiceChannel, createAudioPlayer, createAudioResource,
-  AudioPlayerStatus, NoSubscriberBehavior, VoiceConnectionStatus,
+  AudioPlayerStatus, NoSubscriberBehavior, VoiceConnectionStatus, StreamType,
   entersState
 } from "@discordjs/voice";
 import { readFile, writeFile, rename, mkdir } from "node:fs/promises";
-import play from "play-dl";
-import { assertSameVoice } from "./music-policy.js";
+import {
+  assertSameVoice,
+  pauseAction,
+} from "./music-policy.js";
+import {
+  advancePlayback,
+  awaitVoiceReady,
+  scheduleConfiguredRadioRetry,
+} from "./music-engine.js";
+import { openAuthorizedAudioStream } from "./audio-source.js";
+import { resolveMusicInput } from "./music-resolver.js";
+import { normalizeAudioHost, validateAudioUrl } from "./audio-source-policy.js";
+import { brandEmbed } from "../theme.js";
 
 const queues = new Map();
 const commandActivity = new Map();
+const radioReconnectTimers = new Map();
 const radioConfigFile = new URL("../data/radio-config.json", import.meta.url);
 let radioConfigs;
 let radioWrite = Promise.resolve();
-const MAX_TRACKS_PER_REQUEST = 25;
 const MAX_TRACKS_PER_GUILD = 100;
-const MAX_RADIO_TRACKS = 100;
 
 function enforceMusicCooldown(guildId, userId) {
   const now = Date.now();
@@ -77,57 +87,35 @@ function formatDuration(seconds) {
   return h ? `${h}:${String(m).padStart(2, "0")}:${s}` : `${m}:${s}`;
 }
 
-function isYouTubeUrl(value) {
-  return /^https?:\/\/(?:www\.|music\.)?(youtube\.com|youtu\.be)\//i.test(value);
+async function allowedAudioHosts(guildId) {
+  const configs = await loadRadioConfigs();
+  return Array.isArray(configs[guildId]?.allowedHosts) ? configs[guildId].allowedHosts : [];
 }
 
-async function resolveYouTube(query) {
-  const results = await play.search(query, { limit: 1, source: { youtube: "video" } });
-  const video = results?.[0];
-  if (!video?.url) throw new Error(`Aucun résultat YouTube trouvé pour « ${query} ».`);
-  return {
-    title: video.title ?? query,
-    url: video.url,
-    duration: video.durationInSec ?? 0,
-    thumbnail: video.thumbnails?.[0]?.url ?? null,
-  };
-}
-
-async function resolveInput(input, playlistLimit = MAX_TRACKS_PER_REQUEST) {
-  if (isYouTubeUrl(input)) {
-    if (/youtube\.com\/playlist/.test(input)) {
-      const playlist = await play.playlist_info(input, { incomplete: true });
-      const videos = await playlist.all_videos();
-      return videos.slice(0, playlistLimit).map((video) => ({
-        title: video.title, url: video.url, duration: video.durationInSec ?? 0,
-        thumbnail: video.thumbnails?.[0]?.url ?? null, source: "YouTube",
-      }));
-    }
-    const info = await play.video_info(input);
-    const video = info.video_details;
-    return [{
-      title: video.title, url: video.url, duration: video.durationInSec ?? 0,
-      thumbnail: video.thumbnails?.[0]?.url ?? null, source: "YouTube",
-    }];
-  }
-
-  const result = await resolveYouTube(input);
-  return [{ ...result, source: "YouTube" }];
+function resolveInput(input, allowedHosts = []) {
+  const url = validateAudioUrl(input, allowedHosts);
+  return [{
+    title: url.hostname,
+    url: url.toString(),
+    duration: 0,
+    thumbnail: null,
+    source: "Flux HTTPS autorisé",
+  }];
 }
 
 function buildPanel(state) {
   const track = state.current;
-  const embed = new EmbedBuilder()
-    .setColor(0x5865f2)
-    .setTitle("🎵 Music System")
+  const embed = brandEmbed(new EmbedBuilder()
+    .setColor(0x6d28d9)
+    .setTitle("🎵 FWU — Musique")
     .setDescription(track
-      ? `**[${track.title}](${track.url})**\n${track.artist ? `Artiste : ${track.artist}\n` : ""}Durée : ${formatDuration(track.duration)}\nDemandé par : ${track.requesterId === "radio" ? "Radio Her?" : `<@${track.requesterId}>`}`
+      ? `**${track.title}**\n${track.artist ? `Artiste : ${track.artist}\n` : ""}Durée : ${formatDuration(track.duration)}\nDemandé par : ${track.requesterId === "radio" ? "Radio PND" : `<@${track.requesterId}>`}`
       : "Aucune musique en cours.")
     .addFields(
       { name: "File d'attente", value: `${state.queue.length} titre(s)`, inline: true },
       { name: "Volume", value: `${Math.round(state.volume * 100)} %`, inline: true },
       { name: "Répétition", value: state.loop === "track" ? "Titre" : state.loop === "queue" ? "File" : "Désactivée", inline: true },
-    );
+    ));
   if (track?.thumbnail) embed.setThumbnail(track.thumbnail);
   const row = new ActionRowBuilder().addComponents(
     new ButtonBuilder().setCustomId("music:pause").setEmoji("⏯️").setStyle(ButtonStyle.Primary),
@@ -178,9 +166,8 @@ async function connectChannel(guild, channel, textChannel) {
           const config = state.radio;
           setTimeout(() => {
             if (state.radio !== config) return;
-            void startRadio(guild, config).catch((error) => {
+            void startRadioWithRetry(guild, config).catch((error) => {
               console.error("[radio] Reconnexion impossible:", error.message);
-              scheduleRadioReconnect(guild, state, config);
             });
           }, 10_000).unref?.();
         } else {
@@ -189,8 +176,11 @@ async function connectChannel(guild, channel, textChannel) {
       }
     });
     state.connection.subscribe(state.player);
-    await entersState(state.connection, VoiceConnectionStatus.Ready, 20_000);
   }
+  const connection = state.connection;
+  await awaitVoiceReady(state, connection, () =>
+    entersState(connection, VoiceConnectionStatus.Ready, 20_000),
+  );
   state.textChannel = textChannel;
   return state;
 }
@@ -204,12 +194,14 @@ async function connectMember(member, textChannel) {
 }
 
 async function playTrack(state, track) {
-  const stream = await play.stream(track.url, { quality: 2 });
+  const hosts = track.allowedMediaHost ? [track.allowedMediaHost] : await allowedAudioHosts(state.guildId);
+  const stream = await openAuthorizedAudioStream(track.url, hosts);
   const resource = createAudioResource(stream.stream, {
-    inputType: stream.type,
+    inputType: StreamType.OggOpus,
     inlineVolume: true,
     metadata: track,
   });
+  resource.playStream.once("close", stream.stop);
   resource.volume?.setVolume(state.volume);
   state.current = track;
   state.player.play(resource);
@@ -217,81 +209,90 @@ async function playTrack(state, track) {
 }
 
 async function advance(state) {
-  if (state.advancing) return;
-  state.advancing = true;
-  try {
-    if (!state.radio && state.loop === "track" && state.current) {
-      await playTrack(state, state.current);
-      return;
-    }
-    if (!state.radio && state.current && state.loop === "queue") state.queue.push(state.current);
-    state.current = null;
-    if (state.radio && state.queue.length === 0) {
-      try {
-        const tracks = await resolveInput(state.radio.playlistUrl, MAX_RADIO_TRACKS);
-        if (!tracks.length) throw new Error("La playlist radio est vide.");
-        state.queue.push(...tracks.map((track) => ({ ...track, requesterId: "radio" })));
-      } catch (error) {
-        console.error("[radio] Impossible de recharger la playlist:", error.message);
-        await state.textChannel?.send("⚠️ Radio en pause : impossible de relire la playlist YouTube. Nouvelle tentative dans 30 secondes.").catch(() => {});
-        setTimeout(() => { if (state.radio) void advance(state); }, 30_000).unref?.();
-        return;
+  return advancePlayback(state, {
+    playTrack: (track) => playTrack(state, track),
+    reloadRadio: async () => {
+      const tracks = resolveInput(state.radio.streamUrl ?? state.radio.playlistUrl, state.radio.allowedHosts);
+      return tracks.map((track) => ({ ...track, requesterId: "radio" }));
+    },
+    notify: async (event, track) => {
+      if (event === "track_started") {
+        await state.textChannel?.send(`▶️ Lecture : **${track.title}**`).catch(() => {});
+      } else if (event === "track_failed") {
+        await state.textChannel?.send(`⚠️ Impossible de lire **${track.title}**. Je passe au suivant.`).catch(() => {});
+      } else {
+        await state.textChannel?.send("⚠️ Radio en pause : impossible de rouvrir le flux audio. Nouvelle tentative dans 30 secondes.").catch(() => {});
       }
-    }
-    const next = state.queue.shift();
-    if (!next) {
-      await updatePanel(state);
-      return;
-    }
-    try {
-      await playTrack(state, next);
-      await state.textChannel?.send(`▶️ Lecture : **${next.title}**`).catch(() => {});
-    } catch (error) {
-      console.error("[music] Impossible de lire le titre:", error.message);
-      await state.textChannel?.send(`⚠️ Impossible de lire **${next.title}**. Je passe au suivant.`).catch(() => {});
-      state.current = null;
-      queueMicrotask(() => void advance(state));
-    }
-  } finally {
-    state.advancing = false;
-  }
+    },
+    updatePanel: () => updatePanel(state),
+    log: (event) => console.error(`[music] ${event}`),
+    scheduleAdvance: () => queueMicrotask(() => void advance(state)),
+    scheduleRadioRetry: () => {
+      const radioConfig = state.radio;
+      setTimeout(() => {
+        if (state.radio === radioConfig) void advance(state);
+      }, 30_000).unref?.();
+    },
+  });
 }
 
 async function startRadio(guild, config, preloadedPlaylist = null) {
+  const state = stateFor(guild.id);
+  state.radio = config;
+  cancelRadioReconnect(guild.id);
   const channel = await guild.channels.fetch(config.voiceChannelId);
   if (!channel || channel.type !== ChannelType.GuildVoice) throw new Error("Le salon radio configuré n’existe pas ou n’est pas un vocal classique.");
   const textChannel = config.textChannelId ? await guild.channels.fetch(config.textChannelId).catch(() => null) : null;
-  const playlist = preloadedPlaylist ?? await resolveInput(config.playlistUrl, MAX_RADIO_TRACKS);
-  if (!playlist.length) throw new Error("La playlist YouTube ne contient aucun titre lisible.");
-  const state = await connectChannel(guild, channel, textChannel?.isTextBased() ? textChannel : null);
-  state.radio = config;
+  const streamTracks = preloadedPlaylist ?? resolveInput(config.streamUrl ?? config.playlistUrl, config.allowedHosts);
+  if (!streamTracks.length) throw new Error("Aucune source de flux audio configurée.");
+  await connectChannel(guild, channel, textChannel?.isTextBased() ? textChannel : null);
   state.loop = "off";
-  state.queue = playlist.map((track) => ({ ...track, requesterId: "radio" }));
+  state.queue = streamTracks.map((track) => ({ ...track, requesterId: "radio" }));
   state.current = null;
   await advance(state);
   return state;
 }
 
 function scheduleRadioReconnect(guild, state, config) {
-  const timer = setTimeout(() => {
-    if (state.radio !== config) return;
-    void startRadio(guild, config).catch((error) => {
+  if (radioReconnectTimers.has(guild.id)) return;
+  scheduleConfiguredRadioRetry(state, config, (callback, delay) => {
+    const timer = setTimeout(callback, delay);
+    radioReconnectTimers.set(guild.id, timer);
+    timer.unref?.();
+  }, (isCurrent) => {
+    radioReconnectTimers.delete(guild.id);
+    if (!isCurrent) return;
+    void startRadioWithRetry(guild, config).catch((error) => {
       console.error("[radio] Nouvelle tentative de reconnexion impossible:", error.message);
-      scheduleRadioReconnect(guild, state, config);
     });
-  }, 30_000);
-  timer.unref?.();
+  });
+}
+
+async function startRadioWithRetry(guild, config, preloadedPlaylist = null) {
+  try {
+    return await startRadio(guild, config, preloadedPlaylist);
+  } catch (error) {
+    const state = queues.get(guild.id);
+    if (state?.radio === config) scheduleRadioReconnect(guild, state, config);
+    throw error;
+  }
+}
+
+function cancelRadioReconnect(guildId) {
+  const timer = radioReconnectTimers.get(guildId);
+  if (timer) clearTimeout(timer);
+  radioReconnectTimers.delete(guildId);
 }
 
 export async function startConfiguredRadios(client) {
   const configs = await loadRadioConfigs();
   let started = 0;
   for (const [guildId, config] of Object.entries(configs)) {
-    if (!config?.voiceChannelId || !config?.playlistUrl) continue;
+    if (!config?.voiceChannelId || (!config?.streamUrl && !config?.playlistUrl)) continue;
     const guild = client.guilds.cache.get(guildId);
     if (!guild) continue;
     try {
-      await startRadio(guild, config);
+      await startRadioWithRetry(guild, config);
       started++;
     } catch (error) {
       console.error(`[radio] Démarrage impossible pour le serveur ${guildId}:`, error.message);
@@ -310,32 +311,43 @@ export async function handleRadioMessage(message) {
     const config = configs[message.guild.id];
     const state = queues.get(message.guild.id);
     if (action === "status") {
-      if (!config) await message.reply({ content: "📻 Radio non configurée. Un administrateur peut faire `=radio set #salon URL_PLAYLIST_YOUTUBE`.", allowedMentions: { parse: [] } });
-      else await message.reply({ content: `📻 Radio ${state?.radio ? "active" : "arrêtée"} · <#${config.voiceChannelId}> · playlist configurée.`, allowedMentions: { parse: [] } });
+      if (!config?.streamUrl) await message.reply({ content: "📻 Radio non configurée. Un administrateur peut autoriser un hôte avec `=radio host-add audio.example.org`, puis définir un flux direct.", allowedMentions: { parse: [] } });
+      else await message.reply({ content: `📻 Radio ${state?.radio ? "active" : "arrêtée"} · <#${config.voiceChannelId}> · flux autorisé configuré.`, allowedMentions: { parse: [] } });
       return true;
     }
     if (!adminRadio(message.member)) throw new Error("La configuration de la radio est réservée aux administrateurs ou à la permission Gérer le serveur.");
-    if (action === "set") {
-      const channelId = message.mentions.channels.first()?.id ?? parts[2]?.match(/^<#(\d{5,25})>$/)?.[1] ?? parts[2];
-      const playlistUrl = parts.slice(3).join(" ");
-      if (!/^\d{5,25}$/.test(channelId ?? "") || !/^https?:\/\/(?:www\.|music\.)?youtube\.com\/playlist\?list=[\w-]+/i.test(playlistUrl)) {
-        throw new Error("Utilisation : `=radio set #salon https://www.youtube.com/playlist?list=...`.");
-      }
-      const channel = await message.guild.channels.fetch(channelId).catch(() => null);
-      if (!channel || channel.type !== ChannelType.GuildVoice) throw new Error("Choisis un salon vocal classique de ce serveur.");
-      // Validate the playlist before persisting configuration.
-      const playlist = await resolveInput(playlistUrl, MAX_RADIO_TRACKS);
-      if (!playlist.length) throw new Error("La playlist est vide ou inaccessible.");
-      configs[message.guild.id] = { voiceChannelId: channel.id, playlistUrl, textChannelId: message.channel.id, updatedAt: Date.now() };
+    if (action === "host-add" || action === "host-remove") {
+      const host = normalizeAudioHost(parts[2]);
+      const current = configs[message.guild.id] ?? { allowedHosts: [] };
+      const hosts = new Set(Array.isArray(current.allowedHosts) ? current.allowedHosts : []);
+      if (action === "host-add") hosts.add(host);
+      else hosts.delete(host);
+      configs[message.guild.id] = { ...current, allowedHosts: [...hosts], updatedAt: Date.now() };
       radioConfigs = configs;
       await saveRadioConfigs();
-      await startRadio(message.guild, configs[message.guild.id], playlist);
-      await message.reply({ content: `✅ Radio PartyNextDoor lancée dans **${channel.name}**. Elle reprendra automatiquement après les titres et les redémarrages du bot.`, allowedMentions: { parse: [] } });
+      await message.reply({ content: `✅ Hôte ${action === "host-add" ? "autorisé" : "retiré"} : **${host}**.`, allowedMentions: { parse: [] } });
+    } else if (action === "host-list") {
+      const hosts = Array.isArray(config?.allowedHosts) ? config.allowedHosts : [];
+      await message.reply({ content: hosts.length ? `Hôtes audio autorisés : ${hosts.map((host) => `\`${host}\``).join(", ")}` : "Aucun hôte audio n’est autorisé.", allowedMentions: { parse: [] } });
+    } else if (action === "set") {
+      const channelId = message.mentions.channels.first()?.id ?? parts[2]?.match(/^<#(\d{5,25})>$/)?.[1] ?? parts[2];
+      const streamUrl = parts.slice(3).join(" ");
+      if (!/^\d{5,25}$/.test(channelId ?? "")) throw new Error("Utilisation : `=radio set #salon https://audio.example.org/stream`.");
+      const hosts = Array.isArray(config?.allowedHosts) ? config.allowedHosts : [];
+      const track = resolveInput(streamUrl, hosts)[0];
+      const channel = await message.guild.channels.fetch(channelId).catch(() => null);
+      if (!channel || channel.type !== ChannelType.GuildVoice) throw new Error("Choisis un salon vocal classique de ce serveur.");
+      configs[message.guild.id] = { ...(config ?? {}), allowedHosts: hosts, voiceChannelId: channel.id, streamUrl: track.url, textChannelId: message.channel.id, updatedAt: Date.now() };
+      radioConfigs = configs;
+      await saveRadioConfigs();
+      await startRadioWithRetry(message.guild, configs[message.guild.id], [track]);
+      await message.reply({ content: `✅ Radio FWU lancée dans **${channel.name}**. Le flux reprendra après une interruption et au redémarrage du bot.`, allowedMentions: { parse: [] } });
     } else if (action === "start") {
-      if (!config) throw new Error("Configure d’abord la radio : `=radio set #salon URL_PLAYLIST_YOUTUBE`.");
-      await startRadio(message.guild, config);
+      if (!config?.streamUrl) throw new Error("Configure d’abord la radio avec `=radio set #salon URL_HTTPS_AUTORISÉE`.");
+      await startRadioWithRetry(message.guild, config);
       await message.reply({ content: "✅ Radio démarrée.", allowedMentions: { parse: [] } });
     } else if (action === "stop") {
+      cancelRadioReconnect(message.guild.id);
       if (state) {
         state.radio = null;
         state.queue = [];
@@ -346,6 +358,7 @@ export async function handleRadioMessage(message) {
       }
       await message.reply({ content: "⏹️ Radio arrêtée. Sa configuration est conservée pour le prochain démarrage.", allowedMentions: { parse: [] } });
     } else if (action === "clear") {
+      cancelRadioReconnect(message.guild.id);
       delete configs[message.guild.id];
       radioConfigs = configs;
       await saveRadioConfigs();
@@ -359,7 +372,7 @@ export async function handleRadioMessage(message) {
       }
       await message.reply({ content: "✅ Configuration radio supprimée et lecture arrêtée.", allowedMentions: { parse: [] } });
     } else {
-      throw new Error("Commandes : `=radio status`, `=radio set #salon URL`, `=radio start`, `=radio stop`, `=radio clear`.");
+      throw new Error("Commandes : `=radio status`, `=radio host-add`, `=radio host-remove`, `=radio host-list`, `=radio set`, `=radio start`, `=radio stop`, `=radio clear`.");
     }
   } catch (error) {
     await message.reply({ content: `❌ ${error.message}`, allowedMentions: { parse: [] } }).catch(() => {});
@@ -401,11 +414,12 @@ export async function handleMusicMessage(message) {
     if (state.radio) throw new Error("La radio 24/7 est active sur ce serveur. Un administrateur doit utiliser `=radio stop` avant les commandes musicales.");
 
     if (command === "=play" || command === "=p") {
-      if (!input) throw new Error("Utilisation : `=play nom de musique ou lien YouTube`.");
-      if (input.length > 250) throw new Error("La recherche ne peut pas dépasser 250 caractères.");
+      if (!input) throw new Error("Utilisation : `=play <lien YouTube/SoundCloud ou titre>`.");
+      if (input.length > 500) throw new Error("La recherche ne peut pas dépasser 500 caractères.");
       await message.channel.sendTyping();
+      const resolved = await resolveMusicInput(input);
+      const tracks = [resolved];
       state = await connectMember(message.member, message.channel);
-      const tracks = await resolveInput(input);
       const added = tracks.map((track) => ({ ...track, requesterId: message.author.id }));
       const total = state.queue.length + (state.current ? 1 : 0) + added.length;
       if (total > MAX_TRACKS_PER_GUILD) throw new Error(`La file est limitée à ${MAX_TRACKS_PER_GUILD} titres. Il reste ${Math.max(0, MAX_TRACKS_PER_GUILD - state.queue.length - (state.current ? 1 : 0))} place(s).`);
@@ -452,9 +466,9 @@ export async function handleMusicMessage(message) {
     } else if (command === "=queue") {
       const lines = state.queue.slice(0, 15).map((t, i) => `**${i + 1}.** ${t.title} — ${formatDuration(t.duration)}`);
       await message.reply({
-        embeds: [new EmbedBuilder().setColor(0x5865f2).setTitle("📜 File d'attente")
+        embeds: [brandEmbed(new EmbedBuilder().setColor(0x6d28d9).setTitle("📜 File d'attente")
           .setDescription(lines.length ? lines.join("\n") : "La file d'attente est vide.")
-          .setFooter({ text: `${state.queue.length} titre(s) en attente` })],
+          .setFooter({ text: `${state.queue.length} titre(s) en attente` }))],
       });
     } else if (command === "=nowplaying" || command === "=np") {
       if (!state.current) throw new Error("Aucune musique en cours.");
@@ -516,8 +530,9 @@ export async function handleMusicInteraction(interaction) {
     ensureSameVoice({ member }, state);
     const action = interaction.customId.split(":")[1];
     if (action === "pause") {
-      if (state.player.state.status === AudioPlayerStatus.Paused) state.player.unpause();
-      else if (!state.player.pause()) throw new Error("Aucune musique en cours.");
+      if (pauseAction(state.player.state.status, AudioPlayerStatus.Paused) === "resume") {
+        state.player.unpause();
+      } else if (!state.player.pause()) throw new Error("Aucune musique en cours.");
     } else if (action === "skip") {
       if (!state.current) throw new Error("Aucune musique en cours.");
       state.player.stop(true);

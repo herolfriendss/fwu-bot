@@ -3,22 +3,132 @@
 // Les avertissements, le journal et l’éligibilité sont stockés localement dans
 // SQLite, toujours par serveur. Les permissions Discord sont revérifiées à chaque
 // commande ; aucune sanction ne peut viser un rôle supérieur au bot.
-import { EmbedBuilder, PermissionFlagsBits } from "discord.js";
-import { db } from "./database.js";
+import { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder, ModalBuilder, PermissionFlagsBits, TextInputBuilder, TextInputStyle } from "discord.js";
+import { createHash, randomInt, timingSafeEqual } from "node:crypto";
+import { db, transaction } from "./database.js";
+import { sendCentralLog } from "./logs.js";
+import { getStaffSupervisorId } from "./staff-hierarchy.js";
+import { LOGS_HUB_GUILD_ID, logSourceForGuild, sendToLogsHub } from "./logs-hub.js";
 import {
   activeWarnings, canModerate, formatDuration, parseDuration, sanitizeReason, verificationEligible, warningExpiry,
 } from "./moderation-policy.js";
+import { respondInPlaceSafe } from "./interaction-reply.js";
 
 const P = PermissionFlagsBits;
+const MAX_CASE_DETAILS = 1_000;
 const MODERATION_COMMANDS = new Set(["warn", "warnings", "mute", "unmute", "kick", "ban", "purge", "slowmode", "lock", "unlock", "verify"]);
+const CASE_ACTIONS = new Set(["warn", "mute", "unmute", "kick", "ban"]);
+const APPEALABLE_ACTIONS = new Set(["warn", "mute", "kick", "ban"]);
+const APPEAL_WINDOW_MS = 7 * 86_400_000;
 
-function logEmbed(guild, interaction, action, target, reason, extra = []) {
+function encodeCaseDetails(details) {
+  if (details == null) return null;
+  try {
+    const encoded = JSON.stringify(details);
+    if (typeof encoded !== "string") return JSON.stringify({ truncated: true, reason: "unsupported" });
+    return encoded.length <= MAX_CASE_DETAILS ? encoded : JSON.stringify({ truncated: true, reason: "size_limit" });
+  } catch {
+    return JSON.stringify({ truncated: true, reason: "unserializable" });
+  }
+}
+
+function decodeCaseDetails(encoded) {
+  if (!encoded) return null;
+  try {
+    return JSON.parse(encoded);
+  } catch {
+    return null;
+  }
+}
+
+export function recordModerationCase({ guildId, userId, moderatorId, action, reason, details = null }) {
+  if (!guildId || !userId || !moderatorId || !CASE_ACTIONS.has(action)) {
+    throw new Error("Dossier de modération invalide.");
+  }
+  const encodedDetails = encodeCaseDetails(details);
+  const result = db.prepare(`INSERT INTO moderation_cases
+    (guild_id,user_id,moderator_id,action,reason,details_json,created_at)
+    VALUES(?,?,?,?,?,?,?)`).run(
+    guildId,
+    userId,
+    moderatorId,
+    action,
+    sanitizeReason(reason),
+    encodedDetails,
+    Date.now(),
+  );
+  return Number(result.lastInsertRowid);
+}
+
+export function listModerationCases(guildId, userId, limit = 10) {
+  if (!guildId || !userId) return [];
+  return db.prepare(`SELECT * FROM moderation_cases
+    WHERE guild_id=? AND user_id=? ORDER BY id DESC LIMIT ?`)
+    .all(guildId, userId, Math.min(25, Math.max(1, Math.floor(Number(limit) || 10))))
+    .map((row) => ({
+      id: Number(row.id),
+      guildId: row.guild_id,
+      userId: row.user_id,
+      moderatorId: row.moderator_id,
+      action: row.action,
+      reason: row.reason,
+      details: decodeCaseDetails(row.details_json),
+      createdAt: Number(row.created_at),
+    }));
+}
+
+export function createSanctionAppeal(guildId, appellantId, caseId, body, now = Date.now()) {
+  if (!guildId || !appellantId || !Number.isSafeInteger(caseId) || caseId < 1) throw new Error("Référence d’appel invalide.");
+  if (String(body ?? "").trim().length < 10) throw new Error("L’appel doit contenir au moins 10 caractères.");
+  const cleanBody = sanitizeReason(body, 1_000);
+  if (cleanBody.length < 10) throw new Error("L’appel doit contenir au moins 10 caractères.");
+  const sanction = db.prepare(`SELECT id,user_id,action,created_at FROM moderation_cases
+    WHERE guild_id=? AND id=? AND action IN ('warn','mute','kick','ban')`).get(guildId, caseId);
+  if (!sanction || sanction.user_id !== appellantId) throw new Error("Ce dossier ne t’appartient pas ou n’autorise pas d’appel.");
+  if (Number(sanction.created_at) > now || now - Number(sanction.created_at) > APPEAL_WINDOW_MS) throw new Error("Le délai d’appel de 7 jours est dépassé.");
+  const result = db.prepare(`INSERT INTO moderation_appeals
+    (guild_id,case_id,appellant_id,body,status,submitted_at) VALUES(?,?,?,?, 'pending',?)`)
+    .run(guildId, caseId, appellantId, cleanBody, now);
+  return Number(result.lastInsertRowid);
+}
+
+export function listPendingModerationAppeals(guildId, appellantId, limit = 5) {
+  if (!guildId || !appellantId) return [];
+  return db.prepare(`SELECT id,case_id,appellant_id,body,status,submitted_at FROM moderation_appeals
+    WHERE guild_id=? AND appellant_id=? AND status='pending' ORDER BY id DESC LIMIT ?`)
+    .all(guildId, appellantId, Math.min(5, Math.max(1, Math.floor(Number(limit) || 5))));
+}
+
+function moderationAppealById(appealId) {
+  if (!Number.isSafeInteger(appealId) || appealId < 1) return null;
+  return db.prepare(`SELECT a.*,c.action,c.reason AS sanction_reason FROM moderation_appeals a
+    JOIN moderation_cases c ON c.guild_id=a.guild_id AND c.id=a.case_id WHERE a.id=?`).get(appealId) ?? null;
+}
+
+export function reviewModerationAppeal(guildId, reviewerId, appealId, decision, now = Date.now()) {
+  if (!guildId || !reviewerId) throw new Error("Réviseur ou serveur invalide.");
+  if (!new Set(["accepted", "rejected"]).has(decision)) throw new Error("Décision d’appel invalide.");
+  const result = db.prepare(`UPDATE moderation_appeals SET status=?,reviewed_by=?,reviewed_at=?
+    WHERE guild_id=? AND id=? AND status='pending'`).run(decision, reviewerId, now, guildId, appealId);
+  if (!Number(result.changes)) throw new Error("Appel introuvable ou déjà traité.");
+  return moderationAppealById(appealId);
+}
+
+export function canReviewModerationAppeal(source, roleNames) {
+  if (source !== "pnd" && source !== "mz") return false;
+  const prefix = source === "mz" ? "MZ " : "";
+  const permitted = new Set([`${prefix}Logs Owner`, `${prefix}Logs Admin`, `${prefix}Logs Modération`]);
+  return Array.isArray(roleNames) && roleNames.some((name) => permitted.has(name));
+}
+
+function logEmbed(guild, interaction, action, target, reason, extra = [], supervisorId = null) {
   return new EmbedBuilder()
     .setColor(action === "warn" ? 0xf59e0b : 0xef4444)
     .setTitle(`🛡️ Modération — ${action}`)
     .addFields(
       { name: "Membre", value: target ? `${target.tag ?? target.user?.tag ?? target.id} (${target.id})` : "Inconnu", inline: true },
       { name: "Modérateur", value: `${interaction.user.tag} (${interaction.user.id})`, inline: true },
+      { name: "Responsable hiérarchique", value: supervisorId ? `<@${supervisorId}>` : "Responsable non configuré", inline: true },
       { name: "Raison", value: reason, inline: false },
       ...extra,
       { name: "Serveur", value: `${guild.name} (${guild.id})`, inline: false },
@@ -26,12 +136,15 @@ function logEmbed(guild, interaction, action, target, reason, extra = []) {
     .setTimestamp(new Date());
 }
 
-async function sendModerationLog(guild, settings, embed) {
-  const channelId = settings?.moderation?.logChannelId;
-  if (!channelId) return;
-  const channel = await guild.channels.fetch(channelId).catch(() => null);
-  if (!channel?.isTextBased()) return;
-  await channel.send({ embeds: [embed], allowedMentions: { parse: [] } }).catch(() => {});
+async function sendModerationLog(guild, settings, interaction, embed, supervisorId = null) {
+  const allowedUserIds = supervisorId ? [supervisorId] : [];
+  const payload = typeof embed?.toJSON === "function" ? embed.toJSON() : embed;
+  // PND Logs is the canonical central destination. Keep the existing local log
+  // channel as a compatibility destination until its migration is completed.
+  await Promise.allSettled([
+    sendToLogsHub(interaction.client, guild, payload, "Modération — sanction", [], allowedUserIds),
+    sendCentralLog(guild, settings, embed, [settings?.moderation?.logChannelId], [], allowedUserIds),
+  ]);
 }
 
 async function targetMember(guild, user) {
@@ -56,9 +169,120 @@ async function confirm(interaction, content) {
   await interaction.editReply({ content, allowedMentions: { parse: [] } });
 }
 
+function appealButton(caseId) {
+  return new ActionRowBuilder().addComponents(
+    new ButtonBuilder().setCustomId(`moderation:appeal:${caseId}`).setLabel("Faire appel").setStyle(ButtonStyle.Secondary),
+  );
+}
+
+async function notifySanctionedUser(user, guild, caseId, action, reason) {
+  const embed = new EmbedBuilder().setColor(0xef4444).setTitle(`Décision de modération · ${guild.name}`)
+    .setDescription(`Sanction : **${action}**\nDossier : **#${caseId}**\nMotif : ${reason.slice(0, 700)}\n\nTu peux faire appel dans les 7 jours. L’envoi d’un appel ne suspend pas la sanction.`)
+    .setTimestamp(new Date());
+  await user.send({ embeds: [embed], components: [appealButton(caseId)], allowedMentions: { parse: [] } }).catch(() => {});
+}
+
+async function showSanctionAppealModal(interaction) {
+  const caseId = Number(interaction.customId.split(":").at(-1));
+  const row = Number.isSafeInteger(caseId) && caseId > 0
+    ? db.prepare("SELECT user_id,action,created_at FROM moderation_cases WHERE id=?").get(caseId)
+    : null;
+  if (!row || row.user_id !== interaction.user.id || !APPEALABLE_ACTIONS.has(row.action)
+    || Number(row.created_at) > Date.now() || Date.now() - Number(row.created_at) > APPEAL_WINDOW_MS) {
+    await interaction.reply({ content: "Ce dossier ne peut pas être contesté depuis ce bouton (délai dépassé ou dossier non autorisé).", ephemeral: true });
+    return;
+  }
+  const modal = new ModalBuilder().setCustomId(`moderation:appeal-submit:${caseId}`).setTitle(`Appel du dossier #${caseId}`);
+  const input = new TextInputBuilder().setCustomId("body").setLabel("Explique ta demande (10 à 1 000 caractères)")
+    .setStyle(TextInputStyle.Paragraph).setMinLength(10).setMaxLength(1_000).setRequired(true);
+  modal.addComponents(new ActionRowBuilder().addComponents(input));
+  await interaction.showModal(modal);
+}
+
+async function submitSanctionAppeal(interaction) {
+  const caseId = Number(interaction.customId.split(":").at(-1));
+  const sanction = Number.isSafeInteger(caseId) && caseId > 0
+    ? db.prepare("SELECT guild_id FROM moderation_cases WHERE id=? AND user_id=?").get(caseId, interaction.user.id)
+    : null;
+  let appealId;
+  try {
+    if (!sanction) throw new Error("Dossier introuvable ou non autorisé.");
+    appealId = createSanctionAppeal(sanction.guild_id, interaction.user.id, caseId, interaction.fields.getTextInputValue("body"));
+  } catch (error) {
+    await interaction.reply({ content: error.message, ephemeral: true });
+    return;
+  }
+  const appeal = moderationAppealById(appealId);
+  const sourceGuild = interaction.client.guilds.cache.get(appeal.guild_id);
+  if (!sourceGuild) {
+    await interaction.reply({ content: "L’appel est enregistré, mais le serveur source est indisponible pour notifier son équipe.", ephemeral: true });
+    return;
+  }
+  const reviewRow = new ActionRowBuilder().addComponents(
+    new ButtonBuilder().setCustomId(`moderation:appeal-review:accepted:${appealId}`).setLabel("Accepter l’appel").setStyle(ButtonStyle.Success),
+    new ButtonBuilder().setCustomId(`moderation:appeal-review:rejected:${appealId}`).setLabel("Rejeter l’appel").setStyle(ButtonStyle.Danger),
+  );
+  const embed = new EmbedBuilder().setColor(0xf59e0b).setTitle("🛡️ Appel de sanction")
+    .setDescription(`Dossier #${appeal.case_id} · appel #${appealId}\nMembre : <@${appeal.appellant_id}>\nSanction : **${appeal.action}**\nMotif initial : ${(appeal.sanction_reason || "Non renseigné").slice(0, 500)}\n\n**Demande**\n${appeal.body.slice(0, 1_000)}\n\nUne décision acceptée n’annule pas automatiquement une sanction Discord.`)
+    .setTimestamp(new Date(appeal.submitted_at));
+  const delivered = await sendToLogsHub(interaction.client, sourceGuild, embed.toJSON(), "Modération — Appel sanction", [reviewRow.toJSON()]).catch(() => false);
+  await interaction.reply({ content: delivered ? "✅ Ton appel a été transmis à l’équipe de modération. La sanction reste active pendant son examen." : "✅ Ton appel est enregistré. Le journal central est indisponible ; le staff devra consulter la base de modération.", ephemeral: true });
+}
+
+async function handleSanctionAppealReview(interaction) {
+  if (interaction.guildId !== LOGS_HUB_GUILD_ID || !interaction.channel?.name?.endsWith("logs-sanctions")) {
+    await interaction.reply({ content: "Cette décision doit être prise depuis le journal de sanctions correspondant.", ephemeral: true });
+    return;
+  }
+  const [, , decision, rawId] = interaction.customId.split(":");
+  const appealId = Number(rawId);
+  const appeal = moderationAppealById(appealId);
+  const source = appeal && logSourceForGuild(appeal.guild_id);
+  if (!appeal || !source || (source === "mz" && interaction.channel.name !== "mz-logs-sanctions")
+    || (source === "pnd" && interaction.channel.name !== "logs-sanctions")) {
+    await interaction.reply({ content: "Appel introuvable pour ce journal.", ephemeral: true });
+    return;
+  }
+  const reviewer = await interaction.guild.members.fetch({ user: interaction.user.id, force: true }).catch(() => null);
+  if (!canReviewModerationAppeal(source, reviewer?.roles.cache.map((role) => role.name) ?? [])) {
+    await interaction.reply({ content: "Un rôle de modération du journal correspondant est requis.", ephemeral: true });
+    return;
+  }
+  try {
+    const reviewed = reviewModerationAppeal(appeal.guild_id, interaction.user.id, appealId, decision);
+    const applicant = await interaction.client.users.fetch(reviewed.appellant_id).catch(() => null);
+    await applicant?.send({ content: decision === "accepted"
+      ? `✅ Ton appel #${appealId} concernant le dossier #${appeal.case_id} a été accepté par l’équipe. La sanction Discord n’a pas été automatiquement levée ; contacte le staff pour la suite.`
+      : `❌ Ton appel #${appealId} concernant le dossier #${appeal.case_id} a été rejeté par l’équipe.`, allowedMentions: { parse: [] } }).catch(() => {});
+    await interaction.update({ components: [], embeds: interaction.message.embeds.map((item) => {
+      const json = item.toJSON();
+      json.fields = [...(json.fields || []), { name: "Décision", value: `${decision === "accepted" ? "Accepté" : "Rejeté"} par ${interaction.user.tag} · <t:${Math.floor(Date.now() / 1000)}:f>`, inline: false }];
+      return json;
+    }) });
+  } catch (error) {
+    await respondInPlaceSafe(interaction, { content: error.message, ephemeral: true });
+  }
+}
+
 export async function handleModerationInteraction(interaction, guildSettings = {}) {
-  if (interaction.isButton() && interaction.customId === "verify:claim") {
-    await claimVerification(interaction, guildSettings);
+  if (interaction.isButton() && interaction.customId.startsWith("moderation:appeal:")) {
+    await showSanctionAppealModal(interaction);
+    return true;
+  }
+  if (interaction.isModalSubmit() && interaction.customId.startsWith("moderation:appeal-submit:")) {
+    await submitSanctionAppeal(interaction);
+    return true;
+  }
+  if (interaction.isButton() && interaction.customId.startsWith("moderation:appeal-review:")) {
+    await handleSanctionAppealReview(interaction);
+    return true;
+  }
+  if (interaction.isButton() && interaction.customId === "verify:start") {
+    await startVerificationChallenge(interaction, guildSettings);
+    return true;
+  }
+  if (interaction.isModalSubmit() && interaction.customId === "verify:answer") {
+    await submitVerificationChallenge(interaction, guildSettings);
     return true;
   }
   if (!interaction.isChatInputCommand() || !MODERATION_COMMANDS.has(interaction.commandName)) return false;
@@ -81,24 +305,29 @@ export async function handleModerationInteraction(interaction, guildSettings = {
       const subcommand = interaction.options.getSubcommand();
       if (subcommand === "panel") {
         if (!actor.permissions.has(P.ManageGuild)) throw new Error("Permission Gérer le serveur requise.");
-        const channel = interaction.options.getChannel("salon") ?? interaction.channel;
+        if (!settings.verification?.enabled || !settings.verification?.roleId) {
+          throw new Error("La vérification n’est pas configurée. Active le module et définis le rôle Vérifié dans le dashboard avant de publier le panneau.");
+        }
+        const configured = settings.verification?.channelId;
+        const channel = interaction.options.getChannel("salon")
+          ?? (configured ? await guild.channels.fetch(configured).catch(() => null) : null)
+          ?? interaction.channel;
         if (!channel?.isTextBased()) throw new Error("Choisis un salon textuel.");
         const embed = new EmbedBuilder()
-          .setColor(0x5865f2)
+          .setColor(0x6d28d9)
           .setTitle("✅ Vérification")
-          .setDescription(settings.verification?.message || "Clique sur le bouton ci-dessous pour accéder au serveur.");
-        const { ActionRowBuilder, ButtonBuilder, ButtonStyle } = await import("discord.js");
+          .setDescription(settings.verification?.message || "Résous le petit calcul pour confirmer que tu es humain.");
         await channel.send({
           embeds: [embed],
           components: [new ActionRowBuilder().addComponents(
-            new ButtonBuilder().setCustomId("verify:claim").setLabel("Se vérifier").setEmoji("✅").setStyle(ButtonStyle.Success),
+            new ButtonBuilder().setCustomId("verify:start").setLabel("Commencer la vérification").setEmoji("🧩").setStyle(ButtonStyle.Success),
           )],
           allowedMentions: { parse: [] },
         });
         await interaction.reply({ content: `✅ Panneau de vérification envoyé dans <#${channel.id}>.`, ephemeral: true });
         return true;
       }
-      await claimVerification(interaction, settings);
+      await startVerificationChallenge(interaction, settings);
       return true;
     }
 
@@ -107,9 +336,20 @@ export async function handleModerationInteraction(interaction, guildSettings = {
     if (command === "warnings") {
       const user = interaction.options.getUser("membre") ?? interaction.user;
       if (user.id !== interaction.user.id && !actor.permissions.has(P.ManageMessages)) throw new Error("Permission Gérer les messages requise pour consulter un autre membre.");
-      const rows = activeWarnings(db.prepare("SELECT * FROM moderation_warnings WHERE guild_id=? AND user_id=? ORDER BY id DESC LIMIT 25").all(guild.id, user.id));
-      const lines = rows.map((warning) => `• <t:${Math.floor(Number(warning.created_at) / 1000)}:d> — ${warning.reason} (par <@${warning.moderator_id}>)`);
-      await confirm(interaction, lines.length ? `⚠️ **${rows.length} avertissement(s) actif(s) pour <@${user.id}>**\n${lines.join("\n")}` : `✅ Aucun avertissement actif pour <@${user.id}>.`);
+      const rows = activeWarnings(db.prepare("SELECT * FROM moderation_warnings WHERE guild_id=? AND user_id=? ORDER BY id DESC LIMIT 10").all(guild.id, user.id));
+      const cases = listModerationCases(guild.id, user.id, 10);
+      const warningLines = rows.slice(0, 5).map((warning) => `• Avertissement #${warning.id} · <t:${Math.floor(Number(warning.created_at) / 1000)}:d> · ${warning.reason.slice(0, 80)}`);
+      const caseLines = cases.slice(0, 5).map((item) => `• Dossier #${item.id} ${item.action.toUpperCase()} · <t:${Math.floor(item.createdAt / 1000)}:d> · ${item.reason.slice(0, 80)} (par <@${item.moderatorId}>)`);
+      const lines = [...warningLines, ...caseLines];
+      const appealRows = user.id === interaction.user.id
+        ? cases.filter((item) => APPEALABLE_ACTIONS.has(item.action) && Date.now() - item.createdAt <= APPEAL_WINDOW_MS)
+          .slice(0, 5).map((item) => appealButton(item.id).toJSON())
+        : [];
+      await interaction.editReply({
+        content: lines.length ? `📁 **Historique de <@${user.id}>**\n${lines.join("\n")}` : `✅ Aucun avertissement actif ni dossier enregistré pour <@${user.id}>.`,
+        components: appealRows,
+        allowedMentions: { parse: [] },
+      });
       return true;
     }
 
@@ -148,17 +388,21 @@ export async function handleModerationInteraction(interaction, guildSettings = {
     const hierarchy = checkHierarchy(interaction, actor, target ?? { id: user.id, permissions: { bitfield: 0n }, roles: null }, required);
     if (!hierarchy.allowed) throw new Error(hierarchy.reason ?? "Action refusée.");
 
+    const supervisorId = getStaffSupervisorId(guild.id, interaction.user.id);
+
     if (command === "warn") {
       const days = interaction.options.getInteger("expire") ?? 0;
       const expiresAt = warningExpiry(Date.now(), days) ?? null;
-      db.prepare("INSERT INTO moderation_warnings(guild_id,user_id,moderator_id,reason,created_at,expires_at) VALUES(?,?,?,?,?,?)")
-        .run(guild.id, user.id, interaction.user.id, reason, Date.now(), expiresAt);
+      // node:sqlite has no db.transaction() (better-sqlite3 API): /warn used to fail every time.
+      const caseId = transaction(() => {
+        db.prepare("INSERT INTO moderation_warnings(guild_id,user_id,moderator_id,reason,created_at,expires_at) VALUES(?,?,?,?,?,?)")
+          .run(guild.id, user.id, interaction.user.id, reason, Date.now(), expiresAt);
+        return recordModerationCase({ guildId: guild.id, userId: user.id, moderatorId: interaction.user.id, action: "warn", reason, details: { expiresAt, supervisorId } });
+      });
       const count = db.prepare("SELECT COUNT(*) AS count FROM moderation_warnings WHERE guild_id=? AND user_id=? AND (expires_at IS NULL OR expires_at>?)").get(guild.id, user.id, Date.now()).count;
-      if (settings.moderation?.dmOnWarn !== false) {
-        await user.send({ content: `⚠️ Tu as reçu un avertissement sur **${guild.name}** : ${reason}`, allowedMentions: { parse: [] } }).catch(() => {});
-      }
-      await sendModerationLog(guild, settings, logEmbed(guild, interaction, "warn", user, reason, [{ name: "Avertissements actifs", value: String(count), inline: true }]));
-      await confirm(interaction, `⚠️ <@${user.id}> averti (${count} actif(s)) : ${reason}`);
+      if (settings.moderation?.dmOnWarn !== false) await notifySanctionedUser(user, guild, caseId, "warn", reason);
+      await sendModerationLog(guild, settings, interaction, logEmbed(guild, interaction, "warn", user, reason, [{ name: "Dossier", value: `#${caseId}`, inline: true }, { name: "Avertissements actifs", value: String(count), inline: true }], supervisorId), supervisorId);
+      await confirm(interaction, `⚠️ Dossier #${caseId} · <@${user.id}> averti (${count} actif(s)) : ${reason}`);
       return true;
     }
 
@@ -167,31 +411,38 @@ export async function handleModerationInteraction(interaction, guildSettings = {
       const minutes = parseDuration(interaction.options.getString("duree", true), 10);
       if (minutes > 40_320) throw new Error("La sourdine Discord est limitée à 28 jours.");
       await target.timeout(minutes * 60_000, reason);
-      await sendModerationLog(guild, settings, logEmbed(guild, interaction, "mute", user, reason, [{ name: "Durée", value: formatDuration(minutes), inline: true }]));
-      await confirm(interaction, `🔇 <@${user.id}> mis en sourdine pendant ${formatDuration(minutes)}.`);
+      const caseId = recordModerationCase({ guildId: guild.id, userId: user.id, moderatorId: interaction.user.id, action: "mute", reason, details: { durationMinutes: minutes, supervisorId } });
+      await notifySanctionedUser(user, guild, caseId, "mute", reason);
+      await sendModerationLog(guild, settings, interaction, logEmbed(guild, interaction, "mute", user, reason, [{ name: "Dossier", value: `#${caseId}`, inline: true }, { name: "Durée", value: formatDuration(minutes), inline: true }], supervisorId), supervisorId);
+      await confirm(interaction, `🔇 Dossier #${caseId} · <@${user.id}> mis en sourdine pendant ${formatDuration(minutes)}.`);
       return true;
     }
 
     if (command === "unmute") {
       if (!target) throw new Error("Ce membre n’est pas sur le serveur.");
       await target.timeout(null, reason);
-      await sendModerationLog(guild, settings, logEmbed(guild, interaction, "unmute", user, reason));
-      await confirm(interaction, `🔊 Sourdine retirée à <@${user.id}>.`);
+      const caseId = recordModerationCase({ guildId: guild.id, userId: user.id, moderatorId: interaction.user.id, action: "unmute", reason, details: { supervisorId } });
+      await sendModerationLog(guild, settings, interaction, logEmbed(guild, interaction, "unmute", user, reason, [{ name: "Dossier", value: `#${caseId}`, inline: true }], supervisorId), supervisorId);
+      await confirm(interaction, `🔊 Dossier #${caseId} · sourdine retirée à <@${user.id}>.`);
       return true;
     }
 
     if (command === "kick") {
       if (!target) throw new Error("Ce membre n’est pas sur le serveur.");
       await target.kick(reason);
-      await sendModerationLog(guild, settings, logEmbed(guild, interaction, "kick", user, reason));
-      await confirm(interaction, `👢 <@${user.id}> expulsé.`);
+      const caseId = recordModerationCase({ guildId: guild.id, userId: user.id, moderatorId: interaction.user.id, action: "kick", reason, details: { supervisorId } });
+      await notifySanctionedUser(user, guild, caseId, "kick", reason);
+      await sendModerationLog(guild, settings, interaction, logEmbed(guild, interaction, "kick", user, reason, [{ name: "Dossier", value: `#${caseId}`, inline: true }], supervisorId), supervisorId);
+      await confirm(interaction, `👢 Dossier #${caseId} · <@${user.id}> expulsé.`);
       return true;
     }
 
     if (command === "ban") {
       await guild.members.ban(user.id, { reason, deleteMessageSeconds: 0 });
-      await sendModerationLog(guild, settings, logEmbed(guild, interaction, "ban", user, reason));
-      await confirm(interaction, `🔨 <@${user.id}> banni.`);
+      const caseId = recordModerationCase({ guildId: guild.id, userId: user.id, moderatorId: interaction.user.id, action: "ban", reason, details: { supervisorId } });
+      await notifySanctionedUser(user, guild, caseId, "ban", reason);
+      await sendModerationLog(guild, settings, interaction, logEmbed(guild, interaction, "ban", user, reason, [{ name: "Dossier", value: `#${caseId}`, inline: true }], supervisorId), supervisorId);
+      await confirm(interaction, `🔨 Dossier #${caseId} · <@${user.id}> banni.`);
       return true;
     }
   } catch (error) {
@@ -204,32 +455,88 @@ export async function handleModerationInteraction(interaction, guildSettings = {
   return true;
 }
 
-async function claimVerification(interaction, settings) {
+const challengeHash = (guildId, userId, answer) => createHash("sha256").update(`${guildId}:${userId}:${answer}`).digest();
+
+async function startVerificationChallenge(interaction, settings) {
   const verification = settings?.verification;
-  if (!verification?.enabled || !verification.roleId) {
+  if (!verification?.enabled || !verification.roleId || !interaction.guild) {
     await interaction.reply({ content: "La vérification n’est pas configurée sur ce serveur.", ephemeral: true });
     return;
   }
-  const guild = interaction.guild;
-  const role = await guild.roles.fetch(verification.roleId).catch(() => null);
-  if (!role) {
-    await interaction.reply({ content: "Le rôle de vérification est introuvable. Préviens le staff.", ephemeral: true });
-    return;
+  const member = interaction.member ?? await interaction.guild.members.fetch(interaction.user.id).catch(() => null);
+  if (!member) return interaction.reply({ content: "Profil Discord introuvable.", ephemeral: true });
+  const role = await interaction.guild.roles.fetch(verification.roleId).catch(() => null);
+  if (!role || role.id === interaction.guild.id || role.managed) return interaction.reply({ content: "Le rôle de vérification est introuvable ou protégé. Préviens le staff.", ephemeral: true });
+  const botMember = await interaction.guild.members.fetchMe({ force: true }).catch(() => null);
+  if (!botMember?.permissions.has(P.ManageRoles) || role.position >= botMember.roles.highest.position) {
+    return interaction.reply({ content: "La configuration du rôle est incorrecte : le bot doit avoir Gérer les rôles et être placé au-dessus du rôle Vérifié.", ephemeral: true });
   }
-  const member = interaction.member ?? await guild.members.fetch(interaction.user.id);
-  if (member.roles.cache.has(role.id)) {
-    await interaction.reply({ content: "✅ Tu es déjà vérifié.", ephemeral: true });
-    return;
-  }
+  if (member.roles.cache.has(role.id)) return interaction.reply({ content: "✅ Tu es déjà vérifié.", ephemeral: true });
   const eligibility = verificationEligible(interaction.user.createdAt, Date.now(), verification.minAccountAgeDays);
-  if (!eligibility.eligible) {
-    await interaction.reply({ content: `⛔ Vérification refusée : ${eligibility.reason}.`, ephemeral: true });
+  if (!eligibility.eligible) return interaction.reply({ content: `⛔ Vérification refusée : ${eligibility.reason}.`, ephemeral: true });
+
+  const a = randomInt(2, 10), b = randomInt(2, 10), answer = String(a + b);
+  const now = Date.now();
+  db.prepare(`INSERT INTO verification_challenges(guild_id,user_id,answer_hash,attempts,expires_at,created_at)
+    VALUES(?,?,?,0,?,?) ON CONFLICT(guild_id,user_id) DO UPDATE SET answer_hash=excluded.answer_hash,attempts=0,expires_at=excluded.expires_at,created_at=excluded.created_at`)
+    .run(interaction.guild.id, interaction.user.id, challengeHash(interaction.guild.id, interaction.user.id, answer).toString("hex"), now + 5 * 60_000, now);
+
+  const modal = new ModalBuilder().setCustomId("verify:answer").setTitle("Vérification humaine");
+  const input = new TextInputBuilder().setCustomId("answer").setLabel(`Combien font ${a} + ${b} ?`).setStyle(TextInputStyle.Short).setMinLength(1).setMaxLength(3).setRequired(true);
+  modal.addComponents(new ActionRowBuilder().addComponents(input));
+  await interaction.showModal(modal);
+}
+
+async function submitVerificationChallenge(interaction, settings) {
+  const guild = interaction.guild;
+  if (!guild || !settings?.verification?.enabled || !settings.verification.roleId) {
+    await interaction.reply({ content: "La vérification n’est pas active.", ephemeral: true });
     return;
+  }
+  const row = db.prepare("SELECT * FROM verification_challenges WHERE guild_id=? AND user_id=?").get(guild.id, interaction.user.id);
+  const now = Date.now();
+  if (!row || Number(row.expires_at) <= now) {
+    db.prepare("DELETE FROM verification_challenges WHERE guild_id=? AND user_id=?").run(guild.id, interaction.user.id);
+    await interaction.reply({ content: "⏳ Défi expiré. Clique à nouveau sur le bouton pour recommencer.", ephemeral: true });
+    return;
+  }
+  const supplied = interaction.fields.getTextInputValue("answer").trim();
+  const expected = Buffer.from(row.answer_hash, "hex");
+  const actual = challengeHash(guild.id, interaction.user.id, supplied);
+  const correct = expected.length === actual.length && timingSafeEqual(expected, actual);
+  if (!correct) {
+    const attempts = Number(row.attempts) + 1;
+    if (attempts >= 3) {
+      db.prepare("DELETE FROM verification_challenges WHERE guild_id=? AND user_id=?").run(guild.id, interaction.user.id);
+      await interaction.reply({ content: "❌ Trois réponses incorrectes. Recommence avec le bouton de vérification.", ephemeral: true });
+    } else {
+      db.prepare("UPDATE verification_challenges SET attempts=? WHERE guild_id=? AND user_id=?").run(attempts, guild.id, interaction.user.id);
+      await interaction.reply({ content: `❌ Mauvaise réponse. Il te reste ${3 - attempts} tentative(s).`, ephemeral: true });
+    }
+    return;
+  }
+
+  const [freshMember, role, botMember] = await Promise.all([
+    guild.members.fetch({ user: interaction.user.id, force: true }).catch(() => null),
+    guild.roles.fetch(settings.verification.roleId, { force: true }).catch(() => null),
+    guild.members.fetchMe({ force: true }).catch(() => null),
+  ]);
+  if (!freshMember || !role || role.id === guild.id || role.managed) return interaction.reply({ content: "Membre ou rôle de vérification introuvable, ou rôle protégé. Préviens le staff.", ephemeral: true });
+  if (!botMember?.permissions.has(P.ManageRoles) || role.position >= botMember.roles.highest.position) {
+    return interaction.reply({ content: "Je ne peux pas attribuer ce rôle : vérifie ma permission Gérer les rôles et ma position dans la hiérarchie.", ephemeral: true });
   }
   try {
-    await member.roles.add(role, "Vérification Discord");
-    await interaction.reply({ content: "✅ Vérification réussie, bienvenue !", ephemeral: true });
+    if (freshMember.roles.cache.has(role.id)) {
+      db.prepare("DELETE FROM verification_challenges WHERE guild_id=? AND user_id=?").run(guild.id, interaction.user.id);
+      return interaction.reply({ content: "✅ Tu es déjà vérifié.", ephemeral: true });
+    }
+    await freshMember.roles.add(role, "CAPTCHA validé");
+    db.prepare("DELETE FROM verification_challenges WHERE guild_id=? AND user_id=?").run(guild.id, interaction.user.id);
+    const embed = new EmbedBuilder().setColor(0x22c55e).setTitle("✅ CAPTCHA réussi")
+      .setDescription(`<@${interaction.user.id}> a terminé la vérification.`).setTimestamp(new Date());
+    await sendCentralLog(guild, settings, embed).catch(() => {});
+    await interaction.reply({ content: "✅ Vérification réussie, bienvenue sur le serveur !", ephemeral: true });
   } catch {
-    await interaction.reply({ content: "Impossible d’attribuer le rôle. Vérifie la hiérarchie des rôles.", ephemeral: true });
+    await respondInPlaceSafe(interaction, { content: "Impossible d’attribuer le rôle. Vérifie la hiérarchie des rôles.", ephemeral: true });
   }
 }

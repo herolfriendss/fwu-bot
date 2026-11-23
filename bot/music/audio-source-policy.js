@@ -1,0 +1,107 @@
+import { isIP } from "node:net";
+
+export function normalizeAudioHost(input) {
+  const value = String(input ?? "")
+    .trim()
+    .toLowerCase()
+    .replace(/\.$/, "");
+  if (!value || value.includes("*") || value.includes("/") || value.includes("://")) {
+    throw new Error("Indique un nom d’hôte exact, par exemple audio.example.org.");
+  }
+  const url = new URL(`https://${value}`);
+  if (
+    url.hostname !== value ||
+    url.port ||
+    url.pathname !== "/" ||
+    url.hash ||
+    isIP(url.hostname) ||
+    !url.hostname.includes(".") ||
+    url.hostname === "localhost" ||
+    url.hostname.endsWith(".localhost") ||
+    url.hostname.endsWith(".local") ||
+    url.hostname.endsWith(".internal")
+  ) {
+    throw new Error("Seul un nom DNS public exact est accepté, sans port ni joker.");
+  }
+  return url.hostname;
+}
+
+export function validateAudioUrl(input, allowedHosts = []) {
+  let url;
+  try {
+    url = new URL(String(input));
+  } catch {
+    throw new Error("Indique une URL de flux audio HTTPS valide.");
+  }
+
+  if (
+    url.protocol !== "https:" ||
+    url.username ||
+    url.password ||
+    (url.port && url.port !== "443") ||
+    url.hash ||
+    isIP(url.hostname)
+  ) {
+    throw new Error(
+      "La source doit être une URL HTTPS publique, sans identifiant ni port personnalisé.",
+    );
+  }
+
+  const host = normalizeAudioHost(url.hostname);
+  const allowed = new Set(allowedHosts.map(normalizeAudioHost));
+  if (!allowed.has(host)) {
+    throw new Error(
+      `L’hôte ${host} n’est pas autorisé sur ce serveur. Un administrateur doit l’ajouter avec \`=radio host-add ${host}\`.`,
+    );
+  }
+  return url;
+}
+
+export function isPublicIpv4(address) {
+  if (isIP(address) !== 4) return false;
+  const [a, b, c] = address.split(".").map(Number);
+  if (
+    a === 0 ||
+    a === 10 ||
+    a === 127 ||
+    a >= 224 ||
+    (a === 100 && b >= 64 && b <= 127) ||
+    (a === 169 && b === 254) ||
+    (a === 172 && b >= 16 && b <= 31) ||
+    (a === 192 && (b === 168 || (b === 0 && c <= 2))) ||
+    (a === 198 && (b === 18 || b === 19 || (b === 51 && c === 100))) ||
+    (a === 203 && b === 0 && c === 113)
+  )
+    return false;
+  return true;
+}
+
+export function isPlayableAudioContentType(value) {
+  const type = String(value ?? "")
+    .split(";", 1)[0]
+    .trim()
+    .toLowerCase();
+  if (type.includes("mpegurl") || type.includes("m3u") || type.includes("dash+xml")) return false;
+  return type.startsWith("audio/") || type === "application/octet-stream";
+}
+
+export function ffmpegOpusArgs() {
+  return [
+    "-hide_banner",
+    "-loglevel",
+    "error",
+    "-nostdin",
+    "-protocol_whitelist",
+    "pipe",
+    "-i",
+    "pipe:0",
+    "-vn",
+    "-c:a",
+    "libopus",
+    "-b:a",
+    "96k",
+    "-f",
+    "ogg",
+    "pipe:1",
+  ];
+}

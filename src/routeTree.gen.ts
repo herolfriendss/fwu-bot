@@ -21,6 +21,8 @@ import { Route as ApiPublicBotStatusRouteImport } from './routes/api/public/bot-
 import { Route as ApiPublicBotSyncRouteImport } from './routes/api/public/bot-sync'
 import { Route as ApiPublicDiscordInteractionsRouteImport } from './routes/api/public/discord-interactions'
 import { Route as ApiPublicEconomySnapshotRouteImport } from './routes/api/public/economy-snapshot'
+import { Route as ApiAuthDiscordCallbackRouteImport } from './routes/api/auth/discord/callback'
+import { Route as ApiAuthDiscordStartRouteImport } from './routes/api/auth/discord/start'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -84,6 +86,16 @@ const ApiPublicEconomySnapshotRoute =
     path: '/api/public/economy-snapshot',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiAuthDiscordCallbackRoute = ApiAuthDiscordCallbackRouteImport.update({
+  id: '/api/auth/discord/callback',
+  path: '/api/auth/discord/callback',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiAuthDiscordStartRoute = ApiAuthDiscordStartRouteImport.update({
+  id: '/api/auth/discord/start',
+  path: '/api/auth/discord/start',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -98,6 +110,8 @@ export interface FileRoutesByFullPath {
   '/api/public/bot-sync': typeof ApiPublicBotSyncRoute
   '/api/public/discord-interactions': typeof ApiPublicDiscordInteractionsRoute
   '/api/public/economy-snapshot': typeof ApiPublicEconomySnapshotRoute
+  '/api/auth/discord/callback': typeof ApiAuthDiscordCallbackRoute
+  '/api/auth/discord/start': typeof ApiAuthDiscordStartRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -112,6 +126,8 @@ export interface FileRoutesByTo {
   '/api/public/bot-sync': typeof ApiPublicBotSyncRoute
   '/api/public/discord-interactions': typeof ApiPublicDiscordInteractionsRoute
   '/api/public/economy-snapshot': typeof ApiPublicEconomySnapshotRoute
+  '/api/auth/discord/callback': typeof ApiAuthDiscordCallbackRoute
+  '/api/auth/discord/start': typeof ApiAuthDiscordStartRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -127,6 +143,8 @@ export interface FileRoutesById {
   '/api/public/bot-sync': typeof ApiPublicBotSyncRoute
   '/api/public/discord-interactions': typeof ApiPublicDiscordInteractionsRoute
   '/api/public/economy-snapshot': typeof ApiPublicEconomySnapshotRoute
+  '/api/auth/discord/callback': typeof ApiAuthDiscordCallbackRoute
+  '/api/auth/discord/start': typeof ApiAuthDiscordStartRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -143,6 +161,8 @@ export interface FileRouteTypes {
     | '/api/public/bot-sync'
     | '/api/public/discord-interactions'
     | '/api/public/economy-snapshot'
+    | '/api/auth/discord/callback'
+    | '/api/auth/discord/start'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -157,6 +177,8 @@ export interface FileRouteTypes {
     | '/api/public/bot-sync'
     | '/api/public/discord-interactions'
     | '/api/public/economy-snapshot'
+    | '/api/auth/discord/callback'
+    | '/api/auth/discord/start'
   id:
     | '__root__'
     | '/'
@@ -171,6 +193,8 @@ export interface FileRouteTypes {
     | '/api/public/bot-sync'
     | '/api/public/discord-interactions'
     | '/api/public/economy-snapshot'
+    | '/api/auth/discord/callback'
+    | '/api/auth/discord/start'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -186,6 +210,8 @@ export interface RootRouteChildren {
   ApiPublicBotSyncRoute: typeof ApiPublicBotSyncRoute
   ApiPublicDiscordInteractionsRoute: typeof ApiPublicDiscordInteractionsRoute
   ApiPublicEconomySnapshotRoute: typeof ApiPublicEconomySnapshotRoute
+  ApiAuthDiscordCallbackRoute: typeof ApiAuthDiscordCallbackRoute
+  ApiAuthDiscordStartRoute: typeof ApiAuthDiscordStartRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -274,6 +300,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicEconomySnapshotRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/auth/discord/callback': {
+      id: '/api/auth/discord/callback'
+      path: '/api/auth/discord/callback'
+      fullPath: '/api/auth/discord/callback'
+      preLoaderRoute: typeof ApiAuthDiscordCallbackRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/auth/discord/start': {
+      id: '/api/auth/discord/start'
+      path: '/api/auth/discord/start'
+      fullPath: '/api/auth/discord/start'
+      preLoaderRoute: typeof ApiAuthDiscordStartRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -290,6 +330,8 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPublicBotSyncRoute: ApiPublicBotSyncRoute,
   ApiPublicDiscordInteractionsRoute: ApiPublicDiscordInteractionsRoute,
   ApiPublicEconomySnapshotRoute: ApiPublicEconomySnapshotRoute,
+  ApiAuthDiscordCallbackRoute: ApiAuthDiscordCallbackRoute,
+  ApiAuthDiscordStartRoute: ApiAuthDiscordStartRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

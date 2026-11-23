@@ -1,6 +1,12 @@
-# Her? V4
+> **Mise en production FWU : lire d'abord `MISE_EN_PRODUCTION.md`** (4 étapes), puis `RECETTE_STAGING.md` (liste à cocher) et `DECISIONS.md` (choix par défaut appliqués).
 
-Her? V4 est l’évolution directe de Her? V3 : même dashboard, même bot Oracle, même base Supabase et même économie SQLite. Aucun second projet ni service parallèle n’est nécessaire. Le dossier V2 reste conservé pour référence.
+# FWU
+
+FWU (anciennement PND Assist, 1942, Her? V3/V4/V5) : un bot Discord en 5 applications (FWU, GUARD, FDPDLAVOC, SUCK ME, LE FISC) et son site de configuration. Voir `MULTI_BOTS_FWU.md`.
+
+## Historique
+
+PND Assist V5 conserve les systèmes stables de Her? V4 et poursuit leur évolution directe depuis Her? V3 : même dashboard, même bot Oracle, même base Supabase et même économie SQLite. Aucun second projet ni service parallèle n’est nécessaire. Le dossier V2 reste conservé pour référence.
 
 Les secrets sont fournis par des fichiers `.env` locaux, jamais par l’archive de déploiement.
 
@@ -12,20 +18,20 @@ Les secrets sont fournis par des fichiers `.env` locaux, jamais par l’archive 
 - Un projet Supabase avec les migrations de `supabase/migrations`
 - Les clés Discord/Lovable nécessaires au dashboard
 
-Node 24 est requis par le bot V4, qui utilise SQLite de `node:sqlite` pour conserver PND sur disque.
+Node 24 est requis par le bot V5, qui utilise SQLite de `node:sqlite` pour conserver PND sur disque.
 
 ## Installation et compilation
 
 ```bash
 cp .env.example .env
-npm install
+npm ci
 npm run build
 ```
 
 Le build génère un serveur Nitro autonome pour Node dans `.output/server/index.mjs`. Pour installer le bot localement :
 
 ```bash
-npm --prefix bot install
+npm --prefix bot ci
 cp bot/.env.example bot/.env
 npm --prefix bot start
 ```
@@ -34,11 +40,11 @@ Le bot a besoin de son jeton Discord, de l’URL HTTPS du dashboard et du même 
 
 ## Déploiement Oracle
 
-Consulte [`deploy/oracle/README.md`](deploy/oracle/README.md) pour PM2, Nginx, les migrations Supabase et les sauvegardes. Applique les migrations avant d’activer les interactions slash.
+Consulte [`deploy/oracle/README.md`](deploy/oracle/README.md) pour PM2, Nginx, les migrations Supabase et les sauvegardes. Le script `scripts/deploy-pnd-v5-oracle.sh` exécute les contrôles, sauvegarde les fichiers privés, installe les lockfiles, lance les tests et le build avant d’activer les processus PM2 V5. Applique les migrations avant d’activer les interactions slash.
 
 Ne remplace pas `.env`, `bot/.env` ni `bot/data/` lors d’une mise à jour. `bot/data/economy.sqlite` contient les soldes PND et doit être sauvegardé.
 
-## Fonctionnalités V4
+## Fonctionnalités héritées de la V4
 
 - **Commandes slash** pour l’économie, DOG, le vocal, la musique, la radio et SYS+, avec les mêmes règles et les mêmes données que les commandes préfixées.
 - **Transition douce** : les anciennes commandes `=` restent disponibles pendant la migration.

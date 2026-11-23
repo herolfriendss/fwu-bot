@@ -7,8 +7,11 @@ import {
   ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder, PermissionFlagsBits,
 } from "discord.js";
 import { db, transaction } from "./database.js";
+import { brandEmbed } from "./theme.js";
 import { parseDuration } from "./moderation-policy.js";
 import { grantPnd, pndBalance } from "./economy.js";
+import { assertCasinoCanStart } from "./casino.js";
+import { listDraws, recordDraw, verifyGiveaway } from "./giveaway-draw.js";
 import {
   COINFLIP_MAX_BET, COINFLIP_MIN_BET, GIVEAWAY_MAX_WINNERS, TRIVIA_REWARD,
   checkTriviaAnswer, clampInt, coinflipPlan, drawGiveawayWinners, parseEventDate,
@@ -28,19 +31,19 @@ function canManageGuild(guild, member) {
 }
 
 function diceEmbed(result) {
-  return new EmbedBuilder()
-    .setColor(0x5865f2)
+  return brandEmbed(new EmbedBuilder()
+    .setColor(0x6d28d9)
     .setTitle("🎲 Lancer de dés")
     .setDescription(result.values.map((value) => `**${value}**`).join(" · "))
     .addFields(
       { name: "Dés", value: String(result.values.length), inline: true },
       { name: "Faces", value: String(result.faces), inline: true },
       { name: "Total", value: String(result.total), inline: true },
-    );
+    ));
 }
 
 function giveawayEmbed(row, entryCount = 0) {
-  return new EmbedBuilder()
+  return brandEmbed(new EmbedBuilder()
     .setColor(0xf59e0b)
     .setTitle("🎉 Giveaway")
     .setDescription(`**${row.prize}**\n\nClique sur **Participer** pour tenter ta chance !`)
@@ -51,7 +54,7 @@ function giveawayEmbed(row, entryCount = 0) {
       { name: "Hôte", value: mention(row.host_id), inline: true },
     )
     .setFooter({ text: `Giveaway ${row.giveaway_id}` })
-    .setTimestamp(new Date());
+    .setTimestamp(new Date()));
 }
 
 function giveawayButton(giveawayId) {
@@ -87,11 +90,29 @@ function closeGiveaway(giveawayId, guildId) {
   return transaction(() => {
     const row = db.prepare("SELECT * FROM giveaways WHERE giveaway_id=? AND guild_id=?").get(giveawayId, guildId);
     if (!row || row.status !== "open") return null;
-    const entries = db.prepare("SELECT user_id FROM giveaway_entries WHERE giveaway_id=?").all(giveawayId);
-    const winners = drawGiveawayWinners(entries, Number(row.winner_count), random);
+    // Verifiable draw: seed, participant fingerprint and winners are persisted.
+    const { winners } = recordDraw({ giveawayId, guildId, count: Number(row.winner_count) });
     db.prepare("UPDATE giveaways SET status='finished' WHERE giveaway_id=? AND status='open'").run(giveawayId);
     return { row, winners };
   });
+}
+
+function rerollGiveaway(giveawayId, guildId, actorId, count = 1) {
+  return transaction(() => {
+    const row = db.prepare("SELECT * FROM giveaways WHERE giveaway_id=? AND guild_id=?").get(giveawayId, guildId);
+    if (!row) throw new Error("Giveaway introuvable sur ce serveur.");
+    if (row.status !== "finished") throw new Error("Un nouveau tirage n'est possible qu'après la fin du giveaway.");
+    const draw = recordDraw({ giveawayId, guildId, count: Math.max(1, Math.min(10, Number(count) || 1)), kind: "reroll", actorId });
+    return { row, ...draw };
+  });
+}
+
+function formatVerification(giveawayId, guildId) {
+  const row = db.prepare("SELECT * FROM giveaways WHERE giveaway_id=? AND guild_id=?").get(giveawayId, guildId);
+  if (!row) throw new Error("Giveaway introuvable sur ce serveur.");
+  const results = verifyGiveaway(giveawayId, guildId, Number(row.winner_count));
+  if (!results.length) return `ℹ️ Aucun tirage enregistré pour \`${giveawayId}\` (giveaway en cours ou antérieur à la vérification).`;
+  return [`🔎 **Vérification du giveaway \`${giveawayId}\`**`, ...results.map((r) => `${r.participantsMatch && r.winnersMatch ? "✅" : "❌"} ${r.kind === "draw" ? "Tirage" : "Nouveau tirage"} du <t:${Math.floor(r.drawnAt / 1000)}:f> · ${r.participantsCount} participant(s) · gagnant(s) : ${r.winners.map(mention).join(", ") || "aucun"}\n   graine \`${r.seed}\` · empreinte participants \`${r.participantsHash.slice(0, 16)}…\`${r.participantsMatch ? "" : " · ⚠️ la liste des participants a changé"}${r.winnersMatch ? "" : " · ⚠️ résultat non reproductible"}`), "Le tirage est rejouable : HMAC-SHA256(graine, compteur) sur les participants triés par identifiant."].join("\n");
 }
 
 async function announceGiveaway({ channel, row, winners }) {
@@ -103,11 +124,11 @@ async function announceGiveaway({ channel, row, winners }) {
     const message = row.message_id ? await channel.messages.fetch(row.message_id).catch(() => null) : null;
     if (message) {
       await message.edit({
-        embeds: [new EmbedBuilder()
+        embeds: [brandEmbed(new EmbedBuilder()
           .setColor(0x6b7280)
           .setTitle("🎉 Giveaway terminé")
           .setDescription(`**${row.prize}**\n\n${winners.length ? `Gagnant(s) : ${winners.map(mention).join(", ")}` : "Aucun participant."}`)
-          .setTimestamp(new Date())],
+          .setTimestamp(new Date()))],
         components: [],
       }).catch(() => {});
     }
@@ -150,8 +171,9 @@ async function announceDueEvents(client, record = () => {}) {
   }
 }
 
-export function startGamesScheduler(client, record = () => {}) {
+export function startGamesScheduler(client, record = () => {}, shouldRun = () => true) {
   const timer = setInterval(() => {
+    if (!shouldRun()) return;
     void finishDueGiveaways(client, record);
     void announceDueEvents(client, record);
   }, 30_000);
@@ -164,11 +186,11 @@ async function publishTrivia({ guildId, send, record = () => {} }) {
   const id = randomUUID().slice(0, 8);
   const session = { guildId, answer: question.answer, expiresAt: Date.now() + 60_000, solved: false };
   triviaSessions.set(id, session);
-  const embed = new EmbedBuilder()
+  const embed = brandEmbed(new EmbedBuilder()
     .setColor(0x8b5cf6)
     .setTitle("🧠 Trivia")
     .setDescription(`**${question.question}**\n\nRéponds avec un bouton. Première bonne réponse : **${format(TRIVIA_REWARD)}**.`)
-    .setFooter({ text: "Tu as 60 secondes." });
+    .setFooter({ text: "Tu as 60 secondes." }));
   const row = new ActionRowBuilder().addComponents(
     ...question.choices.map((choice, index) => new ButtonBuilder()
       .setCustomId(`trivia:${id}:${index}`)
@@ -214,10 +236,10 @@ async function handleTriviaButton(interaction, record = () => {}) {
   }
   const answer = ["A", "B", "C", "D"][session.answer] ?? String(session.answer);
   await interaction.message.edit({
-    embeds: [new EmbedBuilder()
+    embeds: [brandEmbed(new EmbedBuilder()
       .setColor(0x22c55e)
       .setTitle("🧠 Trivia résolue")
-      .setDescription(`Bonne réponse : **${answer}**.\n${mention(interaction.user.id)} remporte **${format(TRIVIA_REWARD)}**.`)],
+      .setDescription(`Bonne réponse : **${answer}**.\n${mention(interaction.user.id)} remporte **${format(TRIVIA_REWARD)}**.`))],
     components: [],
   }).catch(() => {});
   await interaction.reply({ content: `✅ Bonne réponse ! +${format(TRIVIA_REWARD)}.`, ephemeral: true });
@@ -264,19 +286,23 @@ export async function handleGamesInteraction(interaction, guildSettings = {}, re
       const choice = interaction.options.getString("face") ?? "pile";
       const wallet = pndBalance(guild.id, interaction.user.id);
       if (wallet.balance < bet) throw new Error(`Solde insuffisant : tu as ${format(wallet.balance)}.`);
-      const plan = coinflipPlan({ bet, choice, random: random() });
+      const plan = coinflipPlan({ bet, choice, random });
       if (!plan.allowed) throw new Error(plan.reason);
-      grantPnd(guild.id, interaction.user.id, -plan.bet, "coinflip_bet");
-      if (plan.won) grantPnd(guild.id, interaction.user.id, plan.payout, "coinflip_win");
+      transaction(() => {
+        // Coinflip is a wager: self-exclusion and the daily limit apply like any casino game.
+        assertCasinoCanStart({ guildId: guild.id, userId: interaction.user.id, bet: plan.bet });
+        grantPnd(guild.id, interaction.user.id, -plan.bet, "coinflip_bet");
+        if (plan.won) grantPnd(guild.id, interaction.user.id, plan.payout, "coinflip_win");
+      });
       await interaction.reply({
-        embeds: [new EmbedBuilder()
+        embeds: [brandEmbed(new EmbedBuilder()
           .setColor(plan.won ? 0x22c55e : 0xef4444)
           .setTitle(plan.won ? "🪙 Pile ou face — gagné !" : "🪙 Pile ou face — perdu")
           .setDescription(`Résultat : **${plan.result}** · Ton choix : **${plan.choice}**`)
           .addFields(
             { name: "Mise", value: format(plan.bet), inline: true },
             { name: plan.won ? "Gain" : "Perte", value: format(plan.won ? plan.payout : plan.bet), inline: true },
-          )],
+          ))],
         allowedMentions: { parse: [] },
       });
       return true;
@@ -311,6 +337,20 @@ export async function handleGamesInteraction(interaction, guildSettings = {}, re
         record("giveaway_created");
         return true;
       }
+      if (subcommand === "reroll") {
+        const giveawayId = interaction.options.getString("id", true).trim();
+        const row = db.prepare("SELECT * FROM giveaways WHERE giveaway_id=? AND guild_id=?").get(giveawayId, guild.id);
+        if (!row) throw new Error("Giveaway introuvable sur ce serveur.");
+        if (row.host_id !== interaction.user.id && !canManageGuild(guild, member)) throw new Error("Seul l’hôte ou le staff peut relancer un tirage.");
+        const draw = rerollGiveaway(giveawayId, guild.id, interaction.user.id, interaction.options.getInteger("gagnants") ?? 1);
+        await interaction.reply({ content: draw.winners.length ? `🎲 Nouveau tirage pour **${row.prize}** : ${draw.winners.map(mention).join(", ")} ! (anciens gagnants exclus, tirage vérifiable)` : "😢 Plus aucun participant éligible pour un nouveau tirage.", allowedMentions: { parse: ["users"] } });
+        record("giveaway_rerolled");
+        return true;
+      }
+      if (subcommand === "verifier") {
+        await interaction.reply({ content: formatVerification(interaction.options.getString("id", true).trim(), guild.id), ephemeral: true, allowedMentions: { parse: [] } });
+        return true;
+      }
       if (subcommand === "end") {
         const giveawayId = interaction.options.getString("id", true).trim();
         const row = db.prepare("SELECT * FROM giveaways WHERE giveaway_id=? AND guild_id=?").get(giveawayId, guild.id);
@@ -326,7 +366,7 @@ export async function handleGamesInteraction(interaction, guildSettings = {}, re
       const rows = db.prepare("SELECT * FROM giveaways WHERE guild_id=? ORDER BY created_at DESC LIMIT 10").all(guild.id);
       const lines = rows.map((row) => `• \`${row.giveaway_id}\` — **${row.prize}** · ${row.status} · fin <t:${Math.floor(Number(row.ends_at) / 1000)}:R>`);
       await interaction.reply({
-        embeds: [new EmbedBuilder().setColor(0xf59e0b).setTitle("🎉 Giveaways du serveur").setDescription(lines.length ? lines.join("\n") : "Aucun giveaway.")],
+        embeds: [brandEmbed(new EmbedBuilder().setTitle("🎉 Giveaways du serveur").setDescription(lines.length ? lines.join("\n") : "Aucun giveaway."))],
         ephemeral: true,
         allowedMentions: { parse: [] },
       });
@@ -345,14 +385,14 @@ export async function handleGamesInteraction(interaction, guildSettings = {}, re
           .run(guild.id, title, description, startsAt, interaction.user.id, interaction.channelId, Date.now());
         record("event_created");
         await interaction.reply({
-          embeds: [new EmbedBuilder()
-            .setColor(0x3b82f6)
+          embeds: [brandEmbed(new EmbedBuilder()
+            .setColor(0x7c3aed)
             .setTitle("📅 Événement créé")
             .setDescription(`**${title}**\n${description || "_Sans description._"}`)
             .addFields(
               { name: "Début", value: `<t:${Math.floor(startsAt / 1000)}:F>`, inline: true },
               { name: "Organisateur", value: mention(interaction.user.id), inline: true },
-            )],
+            ))],
           allowedMentions: { parse: [] },
         });
         return true;
@@ -369,7 +409,7 @@ export async function handleGamesInteraction(interaction, guildSettings = {}, re
       const rows = db.prepare("SELECT * FROM events WHERE guild_id=? AND starts_at>? ORDER BY starts_at ASC LIMIT 10").all(guild.id, Date.now() - 3_600_000);
       const lines = rows.map((row) => `• \`#${row.id}\` **${row.title}** — <t:${Math.floor(Number(row.starts_at) / 1000)}:F>`);
       await interaction.reply({
-        embeds: [new EmbedBuilder().setColor(0x3b82f6).setTitle("📅 Prochains événements").setDescription(lines.length ? lines.join("\n") : "Aucun événement prévu.")],
+        embeds: [brandEmbed(new EmbedBuilder().setTitle("📅 Prochains événements").setDescription(lines.length ? lines.join("\n") : "Aucun événement prévu."))],
         allowedMentions: { parse: [] },
       });
       return true;
@@ -396,12 +436,16 @@ export async function handleGamesMessage(message, record = () => {}) {
       const result = rollDice(Number(parts[1]) || 6, Number(parts[2]) || 1, random);
       await message.reply({ embeds: [diceEmbed(result)], allowedMentions: { parse: [] } });
     } else if (command === "=coinflip") {
-      const plan = coinflipPlan({ bet: Number(parts[1]) || 0, choice: (parts[2] ?? "pile").toLowerCase(), random: random() });
+      const plan = coinflipPlan({ bet: Number(parts[1]) || 0, choice: (parts[2] ?? "pile").toLowerCase(), random });
       if (!plan.allowed) throw new Error(plan.reason);
       const wallet = pndBalance(gid, uid);
       if (wallet.balance < plan.bet) throw new Error(`Solde insuffisant : tu as ${format(wallet.balance)}.`);
-      grantPnd(gid, uid, -plan.bet, "coinflip_bet");
-      if (plan.won) grantPnd(gid, uid, plan.payout, "coinflip_win");
+      transaction(() => {
+        // Coinflip is a wager: self-exclusion and the daily limit apply like any casino game.
+        assertCasinoCanStart({ guildId: gid, userId: uid, bet: plan.bet });
+        grantPnd(gid, uid, -plan.bet, "coinflip_bet");
+        if (plan.won) grantPnd(gid, uid, plan.payout, "coinflip_win");
+      });
       await message.reply({
         content: `🪙 **${plan.result}** — ${plan.won ? `gagné **${format(plan.payout)}** !` : `perdu **${format(plan.bet)}**.`}`,
         allowedMentions: { parse: [] },
@@ -429,11 +473,21 @@ export async function handleGamesMessage(message, record = () => {}) {
         if (!closed) throw new Error("Ce giveaway est déjà terminé.");
         await announceGiveaway({ channel: message.channel, row: closed.row, winners: closed.winners });
         record("giveaway_finished");
+      } else if (action === "reroll" || action === "retirage") {
+        const giveawayId = String(parts[2] ?? "").toLowerCase();
+        const row = db.prepare("SELECT * FROM giveaways WHERE giveaway_id=? AND guild_id=?").get(giveawayId, gid);
+        if (!row) throw new Error("Giveaway introuvable sur ce serveur.");
+        if (row.host_id !== uid && !canManageGuild(message.guild, message.member)) throw new Error("Seul l’hôte ou le staff peut relancer un tirage.");
+        const draw = rerollGiveaway(giveawayId, gid, uid, Number(parts[3]) || 1);
+        await message.reply({ content: draw.winners.length ? `🎲 Nouveau tirage pour **${row.prize}** : ${draw.winners.map(mention).join(", ")} ! (anciens gagnants exclus, tirage vérifiable)` : "😢 Plus aucun participant éligible pour un nouveau tirage.", allowedMentions: { parse: ["users"] } });
+        record("giveaway_rerolled");
+      } else if (action === "verifier" || action === "vérifier" || action === "verify") {
+        await message.reply({ content: formatVerification(String(parts[2] ?? "").toLowerCase(), gid), allowedMentions: { parse: [] } });
       } else {
         const rows = db.prepare("SELECT * FROM giveaways WHERE guild_id=? ORDER BY created_at DESC LIMIT 10").all(gid);
         const lines = rows.map((row) => `• \`${row.giveaway_id}\` — **${row.prize}** · ${row.status} · fin <t:${Math.floor(Number(row.ends_at) / 1000)}:R>`);
         await message.reply({
-          embeds: [new EmbedBuilder().setColor(0xf59e0b).setTitle("🎉 Giveaways du serveur").setDescription(lines.length ? lines.join("\n") : "Aucun giveaway.")],
+          embeds: [brandEmbed(new EmbedBuilder().setTitle("🎉 Giveaways du serveur").setDescription(lines.length ? lines.join("\n") : "Aucun giveaway."))],
           allowedMentions: { parse: [] },
         });
       }
@@ -460,7 +514,7 @@ export async function handleGamesMessage(message, record = () => {}) {
         const rows = db.prepare("SELECT * FROM events WHERE guild_id=? AND starts_at>? ORDER BY starts_at ASC LIMIT 10").all(gid, Date.now() - 3_600_000);
         const lines = rows.map((row) => `• \`#${row.id}\` **${row.title}** — <t:${Math.floor(Number(row.starts_at) / 1000)}:F>`);
         await message.reply({
-          embeds: [new EmbedBuilder().setColor(0x3b82f6).setTitle("📅 Prochains événements").setDescription(lines.length ? lines.join("\n") : "Aucun événement prévu.")],
+          embeds: [brandEmbed(new EmbedBuilder().setTitle("📅 Prochains événements").setDescription(lines.length ? lines.join("\n") : "Aucun événement prévu."))],
           allowedMentions: { parse: [] },
         });
       }

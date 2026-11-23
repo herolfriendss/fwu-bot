@@ -36,3 +36,42 @@ export function repBadge(count) {
   if (value >= 5) return "✨ Apprécié";
   return "🌱 Nouveau";
 }
+
+const DAY = 86_400_000;
+const envNumber = (name, fallback) => (Number(process.env[name]) > 0 ? Number(process.env[name]) : fallback);
+export const REP_LIMITS = Object.freeze({
+  dailyGiven: envNumber("PND_REP_DAILY_LIMIT", 5),
+  minAccountDays: envNumber("PND_REP_MIN_ACCOUNT_DAYS", 7),
+  minMemberDays: envNumber("PND_REP_MIN_MEMBER_DAYS", 3),
+});
+
+/** Anti-farming for reputation: giver age and a daily cap across all targets. */
+export function evaluateRepGiver({ accountCreatedAt, joinedAt, givenLast24h = 0, now = Date.now(), limits = REP_LIMITS }) {
+  if (!Number.isFinite(accountCreatedAt) || now - accountCreatedAt < limits.minAccountDays * DAY) {
+    return { allowed: false, reason: `Ton compte Discord doit avoir au moins ${limits.minAccountDays} jours pour donner de la réputation.` };
+  }
+  if (!Number.isFinite(joinedAt) || now - joinedAt < limits.minMemberDays * DAY) {
+    return { allowed: false, reason: `Il faut être membre depuis au moins ${limits.minMemberDays} jours pour donner de la réputation.` };
+  }
+  if (givenLast24h >= limits.dailyGiven) return { allowed: false, reason: `Tu as déjà donné ${limits.dailyGiven} points de réputation en 24 h.` };
+  return { allowed: true, reason: null };
+}
+
+/**
+ * Badges are computed from existing data on every display (no stored table
+ * that could drift). All inputs are guild-scoped.
+ */
+export function computeBadges({ rep = 0, joinedAt = null, totalPnd = 0, cards = 0, givenTotal = 0, now = Date.now() }) {
+  const badges = [repBadge(rep)];
+  if (Number.isFinite(joinedAt)) {
+    const years = (now - joinedAt) / (365 * DAY);
+    if (years >= 2) badges.push("🏛️ Pilier (2 ans)");
+    else if (years >= 1) badges.push("🎂 Ancien (1 an)");
+  }
+  if (totalPnd >= 1_000_000) badges.push("💎 Millionnaire PND");
+  else if (totalPnd >= 100_000) badges.push("💰 Fortuné");
+  if (cards >= 100) badges.push("🃏 Grand collectionneur");
+  else if (cards >= 25) badges.push("🎴 Collectionneur");
+  if (givenTotal >= 50) badges.push("🤝 Bienveillant");
+  return badges;
+}

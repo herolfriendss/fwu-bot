@@ -29,7 +29,15 @@ export const saveVoiceAdmin = createServerFn({ method: "POST" })
     const { readBotSettings } = await import("./bot-settings.server");
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const settings = await readBotSettings(data.guildId);
-    const { error } = await supabaseAdmin.from("bot_settings").upsert({ guild_id: data.guildId, settings: { ...settings, voiceAccess: data.access } as never, updated_at: new Date().toISOString() });
+    // This screen only manages panel/pv role restrictions. The request-channel
+    // setting is owned elsewhere, so keep its stored value instead of letting the
+    // schema default (null) erase it on every role save.
+    const voiceAccess = {
+      panelRoleIds: data.access.panelRoleIds,
+      pvRoleIds: data.access.pvRoleIds,
+      requestChannelId: settings.voiceAccess?.requestChannelId ?? null,
+    };
+    const { error } = await supabaseAdmin.from("bot_settings").upsert({ guild_id: data.guildId, settings: { ...settings, voiceAccess } as never, updated_at: new Date().toISOString() });
     if (error) throw new Error("Impossible d’enregistrer les accès vocaux.");
     return { access: data.access };
   });

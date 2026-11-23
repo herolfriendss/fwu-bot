@@ -51,11 +51,15 @@ describe("GuildGuard policy", () => {
       .toEqual({ action: "log", reason: "young_account" });
   });
 
-  it("prioritises lockdown and raid mode over account age", () => {
+  it("lockdown overrides account age and raid only sanctions young accounts", () => {
     const lockdown = evaluateJoin({ createdAt: daysAgo(30), now: NOW, guard: { ...baseGuard, lockdown: true } });
     expect(lockdown).toEqual({ action: "kick", reason: "lockdown" });
-    const raid = evaluateJoin({ createdAt: daysAgo(30), now: NOW, guard: baseGuard, raidMode: true });
-    expect(raid).toEqual({ action: "kick", reason: "raid" });
+    // Raid sanctions only target accounts that also fail the age threshold, so a
+    // raid burst cannot kick established members (see commit 99422b3).
+    const establishedDuringRaid = evaluateJoin({ createdAt: daysAgo(30), now: NOW, guard: baseGuard, raidMode: true });
+    expect(establishedDuringRaid).toEqual({ action: "allow", reason: null });
+    const youngDuringRaid = evaluateJoin({ createdAt: daysAgo(1), now: NOW, guard: baseGuard, raidMode: true });
+    expect(youngDuringRaid).toEqual({ action: "kick", reason: "raid" });
   });
 });
 

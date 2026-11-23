@@ -26,7 +26,7 @@ describe("owner-only voice admin", () => {
   it("saves guild-specific access without losing custom commands", async () => {
     const access = { panelRoleIds: ["11111"], pvRoleIds: [] };
     await saveVoiceAdmin({ data: { guildId: "99999", access } });
-    expect(mocks.upsert).toHaveBeenCalledWith(expect.objectContaining({ guild_id: "99999", settings: expect.objectContaining({ voiceAccess: access, prefixCommands: [{ name: "regles", response: "R", permission: "0" }] }) }));
+    expect(mocks.upsert).toHaveBeenCalledWith(expect.objectContaining({ guild_id: "99999", settings: expect.objectContaining({ voiceAccess: { ...access, requestChannelId: null }, prefixCommands: [{ name: "regles", response: "R", permission: "0" }] }) }));
   });
   it("rejects roles from another guild and everyone", async () => {
     await expect(saveVoiceAdmin({ data: { guildId: "99999", access: { panelRoleIds: ["22222"], pvRoleIds: [] } } })).rejects.toThrow("rôle");

@@ -1,9 +1,10 @@
 // Her? V4 — automatisation : rôles automatiques, MP de bienvenue et messages planifiés.
 import { EmbedBuilder, PermissionFlagsBits } from "discord.js";
 import { db } from "./database.js";
+import { herBotAvatar, themePanelEmbed } from "./theme.js";
 import { updateModuleSettings } from "./module-settings.js";
 import {
-  clampInterval, isDue, nextRunAt, renderAutomation, sanitizeAutomationContent,
+  autoRolePlan, clampInterval, isDue, nextRunAt, renderAutomation, sanitizeAutomationContent,
 } from "./automation-policy.js";
 
 const P = PermissionFlagsBits;
@@ -21,18 +22,24 @@ export async function handleAutomationJoin(member, settings, record = () => {}) 
   if (Array.isArray(automation.autoRoleIds) && automation.autoRoleIds.length) {
     const bot = member.guild.members.me ?? await member.guild.members.fetchMe().catch(() => null);
     const botPosition = bot?.roles?.highest?.position ?? 0;
-    const rolePositions = {};
-    for (const roleId of automation.autoRoleIds) {
-      const role = await member.guild.roles.fetch(roleId).catch(() => null);
-      if (role && !role.managed) rolePositions[roleId] = role.position;
-      if (role && !role.managed && role.position < botPosition) {
-        try {
-          await member.roles.add(role, "Rôle automatique Her? V4");
-          touched = true;
-          record("automation_autorole_applied");
-        } catch {
-          record("automation_error");
-        }
+    const fetched = await Promise.all(
+      automation.autoRoleIds.map((roleId) => member.guild.roles.fetch(roleId).catch(() => null)),
+    );
+    const rolePositions = Object.fromEntries(
+      fetched.filter((role) => role && !role.managed).map((role) => [role.id, role.position]),
+    );
+    const plan = autoRolePlan(automation.autoRoleIds, {
+      botPosition,
+      rolePositions,
+      memberRoleIds: [...member.roles.cache.keys()],
+    });
+    for (const roleId of plan.applicable) {
+      try {
+        await member.roles.add(roleId, "Rôle automatique FWU");
+        touched = true;
+        record("automation_autorole_applied");
+      } catch {
+        record("automation_error");
       }
     }
   }
@@ -77,19 +84,19 @@ export function runAutomationTick(client, record = () => {}) {
   return due.length;
 }
 
-export function startAutomationScheduler(client, record = () => {}) {
-  const timer = setInterval(() => { runAutomationTick(client, record); }, 60_000);
+export function startAutomationScheduler(client, record = () => {}, shouldRun = () => true) {
+  const timer = setInterval(() => {
+    if (!shouldRun()) return; runAutomationTick(client, record); }, 60_000);
   timer.unref?.();
   return timer;
 }
 
-function scheduleEmbed(guildId) {
-  const rows = db.prepare("SELECT * FROM automation_messages WHERE guild_id=? ORDER BY id ASC LIMIT 20").all(guildId);
+function scheduleEmbed(guild) {
+  const rows = db.prepare("SELECT * FROM automation_messages WHERE guild_id=? ORDER BY id ASC LIMIT 20").all(guild.id);
   const lines = rows.map((row) => `• \`#${row.id}\` <#${row.channel_id}> — toutes les **${row.interval_minutes} min** · ${row.enabled ? "actif" : "désactivé"} · prochain <t:${Math.floor(Number(row.next_run_at) / 1000)}:R>`);
-  return new EmbedBuilder()
-    .setColor(0x0ea5e9)
-    .setTitle("🤖 Messages planifiés")
-    .setDescription(lines.length ? lines.join("\n") : "Aucun message planifié sur ce serveur.");
+  return themePanelEmbed(new EmbedBuilder()
+    .setTitle("🌙 Messages planifiés")
+    .setDescription(lines.length ? lines.join("\n") : "Aucun message planifié sur ce serveur."), { thumbnailUrl: herBotAvatar(guild) });
 }
 
 export async function handleAutomationInteraction(interaction, guildSettings = {}, { apiUrl, secret, record = () => {} } = {}) {
@@ -112,15 +119,14 @@ export async function handleAutomationInteraction(interaction, guildSettings = {
     if (subcommand === "status") {
       const schedules = db.prepare("SELECT COUNT(*) AS count FROM automation_messages WHERE guild_id=? AND enabled=1").get(guild.id).count;
       await interaction.reply({
-        embeds: [new EmbedBuilder()
-          .setColor(0x0ea5e9)
-          .setTitle("🤖 Automatisation")
+        embeds: [themePanelEmbed(new EmbedBuilder()
+          .setTitle("🌙 Automatisation")
           .addFields(
             { name: "Rôles automatiques", value: automation.autoRoleIds.length ? automation.autoRoleIds.map((id) => `<@&${id}>`).join(", ") : "Aucun", inline: false },
             { name: "MP de bienvenue", value: automation.welcomeDm ? "Activé" : "Désactivé", inline: true },
             { name: "Messages planifiés actifs", value: String(schedules), inline: true },
             { name: "Serveur", value: `${guild.name} (${guild.id})`, inline: false },
-          )],
+          ))],
         ephemeral: true,
         allowedMentions: { parse: [] },
       });
@@ -193,7 +199,7 @@ export async function handleAutomationInteraction(interaction, guildSettings = {
     }
 
     if (subcommand === "schedule-list") {
-      await interaction.reply({ embeds: [scheduleEmbed(guild.id)], ephemeral: true });
+      await interaction.reply({ embeds: [scheduleEmbed(guild)], ephemeral: true });
       return true;
     }
   } catch (error) {
@@ -236,7 +242,7 @@ export async function handleAutomationMessage(message, guildSettings = {}, { api
         record("automation_schedule_removed");
         await message.reply({ content: `🗑️ Message planifié \`#${id}\` supprimé.`, allowedMentions: { parse: [] } });
       } else {
-        await message.reply({ embeds: [scheduleEmbed(gid)], allowedMentions: { parse: [] } });
+        await message.reply({ embeds: [scheduleEmbed(message.guild)], allowedMentions: { parse: [] } });
       }
       return true;
     }
@@ -278,7 +284,7 @@ export async function handleAutomationMessage(message, guildSettings = {}, { api
     const schedules = db.prepare("SELECT COUNT(*) AS count FROM automation_messages WHERE guild_id=? AND enabled=1").get(gid).count;
     await message.reply({
       embeds: [new EmbedBuilder()
-        .setColor(0x0ea5e9)
+        .setColor(0x6d28d9)
         .setTitle("🤖 Automatisation")
         .setDescription(`Messages planifiés actifs : **${schedules}**\nRôles automatiques : ${automation.autoRoleIds.length ? automation.autoRoleIds.map((id) => `<@&${id}>`).join(", ") : "aucun"}\nMP de bienvenue : **${automation.welcomeDm ? "activé" : "désactivé"}**`)],
       allowedMentions: { parse: [] },

@@ -1,0 +1,36 @@
+PND ASSIST V5 — ETAT DU DEPOT
+
+BRANCHE
+fix/pnd-reaction-verification
+
+STATUS
+## fix/pnd-reaction-verification
+
+DERNIERS COMMITS
+6d804df | 2026-11-16 | herolfriendss | feat(pnd): add temporary reaction verification gate
+1df7c3c | 2026-11-15 | herolfriendss | DOG: afficher la limite par défaut dans setup
+ea651fe | 2026-11-15 | herolfriendss | DOG: quota de laisses configurable par serveur via setup
+cb29de7 | 2026-11-15 | herolfriendss | docs: record PND development checkpoint
+647572a | 2026-11-14 | herolfriendss | chore(distribution): include new runtime tests
+bc62757 | 2026-11-14 | herolfriendss | test(economy): verify slash adjustments are owner only
+b93efd0 | 2026-11-14 | herolfriendss | fix(sysplus): show active controls in panel
+37a68ed | 2026-11-14 | herolfriendss | feat(dog): add guild-scoped leash listing
+602c87c | 2026-11-14 | herolfriendss | fix(dog): preserve whitelist settings in slash route
+4cc2a2a | 2026-11-14 | herolfriendss | feat(security): add configurable mention flood protection
+99422b3 | 2026-11-14 | herolfriendss | fix(security): keep raid spikes from kicking established users
+312afa4 | 2026-11-14 | herolfriendss | fix(security): honor guild whitelist in anti-spam
+43b1aec | 2026-11-14 | herolfriendss | feat(moderation): add guild-scoped sanction appeals
+3440b77 | 2026-11-14 | herolfriendss | fix(moderation): preserve valid case audit details
+896b0d8 | 2026-11-14 | herolfriendss | fix(permissions): harden SYS+ audit and scope isolation
+3f2f22d | 2026-11-14 | herolfriendss | fix(logs): restrict hub categories by role scope
+39ce266 | 2026-11-14 | herolfriendss | feat(economy): add escrowed PND auctions
+da204f8 | 2026-11-14 | herolfriendss | feat(economy): add PND role marketplace
+d811623 | 2026-11-14 | herolfriendss | feat(economy): add guild-scoped PND contracts
+a3ffc15 | 2026-11-14 | herolfriendss | feat(moderation): add guild-scoped case history
+c65b56f | 2026-11-14 | herolfriendss | fix(security): verify GuildGuard quarantine results
+4ae6c1c | 2026-11-14 | herolfriendss | test(dog): verify persistence and recovery in isolated runtime
+3cbd23b | 2026-11-14 | herolfriendss | style: preserve DOG command formatting
+ba4afcd | 2026-11-14 | herolfriendss | fix(dog): record actual whitelist quota exceptions
+9e9289e | 2026-11-14 | herolfriendss | style: keep bot entrypoint formatting unchanged
+
+DIFF STAT

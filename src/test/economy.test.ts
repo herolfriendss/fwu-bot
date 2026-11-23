@@ -31,6 +31,10 @@ describe("economy snapshot", () => {
     expect(economySnapshotSchema.safeParse({ ...snapshot, secret: "nope" }).success).toBe(false);
     expect(economySnapshotSchema.safeParse({ ...snapshot, guildId: "abc" }).success).toBe(false);
     expect(economySnapshotSchema.safeParse({ ...snapshot, totalBalance: -1 }).success).toBe(false);
+    expect(economySnapshotSchema.safeParse({
+      ...snapshot,
+      topWallets: [{ ...snapshot.topWallets[0], balance: 2_000_000_000_000 }],
+    }).success).toBe(true);
   });
 
   it("caps the leaderboard, shop and guild report sizes", () => {

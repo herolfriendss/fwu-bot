@@ -4,10 +4,25 @@
 // processus Oracle ne fait ensuite qu’appliquer l’action (expulsion, rôle de
 // quarantaine ou journalisation). Aucune donnée d’un serveur n’est lue par un
 // autre : les réglages et les compteurs sont indexés par identifiant de serveur.
-import { EmbedBuilder } from "discord.js";
-import { accountAgeDays, evaluateJoin, guardReason, parseGuildAllowlist, raidTriggered } from "./guild-guard-policy.js";
+import { EmbedBuilder, PermissionFlagsBits } from "discord.js";
+import { sendCentralLog } from "./logs.js";
+import {
+  accountAgeDays,
+  evaluateJoin,
+  guardReason,
+  isQuarantineRoleAssignable,
+  parseGuildAllowlist,
+  raidTriggered,
+} from "./guild-guard-policy.js";
 
-export { accountAgeDays, evaluateJoin, guardReason, parseGuildAllowlist, raidTriggered };
+export {
+  accountAgeDays,
+  evaluateJoin,
+  guardReason,
+  isQuarantineRoleAssignable,
+  parseGuildAllowlist,
+  raidTriggered,
+};
 
 const joinTracker = new Map(); // guildId -> timestamps de connexion
 const raidNotified = new Set();
@@ -15,24 +30,24 @@ const raidNotified = new Set();
 export function guardLogEmbed({ guild, member, action, reason, guard, ageDays }) {
   const colors = { allow: 0x22c55e, log: 0xf59e0b, quarantine: 0xf97316, kick: 0xef4444 };
   return new EmbedBuilder()
-    .setColor(colors[action] ?? 0x5865f2)
+    .setColor(colors[action] ?? 0x6d28d9)
     .setTitle("🛡️ GuildGuard")
     .setDescription(guardReason(reason, guard?.minAccountAgeDays ?? 0))
     .addFields(
       { name: "Membre", value: `${member.user.tag} (${member.id})`, inline: true },
       { name: "Compte", value: `${ageDays.toFixed(1)} jour(s)`, inline: true },
-      { name: "Action", value: action === "quarantine" ? "Rôle de quarantaine" : action, inline: true },
+      {
+        name: "Action",
+        value: action === "quarantine" ? "Rôle de quarantaine" : action,
+        inline: true,
+      },
       { name: "Serveur", value: `${guild.name} (${guild.id})`, inline: false },
     )
     .setTimestamp(new Date());
 }
 
 async function sendGuardLog(guild, guard, embed) {
-  const channelId = guard?.logChannelId;
-  if (!channelId) return;
-  const channel = await guild.channels.fetch(channelId).catch(() => null);
-  if (!channel?.isTextBased()) return;
-  await channel.send({ embeds: [embed], allowedMentions: { parse: [] } }).catch(() => {});
+  await sendCentralLog(guild, { logs: guard?.logs }, embed, [guard?.logChannelId]).catch(() => {});
 }
 
 /**
@@ -52,11 +67,17 @@ export async function handleGuildGuardJoin(member, guard, record = () => {}) {
   if (raidMode && !raidNotified.has(guild.id)) {
     raidNotified.add(guild.id);
     record("guild_guard_raid");
-    await sendGuardLog(guild, guard, new EmbedBuilder()
-      .setColor(0xef4444)
-      .setTitle("🚨 GuildGuard — rafale détectée")
-      .setDescription(`${recent.length} connexions en moins de ${Math.round(windowMs / 1000)} secondes. Le mode anti-raid est appliqué aux nouvelles arrivées.`)
-      .setTimestamp(new Date()));
+    await sendGuardLog(
+      guild,
+      guard,
+      new EmbedBuilder()
+        .setColor(0xef4444)
+        .setTitle("🚨 GuildGuard — rafale détectée")
+        .setDescription(
+          `${recent.length} connexions en moins de ${Math.round(windowMs / 1000)} secondes. Le mode anti-raid est appliqué aux nouvelles arrivées.`,
+        )
+        .setTimestamp(new Date()),
+    );
     const timer = setTimeout(() => raidNotified.delete(guild.id), windowMs * 2);
     timer.unref?.();
   }
@@ -64,15 +85,27 @@ export async function handleGuildGuardJoin(member, guard, record = () => {}) {
   const decision = evaluateJoin({ createdAt: member.user.createdAt, now, guard, raidMode });
   if (decision.action === "allow") return false;
   const ageDays = accountAgeDays(member.user.createdAt, now);
-  const embed = guardLogEmbed({ guild, member, action: decision.action, reason: decision.reason, guard, ageDays });
-
+  let appliedAction = "log";
   try {
     if (decision.action === "kick") {
       await member.kick(guardReason(decision.reason, guard.minAccountAgeDays).slice(0, 500));
+      appliedAction = "kick";
       record("guild_guard_kick");
     } else if (decision.action === "quarantine" && guard.quarantineRoleId) {
       const role = await guild.roles.fetch(guard.quarantineRoleId).catch(() => null);
-      if (role) await member.roles.add(role, "GuildGuard : quarantaine").catch(() => record("guild_guard_error"));
+      const bot = await guild.members.fetchMe().catch(() => null);
+      if (
+        !isQuarantineRoleAssignable(
+          role,
+          guild.id,
+          bot?.roles?.highest?.position ?? -1,
+          Boolean(bot?.permissions?.has(PermissionFlagsBits.ManageRoles)),
+        )
+      ) {
+        throw new Error("quarantine_role_unavailable");
+      }
+      await member.roles.add(role, "GuildGuard : quarantaine");
+      appliedAction = "quarantine";
       record("guild_guard_quarantine");
     } else {
       record("guild_guard_log");
@@ -80,16 +113,51 @@ export async function handleGuildGuardJoin(member, guard, record = () => {}) {
   } catch {
     record("guild_guard_error");
   }
+  const embed = guardLogEmbed({
+    guild,
+    member,
+    action: appliedAction,
+    reason: decision.reason,
+    guard,
+    ageDays,
+  });
   await sendGuardLog(guild, guard, embed);
-  return decision.action === "kick" || decision.action === "quarantine";
+  return appliedAction === "kick" || appliedAction === "quarantine";
+}
+
+/** Une guilde est autorisée si l’allowlist est vide ou la contient. */
+export function guildAllowed(guildId, allowlist) {
+  return !allowlist?.length || allowlist.includes(guildId);
 }
 
 /** Quitte immédiatement un serveur absent de l’allowlist globale (isolation). */
 export async function handleGuildCreate(guild, allowlist, record = () => {}) {
-  if (!allowlist.length || allowlist.includes(guild.id)) return false;
+  if (guildAllowed(guild.id, allowlist)) return false;
   record("guild_blocked");
   await guild.leave().catch(() => {});
   return true;
+}
+
+/**
+ * Applique l’allowlist aux serveurs déjà présents (redémarrage, allowlist
+ * ajoutée après coup) : le bot ne peut pas rester sur un troisième serveur.
+ * Les données locales ne sont pas supprimées, seul le serveur est quitté.
+ */
+export async function enforceGuildAllowlist(client, allowlist, record = () => {}) {
+  if (!allowlist?.length) return 0;
+  let left = 0;
+  for (const guild of client.guilds.cache.values()) {
+    if (guildAllowed(guild.id, allowlist)) continue;
+    record("guild_blocked");
+    try {
+      await guild.leave();
+      left++;
+    } catch {
+      record("guild_guard_error");
+    }
+  }
+  if (left) console.log(`[bot] allowlist: ${left} serveur(s) non autorisé(s) quitté(s).`);
+  return left;
 }
 
 /** Utilisé par les tests et après un redémarrage pour oublier les rafales. */

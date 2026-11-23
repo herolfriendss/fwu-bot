@@ -40,3 +40,23 @@ export function ticketDuration(createdAt, now = Date.now()) {
   if (minutes < 1440) return `${Math.floor(minutes / 60)} h`;
   return `${Math.floor(minutes / 1440)} j`;
 }
+
+/** Parse the documented prefix surface without trusting mention text as an ID. */
+export function parseTicketPrefixCommand(content, mentionedUserId = null) {
+  const parts = String(content ?? "").trim().split(/\s+/);
+  if (!/^=ticket$/i.test(parts[0] ?? "")) return null;
+  const action = (parts[1] ?? "help").toLowerCase();
+  if (!["help", "panel", "list", "close", "add", "remove", "assign", "historique", "transcript"].includes(action)) {
+    return { action: "invalid" };
+  }
+  if ((action === "add" || action === "remove" || action === "assign") && !/^\d{5,25}$/.test(String(mentionedUserId ?? ""))) {
+    return { action, error: "member_required" };
+  }
+  const ticketId = /^\d{1,12}$/.test(parts[2] ?? "") ? Number(parts[2]) : null;
+  return {
+    action,
+    ticketId,
+    memberId: mentionedUserId,
+    reason: action === "close" ? sanitizeTicketSubject(parts.slice(2).join(" "), 300) : "",
+  };
+}
