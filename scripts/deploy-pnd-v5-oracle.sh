@@ -5,19 +5,6 @@
 set -Eeuo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-# FWU multi-bots : agit seulement sur les bots spécialisés déjà déclarés dans PM2
-# (jamais de démarrage automatique d'un nouveau bot).
-fwu_bots() {
-  local action="$1" name
-  for name in fwu-guard fwu-fdpdlavoc fwu-suckme fwu-fisc; do
-    pm2 describe "$name" >/dev/null 2>&1 || continue
-    if [[ "$action" == "stop" ]]; then
-      pm2 stop "$name" >/dev/null 2>&1 || true
-    else
-      { [[ -f "$ROOT/ecosystem.fwu-bots.config.cjs" ]] && (cd "$ROOT" && pm2 startOrReload ecosystem.fwu-bots.config.cjs --only "$name" --update-env >/dev/null 2>&1); } || pm2 restart "$name" >/dev/null 2>&1 || true
-    fi
-  done
-}
 
 cd "$ROOT"
 
@@ -110,16 +97,22 @@ STAMP="$(date -u +%Y%m%dT%H%M%SZ)"
 BACKUP_DIR="$BACKUP_BASE/$STAMP"
 install -d -m 700 "$BACKUP_DIR"
 BACKUP_ITEMS=(.env bot/.env)
-[[ ! -d bot/data ]] || BACKUP_ITEMS+=(bot/data)
-# Consistent online copies of every SQLite database (VACUUM INTO), safe while the bot runs.
-if [[ -d bot/data ]]; then
+# Data folder: bot/data, or the shared FWU folder (PND_DATA_DIR in bot/.env) when several bots share it.
+DATA_DIR="bot/data"
+SHARED_DATA="$(grep -E '^PND_DATA_DIR=' bot/.env 2>/dev/null | tail -n 1 | cut -d= -f2- | tr -d '"'"'"'[:space:]' || true)"
+[[ -z "$SHARED_DATA" ]] || DATA_DIR="$SHARED_DATA"
+[[ ! -d "$DATA_DIR" ]] || BACKUP_ITEMS+=("$DATA_DIR")
+# Consistent online copies of every SQLite database (VACUUM INTO), safe while the bots run.
+if [[ -d "$DATA_DIR" ]]; then
   install -d -m 700 "$BACKUP_DIR/sqlite"
-  BACKUP_SQLITE_DIR="$BACKUP_DIR/sqlite" node --no-warnings --input-type=module <<'NODE'
+  BACKUP_SQLITE_DIR="$BACKUP_DIR/sqlite" DATA_DIR="$DATA_DIR" node --no-warnings --input-type=module <<'NODE'
 import { readdirSync } from 'node:fs';
+import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 const out = process.env.BACKUP_SQLITE_DIR;
-for (const name of readdirSync('bot/data').filter((f) => f.endsWith('.sqlite'))) {
-  const db = new DatabaseSync(`bot/data/${name}`);
+const dir = process.env.DATA_DIR;
+for (const name of readdirSync(dir).filter((f) => f.endsWith('.sqlite'))) {
+  const db = new DatabaseSync(join(dir, name));
   db.exec(`VACUUM INTO '${out}/${name.replace(/'/g, "''")}'`);
   db.close();
   console.log(`Copie cohérente SQLite : ${name}`);
@@ -179,7 +172,6 @@ for (const name of ["her-v5-web", "her-v5-bot"]) {
 console.log("Processus V5 existants compatibles avec la racine cible.");
 ' 
 pm2 startOrReload ecosystem.v5.config.cjs --update-env
-fwu_bots reload
 
 info "Contrôle des processus V5"
 for attempt in $(seq 1 20); do

@@ -1,3 +1,4 @@
+import { dataPath } from "./data-dir.js";
 import { existsSync, readFileSync, renameSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { db } from "./database.js";
@@ -8,9 +9,7 @@ import { connectState } from "./voice-permissions.js";
  * data/voice-locks.json file: writes are atomic with the rest of the bot
  * state and survive crashes between the snapshot and the overwrite edits.
  */
-const LEGACY_FILE = fileURLToPath(
-  new URL("./data/voice-locks.json", import.meta.url),
-);
+const LEGACY_FILE = dataPath("voice-locks.json");
 
 function validOverwrites(value) {
   return (

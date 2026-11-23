@@ -56,6 +56,9 @@ Voir la section « État » en bas, mise à jour à chaque étape.
 - [x] Textes d'aide « `=…` » traduits automatiquement en commandes slash (`bot/prefix-to-slash.js`), réponses et logs
 - [ ] `/afk`, `/dmall`, `/blacklist`, `/live` : apparaîtront à la mise en service de GUARD (FWU à 100/100)
 
+- [x] **5 bots séparés** (décision du 23/11, tout sur le VPS Oracle) : un dossier complet par bot (`scripts/package-fwu-bots.py` → `livraison/bots/FWU-<BOT>.zip`), avec installateur, PM2 et `.env` propres ; données partagées dans `/home/opc/fwu-data` (`PND_DATA_DIR`, `scripts/fwu-donnees-partagees.sh`) ; synchronisation `scripts/fwu-synchroniser.sh`. Testé de bout en bout (installateur, npm ci, GUARD isolé + FWU sur la même base).
+- [ ] **Toi** : suivre `DEMARRAGE_FWU.md` (mise à jour de FWU, dossier partagé, tokens des 4 bots).
+
 ## Prochaines étapes possibles
 
 1. Toi : créer les applications de **test** et suivre `MULTI_BOTS_FWU.md` sur le serveur de test.

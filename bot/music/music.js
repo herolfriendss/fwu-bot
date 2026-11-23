@@ -1,3 +1,4 @@
+import { DATA_DIR, dataPath } from "../data-dir.js";
 import {
   ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder,
   PermissionFlagsBits, ChannelType
@@ -25,7 +26,7 @@ import { brandEmbed } from "../theme.js";
 const queues = new Map();
 const commandActivity = new Map();
 const radioReconnectTimers = new Map();
-const radioConfigFile = new URL("../data/radio-config.json", import.meta.url);
+const radioConfigFile = dataPath("radio-config.json");
 let radioConfigs;
 let radioWrite = Promise.resolve();
 const MAX_TRACKS_PER_GUILD = 100;
@@ -70,8 +71,8 @@ async function loadRadioConfigs() {
 async function saveRadioConfigs() {
   const contents = JSON.stringify(radioConfigs, null, 2);
   const write = radioWrite.catch(() => {}).then(async () => {
-    await mkdir(new URL("../data/", import.meta.url), { recursive: true, mode: 0o700 });
-    const tmp = new URL("../data/radio-config.tmp", import.meta.url);
+    await mkdir(DATA_DIR, { recursive: true, mode: 0o700 });
+    const tmp = dataPath("radio-config.tmp");
     await writeFile(tmp, contents, { mode: 0o600 });
     await rename(tmp, radioConfigFile);
   });

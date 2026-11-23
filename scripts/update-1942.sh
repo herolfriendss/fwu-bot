@@ -17,19 +17,6 @@ set -Eeuo pipefail
 
 ZIP="${1:-}"
 ROOT="${PND_EXPECTED_ROOT:-/home/opc/her-v5-production}"
-# FWU multi-bots : agit seulement sur les bots spécialisés déjà déclarés dans PM2
-# (jamais de démarrage automatique d'un nouveau bot).
-fwu_bots() {
-  local action="$1" name
-  for name in fwu-guard fwu-fdpdlavoc fwu-suckme fwu-fisc; do
-    pm2 describe "$name" >/dev/null 2>&1 || continue
-    if [[ "$action" == "stop" ]]; then
-      pm2 stop "$name" >/dev/null 2>&1 || true
-    else
-      { [[ -f "$ROOT/ecosystem.fwu-bots.config.cjs" ]] && (cd "$ROOT" && pm2 startOrReload ecosystem.fwu-bots.config.cjs --only "$name" --update-env >/dev/null 2>&1); } || pm2 restart "$name" >/dev/null 2>&1 || true
-    fi
-  done
-}
 
 STAMP="$(date -u +%Y%m%dT%H%M%SZ)"
 NEW="${ROOT}.new-${STAMP}"
@@ -62,12 +49,10 @@ rollback() {
       mv "$ROOT" "${ROOT}.failed-${STAMP}" || true
       mv "$PREV" "$ROOT"
       (cd "$ROOT" && pm2 startOrReload ecosystem.v5.config.cjs --update-env >/dev/null 2>&1) || pm2 restart her-v5-bot her-v5-web || true
-      fwu_bots reload
       printf 'Version précédente restaurée dans %s. Version en échec conservée dans %s.failed-%s pour analyse.\n' "$ROOT" "$ROOT" "$STAMP" >&2
     fi
   else
     pm2 start her-v5-bot >/dev/null 2>&1 || true
-    fwu_bots reload
     rm -rf "$NEW"
     printf '\nAucune bascule effectuée : la production n'"'"'a pas changé.\n' >&2
   fi
@@ -103,7 +88,6 @@ install -m 600 "$ROOT/bot/.env" "$NEW/bot/.env"
 
 info "Arrêt bref du bot pour figer la base SQLite"
 pm2 stop her-v5-bot >/dev/null 2>&1 || true
-fwu_bots stop
 if [[ -d "$ROOT/bot/data" ]]; then
   rm -rf "$NEW/bot/data"
   cp -a "$ROOT/bot/data" "$NEW/bot/data"

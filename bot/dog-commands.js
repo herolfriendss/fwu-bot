@@ -1,3 +1,4 @@
+import { dataPath } from "./data-dir.js";
 import { readFile, writeFile, rename, mkdir } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -19,10 +20,10 @@ import {
 
 const stateFile = process.env.PND_DOG_STATE_PATH
   ? resolve(process.env.PND_DOG_STATE_PATH)
-  : fileURLToPath(new URL("./data/dog-state.json", import.meta.url));
+  : dataPath("dog-state.json");
 const stateTempFile = process.env.PND_DOG_STATE_PATH
   ? `${stateFile}.tmp`
-  : fileURLToPath(new URL("./data/dog-state.tmp", import.meta.url));
+  : dataPath("dog-state.tmp");
 let state;
 let pendingWrite = Promise.resolve();
 const enforcingMembers = new Map();

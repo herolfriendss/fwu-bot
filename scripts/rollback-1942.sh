@@ -10,19 +10,6 @@
 set -Eeuo pipefail
 PREV="${1:-}"
 ROOT="${PND_EXPECTED_ROOT:-/home/opc/her-v5-production}"
-# FWU multi-bots : agit seulement sur les bots spécialisés déjà déclarés dans PM2
-# (jamais de démarrage automatique d'un nouveau bot).
-fwu_bots() {
-  local action="$1" name
-  for name in fwu-guard fwu-fdpdlavoc fwu-suckme fwu-fisc; do
-    pm2 describe "$name" >/dev/null 2>&1 || continue
-    if [[ "$action" == "stop" ]]; then
-      pm2 stop "$name" >/dev/null 2>&1 || true
-    else
-      { [[ -f "$ROOT/ecosystem.fwu-bots.config.cjs" ]] && (cd "$ROOT" && pm2 startOrReload ecosystem.fwu-bots.config.cjs --only "$name" --update-env >/dev/null 2>&1); } || pm2 restart "$name" >/dev/null 2>&1 || true
-    fi
-  done
-}
 
 STAMP="$(date -u +%Y%m%dT%H%M%SZ)"
 [[ -n "$PREV" && -f "$PREV/bot/index.js" && -d "$PREV/node_modules" && -f "$PREV/.output/server/index.mjs" ]] \
@@ -31,11 +18,9 @@ command -v pm2 >/dev/null 2>&1 || { echo "PM2 introuvable." >&2; exit 1; }
 read -r -p "Revenir à $PREV ? La base reviendra à l'état de cette version. Taper OUI : " answer
 [[ "$answer" == "OUI" ]] || { echo "Annulé."; exit 1; }
 pm2 stop her-v5-bot >/dev/null 2>&1 || true
-fwu_bots stop
 mv "$ROOT" "${ROOT}.rolledback-${STAMP}"
 mv "$PREV" "$ROOT"
 cd "$ROOT"
 pm2 startOrReload ecosystem.v5.config.cjs --update-env
-fwu_bots reload
 pm2 save
 echo "Retour effectué. Version retirée conservée : ${ROOT}.rolledback-${STAMP}"

@@ -9,8 +9,7 @@ import { dirname, join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { fileURLToPath } from "node:url";
 
-const dataDir = fileURLToPath(new URL("./data/", import.meta.url));
-mkdirSync(dataDir, { recursive: true, mode: 0o700 });
+import { DATA_DIR as dataDir } from "./data-dir.js";
 
 // HER_DB_PATH lets integration tests use a disposable database. Production
 // keeps the documented bot/data/economy.sqlite location.
