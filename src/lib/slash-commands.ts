@@ -310,14 +310,15 @@ export const SLASH_COMMANDS: SlashCommandDef[] = [
   {
     name: "verify",
     description: "Vérifie un membre ou publie le panneau de vérification",
-    usage: "/verify moi | panel",
+    usage: "/verify moi | panel [salon] [role]",
     category: "Modération",
     dmPermission: false,
     requiresBotProcess: true,
     options: [
       sub("moi", "Te donner le rôle de vérification"),
-      sub("panel", "Publie le panneau de vérification", [
+      sub("panel", "Publie le panneau de vérification (et règle la vérification si tu choisis un rôle)", [
         opt(7, "salon", "Salon où publier le panneau", { channel_types: [0] }),
+        opt(8, "role", "Rôle « Vérifié » donné après la vérification (active le module)"),
       ]),
       sub("reaction", "Vérification par réaction : publie le message dans un salon", [
         opt(7, "salon", "Salon d’accès", { required: true, channel_types: [0] }),

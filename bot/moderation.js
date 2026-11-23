@@ -3,6 +3,7 @@
 // Les avertissements, le journal et l’éligibilité sont stockés localement dans
 // SQLite, toujours par serveur. Les permissions Discord sont revérifiées à chaque
 // commande ; aucune sanction ne peut viser un rôle supérieur au bot.
+import { updateModuleSettings } from "./module-settings.js";
 import { parsePndOwnerId } from "./pnd-owner-policy.js";
 import { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder, ModalBuilder, PermissionFlagsBits, TextInputBuilder, TextInputStyle } from "discord.js";
 import { createHash, randomInt, timingSafeEqual } from "node:crypto";
@@ -266,7 +267,7 @@ async function handleSanctionAppealReview(interaction) {
   }
 }
 
-export async function handleModerationInteraction(interaction, guildSettings = {}) {
+export async function handleModerationInteraction(interaction, guildSettings = {}, api = null) {
   if (interaction.isButton() && interaction.customId.startsWith("moderation:appeal:")) {
     await showSanctionAppealModal(interaction);
     return true;
@@ -319,8 +320,24 @@ export async function handleModerationInteraction(interaction, guildSettings = {
       }
       if (subcommand === "panel") {
         if (!actor.permissions.has(P.ManageGuild)) throw new Error("Permission Gérer le serveur requise.");
+        const chosenRole = interaction.options.getRole?.("role") ?? null;
+        if (chosenRole) {
+          // Configure verification from Discord: enable it with this role (and this channel).
+          const bot = guild.members.me ?? await guild.members.fetchMe();
+          if (chosenRole.id === guild.id || chosenRole.managed) throw new Error("Choisis un vrai rôle (pas @everyone ni un rôle de bot).");
+          if (chosenRole.position >= bot.roles.highest.position) throw new Error("Place mon rôle au-dessus du rôle choisi, sinon je ne pourrai pas le donner.");
+          if (!api?.apiUrl || !api?.secret) throw new Error("Réglage impossible pour le moment : connexion au dashboard indisponible.");
+          const panelChannel = interaction.options.getChannel("salon");
+          const next = {
+            enabled: true, channelId: null, minAccountAgeDays: 0, message: "",
+            ...(settings.verification ?? {}),
+            ...{ enabled: true, roleId: chosenRole.id, ...(panelChannel ? { channelId: panelChannel.id } : {}) },
+          };
+          const saved = await updateModuleSettings({ apiUrl: api.apiUrl, secret: api.secret, guildId: guild.id, module: "verification", value: next, actorId: interaction.user.id });
+          Object.assign(settings, saved);
+        }
         if (!settings.verification?.enabled || !settings.verification?.roleId) {
-          throw new Error("La vérification n’est pas configurée. Active le module et définis le rôle Vérifié dans le dashboard avant de publier le panneau.");
+          throw new Error("La vérification n’est pas encore réglée : relance avec l’option role, par exemple /verify panel role:@Vérifié salon:#verif.");
         }
         const configured = settings.verification?.channelId;
         const channel = interaction.options.getChannel("salon")

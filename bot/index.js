@@ -1364,7 +1364,7 @@ client.on("interactionCreate", (interaction) => {
       secret: BOT_SYNC_SECRET,
       record,
     })) return;
-    if (await handleModerationInteraction(interaction, settings[interaction.guildId])) return;
+    if (await handleModerationInteraction(interaction, settings[interaction.guildId], { apiUrl: API, secret: BOT_SYNC_SECRET })) return;
     if (await handleVoiceV2Interaction(interaction, settings[interaction.guildId])) { auditSlashUsage(interaction, "Vocal temporaire"); return; }
     if (await handleGamesInteraction(interaction, settings[interaction.guildId], record)) { auditSlashUsage(interaction, "Jeux & événements"); return; }
     if (await handleKnowledgeInteraction(interaction)) return;
