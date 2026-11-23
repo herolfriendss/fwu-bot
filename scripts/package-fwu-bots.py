@@ -61,7 +61,7 @@ INSTALLER = r"""#!/usr/bin/env bash
 #
 #   1. Dézippe ce dossier dans /home/opc/fwu-bots/ (le dossier fwu-{profile} y apparaît).
 #   2. bash /home/opc/fwu-bots/fwu-{profile}/installer.sh
-#   3. La première fois, colle le token dans le fichier .env indiqué, puis relance la même commande.
+#   3. La première fois, il te demande le token (saisie masquée) et l'enregistre dans .env.
 #
 # Relançable à chaque mise à jour : ton .env est conservé, il n'est jamais affiché.
 set -Eeuo pipefail
@@ -102,9 +102,29 @@ mv "$ENV_FILE.new" "$ENV_FILE"
 chmod 600 "$ENV_FILE"
 unset own
 
-TOKEN_VALUE="$(grep -E "^${{TOKEN_ENV}}=" "$ENV_FILE" | tail -n 1 | cut -d= -f2- | tr -d '"'"'"'[:space:]')"
+read_token() {{ grep -E "^${{TOKEN_ENV}}=" "$ENV_FILE" | tail -n 1 | cut -d= -f2- | tr -d '"'"'"'[:space:]'; }}
+TOKEN_VALUE="$(read_token)"
+if [[ ( -z "$TOKEN_VALUE" || "$TOKEN_VALUE" == COLLER_ICI* ) && -t 0 ]]; then
+  # Saisie masquée : rien ne s'affiche à l'écran, rien n'arrive dans l'historique du terminal.
+  printf '\n🔑 Colle le token de l’application Discord {label} puis appuie sur Entrée.\n   (Rien ne s’affiche pendant que tu colles, c’est normal. Entrée seule = passer ce bot.)\n> '
+  IFS= read -rs NEW_TOKEN || NEW_TOKEN=""
+  printf '\n'
+  NEW_TOKEN="$(printf '%s' "$NEW_TOKEN" | tr -d '"'"'"'[:space:]')"
+  if [[ -n "$NEW_TOKEN" ]]; then
+    [[ "$NEW_TOKEN" =~ ^[A-Za-z0-9_-]{{20,}}\.[A-Za-z0-9_-]{{4,}}\.[A-Za-z0-9_-]{{20,}}$ ]] || {{ unset NEW_TOKEN; fail "Ce texte ne ressemble pas à un token de bot Discord (portail développeur → Bot → Reset Token → Copy)."; }}
+    FWU_TOKEN_TMP="$(grep -E '^DISCORD_TOKEN=' "$FWU_ENV" | tail -n 1 | cut -d= -f2- | tr -d '"'"'"'[:space:]' || true)"
+    [[ "$NEW_TOKEN" != "$FWU_TOKEN_TMP" ]] || {{ unset NEW_TOKEN FWU_TOKEN_TMP; fail "Ce token est celui de FWU. Il faut le token de l'application {label}."; }}
+    unset FWU_TOKEN_TMP
+    NEW_TOKEN="$NEW_TOKEN" awk -v key="$TOKEN_ENV" 'BEGIN {{ t = ENVIRON["NEW_TOKEN"] }} index($0, key "=") == 1 {{ print key "=" t; next }} {{ print }}' "$ENV_FILE" > "$ENV_FILE.new"
+    unset NEW_TOKEN
+    mv "$ENV_FILE.new" "$ENV_FILE"
+    chmod 600 "$ENV_FILE"
+    printf '   Token enregistré dans %s (fichier protégé, jamais affiché).\n' "$ENV_FILE"
+    TOKEN_VALUE="$(read_token)"
+  fi
+fi
 if [[ -z "$TOKEN_VALUE" || "$TOKEN_VALUE" == COLLER_ICI* ]]; then
-  printf '\n👉 Il manque le token de {label}. Ouvre le fichier :\n\n   nano %s\n\nRemplace COLLER_ICI_LE_TOKEN_DE_{token_name} par le token, enregistre (Ctrl+O, Entrée, Ctrl+X), puis relance :\n\n   bash %s/installer.sh\n\n' "$ENV_FILE" "$HERE"
+  printf '\n👉 {label} n’a pas de token : bot non démarré (FWU continue de faire son travail).\n   Pour l’ajouter plus tard, relance simplement :  bash %s/installer.sh\n\n' "$HERE"
   exit 2
 fi
 FWU_TOKEN="$(grep -E '^DISCORD_TOKEN=' "$FWU_ENV" | tail -n 1 | cut -d= -f2- | tr -d '"'"'"'[:space:]' || true)"
@@ -169,7 +189,7 @@ mkdir -p /home/opc/fwu-bots && cd /home/opc/fwu-bots && unzip -o FWU-{zipname}.z
 bash /home/opc/fwu-bots/fwu-{profile}/installer.sh
 ```
 
-3. La première fois, l'installateur te demande le token : `nano /home/opc/fwu-bots/fwu-{profile}/.env`, colle-le à la place de `COLLER_ICI_…`, enregistre, puis relance la commande de l'étape 2.
+3. La première fois, l'installateur te demande le token : colle-le et appuie sur Entrée (rien ne s'affiche, c'est normal). Il est enregistré dans `.env`, protégé.
 
 L'installateur recopie tout seul les réglages communs depuis FWU, installe, démarre, vérifie que le bot tient, puis synchronise FWU. Il n'affiche jamais le token.
 

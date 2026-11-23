@@ -1,5 +1,28 @@
 # FWU — Mise en route sur le VPS Oracle (à faire dès que tu as le PC)
 
+## La méthode rapide (recommandée) : 2 actions
+
+**Avant**, dans le portail développeur Discord, pour GUARD, FDPDLAVOC, SUCK ME et LE FISC : onglet **Bot**, active **Server Members Intent** et **Message Content Intent**, et invite le bot sur ton serveur.
+
+1. Dézippe `FWU_INSTALLATION_COMPLETE.zip` sur ton PC.
+2. Dans le dossier `FWU-installation` :
+   - **Windows** : clic droit sur `ENVOYER-SUR-LE-VPS.ps1` → **Exécuter avec PowerShell** ;
+   - **Mac / Linux** : `bash ENVOYER-SUR-LE-VPS.sh`.
+
+   Il te demande l'adresse IP du VPS et ta clé SSH Oracle, envoie tout, puis lance `TOUT-INSTALLER.sh` sur le VPS, qui :
+   - met FWU à jour (retour arrière automatique en cas d'échec) ;
+   - crée le dossier de données partagé ;
+   - installe les 4 bots : pour chacun, **colle le token et appuie sur Entrée** (rien ne s'affiche, c'est normal ; Entrée seule = passer ce bot) ;
+   - affiche le résultat.
+
+Déjà connecté au VPS ? Après avoir envoyé le dossier : `bash /home/opc/FWU-installation/TOUT-INSTALLER.sh`. Relançable sans risque (réponds `n` à la mise à jour de FWU si elle est déjà faite).
+
+Ensuite, passe directement à l'étape **4. Dans Discord** plus bas.
+
+---
+
+## La méthode manuelle (détail des mêmes étapes)
+
 Durée : environ 30 minutes. Tout se fait dans un terminal connecté au VPS (`ssh opc@ADRESSE_DU_VPS`).
 **Ne colle jamais un token dans une conversation** : seulement dans les fichiers `.env` du VPS.
 
@@ -55,13 +78,7 @@ Puis, **pour chaque bot** (exemple avec GUARD ; remplace `guard` par `fdpdlavoc`
 bash /home/opc/fwu-bots/fwu-guard/installer.sh
 ```
 
-La première fois, il te demande le token :
-
-```bash
-nano /home/opc/fwu-bots/fwu-guard/.env
-```
-
-Remplace `COLLER_ICI_…` par le token, enregistre (`Ctrl+O`, `Entrée`, `Ctrl+X`), puis relance la même commande `installer.sh`.
+La première fois, il te demande le token : colle-le et appuie sur Entrée (rien ne s'affiche, c'est normal). Il est enregistré dans le `.env` du bot, protégé.
 Il installe, démarre, vérifie que le bot tient, puis synchronise FWU.
 
 ## 4. Dans Discord
