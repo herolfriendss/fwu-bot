@@ -47,7 +47,7 @@ Voir la section « État » en bas, mise à jour à chaque étape.
 
 - [x] Bug corrigé : page Statut du site figée (codes d'événement inconnus) + test
 - [x] Page Statut : état des 5 bots
-- [ ] **Sauvegarde GitHub** : branche locale `github-fwu` prête (instantané propre). À envoyer sur le dépôt (renommé « FWU ») dès que l'accès en écriture GitHub est ouvert, en remplacement de l'ancienne V3.
+- [x] **Sauvegarde GitHub** envoyée le 23/11 sur le dépôt privé (ancien nom `her-v3-`, renommé FWU par le propriétaire), branche `main`, commit `d8a0dc85`. Envoi sans écrasement : l'historique V3/V4 reste consultable. Branche `pnd-v5` du dépôt laissée intacte. Pour les prochaines sauvegardes : `git push https://github.com/herolfriendss/her-v3- github-fwu:refs/heads/main` après avoir reconstruit `github-fwu` sur le dernier commit envoyé.
 
 ## Prochaines étapes possibles
 
