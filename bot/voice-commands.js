@@ -417,7 +417,7 @@ async function prepareWakeup(guild, actorId, targetId, announcement, rawSettings
     throw new Error("ADMIN+ ne peut déplacer que les membres dont le rôle le plus élevé est inférieur au sien.");
   }
   const channels = eligibleWakeupChannels({ guild, target, bot, config: normalizeWakeupConfig(settings) });
-  if (!channels.length) throw new Error("Aucun salon vocal public éligible : rien n’a été déplacé.");
+  if (!channels.length) throw new Error("Aucun salon vocal public éligible : rien n’a été déplacé. Un salon compte s’il est ouvert à @everyone ou au rôle des membres (rôle de vérification ou rôle automatique), et si le bot peut y déplacer des membres.");
   const claim = claimWakeup(guild.id, actorId, target.id);
   if (!claim.ok) throw new Error(claim.reason);
   return { guild, actor, target, settings, channels, announcement: sanitizeWakeupMessage(announcement), claim };

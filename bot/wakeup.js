@@ -39,6 +39,12 @@ export function normalizeWakeupConfig(settings) {
         .map(id)
         .filter(Boolean),
     ),
+    // "Public" also means open to the ordinary members' role(s): servers that hide
+    // channels from @everyone until verification give access through these roles.
+    publicRoleIds: [...new Set([
+      id(settings?.verification?.roleId),
+      ...(Array.isArray(settings?.automation?.autoRoleIds) ? settings.automation.autoRoleIds.map(id) : []),
+    ].filter(Boolean))],
   };
 }
 
@@ -68,7 +74,7 @@ function hasAll(permissions, flags) {
 }
 
 /**
- * Eligible = voice channel that @everyone can see and join, that is not the AFK,
+ * Eligible = voice channel that @everyone OR the members' role (verification / auto-role) can see and join, that is not the AFK,
  * Owner or waiting channel, that the target can access and that the bot can use to move them.
  */
 export function eligibleWakeupChannels({ guild, target, bot, config }) {
@@ -81,15 +87,16 @@ export function eligibleWakeupChannels({ guild, target, bot, config }) {
     ].filter(Boolean),
   );
   const everyone = guild.roles?.everyone ?? guild.id;
+  const publicRoles = [everyone, ...(config.publicRoleIds ?? []).map((roleId) => guild.roles?.cache?.get?.(roleId) ?? null).filter(Boolean)];
   const channels = [...(guild.channels?.cache?.values?.() ?? [])]
     .filter((channel) => channel?.type === ChannelType.GuildVoice)
     .filter((channel) => !reserved.has(channel.id))
     .filter((channel) => !isReservedByName(channel, config))
     .filter((channel) =>
-      hasAll(channel.permissionsFor?.(everyone), [
+      publicRoles.some((role) => hasAll(channel.permissionsFor?.(role), [
         PermissionFlagsBits.ViewChannel,
         PermissionFlagsBits.Connect,
-      ]),
+      ])),
     )
     .filter((channel) =>
       hasAll(channel.permissionsFor?.(target), [

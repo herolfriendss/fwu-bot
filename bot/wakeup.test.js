@@ -297,3 +297,15 @@ test("a pause is applied between moves only", async () => {
   });
   assert.deepEqual(waits, [1500, 1500]);
 });
+
+test("channels hidden from @everyone but open to the members' role (verification / auto-role) are public", () => {
+  const verified = { id: "500000000000000001", name: "Vérifié" };
+  const membersOnly = {
+    id: "9", name: "Routine rouge", type: 2, rawPosition: 1,
+    permissionsFor: (who) => ({ has: (flag) => (who === verified || who === target ? [P.ViewChannel, P.Connect] : who === bot ? ALL : []).includes(flag) }),
+  };
+  const guild = guildWith([membersOnly], { roles: { everyone, cache: new Map([[verified.id, verified]]) } });
+  assert.deepEqual(names(eligibleWakeupChannels({ guild, target, bot, config: config({}) })), []);
+  assert.deepEqual(names(eligibleWakeupChannels({ guild, target, bot, config: config({ verification: { roleId: verified.id } }) })), ["Routine rouge"]);
+  assert.deepEqual(names(eligibleWakeupChannels({ guild, target, bot, config: config({ automation: { autoRoleIds: [verified.id] } }) })), ["Routine rouge"]);
+});
