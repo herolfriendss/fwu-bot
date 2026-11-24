@@ -208,9 +208,21 @@ async function reportStatus() {
           })),
       }),
     });
-    if (!res.ok) console.error("Envoi du statut impossible.");
-  } catch { console.error("Envoi du statut impossible."); }
+    noteStatusDelivery(res.ok ? null : `HTTP ${res.status}`);
+  } catch (error) { noteStatusDelivery(error?.name === "TimeoutError" ? "délai dépassé (10 s)" : "site injoignable"); }
   finally { reporting = false; }
+}
+// Log status delivery problems once per outage (with the reason), not on every attempt.
+let statusFailures = 0;
+function noteStatusDelivery(problem) {
+  if (!problem) {
+    if (statusFailures >= 3) console.error(`Statut de nouveau transmis au site (après ${statusFailures} échecs).`);
+    statusFailures = 0;
+    return;
+  }
+  statusFailures += 1;
+  // A single miss happens while the site restarts: only report from the third one in a row.
+  if (statusFailures === 3) console.error(`Envoi du statut impossible : ${problem}. Le bot continue ; le site affichera un état ancien jusqu'au retour.`);
 }
 record("started");
 if (serves("fisc")) recoverBlackjackGames();
@@ -888,7 +900,7 @@ async function reconcileDogLeashes() {
   }
 }
 
-client.once("ready", () => {
+client.once("clientReady", () => {
   if (!IS_FWU) tickDomainLease();
   // Every FWU bot records its Discord id so GUARD's anti-nuke never targets its siblings.
   try { registerBotIdentity(RUNTIME.profile, client.user.id); } catch { record("bot_identity_error"); }
