@@ -19,6 +19,15 @@ Déjà connecté au VPS ? Après avoir envoyé le dossier : `bash /home/opc/FWU-
 
 Ensuite, passe directement à l'étape **4. Dans Discord** plus bas.
 
+## Tout mettre à jour (FWU + site + 4 bots) depuis le Chromebook
+
+1. Télécharge le zip du projet sur GitHub (Code → Download ZIP) et mets-le dans « Fichiers Linux ».
+2. Dans le terminal :
+
+```bash
+cd ~ && Z=$(ls -t ~/*main*.zip | head -n 1) && unzip -oq "$Z" && P=$(dirname "$(dirname "$(ls -td ~/*/scripts/package-fwu-bots.py | head -n 1)")") && bash "$P/scripts/installation/FWU-MAJ-COMPLETE.sh" opc@ADRESSE_DU_VPS
+```
+
 ## Mettre à jour les 4 bots plus tard (FWU non touché)
 
 Depuis le dossier `FWU-installation` sur ton ordinateur :
