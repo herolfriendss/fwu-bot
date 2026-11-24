@@ -40,7 +40,8 @@ scp "$WORK/FWU-maj.zip" "$REPO/scripts/update-1942.sh" "$TARGET:/home/opc/FWU-in
 ssh -t "$TARGET" "NODE_OPTIONS=--max-old-space-size=2048 PND_SUPABASE_MIGRATIONS_APPLIED=YES bash /home/opc/FWU-installation/update-1942.sh /home/opc/FWU-installation/FWU-maj.zip"
 
 echo "==> 3/3 Mise à jour des 4 bots"
-bash "$WORK/bots/METTRE-A-JOUR-BOTS.sh" "$TARGET"
+BOTS_OK=1
+bash "$WORK/bots/METTRE-A-JOUR-BOTS.sh" "$TARGET" || BOTS_OK=0
 
 echo "==> Mise à jour depuis Discord (/maj) : installation"
 scp "$HERE/fwu-auto-update.sh" "$TARGET:/home/opc/fwu-auto-update.sh"
@@ -64,6 +65,12 @@ INFO
   else
     echo "Jeton non fourni : /maj lancer marchera après la prochaine mise à jour depuis l'ordinateur."
   fi
+fi
+
+if [[ "$BOTS_OK" != 1 ]]; then
+  echo
+  echo "⚠️  Au moins un bot n'a pas redémarré (voir plus haut). FWU, lui, est à jour."
+  exit 1
 fi
 
 cat <<'MSG'

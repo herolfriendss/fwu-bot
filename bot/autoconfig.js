@@ -78,7 +78,7 @@ async function configureFwu(guild, me, log, store) {
   if (sugg) store.setting(guild.id, "suggestion_channel", sugg);
   const bday = await ensureChannel(guild, me, "fwu:birthdays", [/anniv|birthday/], "🎂・anniversaires", "Enregistre ta date avec /anniversaire definir", log);
   if (bday) store.setting(guild.id, "birthday_channel", bday);
-  const role = await ensureRole(guild, me, "fwu:birthday_role", /anniv|birthday/, { name: "🎂 Anniversaire", color: 0xf472b6, hoist: true }, log);
+  const role = await ensureRole(guild, me, "fwu:birthday_role", /anniv|birthday/, { name: "🎂 Anniversaire", colors: { primaryColor: 0xf472b6 }, hoist: true }, log);
   if (role) store.setting(guild.id, "birthday_role", role);
 }
 
@@ -96,7 +96,7 @@ async function configureSuckme(guild, me, log, store) {
 /** GUARD: quarantine role that hides every channel. */
 async function configureGuard(guild, me, log) {
   if (done(guild.id, "guard:quarantine_ready")) return;
-  const roleId = await ensureRole(guild, me, "guard:quarantine_role", /quarantaine|quarantine/, { name: "🔒 Quarantaine", color: 0x64748b }, log);
+  const roleId = await ensureRole(guild, me, "guard:quarantine_role", /quarantaine|quarantine/, { name: "🔒 Quarantaine", colors: { primaryColor: 0x64748b } }, log);
   if (!roleId) return;
   let applied = 0;
   for (const channel of guild.channels.cache.values()) {

@@ -137,6 +137,8 @@ npm ci --omit=dev --no-audit --no-fund >/dev/null
 node --check index.js
 
 info "Démarrage de fwu-{profile}"
+# PM2's restart counter is cumulative across updates: reset it so the check below only counts crashes of this start.
+pm2 reset fwu-{profile} >/dev/null 2>&1 || true
 pm2 startOrReload ecosystem.config.cjs --update-env >/dev/null
 ok=0
 for attempt in $(seq 1 12); do
