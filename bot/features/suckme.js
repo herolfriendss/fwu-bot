@@ -135,6 +135,9 @@ export async function runAnnouncements(client, now = Date.now()) {
 }
 
 // ---------------------------------------------------------------- Staff
+export function saveLadder(guildId, roleIds) {
+  db.prepare("INSERT INTO suckme_staff_ladder(guild_id,roles_json) VALUES(?,?) ON CONFLICT(guild_id) DO UPDATE SET roles_json=excluded.roles_json").run(guildId, JSON.stringify(roleIds));
+}
 export function ladderOf(guildId) {
   try { return JSON.parse(db.prepare("SELECT roles_json FROM suckme_staff_ladder WHERE guild_id=?").get(guildId)?.roles_json ?? "[]"); } catch { return []; }
 }

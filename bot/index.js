@@ -76,10 +76,11 @@ import { getPndPrivilegedIds } from "./pnd-owner-policy.js";
 import { checkInteractionHierarchy } from "./hierarchy-guard.js";
 import { createAntiNuke, registerBotIdentity } from "./guard/anti-nuke.js";
 import { createAutomod } from "./guard/automod.js";
+import { runAutoconfig } from "./autoconfig.js";
 import { handleGuardInteraction } from "./guard/commands.js";
-import { handleCommunityInteraction, handleLevelMessage, runBirthdays, runReminders, tickVoiceXp } from "./features/community.js";
+import { communityAutoconfig, handleCommunityInteraction, handleLevelMessage, runBirthdays, runReminders, tickVoiceXp } from "./features/community.js";
 import { handleFiscInteraction, runLoanCollection, runWealthTax } from "./features/fisc.js";
-import { handleSuckmeInteraction, runAnnouncements, runTempRoles } from "./features/suckme.js";
+import { handleSuckmeInteraction, ladderOf, runAnnouncements, runTempRoles, saveLadder } from "./features/suckme.js";
 import { armSlowCommandWatchdog } from "./interaction-watchdog.js";
 import { STAFF_ONLY_MESSAGE, isServerStaff } from "./server-staff.js";
 import { installOwnerShield, runAsActor } from "./owner-shield.js";
@@ -892,6 +893,13 @@ client.once("ready", () => {
   try { registerBotIdentity(RUNTIME.profile, client.user.id); } catch { record("bot_identity_error"); }
   // FWU community jobs: voice XP (1 min), reminders (30 s), birthdays (5 min).
   const communityGuilds = () => [...client.guilds.cache.values()].filter((g) => guildAllowed(g.id, ALLOWED_GUILDS) && !isLogsHub(g.id));
+  // One-time automatic configuration (channels, roles, staff ladder) once leases are settled.
+  setTimeout(() => {
+    void runAutoconfig(communityGuilds(), (domain) => serves(domain) && (IS_FWU ? domain === "fwu" : domain !== "fwu"), { ...communityAutoconfig, ladder: ladderOf, saveLadder }, (guild, line) => {
+      console.log(`[autoconfig] ${guild.name} : ${line}`);
+      auditLog(guild, settings[guild.id], "⚙️ Configuration automatique", line, 0x6d28d9);
+    }).catch(() => record("autoconfig_error"));
+  }, 45_000).unref?.();
   setInterval(() => { if (serves("fwu")) void tickVoiceXp(communityGuilds()).catch(() => record("levels_error")); }, 60_000).unref?.();
   setInterval(() => { if (serves("fwu")) void runReminders(client).catch(() => record("reminders_error")); }, 30_000).unref?.();
   setInterval(() => { if (serves("fwu")) void runBirthdays(communityGuilds()).catch(() => record("birthdays_error")); }, 5 * 60_000).unref?.();

@@ -43,6 +43,12 @@ const isStaff = (member, settings) => member?.id === ownerId() || member?.id ===
 const getSetting = (guildId, key) => db.prepare("SELECT value FROM community_settings WHERE guild_id=? AND key=?").get(guildId, key)?.value ?? null;
 const setSetting = (guildId, key, value) => db.prepare("INSERT INTO community_settings(guild_id,key,value) VALUES(?,?,?) ON CONFLICT(guild_id,key) DO UPDATE SET value=excluded.value").run(guildId, key, value);
 
+/** Automatic configuration: only fills what the staff has not set. */
+export const communityAutoconfig = {
+  setting: (guildId, key, value) => { if (!getSetting(guildId, key)) setSetting(guildId, key, value); },
+  levelChannel: (guildId, channelId) => { const config = getLevelConfig(guildId); if (!config.channelId) saveLevelConfig(guildId, { ...config, channelId }); },
+};
+
 // ---------------------------------------------------------------- Levels
 /** XP needed to go from level n to n+1 (classic curve). */
 export const xpForNextLevel = (level) => 5 * level * level + 50 * level + 100;

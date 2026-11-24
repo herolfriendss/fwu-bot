@@ -4,6 +4,7 @@ import { db } from "../database.js";
 import { parsePndOwnerId } from "../pnd-owner-policy.js";
 import { isSysPlus } from "../systems/sysplus/permissions.js";
 import { getAntiNukeConfig, saveAntiNukeConfig } from "./anti-nuke.js";
+import { autoconfigValue } from "../autoconfig.js";
 import { AUTOMOD_ACTIONS, AUTOMOD_RULES, getAutomodConfig, normalizeText, saveAutomodConfig } from "./automod.js";
 
 export const GUARD_COMMANDS = new Set(["antinuke", "automod", "casier", "quarantaine"]);
@@ -13,6 +14,7 @@ db.exec(`CREATE TABLE IF NOT EXISTS guard_quarantine (
   reason TEXT, moderator_id TEXT NOT NULL, created_at INTEGER NOT NULL, PRIMARY KEY (guild_id, user_id)
 );`);
 
+const quarantineRoleOf = (guildId, settings) => settings?.guildGuard?.quarantineRoleId ?? autoconfigValue(guildId, "guard:quarantine_role");
 const isOwner = (member) => member?.id === parsePndOwnerId(process.env.PND_OWNER_DISCORD_ID) || member?.id === member?.guild?.ownerId;
 const isStaff = (member, settings, flag = P.ManageGuild) => isOwner(member) || isSysPlus(member, settings?.sysPlus?.roleId ?? null) || Boolean(member?.permissions?.has?.(P.Administrator) || member?.permissions?.has?.(flag));
 
@@ -113,9 +115,9 @@ async function handleQuarantaine(interaction, settings) {
   if (!member) return "❌ Ce membre n'est pas sur le serveur.";
   const me = guild.members.me ?? await guild.members.fetchMe();
   if (sub === "ajouter") {
-    const roleId = settings?.guildGuard?.quarantineRoleId;
+    const roleId = quarantineRoleOf(guild.id, settings);
     const role = roleId ? await guild.roles.fetch(roleId).catch(() => null) : null;
-    if (!role) return "❌ Aucun rôle de quarantaine configuré : `/guildguard quarantine role:@Quarantaine` d'abord.";
+    if (!role) return "❌ Aucun rôle de quarantaine : il sera créé automatiquement au prochain démarrage de GUARD (ou `/guildguard quarantine role:@Quarantaine`).";
     if (role.position >= me.roles.highest.position) return "❌ Le rôle de quarantaine doit être sous mon rôle.";
     if (db.prepare("SELECT 1 FROM guard_quarantine WHERE guild_id=? AND user_id=?").get(guild.id, user.id)) return "ℹ️ Ce membre est déjà en quarantaine.";
     const removable = [...member.roles.cache.values()].filter((r) => r.id !== guild.id && !r.managed && r.id !== role.id && r.position < me.roles.highest.position);
@@ -136,7 +138,7 @@ async function handleQuarantaine(interaction, settings) {
   const row = db.prepare("SELECT saved_roles_json FROM guard_quarantine WHERE guild_id=? AND user_id=?").get(guild.id, user.id);
   if (!row) return "ℹ️ Ce membre n'est pas en quarantaine.";
   const saved = JSON.parse(row.saved_roles_json).filter((id) => guild.roles.cache.has(id));
-  const roleId = settings?.guildGuard?.quarantineRoleId;
+  const roleId = quarantineRoleOf(guild.id, settings);
   if (roleId && member.roles.cache.has(roleId)) await member.roles.remove(roleId, `Fin de quarantaine par ${interaction.user.id}`);
   if (saved.length) await member.roles.add(saved, `Fin de quarantaine par ${interaction.user.id}`);
   db.prepare("DELETE FROM guard_quarantine WHERE guild_id=? AND user_id=?").run(guild.id, user.id);
