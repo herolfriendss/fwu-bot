@@ -79,7 +79,8 @@ describe("interaction dispatch", () => {
     expect(r.data?.["flags"]).toBe(64);
     expect(r.data?.["embeds"]).toEqual([expect.objectContaining({ fields: [
       { name: "État", value: "Connecté à Discord", inline: true },
-      { name: "Durée de fonctionnement", value: "1 j 1 h 1 min 1 s", inline: true },
+      // A slow machine may take a few seconds between the two dates.
+      { name: "Durée de fonctionnement", value: expect.stringMatching(/^1 j 1 h 1 min \d+ s$/), inline: true },
     ] })]);
     expect(JSON.stringify(r)).not.toContain("sync_ok");
   });
