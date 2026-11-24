@@ -134,7 +134,7 @@ function key(guildId, memberId) {
 
 function dogNickname(ownerName) {
   // Discord limits nicknames to 32 characters.
-  return `🐶 de ${ownerName}`.slice(0, 32);
+  return `🦮 de ${ownerName}`.slice(0, 32);
 }
 
 async function withCommandLock(lockKey, action) {
@@ -434,7 +434,7 @@ export async function handleDogCommand(message, guildSettings = null) {
     } else {
       const since = Math.floor(existing.since / 1000);
       await message.reply({
-        content: `🐶 **${target.user.username}** est en laisse par **${existing.ownerName}** depuis <t:${since}:R>.`,
+        content: `🦮 **${target.user.username}** est en laisse par **${existing.ownerName}** depuis <t:${since}:R>.`,
         allowedMentions: { parse: [] },
       });
     }
@@ -448,7 +448,7 @@ export async function handleDogCommand(message, guildSettings = null) {
       const freshExisting = freshRecords[id];
       if (freshExisting && !freshExisting.releasing) {
         await message.reply({
-          content: `🐶 Ce membre est déjà en laisse par **${freshExisting.ownerName}**. Utilise \`=undog @membre\` pour retirer la laisse.`,
+          content: `🦮 Ce membre est déjà en laisse par **${freshExisting.ownerName}**. Utilise \`=undog @membre\` pour retirer la laisse.`,
           allowedMentions: { parse: [] },
         });
         return true;
@@ -527,9 +527,9 @@ export async function handleDogCommand(message, guildSettings = null) {
           console.error("DOG whitelist exception audit failed:", error.message);
         }
       }
-      await sendCentralLog(message.guild, guildSettings, systemLogEmbed({ title: "🐶 DOG — laisse attribuée", description: `Acteur : <@${message.author.id}>\nCible : <@${target.id}>\nLaisses actives : ${leashCount}` })).catch(() => {});
+      await sendCentralLog(message.guild, guildSettings, systemLogEmbed({ title: "🦮 DOG — laisse attribuée", description: `Acteur : <@${message.author.id}>\nCible : <@${target.id}>\nLaisses actives : ${leashCount}` })).catch(() => {});
       await message.reply({
-        content: `🐶 **${target.user.username}** est maintenant en laisse par **${ownerName}** (${leashCount}).${returnedToOwner ? " Il a été ramené dans ton salon vocal." : ""}`,
+        content: `🦮 **${target.user.username}** est maintenant en laisse par **${ownerName}** (${leashCount}).${returnedToOwner ? " Il a été ramené dans ton salon vocal." : ""}`,
         allowedMentions: { parse: [] },
       });
       return true;
@@ -541,7 +541,7 @@ export async function handleDogCommand(message, guildSettings = null) {
     if (orphanLeashParts(target).any) {
       try {
         await clearOrphanLeash(target, message.author.tag);
-        await message.reply({ content: `🦴 Ancienne laisse retirée de **${target.user.username}** (rôle DOG et pseudo « 🐶 de … »).`, allowedMentions: { parse: [] } });
+        await message.reply({ content: `🦴 Ancienne laisse retirée de **${target.user.username}** (rôle DOG et pseudo « 🦮 de … »).`, allowedMentions: { parse: [] } });
       } catch {
         await message.reply({ content: "❌ Impossible de retirer l'ancienne laisse : mon rôle doit être au-dessus du rôle DOG et de ce membre.", allowedMentions: { parse: [] } });
       }
@@ -683,7 +683,7 @@ export async function undogAll({ guild, client, scope = "serveur", actorTag = "F
     }
     await saveState();
     if (scope !== "anciens") {
-      // Leashes the old bot left on members (DOG role / "🐶 de …" nickname) with nothing saved.
+      // Leashes the old bot left on members (DOG role / "🦮 de …" or old "🐶 de …" nickname) with nothing saved.
       const members = await guild.members.fetch().catch(() => null);
       for (const member of members?.values?.() ?? []) {
         if (records[key(guild.id, member.id)]) continue;
@@ -730,9 +730,10 @@ export async function handleUndogAllInteraction(interaction, guildSettings = nul
   return true;
 }
 
-const LEASH_NICKNAME = /^🐶\s*de\s/u;
+// 🦮 depuis le 24/11/2026 ; 🐶 = ancien pseudo, encore reconnu pour le nettoyage.
+const LEASH_NICKNAME = /^(?:🦮|🐶)\s*de\s/u;
 
-/** A member who still shows a leash (DOG role or "🐶 de …" nickname) without any saved leash. */
+/** A member who still shows a leash (DOG role or "🦮 de …" / old "🐶 de …" nickname) without any saved leash. */
 export function orphanLeashParts(member) {
   const roles = [...(member?.roles?.cache?.values?.() ?? [])].filter((role) => isLeashRoleName(role?.name) && !role.managed);
   const nickname = LEASH_NICKNAME.test(String(member?.nickname ?? ""));

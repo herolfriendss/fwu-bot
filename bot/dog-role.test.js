@@ -112,4 +112,5 @@ test("une laisse en cours avec l'ancien rôle commun « En laisse » passe au r�
   assert.ok(ownerRole, "rôle du maître créé");
   assert.ok(pet.roleIds.has(ownerRole.id));
   assert.ok(!pet.roleIds.has(shared.id), "ancien rôle commun retiré");
+  assert.equal(pet.nickname, "🦮 de Ryan", "ancien pseudo 🐶 remplacé par 🦮");
 });

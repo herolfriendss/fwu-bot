@@ -104,3 +104,10 @@ test("leashes left by the old bot (DOG role or 🐶 nickname, nothing saved) are
   assert.equal(r.orphans, 1);
   assert.deepEqual(calls, [["remove", "lr"], ["nick", null]]);
 });
+
+test("un pseudo de laisse au nouvel emoji 🦮 sans laisse enregistrée est aussi reconnu comme orphelin", async () => {
+  const { orphanLeashParts } = await import("./dog-commands.js");
+  assert.equal(orphanLeashParts({ nickname: "🦮 de Quelqu'un", roles: { cache: new Map() } }).nickname, true);
+  assert.equal(orphanLeashParts({ nickname: "🦮 de Quelqu'un", roles: { cache: new Map([["r", { id: "r", name: "En laisse (Quelqu'un)", managed: false }]]) } }).roles.length, 1);
+  assert.equal(orphanLeashParts({ nickname: "Chien", roles: { cache: new Map() } }).any, false);
+});

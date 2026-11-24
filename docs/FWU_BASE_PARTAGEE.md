@@ -72,7 +72,7 @@ Les colonnes tempmute, kick et ban sont celles du cahier des charges ; les autre
 ## 5. Bugs corrigés
 
 - **AFK** : `/afk` était la 105e commande de FWU, au-delà de la limite Discord de 100 : jamais enregistrée. `=afk` était bloquée par la décision « slash uniquement ». Désormais `/afk` et `=afk` sont sur SUCK ME (45 commandes). L'AFK reste réservé à l'owner, aux SYS+ et aux ADMIN+ (règle existante).
-- **Laisse** : le bot exigeait que la personne en laisse ait elle-même « Se connecter » sur le salon du maître : impossible de la suivre dans un vocal verrouillé. Seul le bot a besoin des permissions (Discord). Ajouts : erreur Discord absorbée, anti-boucle (6 déplacements par minute et par membre), salon plein géré (le bot passe outre comme Discord l'autorise).
+- **Laisse** (emoji 🦮) : le bot exigeait que la personne en laisse ait elle-même « Se connecter » sur le salon du maître : impossible de la suivre dans un vocal verrouillé. Seul le bot a besoin des permissions (Discord). Ajouts : erreur Discord absorbée, anti-boucle (6 déplacements par minute et par membre), salon plein géré (le bot passe outre comme Discord l'autorise).
 - **Démarrage simultané** : deux bots démarrés en même temps sur une base SQLite à mettre à jour pouvaient planter (`duplicate column name`). Corrigé.
 
 ## 5 bis. Rôle 0 % intouchable (SUCK ME)

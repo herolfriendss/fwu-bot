@@ -232,7 +232,7 @@ export const LOG_EVENT_MATRIX = Object.freeze([
   {
     event: "dog",
     source: "bot",
-    title: "🐶 DOG — laisse attribuée",
+    title: "🦮 DOG — laisse attribuée",
     key: "dog",
     status: "covered",
   },

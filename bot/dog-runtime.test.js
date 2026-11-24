@@ -121,7 +121,7 @@ test("DOG WHITELIST excess is audited and the saved leash is restored after modu
 
   await handleV4SlashInteraction(interaction, { sysPlus: { roleId: "sysplus-role", whitelistRoleId: "whitelist-role" } });
   assert.match(replies[0].content, /4 \(exception WHITELIST\)/);
-  assert.equal(target.nickname, "🐶 de Owner A");
+  assert.equal(target.nickname, "🦮 de Owner A");
   const audit = db
     .prepare("SELECT action,target_id,details FROM sysplus_audit WHERE guild_id=?")
     .get("guild-a");
@@ -145,6 +145,6 @@ test("DOG WHITELIST excess is audited and the saved leash is restored after modu
   target.nickname = "Changed after restart";
   roleItems.splice(0, roleItems.length, role);
   assert.equal(await restarted.enforceLeashNickname(target), true);
-  assert.equal(target.nickname, "🐶 de Owner A");
+  assert.equal(target.nickname, "🦮 de Owner A");
   assert.equal(target.roles.cache.has(role.id), true);
 });
