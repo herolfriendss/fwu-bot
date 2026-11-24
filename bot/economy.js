@@ -1,3 +1,5 @@
+import { changeTreasury, transferTax } from "./features/fisc-config.js";
+import { dailyStreakReward, nextDailyStreak } from "./features/daily-streak.js";
 import { runAsActor } from "./owner-shield.js";
 import { randomInt, randomUUID } from "node:crypto";
 import { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder, PermissionFlagsBits } from "discord.js";
@@ -549,16 +551,19 @@ export async function handleEconomyMessage(message, guildSettings = null) {
       const amount = balance(gid, target.id);
       await safeReply(message, `💰 Solde de ${target.id === uid ? "toi" : mention(target.id)} : **${format(amount)}**.`);
     } else if (command === "=daily") {
-      const reward = 100 + randomInt(151), now = Date.now(), cooldown = 20 * 60 * 60_000;
+      const base = 100 + randomInt(151), now = Date.now(), cooldown = 20 * 60 * 60_000;
       const claim = transaction(() => {
         const previous = db.prepare("SELECT claimed_at FROM daily_claims WHERE guild_id=? AND user_id=?").get(gid, uid);
         if (previous && now - Number(previous.claimed_at) < cooldown) return { remaining: cooldown - (now - Number(previous.claimed_at)) };
         db.prepare("INSERT INTO daily_claims(guild_id,user_id,claimed_at) VALUES(?,?,?) ON CONFLICT(guild_id,user_id) DO UPDATE SET claimed_at=excluded.claimed_at").run(gid, uid, now);
+        // Streak: claimed again within 48 h -> +10 % per day in a row (max +100 %).
+        const streak = nextDailyStreak(gid, uid, previous ? Number(previous.claimed_at) : null, now);
+        const reward = dailyStreakReward(base, streak);
         changeBalance(gid, uid, reward, "daily_reward");
-        return { reward, total: balance(gid, uid) };
+        return { reward, streak, total: balance(gid, uid) };
       });
       if (claim.remaining) await safeReply(message, `⏳ Ton bonus quotidien est déjà récupéré. Réessaie dans **${Math.ceil(claim.remaining / 3_600_000)} h**.`);
-      else await safeReply(message, `🎁 Tu as reçu **${format(claim.reward)}**. Nouveau solde : **${format(claim.total)}**.`);
+      else await safeReply(message, `🎁 Tu as reçu **${format(claim.reward)}**${claim.streak > 1 ? ` (série de **${claim.streak} jours** 🔥, bonus +${Math.min(100, (claim.streak - 1) * 10)} %)` : ""}. Nouveau solde : **${format(claim.total)}**.`);
     } else if (command === "=work") {
       const remaining = cooldownRemaining(gid, uid, "work");
       if (remaining) throw new Error(`⏳ Tu pourras retravailler dans **${Math.ceil(remaining / 60_000)} min**.`);
@@ -772,12 +777,16 @@ export async function handleEconomyMessage(message, guildSettings = null) {
         });
         if (!decision.allowed) throw new Error(decision.reason);
         changeBalance(gid, uid, -amount, "transfer_sent");
-        changeBalance(gid, target.id, amount, "transfer_received");
+        // LE FISC: optional tax on transfers, paid into the server treasury.
+        const tax = transferTax(gid, amount);
+        changeBalance(gid, target.id, amount - tax, "transfer_received");
+        if (tax > 0) changeTreasury(gid, tax);
         recordTransfer({ guildId: gid, senderId: uid, recipientId: target.id, amount, senderJoinedAt: Number.isFinite(joinedAt) ? joinedAt : null });
         recordMissionProgress(gid, uid, "transfer");
         return balance(gid, uid);
       });
-      await safeReply(message, `💸 ${mention(uid)} a envoyé **${format(amount)}** à ${mention(target.id)}. Solde restant : **${format(senderBalance)}**.`);
+      const paidTax = transferTax(gid, amount);
+      await safeReply(message, `💸 ${mention(uid)} a envoyé **${format(amount)}** à ${mention(target.id)}${paidTax ? ` (dont **${format(paidTax)}** d'impôt versé à la caisse du serveur)` : ""}. Solde restant : **${format(senderBalance)}**.`);
       for (const signal of detectTransferSignals({ guildId: gid, senderId: uid, recipientId: target.id })) {
         void sendCentralLog(message.guild, guildSettings, systemLogEmbed({ title: "🚩 Économie PND — transfert suspect", description: `${describeSignal(signal)}\nAucune sanction automatique : vérification humaine (\`/sysp diagnostic economie\`).`, color: 0xf59e0b })).catch(() => {});
       }

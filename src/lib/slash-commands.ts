@@ -1632,6 +1632,22 @@ export const SLASH_COMMANDS: SlashCommandDef[] = [
  */
 export const EXTRA_SLASH_COMMANDS: SlashCommandDef[] = [
   {
+    name: "afk",
+    description: "RESUME : signale ton absence et retrouve ce qui s’est passé pendant ce temps",
+    usage: "/afk on [raison] · /afk off · /afk resume [heures]",
+    category: "Administration & sécurité",
+    dmPermission: false,
+    requiresBotProcess: true,
+    options: [
+      sub("on", "Démarre ton absence : les événements importants sont gardés pour toi", [
+        opt(3, "raison", "Raison visible par le staff (facultatif)", { max_length: 200 }),
+      ]),
+      sub("off", "Termine ton absence et affiche le résumé de ce que tu as manqué"),
+      sub("resume", "Affiche le résumé sans terminer ton absence", [
+        opt(4, "heures", "Période à résumer si tu n’es pas absent (1 à 168 h)", { min_value: 1, max_value: 168 }),
+      ]),
+    ],
+  },  {
     name: "live",
     description: "OWNER et SYS+ : règle les alertes LIVE (créateurs, salon, rôle mentionné)",
     usage: "/live etat|activer|desactiver|salon|role|ajouter|retirer",
@@ -1827,6 +1843,61 @@ export const EXTRA_SLASH_COMMANDS: SlashCommandDef[] = [
     options: [sub("serveur", "Membres, salons, vocal, top niveaux")],
   },
   {
+    name: "impots",
+    description: "LE FISC : impôts sur les transferts et la fortune, caisse du serveur",
+    usage: "/impots etat · config · verser",
+    category: "Économie",
+    dmPermission: false,
+    requiresBotProcess: true,
+    options: [
+      sub("etat", "Taux d'imposition et caisse du serveur"),
+      sub("config", "Admin : règle les impôts", [
+        opt(4, "transferts", "Impôt sur les transferts en % (0 à 20)", { min_value: 0, max_value: 20 }),
+        opt(4, "fortune", "Impôt hebdo sur la fortune en % (0 à 10)", { min_value: 0, max_value: 10 }),
+        opt(4, "seuil", "Fortune exonérée (PND)", { min_value: 1000, max_value: 1000000000 }),
+      ]),
+      sub("verser", "Admin : verse de l'argent de la caisse à un membre", [opt(6, "membre", "Membre", { required: true }), opt(4, "montant", "Montant", { required: true, min_value: 1 })]),
+    ],
+  },
+  {
+    name: "pret",
+    description: "LE FISC : emprunte des PND avec intérêts",
+    usage: "/pret demander montant [jours] · rembourser [montant] · etat",
+    category: "Économie",
+    dmPermission: false,
+    requiresBotProcess: true,
+    options: [
+      sub("demander", "Demande un prêt (10 % d'intérêts)", [opt(4, "montant", "Montant", { required: true, min_value: 100, max_value: 50000 }), opt(4, "jours", "Durée (1 à 14 jours, 7 par défaut)", { min_value: 1, max_value: 14 })]),
+      sub("rembourser", "Rembourse ton prêt", [opt(4, "montant", "Montant (tout par défaut)", { min_value: 1 })]),
+      sub("etat", "Ton prêt en cours"),
+    ],
+  },
+  {
+    name: "duel",
+    description: "LE FISC : défie un membre, le gagnant rafle la mise",
+    usage: "/duel membre mise [jeu]",
+    category: "Économie",
+    dmPermission: false,
+    requiresBotProcess: true,
+    options: [
+      opt(6, "membre", "Adversaire", { required: true }),
+      opt(4, "mise", "Mise de chaque joueur", { required: true, min_value: 10, max_value: 1000000 }),
+      opt(3, "jeu", "Jeu", { choices: [{ name: "Pile ou face", value: "pile" }, { name: "Dés", value: "des" }] }),
+    ],
+  },
+  {
+    name: "pari",
+    description: "LE FISC : ticket à gratter ou course de chevaux",
+    usage: "/pari grattage mise · /pari course mise cheval",
+    category: "Économie",
+    dmPermission: false,
+    requiresBotProcess: true,
+    options: [
+      sub("grattage", "Ticket à gratter (jusqu'à x20)", [opt(4, "mise", "Mise", { required: true, min_value: 10, max_value: 100000 })]),
+      sub("course", "Parie sur un cheval (x4)", [opt(4, "mise", "Mise", { required: true, min_value: 10, max_value: 100000 }), opt(4, "cheval", "Cheval 1 à 5", { required: true, min_value: 1, max_value: 5 })]),
+    ],
+  },
+  {
     name: "undogall",
     description: "Retire toutes les laisses DOG : ce serveur, les anciens serveurs, ou tout",
     usage: "/undogall [portee]",
@@ -1841,23 +1912,7 @@ export const EXTRA_SLASH_COMMANDS: SlashCommandDef[] = [
       ] }),
     ],
   },
-  {
-    name: "afk",
-    description: "RESUME : signale ton absence et retrouve ce qui s’est passé pendant ce temps",
-    usage: "/afk on [raison] · /afk off · /afk resume [heures]",
-    category: "Administration & sécurité",
-    dmPermission: false,
-    requiresBotProcess: true,
-    options: [
-      sub("on", "Démarre ton absence : les événements importants sont gardés pour toi", [
-        opt(3, "raison", "Raison visible par le staff (facultatif)", { max_length: 200 }),
-      ]),
-      sub("off", "Termine ton absence et affiche le résumé de ce que tu as manqué"),
-      sub("resume", "Affiche le résumé sans terminer ton absence", [
-        opt(4, "heures", "Période à résumer si tu n’es pas absent (1 à 168 h)", { min_value: 1, max_value: 168 }),
-      ]),
-    ],
-  },
+
 ];
 
 const slashRootNames = SLASH_COMMANDS.map((command) => command.name);

@@ -78,6 +78,7 @@ import { createAntiNuke, registerBotIdentity } from "./guard/anti-nuke.js";
 import { createAutomod } from "./guard/automod.js";
 import { handleGuardInteraction } from "./guard/commands.js";
 import { handleCommunityInteraction, handleLevelMessage, runBirthdays, runReminders, tickVoiceXp } from "./features/community.js";
+import { handleFiscInteraction, runLoanCollection, runWealthTax } from "./features/fisc.js";
 import { armSlowCommandWatchdog } from "./interaction-watchdog.js";
 import { STAFF_ONLY_MESSAGE, isServerStaff } from "./server-staff.js";
 import { installOwnerShield, runAsActor } from "./owner-shield.js";
@@ -893,6 +894,11 @@ client.once("ready", () => {
   setInterval(() => { if (serves("fwu")) void tickVoiceXp(communityGuilds()).catch(() => record("levels_error")); }, 60_000).unref?.();
   setInterval(() => { if (serves("fwu")) void runReminders(client).catch(() => record("reminders_error")); }, 30_000).unref?.();
   setInterval(() => { if (serves("fwu")) void runBirthdays(communityGuilds()).catch(() => record("birthdays_error")); }, 5 * 60_000).unref?.();
+  // LE FISC jobs: weekly wealth tax and overdue loans (hourly checks).
+  setInterval(() => {
+    if (!serves("fisc")) return;
+    try { runWealthTax(communityGuilds().map((g) => g.id)); runLoanCollection(); } catch { record("fisc_job_error"); }
+  }, 60 * 60_000).unref?.();
   // Creator Studio scheduler: publishes due drafts only on allowlisted guilds (MZ stays excluded).
   const studioSender = createClientStudioSender(client, { isAllowedGuild: (gid) => guildAllowed(gid, ALLOWED_GUILDS) && !isLogsHub(gid) });
   // Each scheduled job checks its domain at every tick: exactly one process runs it.
@@ -1348,6 +1354,7 @@ client.on("interactionCreate", (interaction) => {
     if (await handleBlacklistInteraction(interaction, settings[interaction.guildId])) return;
     if (await handleGuardInteraction(interaction, settings[interaction.guildId])) { auditSlashUsage(interaction, "GUARD"); return; }
     if (await handleCommunityInteraction(interaction, settings[interaction.guildId])) { auditSlashUsage(interaction, "Communauté"); return; }
+    if (await handleFiscInteraction(interaction)) { auditSlashUsage(interaction, "LE FISC"); return; }
     if (await handleLiveInteraction(interaction, settings, { apiUrl: API, secret: BOT_SYNC_SECRET })) { auditSlashUsage(interaction, "Alertes LIVE"); return; }
     if (interaction.isChatInputCommand?.() && interaction.commandName === "ia" && ["demande", "historique"].includes(interaction.options.getSubcommand(false))) {
       // PND Intelligence (former =pndia): same engine, preview then confirmation button.

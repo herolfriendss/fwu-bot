@@ -65,7 +65,11 @@ test("every bot keeps at most 100 root commands, FWU included before any delegat
   assert.ok(afterGuard.register.some((c) => c.name === "afk"));
   assert.ok(!afterGuard.register.some((c) => c.name === "warn"));
   assert.ok(afterGuard.retire.includes("warn") && afterGuard.retire.includes("guildguard"));
-  assert.deepEqual(afterGuard.skipped, []);
+  assert.ok(!afterGuard.skipped.includes("afk"), "RESUME always fits first");
+  // Normal production: every specialised bot runs, FWU keeps far fewer than 100 commands.
+  const allDelegated = slashRegistrationPlan({ profile: "fwu", delegated: ["guard", "fdpdlavoc", "suckme", "fisc"] }, SLASH_COMMANDS, EXTRA_SLASH_COMMANDS);
+  assert.deepEqual(allDelegated.skipped, []);
+  for (const id of ["guard", "fdpdlavoc", "suckme", "fisc"]) assert.deepEqual(slashRegistrationPlan({ profile: id, delegated: [] }, SLASH_COMMANDS, EXTRA_SLASH_COMMANDS).skipped, [], id);
   const guard = slashRegistrationPlan({ profile: "guard", delegated: [] }, SLASH_COMMANDS, EXTRA_SLASH_COMMANDS);
   assert.deepEqual(guard.register.map((c) => c.name).sort(), ["aide", "status", "guildguard", "warn", "warnings", "mute", "unmute", "kick", "purge", "slowmode", "lock", "unlock", "verify", "antinuke", "automod", "casier", "quarantaine"].sort());
   assert.deepEqual(guard.retire, []);

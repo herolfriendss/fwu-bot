@@ -84,7 +84,7 @@ export const SLASH_COMMAND_OWNERS: Record<BotProfileId, readonly string[]> = {
   ],
   fisc: [
     "balance", "daily", "work", "job", "bank", "history", "rob", "lottery", "pay", "leaderboard",
-    "inventory", "shop", "buy", "pnd", "roulette", "blackjack", "business", "invest", "casino",
+    "inventory", "shop", "buy", "pnd", "roulette", "blackjack", "business", "invest", "casino", "impots", "pret", "duel", "pari",
   ],
 };
 
