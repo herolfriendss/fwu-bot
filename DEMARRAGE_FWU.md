@@ -28,6 +28,14 @@ Ensuite, passe directement à l'étape **4. Dans Discord** plus bas.
 cd ~ && Z=$(ls -t ~/*main*.zip | head -n 1) && unzip -oq "$Z" && P=$(dirname "$(dirname "$(ls -td ~/*/scripts/package-fwu-bots.py | head -n 1)")") && bash "$P/scripts/installation/FWU-MAJ-COMPLETE.sh" opc@ADRESSE_DU_VPS
 ```
 
+## Mettre à jour sans ordinateur : /maj sur Discord
+
+Après une mise à jour depuis le Chromebook (où le jeton GitHub en lecture seule est demandé une fois) :
+
+- `/maj lancer` : le VPS télécharge la dernière version sur GitHub et met à jour FWU, le site et les 4 bots (10 à 30 min).
+- `/maj etat` : avancement et journal. Le résultat arrive aussi en message privé.
+- Réservé à l'OWNER. Le jeton reste dans `/home/opc/fwu-data/.github-token` (fichier privé) ; s'il expire, refais une mise à jour depuis un ordinateur.
+
 ## Mettre à jour les 4 bots plus tard (FWU non touché)
 
 Depuis le dossier `FWU-installation` sur ton ordinateur :

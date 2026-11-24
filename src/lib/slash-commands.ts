@@ -1954,6 +1954,18 @@ export const EXTRA_SLASH_COMMANDS: SlashCommandDef[] = [
     ],
   },
   {
+    name: "maj",
+    description: "OWNER : met à jour FWU et les 4 bots depuis GitHub, sans ordinateur",
+    usage: "/maj lancer · /maj etat",
+    category: "SYS+",
+    dmPermission: false,
+    requiresBotProcess: true,
+    options: [
+      sub("lancer", "Télécharge la dernière version et met tout à jour (10 à 30 min)"),
+      sub("etat", "Avancement et journal de la dernière mise à jour"),
+    ],
+  },
+  {
     name: "pseudo",
     description: "SUCK ME : change ou réinitialise le pseudo d'un membre",
     usage: "/pseudo changer membre nom · reset membre",

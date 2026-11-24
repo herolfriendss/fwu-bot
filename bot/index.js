@@ -80,6 +80,7 @@ import { runAutoconfig } from "./autoconfig.js";
 import { handleGuardInteraction } from "./guard/commands.js";
 import { communityAutoconfig, handleCommunityInteraction, handleLevelMessage, runBirthdays, runReminders, tickVoiceXp } from "./features/community.js";
 import { handleFiscInteraction, runLoanCollection, runWealthTax } from "./features/fisc.js";
+import { announceUpdateResult, handleSelfUpdateInteraction } from "./features/self-update.js";
 import { handleSuckmeInteraction, ladderOf, runAnnouncements, runTempRoles, saveLadder } from "./features/suckme.js";
 import { armSlowCommandWatchdog } from "./interaction-watchdog.js";
 import { STAFF_ONLY_MESSAGE, isServerStaff } from "./server-staff.js";
@@ -903,6 +904,8 @@ client.once("ready", () => {
   setInterval(() => { if (serves("fwu")) void tickVoiceXp(communityGuilds()).catch(() => record("levels_error")); }, 60_000).unref?.();
   setInterval(() => { if (serves("fwu")) void runReminders(client).catch(() => record("reminders_error")); }, 30_000).unref?.();
   setInterval(() => { if (serves("fwu")) void runBirthdays(communityGuilds()).catch(() => record("birthdays_error")); }, 5 * 60_000).unref?.();
+  // SUCK ME: tell the OWNER how the last /maj ended (checked every 2 minutes).
+  setInterval(() => { if (serves("suckme")) void announceUpdateResult(client).catch(() => {}); }, 2 * 60_000).unref?.();
   // SUCK ME jobs: expired temporary roles and scheduled announcements (every minute).
   setInterval(() => {
     if (!serves("suckme")) return;
@@ -1370,6 +1373,7 @@ client.on("interactionCreate", (interaction) => {
     if (await handleGuardInteraction(interaction, settings[interaction.guildId])) { auditSlashUsage(interaction, "GUARD"); return; }
     if (await handleCommunityInteraction(interaction, settings[interaction.guildId])) { auditSlashUsage(interaction, "Communauté"); return; }
     if (await handleFiscInteraction(interaction)) { auditSlashUsage(interaction, "LE FISC"); return; }
+    if (await handleSelfUpdateInteraction(interaction)) { auditSlashUsage(interaction, "SUCK ME"); return; }
     if (await handleSuckmeInteraction(interaction, settings[interaction.guildId])) { auditSlashUsage(interaction, "SUCK ME"); return; }
     if (await handleMusicExtrasInteraction(interaction)) { auditSlashUsage(interaction, "Musique & radio"); return; }
     if (await handleLiveInteraction(interaction, settings, { apiUrl: API, secret: BOT_SYNC_SECRET })) { auditSlashUsage(interaction, "Alertes LIVE"); return; }
