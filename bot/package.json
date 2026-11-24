@@ -9,7 +9,7 @@
   "scripts": {
     "start": "node --env-file=.env index.js",
     "export:economy": "node scripts/export-economy.js",
-    "test": "node --import ./test-db-isolation.mjs --test systems/sysplus/*.test.js systems/lockname/*.test.js systems/waouf/*.test.js systems/setup/*.test.js systems/entitlements/*.test.js systems/creator/*.test.js systems/marketplace/*.test.js *.test.js music/*.test.js platform/policy/*.test.js",
+    "test": "node --import ./test-db-isolation.mjs --test systems/sysplus/*.test.js systems/lockname/*.test.js systems/waouf/*.test.js systems/setup/*.test.js systems/entitlements/*.test.js systems/creator/*.test.js systems/marketplace/*.test.js *.test.js music/*.test.js platform/policy/*.test.js guard/*.test.js features/*.test.js",
     "audit:commands": "node --experimental-strip-types scripts/audit-command-surface.mjs",
     "audit:replies": "node scripts/audit-interaction-replies.mjs",
     "smoke": "node --experimental-strip-types --no-warnings scripts/smoke-commands.mjs"

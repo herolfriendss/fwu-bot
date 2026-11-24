@@ -69,7 +69,7 @@ export const SLASH_COMMAND_OWNERS: Record<BotProfileId, readonly string[]> = {
   ],
   guard: [
     "guildguard", "warn", "warnings", "mute", "unmute", "kick", "purge", "slowmode",
-    "lock", "unlock", "verify",
+    "lock", "unlock", "verify", "antinuke", "automod", "casier", "quarantaine",
   ],
   fdpdlavoc: [
     "access", "unaccess", "pv", "voc",

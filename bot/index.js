@@ -74,6 +74,9 @@ import { handleWebhookInteraction } from "./webhooks.js";
 import { handlePanelSetupInteraction } from "./systems/setup/panel-setup.js";
 import { getPndPrivilegedIds } from "./pnd-owner-policy.js";
 import { checkInteractionHierarchy } from "./hierarchy-guard.js";
+import { createAntiNuke, registerBotIdentity } from "./guard/anti-nuke.js";
+import { createAutomod } from "./guard/automod.js";
+import { handleGuardInteraction } from "./guard/commands.js";
 import { armSlowCommandWatchdog } from "./interaction-watchdog.js";
 import { STAFF_ONLY_MESSAGE, isServerStaff } from "./server-staff.js";
 import { installOwnerShield, runAsActor } from "./owner-shield.js";
@@ -257,8 +260,10 @@ function auditSlashUsage(interaction, category) {
 
 // Nobody can touch the OWNER, whatever the path (commands, panels, jobs, automatic protections).
 installOwnerShield({ report: () => record("owner_shield_blocked") });
+const guardReport = (guild, { title, description, color }) => sendCentralLog(guild, settings[guild.id], systemLogEmbed({ title, description, color }));
+const automod = createAutomod({ report: guardReport, record: (code) => record(code) });
 const client = new Client({
-  intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildVoiceStates, GatewayIntentBits.GuildMessages, GatewayIntentBits.GuildMessageReactions, GatewayIntentBits.GuildInvites, GatewayIntentBits.MessageContent, GatewayIntentBits.GuildMembers, GatewayIntentBits.GuildModeration],
+  intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildVoiceStates, GatewayIntentBits.GuildMessages, GatewayIntentBits.GuildMessageReactions, GatewayIntentBits.GuildInvites, GatewayIntentBits.MessageContent, GatewayIntentBits.GuildMembers, GatewayIntentBits.GuildModeration, GatewayIntentBits.GuildWebhooks],
   partials: [Partials.Channel, Partials.Message, Partials.Reaction],
 });
 
@@ -394,6 +399,15 @@ async function sendPrefixHint(msg, owner) {
   if (reply) setTimeout(() => { reply.delete().catch(() => {}); }, 15_000).unref?.();
 }
 
+// GUARD anti-nuke: destructive actions in bulk are reverted and their author neutralised.
+const antiNuke = createAntiNuke({ client, report: guardReport, record: (code) => record(code) });
+const guardWatch = (guild) => guild && serves("guard") && guildAllowed(guild.id, ALLOWED_GUILDS) && !isLogsHub(guild.id);
+client.on("channelDelete", (channel) => { if (guardWatch(channel.guild)) void antiNuke.channelDelete(channel).catch(() => record("antinuke_error")); });
+client.on("roleDelete", (role) => { if (guardWatch(role.guild)) void antiNuke.roleDelete(role).catch(() => record("antinuke_error")); });
+client.on("guildBanAdd", (ban) => { if (guardWatch(ban.guild)) void antiNuke.ban(ban).catch(() => record("antinuke_error")); });
+client.on("guildMemberRemove", (member) => { if (guardWatch(member.guild)) void antiNuke.memberRemove(member).catch(() => record("antinuke_error")); });
+client.on("webhooksUpdate", (channel) => { if (guardWatch(channel.guild)) void antiNuke.webhooksUpdate(channel).catch(() => record("antinuke_error")); });
+
 client.on("messageCreate", async (msg) => {
   if (msg.author.bot || !msg.guild) return;
   // Defense in depth: a guild outside the allowlist is ignored even while the
@@ -408,6 +422,8 @@ client.on("messageCreate", async (msg) => {
   const prefixBlocked = !PREFIX_COMMANDS_ENABLED && /^=[a-z]/i.test(String(msg.content ?? "").trim());
   const runCmd = (domain) => !prefixBlocked && (allDomains || (prefixOwner ? prefixOwner === domain && serves(domain) : serves(domain)));
   if (serves("fwu")) recordAnalyticsMetric(msg.guild.id, "messages");
+  // GUARD automod: a removed message stops here (no XP, no other processing).
+  if (serves("guard") && await automod(msg, s).catch(() => null)) return;
   if (serves("guard")) {
   const guardianNow = Date.now();
   const mentionCount = (msg.mentions?.users?.size ?? 0) + (msg.mentions?.roles?.size ?? 0) + (msg.mentions?.everyone ? 1 : 0);
@@ -868,6 +884,8 @@ async function reconcileDogLeashes() {
 
 client.once("ready", () => {
   if (!IS_FWU) tickDomainLease();
+  // Every FWU bot records its Discord id so GUARD's anti-nuke never targets its siblings.
+  try { registerBotIdentity(RUNTIME.profile, client.user.id); } catch { record("bot_identity_error"); }
   // Creator Studio scheduler: publishes due drafts only on allowlisted guilds (MZ stays excluded).
   const studioSender = createClientStudioSender(client, { isAllowedGuild: (gid) => guildAllowed(gid, ALLOWED_GUILDS) && !isLogsHub(gid) });
   // Each scheduled job checks its domain at every tick: exactly one process runs it.
@@ -1321,6 +1339,7 @@ client.on("interactionCreate", (interaction) => {
     if (await handleDmAllInteraction(interaction, settings[interaction.guildId])) return;
     if (await handleUndogAllInteraction(interaction, settings[interaction.guildId])) return;
     if (await handleBlacklistInteraction(interaction, settings[interaction.guildId])) return;
+    if (await handleGuardInteraction(interaction, settings[interaction.guildId])) { auditSlashUsage(interaction, "GUARD"); return; }
     if (await handleLiveInteraction(interaction, settings, { apiUrl: API, secret: BOT_SYNC_SECRET })) { auditSlashUsage(interaction, "Alertes LIVE"); return; }
     if (interaction.isChatInputCommand?.() && interaction.commandName === "ia" && ["demande", "historique"].includes(interaction.options.getSubcommand(false))) {
       // PND Intelligence (former =pndia): same engine, preview then confirmation button.
