@@ -29,8 +29,9 @@ fi
 
 if ! command -v psql >/dev/null 2>&1; then
   info "Installation de PostgreSQL"
-  dnf -y module enable postgresql:16 >/dev/null 2>&1 || true
-  dnf -y install postgresql-server postgresql >/dev/null
+  # -C : liste de paquets déjà en cache (bien plus rapide sur un petit VPS), sinon téléchargement.
+  { dnf -C -y module enable postgresql:16 >/dev/null 2>&1 || dnf -y module enable postgresql:16 >/dev/null 2>&1 || true; }
+  dnf -C -y install postgresql-server postgresql >/dev/null 2>&1 || dnf -y install postgresql-server postgresql >/dev/null
 fi
 if [[ ! -s /var/lib/pgsql/data/PG_VERSION ]]; then
   info "Initialisation du cluster"
@@ -47,6 +48,8 @@ systemctl reload postgresql
 info "Création de l'utilisateur et de la base"
 PASSWORD="$(openssl rand -hex 24)"
 sudo -u postgres psql -v ON_ERROR_STOP=1 -q <<SQL >/dev/null
+-- PostgreSQL 13 et moins chiffrent en md5 par défaut : imposer scram-sha-256 (accès pg_hba).
+SET password_encryption = 'scram-sha-256';
 DO \$\$ BEGIN
   IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = '${DB_USER}') THEN
     CREATE ROLE ${DB_USER} LOGIN PASSWORD '${PASSWORD}';
