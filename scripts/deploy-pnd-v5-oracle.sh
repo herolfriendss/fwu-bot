@@ -148,18 +148,41 @@ info "Tests complets du bot"
 npm --prefix bot test
 info "Banc d'essai : toutes les commandes slash et préfixe"
 npm --prefix bot run smoke
+# Petit VPS (moins de 1,8 Go) : la vérification TypeScript et le build demandent ~1,5 Go et
+# peuvent durer des heures en mémoire d'échange. L'archive peut alors livrer le site déjà
+# vérifié et construit (.output + .output/PREBUILT) : réutilisé SEULEMENT si l'empreinte
+# des sources est identique à celle de cette archive ; sinon, vérification et build normaux.
+PREBUILT_OK=0
+if [[ -s .output/server/index.mjs && -s .output/PREBUILT ]] && (( MEM_MB < 1800 )); then
+  expected="$(sed -n 's/^fingerprint=//p' .output/PREBUILT)"
+  actual="$(python3 -I scripts/source-fingerprint.py . 2>/dev/null || true)"
+  if [[ -n "$expected" && "$expected" == "$actual" ]]; then
+    PREBUILT_OK=1
+    echo "Site déjà vérifié et construit livré avec l'archive (empreinte identique) : TypeScript et build sautés (mémoire : ${MEM_MB} Mo)."
+  else
+    echo "Site livré non conforme aux sources : vérification et build complets."
+  fi
+fi
 info "Lint (informatif : ~10 000 écarts de formatage Prettier préexistants, non bloquant)"
-npm run lint >/dev/null 2>&1 && echo "Lint propre." || echo "Lint : écarts présents (formatage). Non bloquant."
+if (( PREBUILT_OK )); then
+  echo "Lint sauté sur ce petit serveur (informatif seulement)."
+else
+  npm run lint >/dev/null 2>&1 && echo "Lint propre." || echo "Lint : écarts présents (formatage). Non bloquant."
+fi
 info "Contrôle du catalogue de commandes (100 maximum, aucun doublon)"
 npm --prefix bot run audit:commands
 info "Tests dashboard"
 npm test
-info "Vérification TypeScript"
-./node_modules/.bin/tsc --noEmit
+if (( ! PREBUILT_OK )); then
+  info "Vérification TypeScript"
+  ./node_modules/.bin/tsc --noEmit
+fi
 info "Regénération du paquet bot isolé"
 npm run package:bot
-info "Build de production du dashboard"
-npm run build
+if (( ! PREBUILT_OK )); then
+  info "Build de production du dashboard"
+  npm run build
+fi
 [[ -s .output/server/index.mjs ]] || fail "Build terminé sans produire .output/server/index.mjs."
 
 if ! command -v pm2 >/dev/null 2>&1; then
