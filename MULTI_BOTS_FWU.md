@@ -45,7 +45,7 @@ Emplacements sur le VPS Oracle :
 |---|---|---|
 | GUARD | Gérer les messages, Exclure, Bannir, Exclure temporairement, Gérer les rôles (quarantaine), Gérer les salons (lock/slowmode), Voir les logs, Ajouter des réactions | Au-dessus des membres qu'il modère |
 | FDPDLAVOC | Se connecter, Parler, Déplacer des membres, Gérer les salons, Gérer les permissions (pv) | Au-dessus des rôles de membres |
-| SUCK ME | Gérer les rôles, Gérer les pseudos, Déplacer des membres, Voir les logs (Anti-Move), Gérer les messages (WOUAF), Gérer les webhooks | **Juste sous ton rôle**, au-dessus de tous les rôles qu'il attribue (DOG, MENOTTE, rankall) |
+| SUCK ME | Gérer les rôles, Gérer les pseudos, Déplacer des membres, Voir les logs (Anti-Move), Gérer les messages (WOUAF), Gérer les webhooks ; **rôle 0 % intouchable** : Rendre muet, Mettre en sourdine, Exclure temporairement, Bannir | **Juste sous ton rôle**, au-dessus du rôle 0 % et de tous les rôles qu'il attribue (DOG « En laisse (…) », MENOTTE, rankall) |
 | LE FISC | Gérer les rôles (rôles vendus en boutique ou au marché) | Au-dessus des rôles vendus |
 
 ### Synchronisation

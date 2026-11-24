@@ -75,6 +75,29 @@ Les colonnes tempmute, kick et ban sont celles du cahier des charges ; les autre
 - **Laisse** : le bot exigeait que la personne en laisse ait elle-même « Se connecter » sur le salon du maître : impossible de la suivre dans un vocal verrouillé. Seul le bot a besoin des permissions (Discord). Ajouts : erreur Discord absorbée, anti-boucle (6 déplacements par minute et par membre), salon plein géré (le bot passe outre comme Discord l'autorise).
 - **Démarrage simultané** : deux bots démarrés en même temps sur une base SQLite à mettre à jour pouvaient planter (`duplicate column name`). Corrigé.
 
+## 5 bis. Rôle 0 % intouchable (SUCK ME)
+
+Discord applique un clic droit tout de suite : aucun bot ne peut l'empêcher, SUCK ME l'**annule** aussitôt.
+
+| Action sur un membre 0 % | Réaction |
+|---|---|
+| Micro coupé (rendre muet), casque coupé (sourdine) | rétabli **instantanément**, l'auteur est retrouvé ensuite pour le journal |
+| Exclusion temporaire | levée instantanément |
+| Bannissement | débanni instantanément (Discord ne permet pas de le faire revenir : renvoyer une invitation) |
+| Pseudo changé, rôle 0 % retiré | remis, sauf si c'est la personne elle-même, l'owner ou le bot |
+| Déplacé de force | ramené (Anti-Move forcé, même désactivé) |
+| Expulsé, déconnecté | journalisé (impossible à annuler) |
+
+- Protégés : l'owner, les rôles nommés « 0% » / « 0 % » et les rôles associés au palier 0 par `/quota palier`. Le nom « 0% » donne la protection, jamais les pouvoirs de l'owner.
+- Anti-acharnement : 8 annulations par minute et par type, puis alerte « intervention humaine » dans le Logs Hub.
+- Permissions de SUCK ME : Rendre muet, Mettre en sourdine, Exclure temporairement, Bannir, Gérer les pseudos, Gérer les rôles, Déplacer, Voir les logs. Pour un membre 0 % autre que l'owner, le rôle de SUCK ME doit être **au-dessus du rôle 0 %** (lever une exclusion, remettre un pseudo ou un rôle en dépend ; micro, casque et débannissement non).
+- Désactivation : `PND_TIER0_PROTECTION=off` dans `bot/.env`.
+
+## 5 ter. Laisse (DOG)
+
+- La personne en laisse suit **le membre qui l'a mise en laisse** de vocal en vocal (y compris un vocal verrouillé ou plein).
+- Rôle : **`En laisse (Pseudo du maître)`**, un par maître, partagé par ses laisses, supprimé quand plus personne ne le porte, renommé si le maître change de pseudo. Les laisses en cours passent de l'ancien rôle commun « En laisse » au rôle du maître au premier contrôle.
+
 ## 6. Validation sur Discord (serveur et bots de test, jamais les tokens de production)
 
 1. `install-shared-db.sh`, redémarrer FWU, vérifier `shared_db_up` dans le statut du site.
@@ -87,6 +110,8 @@ Les colonnes tempmute, kick et ban sont celles du cahier des charges ; les autre
 8. DOG : maître dans un vocal privé verrouillé → la personne suit ; `=undog` → plus de suivi.
 9. `=afk on` puis `=afk off` (SUCK ME), `/afk on|off`.
 10. `/reglement generer` → Valider → `/reglement publier` ; `/screening configurer` avec un compte neuf.
+11. Rôle 0 % : un autre compte fait clic droit → Rendre muet / Mettre en sourdine sur un membre 0 % : rétabli dans la seconde, entrée « Rôle 0 % » dans le Logs Hub.
+12. `=dog @x` par deux SYS+ différents : rôles « En laisse (Pseudo1) » et « En laisse (Pseudo2) » ; `=undog` → rôle supprimé quand il n'est plus porté.
 
 ## 7. Tests automatisés
 

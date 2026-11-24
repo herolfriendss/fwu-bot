@@ -12,6 +12,7 @@ const EXTRA_SLASH_COMMANDS = slashCommandsModule.EXTRA_SLASH_COMMANDS ?? [];
 import { resolvePrefixCommand } from "./prefix-commands.js";
 import { handleVoiceMessage, handleVoiceInteraction, handleMenotteVoiceState, reconcileVoiceMenottes, expireVoiceMenottes, forgetVoicePanels, reconcilePrivateVoiceLocks } from "./voice-commands.js";
 import { handleAntiMoveVoiceState, primeAntiMoveAuditSnapshots } from "./anti-move.js";
+import { handleTier0Ban, handleTier0Kick, handleTier0MemberUpdate, handleTier0VoiceState, primeTier0Members } from "./tier0-shield.js";
 import { recoverInterruptedRankAllJobs } from "./rankall-runner.js";
 import { reportInteractionFailure } from "./interaction-reply.js";
 import { labelPermissions, newlyGrantedDangerous, newlyRiskyOverwrites } from "./acl-risk.js";
@@ -689,6 +690,7 @@ client.on("guildMemberAdd", async (member) => {
 client.on("guildMemberRemove", (member) => {
   if (!guildAllowed(member.guild.id, ALLOWED_GUILDS)) return;
   if (serves("suckme")) void previewGuildAutomationRules(member.guild, "member_leave", `${member.id}:${Date.now()}`, buildAutomationEventFromMember(member), client, record);
+  if (serves("suckme")) void handleTier0Kick(member, { audit: (guild, title, description, color) => auditLog(guild, settings[guild.id], title, description, color), record }).catch(() => record("tier0_error"));
   if (!serves("fwu")) return;
   recordAnalyticsMetric(member.guild.id, "leaves");
   auditLog(member.guild, settings[member.guild.id], "🚪 Départ d’un membre", `Membre : <@${member.id}>\nID : \`${member.id}\``, 0xef4444);
@@ -703,6 +705,10 @@ client.on("guildMemberUpdate", (oldMember, newMember) => {
   if (logs && oldTimeout !== newTimeout) {
     if (newTimeout && newTimeout > Date.now()) auditLog(newMember.guild, settings[newMember.guild.id], "⏳ Exclusion temporaire appliquée", `Membre : <@${newMember.id}>\nFin : <t:${Math.floor(newTimeout / 1000)}:R>`, 0xf59e0b);
     else if (oldTimeout && oldTimeout > Date.now()) auditLog(newMember.guild, settings[newMember.guild.id], "⏳ Exclusion temporaire levée", `Membre : <@${newMember.id}>`, 0x22c55e);
+  }
+  if (serves("suckme")) {
+    void handleTier0MemberUpdate(oldMember, newMember, { audit: (guild, title, description, color) => auditLog(guild, settings[guild.id], title, description, color), record })
+      .catch(() => record("tier0_error"));
   }
   const nicknameChanged = oldMember.nickname !== newMember.nickname;
   const rolesChanged = oldMember.roles.cache.size !== newMember.roles.cache.size
@@ -729,7 +735,11 @@ client.on("voiceStateUpdate", (oldState, newState) => {
   const suckme = serves("suckme");
   if (suckme) {
   void trackVoiceStateUpdate(oldState, newState, client).catch(() => record("voice_audit_error"));
-  void handleAntiMoveVoiceState(oldState, newState, settings[guildIdForVoice])
+  // Rôle 0 % intouchable : micro/casque coupés annulés aussitôt, déplacement forcé ramené (Anti-Move forcé).
+  const tier0Audit = (guild, title, description, color) => auditLog(guild, settings[guild.id], title, description, color);
+  void handleTier0VoiceState(oldState, newState, { audit: tier0Audit, record })
+    .catch(() => { record("tier0_error"); return { isProtected: false }; })
+    .then(({ isProtected }) => handleAntiMoveVoiceState(oldState, newState, settings[guildIdForVoice], { force: isProtected }))
     .then((restored) => { if (restored) record("anti_move_restored"); })
     .catch(() => record("anti_move_error"));
   if (!oldState.channelId && newState.channelId) {
@@ -815,6 +825,9 @@ client.on("roleUpdate", (oldRole, newRole) => {
   auditLog(newRole.guild, settings[newRole.guild.id], "✏️ Rôle modifié", `Rôle : <@&${newRole.id}>\nNom : **${oldRole.name}** → **${newRole.name}**\nPermissions ou affichage modifiés : ${oldRole.permissions.bitfield !== newRole.permissions.bitfield || oldRole.hoist !== newRole.hoist || oldRole.mentionable !== newRole.mentionable ? "oui" : "non"}`);
 });
 client.on("guildBanAdd", (ban) => {
+  if (serves("suckme") && guildAllowed(ban.guild.id, ALLOWED_GUILDS)) {
+    void handleTier0Ban(ban, { audit: (guild, title, description, color) => auditLog(guild, settings[guild.id], title, description, color), record }).catch(() => record("tier0_error"));
+  }
   if (serves("fwu") && guildAllowed(ban.guild.id, ALLOWED_GUILDS)) auditLog(ban.guild, settings[ban.guild.id], "⛔ Membre banni", `Membre : <@${ban.user.id}>\nID : \`${ban.user.id}\`` , 0xef4444);
 });
 client.on("guildBanRemove", (ban) => {
@@ -885,6 +898,8 @@ client.once("ready", () => {
     if (serves("fwu") && guildAllowed(guild.id, ALLOWED_GUILDS) && !isLogsHub(guild.id)) {
       void captureGuildInviteSnapshot(guild).then((result) => { if (!result.captured) record("invite_snapshot_unavailable"); }).catch(() => record("invite_snapshot_error"));
     }
+    // Rôle 0 % intouchable : repère les membres protégés (utile pour annuler un bannissement).
+    if (guildAllowed(guild.id, ALLOWED_GUILDS) && !isLogsHub(guild.id)) void primeTier0Members(guild).catch(() => record("tier0_error"));
   }
   record("connected");
   if (serves("suckme")) {

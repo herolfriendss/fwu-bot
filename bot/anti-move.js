@@ -145,11 +145,15 @@ export function resetAntiMoveRuntimeState() {
  * Missing permissions, audit ambiguity, self-moves, configured exemptions
  * and repeated ping-pong all fail closed.
  */
-export async function handleAntiMoveVoiceState(oldState, newState, rawSettings = null) {
+/**
+ * `force: true` (rôle 0 % intouchable) : protège le membre même si l'Anti-Move
+ * est désactivé sur le serveur ou si le membre n'est pas dans sa liste.
+ */
+export async function handleAntiMoveVoiceState(oldState, newState, rawSettings = null, { force = false } = {}) {
   if (!isVoiceRelocation(oldState, newState)) return false;
   const guild = newState.guild ?? oldState.guild;
   const memberId = newState.id ?? oldState.id;
-  if (!getAntiMoveConfig(guild.id).enabled || !isAntiMoveProtected(guild.id, memberId)) return false;
+  if (!force && (!getAntiMoveConfig(guild.id).enabled || !isAntiMoveProtected(guild.id, memberId))) return false;
 
   const bot = guild.members.me ?? await guild.members.fetchMe().catch(() => null);
   if (!bot?.id || !bot.permissions?.has?.("ViewAuditLog") || !bot.permissions?.has?.("MoveMembers")) return false;

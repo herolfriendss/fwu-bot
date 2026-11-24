@@ -8,6 +8,9 @@ import {
   canCreateLeash,
   leashQuotaStatus,
   findLeashRole,
+  isLeashRoleName,
+  isOwnerLeashRoleName,
+  leashRoleName,
   resolveMaxActiveLeashes,
   MIN_CONFIGURABLE_LEASHES_PER_SYSPLUS,
   MAX_CONFIGURABLE_LEASHES_PER_SYSPLUS,
@@ -56,26 +59,27 @@ test("DOG uses the exact required role name and recognizes the stored legacy nam
   assert.deepEqual(LEGACY_LEASH_ROLE_NAMES, ["🐶 En laisse · Her?"]);
 });
 
-test("DOG reuses the exact role and renames the legacy role without duplicating it", async () => {
-  const legacyRole = {
-    name: LEGACY_LEASH_ROLE_NAMES[0],
-    managed: false,
-    position: 2,
-    setName: async function (name) {
-      this.name = name;
-      return this;
-    },
-  };
-  const cache = { find: (predicate) => [legacyRole].find(predicate) };
-
-  assert.equal(await findLeashRole(cache, 5), legacyRole);
-  assert.equal(legacyRole.name, LEASH_ROLE_NAME);
+test("rôle de laisse par maître : « En laisse (Pseudo) », 100 caractères maximum", () => {
+  assert.equal(leashRoleName("Ryan"), "En laisse (Ryan)");
+  assert.equal(leashRoleName("  Le   Boss \n"), "En laisse (Le Boss)");
+  assert.equal(leashRoleName(""), "En laisse (son maître)");
+  const long = leashRoleName("x".repeat(200));
+  assert.equal(long.length, 100);
+  assert.match(long, /^En laisse \(x+…\)$/);
+  assert.equal(isLeashRoleName("En laisse (Ryan)"), true);
+  assert.equal(isLeashRoleName("En laisse"), true, "ancien rôle commun encore reconnu (migration)");
+  assert.equal(isLeashRoleName(LEGACY_LEASH_ROLE_NAMES[0]), true);
+  assert.equal(isLeashRoleName("Membre"), false);
+  assert.equal(isOwnerLeashRoleName("En laisse"), false);
+  assert.equal(isOwnerLeashRoleName("En laisse (Ryan)"), true);
 });
 
-test("DOG refuses to reuse a leash role above or at the bot role", async () => {
-  const role = { name: LEASH_ROLE_NAME, managed: false, position: 5 };
-  const cache = { find: (predicate) => [role].find(predicate) };
-  await assert.rejects(findLeashRole(cache, 5), /sous le rôle le plus élevé/);
+test("le rôle d'un maître est retrouvé par son nom ; refusé s'il est au-dessus du bot", () => {
+  const role = { name: "En laisse (Ryan)", managed: false, position: 2 };
+  const cache = { find: (predicate) => [role, { name: "En laisse (Autre)", managed: false, position: 2 }].find(predicate) };
+  assert.equal(findLeashRole(cache, 5, "Ryan"), role);
+  assert.equal(findLeashRole(cache, 5, "Inconnu"), null);
+  assert.throws(() => findLeashRole(cache, 2, "Ryan"), /sous le rôle le plus élevé/);
 });
 
 test("configured leash limit accepts only integers from 1 to 10 and falls back to 3 otherwise", () => {

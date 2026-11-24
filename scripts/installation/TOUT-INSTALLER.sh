@@ -103,7 +103,8 @@ for bot in guard fdpdlavoc suckme fisc; do printf '%-10s : %s\n' "$bot" "${RESUL
 cat <<MSG
 
 Dernières étapes, dans Discord :
-  • Paramètres du serveur → Rôles : SUCK ME juste sous ton rôle, GUARD au-dessus des membres qu'il modère.
+  • Paramètres du serveur → Rôles : SUCK ME juste sous ton rôle (au-dessus du rôle 0 %), GUARD au-dessus des membres qu'il modère.
+  • SUCK ME a besoin de : Rendre muet, Mettre en sourdine, Exclure temporairement, Bannir (rôle 0 % intouchable).
   • Rôles de staff nommés « 1% », « 5% », « 10% », « 50% » : reconnus tout seuls (sinon /quota palier).
   • /quota voir : quotas en vigueur · /sysp diagnostic bots : chaque bot installé doit être 🟢.
   • Préfixes : GUARD +ban · FDPDLAVOC ;mv · SUCK ME =afk · LE FISC -dice · FWU en commandes slash.

@@ -13,8 +13,9 @@ import { systemLogEmbed, sendCentralLog } from "./logs.js";
 import {
   canCreateLeash,
   findLeashRole,
-  LEASH_ROLE_NAME,
-  LEGACY_LEASH_ROLE_NAMES,
+  isLeashRoleName,
+  isOwnerLeashRoleName,
+  leashRoleName,
   leashQuotaStatus,
   resolveMaxActiveLeashes,
 } from "./dog-policy.js";
@@ -32,35 +33,67 @@ const enforcingVoiceMembers = new Map();
 const leashRolePromises = new Map();
 const commandLocks = new Map();
 
-async function getLeashRole(guild) {
+/**
+ * Rôle « En laisse (Pseudo du maître) » : un seul par maître, partagé par ses laisses.
+ * Cherché d'abord via les laisses actives de ce maître (le pseudo a pu changer : le rôle
+ * est alors renommé), puis par son nom, sinon créé (création sérialisée par maître).
+ */
+async function getLeashRole(guild, ownerId, ownerName, records = null) {
   const botMember = await guild.members.fetchMe();
   if (!botMember.permissions.has(PermissionFlagsBits.ManageRoles)) {
     throw new Error("Le bot doit avoir la permission Gérer les rôles pour protéger la laisse DOG.");
   }
-  let role = await findLeashRole(guild.roles.cache, botMember.roles.highest.position);
-  if (role) return role;
-
-  // Serialize creation so two simultaneous =dog commands cannot create duplicate marker roles.
-  if (!leashRolePromises.has(guild.id)) {
-    const pending = guild.roles
-      .create({
-        name: LEASH_ROLE_NAME,
-        color: 0x8b5cf6,
-        permissions: [],
-        mentionable: false,
-        hoist: false,
-        reason: "Rôle système FWU DOG — marqueur persistant de laisse",
-      })
-      .finally(() => {
-        leashRolePromises.delete(guild.id);
-      });
-    leashRolePromises.set(guild.id, pending);
+  const expectedName = leashRoleName(ownerName);
+  let role = null;
+  for (const record of Object.values(records ?? {})) {
+    if (record?.guildId !== guild.id || record.ownerId !== ownerId || record.releasing || !record.leashRoleId) continue;
+    const candidate = await fetchRole(guild, record.leashRoleId);
+    if (candidate && isOwnerLeashRoleName(candidate.name)) { role = candidate; break; }
   }
-  role = await leashRolePromises.get(guild.id);
+  role ??= findLeashRole(guild.roles.cache, botMember.roles.highest.position, ownerName);
+  if (!role) {
+    const key = `${guild.id}:${ownerId}`;
+    if (!leashRolePromises.has(key)) {
+      const pending = guild.roles
+        .create({
+          name: expectedName,
+          color: 0x8b5cf6,
+          permissions: [],
+          mentionable: false,
+          hoist: false,
+          reason: `Rôle système FWU DOG — laisse de ${String(ownerName ?? ownerId).slice(0, 60)}`,
+        })
+        .finally(() => {
+          leashRolePromises.delete(key);
+        });
+      leashRolePromises.set(key, pending);
+    }
+    role = await leashRolePromises.get(key);
+  }
   if (role.position >= botMember.roles.highest.position) {
     throw new Error("Le rôle DOG doit être placé sous le rôle le plus élevé du bot.");
   }
+  if (role.name !== expectedName && typeof role.setName === "function") {
+    role = await role.setName(expectedName, "DOG : pseudo du maître mis à jour").catch(() => role);
+  }
   return role;
+}
+
+async function fetchRole(guild, roleId) {
+  if (!roleId) return null;
+  const cached = guild.roles?.cache?.get?.(roleId);
+  if (cached) return cached;
+  try { return (await guild.roles?.fetch?.(roleId)) ?? null; } catch { return null; }
+}
+
+/** Supprime un rôle « En laisse (…) » que plus personne ne porte et qu'aucune laisse n'utilise. */
+async function releaseLeashRoleIfUnused(guild, roleId, records) {
+  if (!guild || !roleId) return false;
+  if (Object.values(records ?? {}).some((record) => record?.guildId === guild.id && record.leashRoleId === roleId && !record.releasing)) return false;
+  const role = await fetchRole(guild, roleId);
+  if (!role || role.managed || !isOwnerLeashRoleName(role.name)) return false;
+  if ((role.members?.size ?? 0) > 0) return false;
+  return Boolean(await role.delete("DOG : plus aucune laisse pour ce maître").catch(() => null));
 }
 
 let stateMtimeMs = null;
@@ -153,10 +186,15 @@ export async function enforceLeashNickname(member) {
         ? (currentMember.guild.roles.cache.get(record.leashRoleId)
           ?? await currentMember.guild.roles.fetch(record.leashRoleId).catch(() => null))
         : null;
-      if (!leashRole) {
-        leashRole = await getLeashRole(currentMember.guild);
+      // Absent, ou ancien rôle commun « En laisse » : passage au rôle « En laisse (Maître) ».
+      if (!leashRole || !isOwnerLeashRoleName(leashRole.name)) {
+        const previousRole = leashRole;
+        leashRole = await getLeashRole(currentMember.guild, record.ownerId, record.ownerName, await loadState());
         record.leashRoleId = leashRole.id;
         await saveState();
+        if (previousRole && previousRole.id !== leashRole.id && currentMember.roles.cache.has(previousRole.id)) {
+          await currentMember.roles.remove(previousRole, "DOG : passage au rôle du maître").catch(() => {});
+        }
       }
       if (!currentMember.roles.cache.has(leashRole.id)) {
         const botMember = await currentMember.guild.members.fetchMe();
@@ -444,7 +482,7 @@ export async function handleDogCommand(message, guildSettings = null) {
       const ownerName = actor.displayName || message.author.username;
       let leashRole;
       try {
-        leashRole = await getLeashRole(message.guild);
+        leashRole = await getLeashRole(message.guild, message.author.id, ownerName, freshRecords);
       } catch (error) {
         await message.reply({
           content: `❌ ${error.message} Vérifie les permissions et la position des rôles du bot.`,
@@ -469,6 +507,7 @@ export async function handleDogCommand(message, guildSettings = null) {
         delete freshRecords[id];
         await saveState().catch(() => {});
         await target.roles.remove(leashRole, "Annulation de la laisse DOG échouée").catch(() => {});
+        await releaseLeashRoleIfUnused(message.guild, leashRole.id, freshRecords).catch(() => {});
         console.error("DOG command failed:", error.message);
         await message.reply({
           content: "❌ Impossible de mettre ce membre en laisse. Vérifie la hiérarchie des rôles et mes permissions.",
@@ -545,6 +584,7 @@ export async function handleDogCommand(message, guildSettings = null) {
     }
     delete current[id];
     await saveState();
+    await releaseLeashRoleIfUnused(message.guild, latest.leashRoleId, current).catch(() => {});
   } catch (error) {
     current[id] = latest;
     await saveState().catch(() => {});
@@ -583,10 +623,16 @@ export async function pruneDepartedLeashes(guild) {
     return 0; // transient error: keep everything
   }
   let removed = 0;
+  const freedRoles = new Set();
   for (const memberId of ids) {
-    if (!present.has(memberId)) { delete records[key(guild.id, memberId)]; removed += 1; }
+    if (present.has(memberId)) continue;
+    const roleId = records[key(guild.id, memberId)]?.leashRoleId;
+    if (roleId) freedRoles.add(roleId);
+    delete records[key(guild.id, memberId)];
+    removed += 1;
   }
   if (removed) await saveState();
+  for (const roleId of freedRoles) await releaseLeashRoleIfUnused(guild, roleId, records).catch(() => {});
   return removed;
 }
 
@@ -629,6 +675,7 @@ export async function undogAll({ guild, client, scope = "serveur", actorTag = "F
         }
         delete records[id];
         result.released += 1;
+        await releaseLeashRoleIfUnused(guild, record.leashRoleId, records).catch(() => {});
       } catch {
         records[id] = record;
         result.failed += 1;
@@ -684,11 +731,10 @@ export async function handleUndogAllInteraction(interaction, guildSettings = nul
 }
 
 const LEASH_NICKNAME = /^🐶\s*de\s/u;
-const leashRoleNames = new Set([LEASH_ROLE_NAME, ...LEGACY_LEASH_ROLE_NAMES]);
 
 /** A member who still shows a leash (DOG role or "🐶 de …" nickname) without any saved leash. */
 export function orphanLeashParts(member) {
-  const roles = [...(member?.roles?.cache?.values?.() ?? [])].filter((role) => leashRoleNames.has(role?.name) && !role.managed);
+  const roles = [...(member?.roles?.cache?.values?.() ?? [])].filter((role) => isLeashRoleName(role?.name) && !role.managed);
   const nickname = LEASH_NICKNAME.test(String(member?.nickname ?? ""));
   return { roles, nickname, any: roles.length > 0 || nickname };
 }

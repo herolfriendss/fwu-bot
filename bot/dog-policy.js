@@ -1,22 +1,35 @@
 export const MAX_ACTIVE_LEASHES_PER_SYSPLUS = 3;
+// Décision du 24/11/2026 : un rôle par maître, « En laisse (Pseudo du maître) ».
+// « En laisse » seul est l'ancien rôle commun : encore reconnu, migré au premier contrôle.
 export const LEASH_ROLE_NAME = "En laisse";
 export const LEGACY_LEASH_ROLE_NAMES = Object.freeze(["🐶 En laisse · Her?"]);
+const OWNER_ROLE = /^En laisse \(.+\)$/u;
+const ROLE_NAME_MAX = 100; // limite Discord
 
-export async function findLeashRole(roleCache, botHighestPosition) {
-  let role = roleCache.find((item) => item.name === LEASH_ROLE_NAME && !item.managed);
-  if (!role) {
-    role = roleCache.find((item) => LEGACY_LEASH_ROLE_NAMES.includes(item.name) && !item.managed);
-    if (role) {
-      if (role.position >= botHighestPosition) {
-        throw new Error("Le rôle DOG doit être placé sous le rôle le plus élevé du bot.");
-      }
-      role = await role.setName(LEASH_ROLE_NAME, "Migration du rôle DOG vers FWU");
-    }
-  }
+/** « En laisse (Pseudo) » : pseudo nettoyé, nom total ≤ 100 caractères. */
+export function leashRoleName(ownerName) {
+  const clean = String(ownerName ?? "").replace(/[\r\n\t]+/g, " ").replace(/\s+/g, " ").trim() || "son maître";
+  const room = ROLE_NAME_MAX - "En laisse ()".length;
+  return `En laisse (${clean.length > room ? `${clean.slice(0, room - 1)}…` : clean})`;
+}
+
+/** Rôle de laisse (par maître, ancien rôle commun ou ancien nom). */
+export function isLeashRoleName(name) {
+  const value = String(name ?? "");
+  return value === LEASH_ROLE_NAME || LEGACY_LEASH_ROLE_NAMES.includes(value) || OWNER_ROLE.test(value);
+}
+
+export function isOwnerLeashRoleName(name) {
+  return OWNER_ROLE.test(String(name ?? ""));
+}
+
+/** Rôle « En laisse (Pseudo) » de ce maître s'il existe déjà (par son nom actuel). */
+export function findLeashRole(roleCache, botHighestPosition, ownerName) {
+  const role = roleCache.find((item) => item.name === leashRoleName(ownerName) && !item.managed) ?? null;
   if (role && role.position >= botHighestPosition) {
     throw new Error("Le rôle DOG doit être placé sous le rôle le plus élevé du bot.");
   }
-  return role ?? null;
+  return role;
 }
 
 export function countActiveLeashesForOwner(records, guildId, ownerId) {
