@@ -80,7 +80,7 @@ export const SLASH_COMMAND_OWNERS: Record<BotProfileId, readonly string[]> = {
     "sysp", "panel", "setup", "knowledge", "rank", "rankall", "removerole", "rolepanel",
     "staffhistory", "vocalpresence", "lockname", "webhook", "automation",
     "anti-moove", "wakeup", "dog", "undog", "doginfo", "wouaf", "menotte", "unmenotte", "menotteinfo",
-    "dmall", "undogall",
+    "dmall", "undogall", "roletemp", "annonce", "staff", "pseudo",
   ],
   fisc: [
     "balance", "daily", "work", "job", "bank", "history", "rob", "lottery", "pay", "leaderboard",
