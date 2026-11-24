@@ -385,6 +385,7 @@ const chain = [
   ["dmall", await load("../dmall.js", "handleDmAllInteraction"), (i, s) => [i, s[GUILD_ID]]],
   ["undogall", await load("../dog-commands.js", "handleUndogAllInteraction"), (i, s) => [i, s[GUILD_ID]]],
   ["guard", await load("../guard/commands.js", "handleGuardInteraction"), (i, s) => [i, s[GUILD_ID]]],
+  ["community", await load("../features/community.js", "handleCommunityInteraction"), (i, s) => [i, s[GUILD_ID]]],
   ["blacklist", await load("../blacklist.js", "handleBlacklistInteraction"), (i, s) => [i, s[GUILD_ID]]],
   ["live", await load("../live-commands.js", "handleLiveInteraction"), (i, s) => [i, s, { apiUrl: "http://127.0.0.1:9", secret: "x".repeat(32) }]],
   [

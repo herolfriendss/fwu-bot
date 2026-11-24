@@ -77,6 +77,7 @@ import { checkInteractionHierarchy } from "./hierarchy-guard.js";
 import { createAntiNuke, registerBotIdentity } from "./guard/anti-nuke.js";
 import { createAutomod } from "./guard/automod.js";
 import { handleGuardInteraction } from "./guard/commands.js";
+import { handleCommunityInteraction, handleLevelMessage, runBirthdays, runReminders, tickVoiceXp } from "./features/community.js";
 import { armSlowCommandWatchdog } from "./interaction-watchdog.js";
 import { STAFF_ONLY_MESSAGE, isServerStaff } from "./server-staff.js";
 import { installOwnerShield, runAsActor } from "./owner-shield.js";
@@ -424,6 +425,7 @@ client.on("messageCreate", async (msg) => {
   if (serves("fwu")) recordAnalyticsMetric(msg.guild.id, "messages");
   // GUARD automod: a removed message stops here (no XP, no other processing).
   if (serves("guard") && await automod(msg, s).catch(() => null)) return;
+  if (serves("fwu")) void handleLevelMessage(msg).catch(() => record("levels_error"));
   if (serves("guard")) {
   const guardianNow = Date.now();
   const mentionCount = (msg.mentions?.users?.size ?? 0) + (msg.mentions?.roles?.size ?? 0) + (msg.mentions?.everyone ? 1 : 0);
@@ -886,6 +888,11 @@ client.once("ready", () => {
   if (!IS_FWU) tickDomainLease();
   // Every FWU bot records its Discord id so GUARD's anti-nuke never targets its siblings.
   try { registerBotIdentity(RUNTIME.profile, client.user.id); } catch { record("bot_identity_error"); }
+  // FWU community jobs: voice XP (1 min), reminders (30 s), birthdays (5 min).
+  const communityGuilds = () => [...client.guilds.cache.values()].filter((g) => guildAllowed(g.id, ALLOWED_GUILDS) && !isLogsHub(g.id));
+  setInterval(() => { if (serves("fwu")) void tickVoiceXp(communityGuilds()).catch(() => record("levels_error")); }, 60_000).unref?.();
+  setInterval(() => { if (serves("fwu")) void runReminders(client).catch(() => record("reminders_error")); }, 30_000).unref?.();
+  setInterval(() => { if (serves("fwu")) void runBirthdays(communityGuilds()).catch(() => record("birthdays_error")); }, 5 * 60_000).unref?.();
   // Creator Studio scheduler: publishes due drafts only on allowlisted guilds (MZ stays excluded).
   const studioSender = createClientStudioSender(client, { isAllowedGuild: (gid) => guildAllowed(gid, ALLOWED_GUILDS) && !isLogsHub(gid) });
   // Each scheduled job checks its domain at every tick: exactly one process runs it.
@@ -1340,6 +1347,7 @@ client.on("interactionCreate", (interaction) => {
     if (await handleUndogAllInteraction(interaction, settings[interaction.guildId])) return;
     if (await handleBlacklistInteraction(interaction, settings[interaction.guildId])) return;
     if (await handleGuardInteraction(interaction, settings[interaction.guildId])) { auditSlashUsage(interaction, "GUARD"); return; }
+    if (await handleCommunityInteraction(interaction, settings[interaction.guildId])) { auditSlashUsage(interaction, "Communauté"); return; }
     if (await handleLiveInteraction(interaction, settings, { apiUrl: API, secret: BOT_SYNC_SECRET })) { auditSlashUsage(interaction, "Alertes LIVE"); return; }
     if (interaction.isChatInputCommand?.() && interaction.commandName === "ia" && ["demande", "historique"].includes(interaction.options.getSubcommand(false))) {
       // PND Intelligence (former =pndia): same engine, preview then confirmation button.
