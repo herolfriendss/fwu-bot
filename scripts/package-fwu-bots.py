@@ -96,7 +96,7 @@ umask 077
   printf '# Ne modifie que la ligne %s. Le reste est recopié depuis FWU à chaque installation.\n\n' "$TOKEN_ENV"
   printf '%s\n' "$own" | grep -vE '^$'
   printf '\n# --- Réglages communs recopiés depuis FWU ---\n'
-  grep -vE '^(DISCORD_TOKEN|PND_[A-Z]+_TOKEN|PND_FWU_DELEGATED|PND_BOT_PROFILE)=' "$FWU_ENV" | grep -E '^[A-Z0-9_]+=' || true
+  grep -vE '^(DISCORD_TOKEN|PND_[A-Z]+_TOKEN|PND_FWU_DELEGATED|PND_BOT_PROFILE|ANTHROPIC_API_KEY)=' "$FWU_ENV" | grep -E '^[A-Z0-9_]+=' || true
 }} > "$ENV_FILE.new"
 mv "$ENV_FILE.new" "$ENV_FILE"
 chmod 600 "$ENV_FILE"

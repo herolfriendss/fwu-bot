@@ -1,5 +1,13 @@
 # FWU — Mise en route sur le VPS Oracle (à faire dès que tu as le PC)
 
+> **Version du 24/11/2026** : préfixes par bot (GUARD `+`, FDPDLAVOC `;`, SUCK ME `=`, LE FISC `-`, FWU en slash),
+> quotas de modération partagés (base centrale PostgreSQL installée automatiquement par `TOUT-INSTALLER.sh`),
+> `/tempmute`, `/sanction`, `/quota`, `/embed`, `/reglement`, `/screening`, `;mv`, `;accessall`,
+> correctifs AFK et laisse. Détail : `docs/FWU_BASE_PARTAGEE.md` (dans l'archive FWU).
+> **Pour mettre à jour : la même méthode rapide ci-dessous**, réponds **O** à la mise à jour de FWU.
+> Le script installe la base, te demande (facultatif) la clé Claude du règlement, puis met à jour les 4 bots
+> (tokens conservés : Entrée suffit s'ils sont déjà enregistrés).
+
 ## La méthode rapide (recommandée) : 2 actions
 
 **Avant**, dans le portail développeur Discord, pour GUARD, FDPDLAVOC, SUCK ME et LE FISC : onglet **Bot**, active **Server Members Intent** et **Message Content Intent**, et invite le bot sur ton serveur.

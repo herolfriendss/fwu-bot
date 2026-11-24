@@ -50,3 +50,6 @@ bot/*.backup*
 public/downloads/
 
 .env.save
+
+# Archives de livraison générées (scripts/package-fwu-*.py)
+livraison/

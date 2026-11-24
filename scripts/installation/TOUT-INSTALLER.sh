@@ -5,9 +5,11 @@
 #
 # 1. met FWU à jour (retour arrière automatique en cas d'échec) ;
 # 2. crée le dossier de données partagé (une seule fois, sans risque si relancé) ;
-# 3. installe GUARD, FDPDLAVOC, SUCK ME et LE FISC : chacun te demande son token
+# 3. installe la base centrale PostgreSQL (quotas partagés, sanctions, journaux),
+#    le fichier des préfixes, et te propose la clé IA du règlement (facultative) ;
+# 4. installe GUARD, FDPDLAVOC, SUCK ME et LE FISC : chacun te demande son token
 #    (saisie masquée, Entrée seule = passer ce bot) ;
-# 4. affiche l'état final.
+# 5. affiche l'état final.
 # Relançable sans risque : ce qui est déjà fait est conservé. Aucun token n'est affiché.
 set -uo pipefail
 
@@ -36,7 +38,7 @@ pour GUARD, FDPDLAVOC, SUCK ME et LE FISC :
 MSG
 read -rp "Appuie sur Entrée quand c'est prêt (Ctrl+C pour annuler)… " _ || exit 1
 
-step "1/4 — Mise à jour de FWU ($(basename "$FWU_ZIP"))"
+step "1/5 — Mise à jour de FWU ($(basename "$FWU_ZIP"))"
 if ask "Mettre FWU à jour maintenant (environ 10 min, à faire au premier lancement) ?"; then
   python3 -c "import sys,zipfile;open(sys.argv[2],'wb').write(zipfile.ZipFile(sys.argv[1]).read('FWU/scripts/update-1942.sh'))" "$FWU_ZIP" "$HERE/update-1942.sh" \
     || fail "Impossible d'extraire update-1942.sh de $FWU_ZIP."
@@ -46,10 +48,42 @@ else
   printf 'Mise à jour de FWU passée.\n'
 fi
 
-step "2/4 — Dossier de données partagé"
+step "2/5 — Dossier de données partagé"
 bash "$ROOT/scripts/fwu-donnees-partagees.sh" || fail "Création du dossier partagé impossible (FWU est-il bien à jour ?)."
+SHARED_DIR="$(grep -E '^PND_DATA_DIR=' "$ROOT/bot/.env" | tail -n 1 | cut -d= -f2- | tr -d '"'"'"'[:space:]' || true)"
+[[ -n "$SHARED_DIR" ]] || fail "PND_DATA_DIR absent de $ROOT/bot/.env après la création du dossier partagé."
 
-step "3/4 — Installation des 4 bots"
+step "3/5 — Base centrale, préfixes et clé IA"
+# Base PostgreSQL locale (mot de passe généré sur le VPS, jamais affiché). Relançable : ne refait rien si déjà prête.
+sudo bash "$ROOT/deploy/oracle/install-shared-db.sh" "$ROOT/bot/.env" \
+  || fail "Installation de la base centrale impossible (voir le message ci-dessus). FWU est à jour et fonctionne ; relance ce script après correction."
+# Préfixes : un seul fichier pour les 5 bots, jamais écrasé ensuite.
+if [[ ! -f "$SHARED_DIR/bots.json" ]]; then
+  install -m 600 "$ROOT/bot/config/bots.example.json" "$SHARED_DIR/bots.json"
+  printf 'Préfixes : GUARD +, FDPDLAVOC ;, SUCK ME =, LE FISC -  (modifiables dans %s/bots.json)\n' "$SHARED_DIR"
+else
+  printf 'Préfixes : fichier existant conservé (%s/bots.json).\n' "$SHARED_DIR"
+fi
+# Clé de l'API Claude pour /reglement generer (facultative, saisie masquée, jamais affichée).
+if ! grep -qE '^ANTHROPIC_API_KEY=.+' "$ROOT/bot/.env"; then
+  printf '\n🔑 Clé API Claude pour générer le règlement (console.anthropic.com → API Keys).\n   Rien ne s'"'"'affiche pendant que tu colles. Entrée seule = plus tard.\n> '
+  IFS= read -rs AI_KEY || AI_KEY=""
+  printf '\n'
+  AI_KEY="$(printf '%s' "$AI_KEY" | tr -d '"'"'"'[:space:]')"
+  if [[ -n "$AI_KEY" ]]; then
+    if [[ "$AI_KEY" =~ ^sk-ant-[A-Za-z0-9_-]{20,}$ ]]; then
+      ( umask 077; printf '\n# Règlement IA (/reglement)\nANTHROPIC_API_KEY=%s\n' "$AI_KEY" >> "$ROOT/bot/.env" )
+      printf '   Clé enregistrée dans %s (jamais affichée).\n' "$ROOT/bot/.env"
+    else
+      printf '   Ce texte ne ressemble pas à une clé Claude (sk-ant-…) : ignoré. Tu pourras l'"'"'ajouter plus tard dans %s.\n' "$ROOT/bot/.env"
+    fi
+  fi
+  unset AI_KEY
+fi
+pm2 restart her-v5-bot --update-env >/dev/null || fail "Redémarrage de FWU impossible."
+printf 'FWU redémarré avec la base centrale.\n'
+
+step "4/5 — Installation des 4 bots (ils reçoivent la base centrale de FWU)"
 mkdir -p "$BOTS_DIR"
 for z in GUARD FDPDLAVOC SUCK-ME LE-FISC; do unzip -oq "$HERE/FWU-$z.zip" -d "$BOTS_DIR" || fail "Décompression de FWU-$z.zip impossible."; done
 declare -A RESULT
@@ -63,14 +97,16 @@ for bot in guard fdpdlavoc suckme fisc; do
   esac
 done
 
-step "4/4 — Résultat"
+step "5/5 — Résultat"
 printf 'FWU        : 🟢 (her-v5-bot / her-v5-web)\n'
 for bot in guard fdpdlavoc suckme fisc; do printf '%-10s : %s\n' "$bot" "${RESULT[$bot]}"; done
 cat <<MSG
 
 Dernières étapes, dans Discord :
   • Paramètres du serveur → Rôles : SUCK ME juste sous ton rôle, GUARD au-dessus des membres qu'il modère.
-  • /sysp diagnostic bots : chaque bot installé doit être 🟢.
+  • Rôles de staff nommés « 1% », « 5% », « 10% », « 50% » : reconnus tout seuls (sinon /quota palier).
+  • /quota voir : quotas en vigueur · /sysp diagnostic bots : chaque bot installé doit être 🟢.
+  • Préfixes : GUARD +ban · FDPDLAVOC ;mv · SUCK ME =afk · LE FISC -dice · FWU en commandes slash.
   • Les commandes slash peuvent mettre jusqu'à 1 h à apparaître partout.
-Arrêt d'urgence d'un bot : pm2 stop fwu-<bot>  (FWU reprend son travail en moins d'une minute).
+Arrêt d'urgence d'un bot : pm2 stop fwu-<bot>  (FWU reprend ses événements ; ses commandes attendent son retour).
 MSG
