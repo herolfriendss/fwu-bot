@@ -76,7 +76,7 @@ export async function openAuthorizedAudioStream(sourceUrl, allowedHosts, options
           return;
         }
 
-        transcoder = spawnProcess(ffmpegPath, ffmpegOpusArgs(), {
+        transcoder = spawnProcess(ffmpegPath, ffmpegOpusArgs(options.audioFilter ?? null), {
           stdio: ["pipe", "pipe", "ignore"],
           windowsHide: true,
         });

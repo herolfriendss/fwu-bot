@@ -85,7 +85,8 @@ export function isPlayableAudioContentType(value) {
   return type.startsWith("audio/") || type === "application/octet-stream";
 }
 
-export function ffmpegOpusArgs() {
+/** `filter` is an ffmpeg audio filter chain from music-extras AUDIO_FILTERS (never user text). */
+export function ffmpegOpusArgs(filter = null) {
   return [
     "-hide_banner",
     "-loglevel",
@@ -96,6 +97,7 @@ export function ffmpegOpusArgs() {
     "-i",
     "pipe:0",
     "-vn",
+    ...(filter ? ["-af", filter] : []),
     "-c:a",
     "libopus",
     "-b:a",

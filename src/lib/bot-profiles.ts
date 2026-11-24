@@ -74,7 +74,7 @@ export const SLASH_COMMAND_OWNERS: Record<BotProfileId, readonly string[]> = {
   fdpdlavoc: [
     "access", "unaccess", "pv", "voc",
     "play", "pause", "resume", "skip", "stop", "queue", "nowplaying", "volume", "loop",
-    "shuffle", "clearqueue", "remove", "join", "leave", "musicpanel", "radio",
+    "shuffle", "clearqueue", "remove", "join", "leave", "musicpanel", "radio", "effet", "playlist", "dj",
   ],
   suckme: [
     "sysp", "panel", "setup", "knowledge", "rank", "rankall", "removerole", "rolepanel",
