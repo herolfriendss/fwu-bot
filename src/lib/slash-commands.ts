@@ -1580,6 +1580,7 @@ export const SLASH_COMMANDS: SlashCommandDef[] = [
           { name: "Désactivée", value: "off" },
           { name: "Titre", value: "track" },
           { name: "File", value: "queue" },
+          { name: "Auto (titres proches à la fin de la file)", value: "auto" },
         ],
       }),
     ],
@@ -1777,13 +1778,14 @@ export const EXTRA_SLASH_COMMANDS: SlashCommandDef[] = [
   {
     name: "niveau",
     description: "Niveaux et XP : ton niveau, le classement, les récompenses",
-    usage: "/niveau voir [membre] | classement | recompenses | salon | recompense-ajouter | recompense-retirer | activer | desactiver",
+    usage: "/niveau voir [membre] | succes [membre] | classement | recompenses | salon | recompense-ajouter | recompense-retirer | activer | desactiver",
     category: "Social",
     dmPermission: false,
     requiresBotProcess: true,
     options: [
       sub("voir", "Affiche un niveau", [opt(6, "membre", "Membre (toi par défaut)")]),
       sub("classement", "Top 10 des niveaux du serveur"),
+      sub("succes", "Succès débloqués et à débloquer", [opt(6, "membre", "Membre (toi par défaut)")]),
       sub("recompenses", "Liste les rôles débloqués par niveau"),
       sub("salon", "Staff : salon d'annonce des passages de niveau (vide = salon du message)", [opt(7, "salon", "Salon", { channel_types: [0] })]),
       sub("recompense-ajouter", "Staff : donne un rôle à un niveau", [opt(4, "niveau", "Niveau", { required: true, min_value: 1, max_value: 500 }), opt(8, "role", "Rôle", { required: true })]),

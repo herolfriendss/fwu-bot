@@ -19,7 +19,7 @@ import {
   scheduleConfiguredRadioRetry,
 } from "./music-engine.js";
 import { openAuthorizedAudioStream } from "./audio-source.js";
-import { resolveMusicInput } from "./music-resolver.js";
+import { autoplaySearch, resolveMusicInput } from "./music-resolver.js";
 import { normalizeAudioHost, validateAudioUrl } from "./audio-source-policy.js";
 import { brandEmbed } from "../theme.js";
 import { AUDIO_FILTERS, DJ_COMMANDS, FILTER_LABELS, createVoteSkip, deletePlaylist, djRoleId, isDj, listPlaylists, loadPlaylist, savePlaylist, setDjRole } from "./music-extras.js";
@@ -44,6 +44,8 @@ function enforceMusicCooldown(guildId, userId) {
     for (const [entry, at] of commandActivity) if (now - at > 60_000) commandActivity.delete(entry);
   }
 }
+
+const LOOP_LABELS = { off: "Désactivée", track: "Titre", queue: "File", auto: "Auto (titres proches)" };
 
 function stateFor(guildId) {
   if (!queues.has(guildId)) {
@@ -118,7 +120,7 @@ function buildPanel(state) {
     .addFields(
       { name: "File d'attente", value: `${state.queue.length} titre(s)`, inline: true },
       { name: "Volume", value: `${Math.round(state.volume * 100)} %`, inline: true },
-      { name: "Répétition", value: state.loop === "track" ? "Titre" : state.loop === "queue" ? "File" : "Désactivée", inline: true },
+      { name: "Répétition", value: LOOP_LABELS[state.loop] ?? "Désactivée", inline: true },
     ));
   if (track?.thumbnail) embed.setThumbnail(track.thumbnail);
   const row = new ActionRowBuilder().addComponents(
@@ -229,6 +231,7 @@ async function advance(state) {
       }
     },
     updatePanel: () => updatePanel(state),
+    autoplay: state.loop === "auto" ? (previous) => autoplayNext(state, previous) : null,
     log: (event) => console.error(`[music] ${event}`),
     scheduleAdvance: () => queueMicrotask(() => void advance(state)),
     scheduleRadioRetry: () => {
@@ -490,16 +493,16 @@ export async function handleMusicMessage(message) {
       await updatePanel(state);
       await message.reply(`🔊 Volume réglé à **${Math.round(state.volume * 100)} %**.`);
     } else if (command === "=loop") {
-      const modes = ["off", "track", "queue"];
+      const modes = ["off", "track", "queue", "auto"];
       const requested = input.toLowerCase();
       if (requested) {
-        if (!modes.includes(requested)) throw new Error("Utilisation : `=loop off`, `=loop track` ou `=loop queue`.");
+        if (!modes.includes(requested)) throw new Error("Utilisation : `/loop` avec Désactivée, Titre, File ou Auto.");
         state.loop = requested;
       } else {
         state.loop = modes[(modes.indexOf(state.loop) + 1) % modes.length];
       }
       await updatePanel(state);
-      await message.reply(`🔁 Répétition : **${state.loop}**.`);
+      await message.reply(state.loop === "auto" ? "🔁 Lecture automatique : quand la file est vide, je lance un titre proche du dernier." : `🔁 Répétition : **${LOOP_LABELS[state.loop]}**.`);
     } else if (command === "=shuffle") {
       for (let i = state.queue.length - 1; i > 0; i--) {
         const j = Math.floor(Math.random() * (i + 1));
@@ -560,7 +563,7 @@ export async function handleMusicInteraction(interaction) {
       state.connection?.destroy();
       state.connection = null;
     } else if (action === "loop") {
-      state.loop = state.loop === "off" ? "track" : state.loop === "track" ? "queue" : "off";
+      state.loop = { off: "track", track: "queue", queue: "auto" }[state.loop] ?? "off";
     } else if (action === "shuffle") {
       for (let i = state.queue.length - 1; i > 0; i--) {
         const j = Math.floor(Math.random() * (i + 1));
@@ -580,6 +583,15 @@ export async function handleMusicInteraction(interaction) {
  * DJs, staff and the person who asked for the track skip at once; the others vote
  * (majority of the humans listening).
  */
+/** Loop mode "auto": a similar track (never one of the last 25 played). */
+async function autoplayNext(state, previous) {
+  const query = autoplaySearch(previous);
+  if (!query || !state.connection) return null;
+  state.autoplayHistory = [...(state.autoplayHistory ?? []), previous.webpageUrl, String(previous.title ?? "").toLowerCase()].filter(Boolean).slice(-50);
+  const track = await resolveMusicInput(query, { rawSearch: true, exclude: new Set(state.autoplayHistory), timeoutMs: 45_000 });
+  return { ...track, requesterId: "autoplay" };
+}
+
 function skipVote(state, member) {
   const now = { skip: true, votes: 1, needed: 1 };
   if (!djRoleId(state.guildId) || isDj(member) || state.current?.requesterId === member?.id) return now;

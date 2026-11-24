@@ -24,7 +24,7 @@ export function normalizeMusicQuery(input) {
 }
 
 export async function resolveMusicInput(input, options = {}) {
-  const query = normalizeMusicQuery(input);
+  const query = options.rawSearch ? String(input) : normalizeMusicQuery(input);
   const spawnProcess = options.spawn ?? spawn;
   const binary = options.ytDlpPath ?? process.env.PND_YTDLP_PATH ?? "yt-dlp";
   const timeoutMs = options.timeoutMs ?? 25_000;
@@ -59,7 +59,10 @@ export async function resolveMusicInput(input, options = {}) {
     });
   });
 
-  const entry = Array.isArray(result.entries) ? result.entries.find((item) => item?.url || item?.formats?.length) : result;
+  const excluded = options.exclude ?? new Set();
+  const entry = Array.isArray(result.entries)
+    ? result.entries.find((item) => (item?.url || item?.formats?.length) && !excluded.has(item.webpage_url) && !excluded.has(String(item.title ?? "").toLowerCase()))
+    : result;
   if (!entry) throw new Error("Aucun résultat musical trouvé.");
   const mediaUrl = entry.url ?? entry.formats?.find((format) => format.acodec && format.acodec !== "none")?.url;
   if (!mediaUrl) throw new Error("Aucun flux audio exploitable n'a été trouvé.");
@@ -76,4 +79,14 @@ export async function resolveMusicInput(input, options = {}) {
     webpageUrl: typeof entry.webpage_url === "string" ? entry.webpage_url : null,
     allowedMediaHost: normalizeAudioHost(parsed.hostname),
   };
+}
+
+/** Search query for a track similar to `track` (same artist first, else title words). */
+export function autoplaySearch(track) {
+  const clean = (text) => String(text ?? "").replace(/\(.*?\)|\[.*?\]|official|video|clip|lyrics|audio|paroles|hd|4k/gi, " ").replace(/[^\p{L}\p{N}' ]+/gu, " ").replace(/\s+/g, " ").trim();
+  const artist = clean(String(track?.artist ?? "").replace(/\s*-\s*topic\s*$/i, ""));
+  const title = clean(track?.title).split(" ").slice(0, 4).join(" ");
+  const seed = artist || title;
+  if (!seed) return null;
+  return `ytsearch6:${seed.slice(0, 120)} ${artist ? "mix" : "similaire"}`;
 }

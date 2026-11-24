@@ -3,6 +3,7 @@ import { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder, PermissionF
 import { db } from "../database.js";
 import { parsePndOwnerId } from "../pnd-owner-policy.js";
 import { isSysPlus } from "../systems/sysplus/permissions.js";
+import { achievementsText, announceAchievements, checkAchievements } from "./achievements.js";
 
 export const COMMUNITY_COMMANDS = new Set(["niveau", "suggestion", "anniversaire", "rappel", "stats"]);
 
@@ -95,6 +96,7 @@ export async function handleLevelMessage(message, { random = Math.random, now = 
   if (now - last < 60_000) return null;
   const result = addXp(message.guild.id, message.author.id, 15 + Math.floor(random() * 11), { message: true, now });
   await applyLevelUp(message.guild, message.member, result.before, result.after, message.channel);
+  await announceAchievements(message.guild, message.author.id, checkAchievements(message.guild.id, message.author.id, now), getLevelConfig(message.guild.id).channelId);
   return result;
 }
 
@@ -112,6 +114,7 @@ export async function tickVoiceXp(guilds) {
         const result = addXp(guild.id, member.id, 10, { voiceMinutes: 1 });
         given += 1;
         await applyLevelUp(guild, member, result.before, result.after, null);
+        await announceAchievements(guild, member.id, checkAchievements(guild.id, member.id), getLevelConfig(guild.id).channelId);
       }
     }
   }
@@ -133,6 +136,12 @@ async function niveau(interaction, settings) {
     const l = levelFromXp(row.xp);
     return { public: true, embeds: [new EmbedBuilder().setColor(0x6d28d9).setTitle(`⭐ Niveau de ${user.username}`)
       .setDescription(`**Niveau ${l.level}** · rang **#${rank}**\n${progressBar(l.into, l.needed)} ${l.into}/${l.needed} XP\n\nXP total : **${row.xp}** · Messages : **${row.messages}** · Vocal : **${row.voice_minutes} min**`)] };
+  }
+  if (sub === "succes") {
+    const user = interaction.options.getUser("membre") ?? interaction.user;
+    checkAchievements(guild.id, user.id);
+    const t = achievementsText(guild.id, user.id, user.username);
+    return { public: true, embeds: [new EmbedBuilder().setColor(0xf59e0b).setTitle(t.title).setDescription(t.description).setFooter({ text: t.footer })] };
   }
   if (sub === "classement") {
     const rows = db.prepare("SELECT user_id, xp FROM community_levels WHERE guild_id=? ORDER BY xp DESC LIMIT 10").all(guild.id);

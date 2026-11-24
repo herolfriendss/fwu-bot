@@ -44,3 +44,18 @@ test("playlists: save, list, load, delete, limits", () => {
   assert.equal(x.deletePlaylist("g", "u", "Soirée chill"), true);
   assert.throws(() => x.loadPlaylist("g", "u", "Soirée chill"), /introuvable/);
 });
+
+test("autoplay search seeds on the artist and skips excluded tracks", async () => {
+  const { autoplaySearch, resolveMusicInput } = await import("./music-resolver.js");
+  assert.equal(autoplaySearch({ artist: "Ninho - Topic", title: "Jefe (Clip officiel)" }), "ytsearch6:Ninho mix");
+  assert.equal(autoplaySearch({ artist: "", title: "Some Song [Official Video] lyrics" }), "ytsearch6:Some Song similaire");
+  assert.equal(autoplaySearch({}), null);
+  const { EventEmitter } = await import("node:events");
+  const fake = () => { const c = new EventEmitter(); c.stdout = new EventEmitter(); c.stderr = new EventEmitter(); c.kill = () => {};
+    setImmediate(() => { c.stdout.emit("data", Buffer.from(JSON.stringify({ entries: [
+      { title: "Old", webpage_url: "https://www.youtube.com/watch?v=a", url: "https://rr1.googlevideo.com/a" },
+      { title: "New", webpage_url: "https://www.youtube.com/watch?v=b", url: "https://rr1.googlevideo.com/b" },
+    ] }))); c.emit("close", 0); }); return c; };
+  const track = await resolveMusicInput("ytsearch6:x mix", { rawSearch: true, exclude: new Set(["https://www.youtube.com/watch?v=a"]), spawn: fake });
+  assert.equal(track.title, "New");
+});
