@@ -35,64 +35,66 @@ test("every catalogue command has exactly one owner (or is shared by all bots)",
   assert.equal(all.length + SHARED_SLASH_COMMANDS.length, SLASH_COMMANDS.length + EXTRA_SLASH_COMMANDS.length);
 });
 
-test("owner decisions of 2026-11-23 are encoded", () => {
-  assert.equal(slashCommandOwner("ban"), "fwu");
-  assert.equal(slashCommandOwner("afk"), "fwu");
-  assert.equal(slashCommandOwner("ticket"), "fwu");
-  assert.equal(slashCommandOwner("guildguard"), "guard");
-  assert.equal(slashCommandOwner("warn"), "guard");
+test("owner decisions of 2026-11-24 are encoded (FWU = staff + embeds, GUARD = ban/kick)", () => {
+  for (const name of ["tempmute", "unmute", "warn", "warnings", "sanction", "sanction-type", "quota", "embed", "reglement", "screening"]) assert.equal(slashCommandOwner(name), "fwu", name);
+  for (const name of ["ban", "kick", "blacklist", "guildguard", "purge", "nettoyer", "lock", "unlock", "verify"]) assert.equal(slashCommandOwner(name), "guard", name);
+  for (const name of ["afk", "ticket", "ia", "live", "giveaway", "profil", "sondage"]) assert.equal(slashCommandOwner(name), "suckme", name);
+  for (const name of ["dice", "coinflip", "trivia", "cards", "pack", "trade"]) assert.equal(slashCommandOwner(name), "fisc", name);
   assert.equal(slashCommandOwner("play"), "fdpdlavoc");
   assert.equal(slashCommandOwner("resume"), "fdpdlavoc", "/resume reste la musique");
   assert.equal(slashCommandOwner("voc"), "fdpdlavoc");
   for (const name of ["sysp", "dog", "menotte", "wakeup", "anti-moove", "rankall", "lockname"]) assert.equal(slashCommandOwner(name), "suckme", name);
   for (const name of ["balance", "pay", "shop", "casino", "invest", "business"]) assert.equal(slashCommandOwner(name), "fisc", name);
+  assert.equal(slashCommandOwner("mute"), null, "/mute est remplacée par /tempmute");
   assert.equal(slashCommandOwner("aide"), null);
 });
 
-test("every bot keeps at most 100 root commands, FWU included before any delegation", () => {
+test("every bot registers all its commands (no more skipped /afk) and retires the others' commands", () => {
   for (const id of BOT_PROFILE_IDS) {
-    if (id === "fwu") continue;
-    assert.ok(slashCommandNamesForProfile(id).length <= 100, id);
+    const plan = slashRegistrationPlan({ profile: id, delegated: [] }, SLASH_COMMANDS, EXTRA_SLASH_COMMANDS);
+    assert.deepEqual(plan.skipped, [], `${id} : commandes ignorées (limite Discord de 100)`);
+    assert.ok(plan.register.length <= 100, id);
+    const registered = new Set(plan.register.map((c) => c.name));
+    for (const name of plan.retire) assert.ok(!registered.has(name), `${id} enregistre et retire ${name}`);
+    assert.ok(plan.retire.includes("mute"), `${id} retire l'ancienne /mute`);
   }
-  // Historical mode: FWU wants 103 names (100 + 3 extras): the plan registers the historical 100 and skips the extras.
-  const legacy = slashRegistrationPlan({ profile: "fwu", delegated: [] }, SLASH_COMMANDS, EXTRA_SLASH_COMMANDS);
-  assert.equal(legacy.register.length, 100);
-  assert.deepEqual(legacy.skipped, ["live", "blacklist", "dmall", "undogall", "afk"]);
-  assert.deepEqual(legacy.register.map((c) => c.name), SLASH_COMMANDS.map((c) => c.name), "mode historique identique");
-  assert.deepEqual(legacy.retire, []);
-  // Once GUARD is delegated, /afk fits and the GUARD commands leave FWU.
-  const afterGuard = slashRegistrationPlan({ profile: "fwu", delegated: ["guard"] }, SLASH_COMMANDS, EXTRA_SLASH_COMMANDS);
-  assert.ok(afterGuard.register.some((c) => c.name === "afk"));
-  assert.ok(!afterGuard.register.some((c) => c.name === "warn"));
-  assert.ok(afterGuard.retire.includes("warn") && afterGuard.retire.includes("guildguard"));
-  assert.deepEqual(afterGuard.skipped, []);
+  // Régression du bug AFK : /afk était la 105e commande de FWU, jamais enregistrée.
+  const suckme = slashRegistrationPlan({ profile: "suckme", delegated: [] }, SLASH_COMMANDS, EXTRA_SLASH_COMMANDS);
+  assert.ok(suckme.register.some((c) => c.name === "afk"));
+  const fwu = slashRegistrationPlan({ profile: "fwu", delegated: ["guard"] }, SLASH_COMMANDS, EXTRA_SLASH_COMMANDS);
+  assert.deepEqual(fwu.register.map((c) => c.name).sort(), ["aide", "status", "tempmute", "unmute", "warn", "warnings", "sanction", "sanction-type", "quota", "embed", "reglement", "screening"].sort());
+  assert.ok(fwu.retire.includes("afk") && fwu.retire.includes("ban") && fwu.retire.includes("play"), "FWU retire les commandes des autres bots");
   const guard = slashRegistrationPlan({ profile: "guard", delegated: [] }, SLASH_COMMANDS, EXTRA_SLASH_COMMANDS);
-  assert.deepEqual(guard.register.map((c) => c.name).sort(), ["aide", "status", "guildguard", "warn", "warnings", "mute", "unmute", "kick", "purge", "slowmode", "lock", "unlock", "verify"].sort());
-  assert.deepEqual(guard.retire, []);
+  assert.deepEqual(guard.register.map((c) => c.name).sort(), ["aide", "status", "guildguard", "kick", "ban", "blacklist", "purge", "nettoyer", "slowmode", "lock", "unlock", "verify"].sort());
 });
 
-test("prefix ownership follows the first word only", () => {
+test("prefix ownership follows the first word only (canonical = form)", () => {
   assert.equal(prefixCommandOwner("=play lofi"), "fdpdlavoc");
   assert.equal(prefixCommandOwner("=P lofi"), "fdpdlavoc");
   assert.equal(prefixCommandOwner("=resume"), "fdpdlavoc");
-  assert.equal(prefixCommandOwner("=afk on réunion"), "fwu");
+  assert.equal(prefixCommandOwner("=afk on réunion"), "suckme");
   assert.equal(prefixCommandOwner("=menotte @x"), "suckme");
+  assert.equal(prefixCommandOwner("=mv 123"), "fdpdlavoc");
+  assert.equal(prefixCommandOwner("=accessall"), "fdpdlavoc");
+  assert.equal(prefixCommandOwner("=ban @x"), "guard");
+  assert.equal(prefixCommandOwner("=unban 1"), "guard");
+  assert.equal(prefixCommandOwner("=dice"), "fisc");
   assert.equal(prefixCommandOwner("=pv"), "fdpdlavoc");
   assert.equal(prefixCommandOwner("=pay @x 10"), "fisc");
   assert.equal(prefixCommandOwner("=guardian-review list"), "guard");
   assert.equal(prefixCommandOwner("=playlist"), null, "pas de correspondance partielle");
   assert.equal(prefixCommandOwner("bonjour"), null);
-  assert.equal(prefixCommandOwner("=macommande"), null, "commandes personnalisées : FWU par défaut");
+  assert.equal(prefixCommandOwner("=macommande"), null, "commandes personnalisées : aucun propriétaire intégré");
 });
 
 test("prefix ownership matches the handler that really answers each command", async () => {
-  // Snapshot of the smoke harness (npm run smoke with SMOKE_PREFIX_MAP): handler → bot.
+  // Snapshot of the smoke harness (npm run smoke with SMOKE_PREFIX_MAP): handler → bot(s).
   const handlerOwner = {
-    economy: "fisc", casino: "fisc", business: "fisc",
-    music: "fdpdlavoc", radio: "fdpdlavoc",
-    social: "fwu", cards: "fwu", games: "fwu", organization: "fwu", tickets: "fwu",
-    dog: "suckme", lockname: "suckme", roles: "suckme", "staff-audit": "suckme", automation: "suckme",
-    autorules: "suckme", sysplus: "suckme",
+    economy: ["fisc"], casino: ["fisc"], business: ["fisc"],
+    music: ["fdpdlavoc"], radio: ["fdpdlavoc"],
+    social: ["suckme"], cards: ["fisc"], games: ["suckme", "fisc"], organization: ["suckme"], tickets: ["suckme"],
+    dog: ["suckme"], lockname: ["suckme"], roles: ["suckme"], "staff-audit": ["suckme"], automation: ["suckme"],
+    autorules: ["suckme"], sysplus: ["suckme"],
   };
   const { readFileSync } = await import("node:fs");
   const snapshot = JSON.parse(readFileSync(new URL("./fixtures/prefix-handlers.json", import.meta.url), "utf8"));
@@ -101,9 +103,19 @@ test("prefix ownership matches the handler that really answers each command", as
     assert.ok(owner, `${token} sans propriétaire`);
     for (const handler of handlers) {
       if (handler === "voice") assert.ok(["fdpdlavoc", "suckme"].includes(owner), `${token} (module vocal mixte) → ${owner}`);
-      else assert.equal(owner, handlerOwner[handler], `${token} traité par ${handler}`);
+      else assert.ok(handlerOwner[handler]?.includes(owner), `${token} traité par ${handler} mais attribué à ${owner}`);
     }
   }
+  // Each handler domain label in index.js must match the bot that owns its commands.
+  const source = readFileSync(new URL("./index.js", import.meta.url), "utf8");
+  assert.match(source, /runCmd\("suckme"\) && await handleResumeMessage/);
+  assert.match(source, /runCmd\("guard"\) && await handleBlacklistMessage/);
+  assert.match(source, /runCmd\("suckme"\) && await handleTicketsMessage/);
+  assert.match(source, /runCmd\("fisc"\) && await handleCardsMessage/);
+  assert.match(source, /runCmd\("suckme", "fisc"\) && await handleGamesMessage/);
+  assert.match(source, /runCmd\("guard"\) && await handleGuardPrefixCommand/);
+  assert.match(source, /runCmd\("fdpdlavoc"\) && await handleVoiceMoveCommand/);
+  assert.doesNotMatch(source, /runCmd\("fwu"\)/, "FWU n'a plus aucune commande préfixe");
 });
 
 test("runtime resolution: FWU by default, dedicated bots need their own token", () => {

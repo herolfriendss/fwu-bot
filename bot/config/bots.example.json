@@ -1,0 +1,10 @@
+{
+  "_doc": "Copie ce fichier en config/bots.json pour changer un préfixe (sans ce fichier, les préfixes ci-dessous s'appliquent). FWU = null (commandes slash uniquement). 1 à 3 symboles, tous différents. Relance les bots après modification. bots.json n'est jamais écrasé par une mise à jour.",
+  "prefixes": {
+    "fwu": null,
+    "guard": "+",
+    "fdpdlavoc": ";",
+    "suckme": "=",
+    "fisc": "-"
+  }
+}

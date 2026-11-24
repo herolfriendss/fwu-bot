@@ -22,6 +22,17 @@ export const db = new DatabaseSync(dbPath);
 // failing with SQLITE_BUSY. Must be set before the first write below.
 db.exec("PRAGMA busy_timeout = 5000;");
 
+// Several bots can start at the same time on the same file and run the same
+// additive migration: "check then ALTER" is not atomic across processes. A
+// column added by another bot in between is the expected result, not an error.
+function addColumnOnce(sql) {
+  try {
+    db.exec(sql);
+  } catch (error) {
+    if (!/duplicate column name/i.test(String(error?.message ?? ""))) throw error;
+  }
+}
+
 db.exec(`
   PRAGMA journal_mode = WAL;
   PRAGMA foreign_keys = ON;
@@ -627,7 +638,7 @@ db.exec(`
 // libération manuelle ; seules les nouvelles peuvent recevoir une échéance.
 const menotteColumns = db.prepare("PRAGMA table_info(voice_menottes)").all().map((column) => column.name);
 if (!menotteColumns.includes("expires_at")) {
-  db.exec("ALTER TABLE voice_menottes ADD COLUMN expires_at INTEGER");
+  addColumnOnce("ALTER TABLE voice_menottes ADD COLUMN expires_at INTEGER");
 }
 db.exec("CREATE INDEX IF NOT EXISTS voice_menottes_expiration_idx ON voice_menottes(expires_at)");
 
@@ -648,41 +659,41 @@ db.exec(`
 // les déconnexions observées des fins estimées après une coupure du bot.
 const voiceSessionColumns = db.prepare("PRAGMA table_info(voice_sessions)").all().map((column) => column.name);
 if (!voiceSessionColumns.includes("end_precision")) {
-  db.exec("ALTER TABLE voice_sessions ADD COLUMN end_precision TEXT NOT NULL DEFAULT 'exact' CHECK(end_precision IN ('exact','approximate'))");
+  addColumnOnce("ALTER TABLE voice_sessions ADD COLUMN end_precision TEXT NOT NULL DEFAULT 'exact' CHECK(end_precision IN ('exact','approximate'))");
 }
 
 // Migration additive de la V3 : la banque PND est ajoutée sans toucher aux soldes.
 const walletColumns = db.prepare("PRAGMA table_info(wallets)").all().map((column) => column.name);
 if (!walletColumns.includes("bank")) {
-  db.exec("ALTER TABLE wallets ADD COLUMN bank INTEGER NOT NULL DEFAULT 0 CHECK(bank >= 0)");
+  addColumnOnce("ALTER TABLE wallets ADD COLUMN bank INTEGER NOT NULL DEFAULT 0 CHECK(bank >= 0)");
 }
 
 // Migrations additives V4 : le canal et l’état de rappel des événements sont
 // ajoutés aux bases existantes sans modifier les événements déjà enregistrés.
 const eventColumns = db.prepare("PRAGMA table_info(events)").all().map((column) => column.name);
-if (!eventColumns.includes("channel_id")) db.exec("ALTER TABLE events ADD COLUMN channel_id TEXT");
-if (!eventColumns.includes("notified")) db.exec("ALTER TABLE events ADD COLUMN notified INTEGER NOT NULL DEFAULT 0");
+if (!eventColumns.includes("channel_id")) addColumnOnce("ALTER TABLE events ADD COLUMN channel_id TEXT");
+if (!eventColumns.includes("notified")) addColumnOnce("ALTER TABLE events ADD COLUMN notified INTEGER NOT NULL DEFAULT 0");
 const marketColumns = db.prepare("PRAGMA table_info(economy_market_listings)").all().map((column) => column.name);
 // Buyer is persisted at claim time so a "pending" purchase can be reconciled after a crash.
-if (!marketColumns.includes("buyer_id")) db.exec("ALTER TABLE economy_market_listings ADD COLUMN buyer_id TEXT");
+if (!marketColumns.includes("buyer_id")) addColumnOnce("ALTER TABLE economy_market_listings ADD COLUMN buyer_id TEXT");
 db.exec(`CREATE TABLE IF NOT EXISTS economy_reconciliation_reviews (
   id INTEGER PRIMARY KEY AUTOINCREMENT, guild_id TEXT NOT NULL, kind TEXT NOT NULL, ref_id INTEGER NOT NULL,
   reason TEXT NOT NULL, created_at INTEGER NOT NULL, resolved INTEGER NOT NULL DEFAULT 0,
   UNIQUE(kind, ref_id)
 )`);
-if (!eventColumns.includes("cancelled_at")) db.exec("ALTER TABLE events ADD COLUMN cancelled_at INTEGER");
+if (!eventColumns.includes("cancelled_at")) addColumnOnce("ALTER TABLE events ADD COLUMN cancelled_at INTEGER");
 
 const interviewColumns = db.prepare("PRAGMA table_info(recruitment_interviews)").all().map((column) => column.name);
-if (!interviewColumns.includes("reminder_claimed_at")) db.exec("ALTER TABLE recruitment_interviews ADD COLUMN reminder_claimed_at INTEGER");
-if (!interviewColumns.includes("reminded_at")) db.exec("ALTER TABLE recruitment_interviews ADD COLUMN reminded_at INTEGER");
+if (!interviewColumns.includes("reminder_claimed_at")) addColumnOnce("ALTER TABLE recruitment_interviews ADD COLUMN reminder_claimed_at INTEGER");
+if (!interviewColumns.includes("reminded_at")) addColumnOnce("ALTER TABLE recruitment_interviews ADD COLUMN reminded_at INTEGER");
 
 const recruitmentApplicationColumns = db.prepare("PRAGMA table_info(recruitment_applications)").all().map((column) => column.name);
-if (!recruitmentApplicationColumns.includes("questions_json")) db.exec("ALTER TABLE recruitment_applications ADD COLUMN questions_json TEXT NOT NULL DEFAULT '[]'");
+if (!recruitmentApplicationColumns.includes("questions_json")) addColumnOnce("ALTER TABLE recruitment_applications ADD COLUMN questions_json TEXT NOT NULL DEFAULT '[]'");
 
 // Migration additive Webhooks V5 : active l'animation des publications par défaut.
 const webhookColumns = db.prepare("PRAGMA table_info(managed_webhooks)").all().map((column) => column.name);
 if (!webhookColumns.includes("animation_enabled")) {
-  db.exec("ALTER TABLE managed_webhooks ADD COLUMN animation_enabled INTEGER NOT NULL DEFAULT 1 CHECK(animation_enabled IN (0,1))");
+  addColumnOnce("ALTER TABLE managed_webhooks ADD COLUMN animation_enabled INTEGER NOT NULL DEFAULT 1 CHECK(animation_enabled IN (0,1))");
 }
 
 let transactionDepth = 0;

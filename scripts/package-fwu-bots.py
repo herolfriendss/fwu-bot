@@ -19,10 +19,10 @@ EXCLUDED_DIRS = {".git", "node_modules", "data", "coverage", ".cache", ".output"
 EXCLUDED_SUFFIXES = {".sqlite", ".sqlite3", ".db", ".log", ".zip", ".tar", ".gz", ".tmp"}
 
 BOTS = {
-    "guard": ("GUARD", "PND_GUARD_TOKEN", "Administration et protection : GuildGuard, avertissements, mute, kick, purge, verrouillage, vérification, anti-spam, Guardian."),
-    "fdpdlavoc": ("FDPDLAVOC", "PND_FDPDLAVOC_TOKEN", "Musique, radio, vocaux temporaires, /pv, /access, /voc."),
-    "suckme": ("SUCK ME", "PND_SUCKME_TOKEN", "SYS+ : /sysp, rôles, rankall, DM ALL, DOG, MENOTTE, WAKEUP, WOUAF, LOCKNAME, Anti-Move, automatisations, webhooks, panel, setup."),
-    "fisc": ("LE FISC", "PND_FISC_TOKEN", "Économie : solde, banque, boutique, marché, enchères, casino, roulette, blackjack, entreprises, investissements."),
+    "guard": ("GUARD", "PND_GUARD_TOKEN", "Administration lourde en préfixe + : +ban, +unban, +kick, +blacklist, +purge, +lock ; GuildGuard, vérification, anti-spam, Guardian. Quotas partagés."),
+    "fdpdlavoc": ("FDPDLAVOC", "PND_FDPDLAVOC_TOKEN", "Musique, radio, vocaux temporaires, ;pv, ;access, ;voc, ;mv, ;accessall (préfixe ;)."),
+    "suckme": ("SUCK ME", "PND_SUCKME_TOKEN", "SYS+, rôles, DOG, MENOTTE, WAKEUP, LOCKNAME, Anti-Move, automatisations, tickets, social, giveaways, AFK, IA (préfixe =)."),
+    "fisc": ("LE FISC", "PND_FISC_TOKEN", "Économie, casino, jeux et cartes (préfixe -)."),
 }
 
 ENV_TEMPLATE = """# FWU — {label} : fichier de configuration (secrets). Ne jamais le partager.

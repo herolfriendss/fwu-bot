@@ -34,6 +34,9 @@ for path in sorted(BOT.rglob("*")):
         continue
     if name.endswith((".pem", ".key", ".p12", ".pfx")):
         continue
+    # Préfixes personnalisés du VPS : jamais écrasés par une mise à jour (bots.example.json est livré).
+    if rel.as_posix() == "config/bots.json":
+        continue
     files.append((path, rel.as_posix()))
 
 # The bot imports the central command catalogue from the dashboard source.

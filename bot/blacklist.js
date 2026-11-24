@@ -12,6 +12,8 @@ import { parsePndOwnerId } from "./pnd-owner-policy.js";
 import { recordSysPlusAudit } from "./systems/sysplus/audit.js";
 import { isSysPlus } from "./systems/sysplus/permissions.js";
 import { evaluateTargetHierarchy } from "./target-hierarchy-policy.js";
+import { openModerationGate } from "./shared/moderation-gate.js";
+import { recordSanction } from "./shared/audit.js";
 
 db.exec(`CREATE TABLE IF NOT EXISTS blacklist_entries (
   guild_id TEXT NOT NULL, user_id TEXT NOT NULL, reason TEXT NOT NULL DEFAULT '',
@@ -112,7 +114,7 @@ function formatEntry(row) {
 }
 
 /** Shared logic for slash and prefix. Returns the reply text. */
-export async function runBlacklistAction({ guild, actor, action, userId = null, reason = "", settings = null }) {
+export async function runBlacklistAction({ guild, actor, action, userId = null, reason = "", settings = null, bot = "guard" }) {
   if (action === "list") {
     const rows = listBlacklist(guild.id);
     const total = countBlacklist(guild.id);
@@ -124,7 +126,18 @@ export async function runBlacklistAction({ guild, actor, action, userId = null, 
     return entry ? `⛔ Blacklisté :\n${formatEntry(entry)}` : `✅ <@${userId}> n'est pas blacklisté.`;
   }
   if (action === "add") {
-    const result = await addToBlacklist({ guild, actor, userId, reason });
+    // Quota partagé « blacklist » (base centrale ; injoignable = refus).
+    const gate = await openModerationGate({ member: actor, command: "blacklist", bot, targetId: userId });
+    if (!gate.ok) throw new Error(gate.message.replace(/^\S+\s/, ""));
+    let result;
+    try {
+      result = await addToBlacklist({ guild, actor, userId, reason });
+    } catch (error) {
+      await gate.fail(error);
+      throw error;
+    }
+    await recordSanction({ guildId: guild.id, targetId: userId, moderatorId: actor.id, action: "blacklist", reason: String(reason ?? "").slice(0, 300), bot }).catch(() => null);
+    await gate.succeed(result.banned ? "banni" : "non banni");
     recordSysPlusAudit(guild.id, actor.id, "blacklist.add", userId, { reason: String(reason ?? "").slice(0, 300), banned: result.banned });
     await sendCentralLog(guild, settings, systemLogEmbed({
       title: "⛔ Blacklist — compte ajouté",

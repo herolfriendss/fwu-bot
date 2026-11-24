@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { SLASH_COMMANDS, slashCommandsByCategory } from "@/lib/slash-commands";
+import { EXTRA_SLASH_COMMANDS, SLASH_COMMANDS, slashCommandsByCategory } from "@/lib/slash-commands";
 
 const root = fileURLToPath(String(import.meta.url)).replace(/\/src\/test\/[^/]+$/, "/");
 const read = (path: string) => readFileSync(root + path, "utf8");
@@ -101,6 +101,13 @@ describe("bot wiring", () => {
     for (const source of [
       indexSrc,
       read("bot/guild-guard-commands.js"),
+      read("bot/staff-moderation.js"),
+      read("bot/embeds.js"),
+      read("bot/resume.js"),
+      read("bot/blacklist.js"),
+      read("bot/live-commands.js"),
+      read("bot/dmall.js"),
+      read("bot/dog-commands.js"),
       read("bot/systems/sysplus/commands.js"),
       read("bot/tickets.js"),
       read("bot/automation.js"),
@@ -120,7 +127,8 @@ describe("bot wiring", () => {
       for (const name of commandNameChecks(source)) add(name);
     }
 
-    const registered = SLASH_COMMANDS.map((command) => command.name);
+    // Catalogue complet : les 100 historiques + les commandes supplémentaires (FWU, SUCK ME…).
+    const registered = [...SLASH_COMMANDS, ...EXTRA_SLASH_COMMANDS].map((command) => command.name);
     expect(registered.filter((name) => !handled.has(name))).toEqual([]);
     // Legacy top-level names kept as compatibility aliases after /pnd and /sysp
     // grouping (Discord command limit). They are handled but intentionally not

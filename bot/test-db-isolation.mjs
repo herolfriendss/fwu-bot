@@ -9,7 +9,10 @@ if (!process.env.HER_DB_PATH || process.env.HER_DB_PATH_AUTO === "1") {
   const path = join(tmpdir(), `pnd-test-${process.pid}-${Date.now()}.sqlite`);
   process.env.HER_DB_PATH = path;
   process.env.HER_DB_PATH_AUTO = "1";
+  // The central-log outbox never goes to bot/data either.
+  process.env.SHARED_LOG_OUTBOX_PATH ??= join(tmpdir(), `pnd-outbox-${process.pid}-${Date.now()}.jsonl`);
   process.on("exit", () => {
+    try { rmSync(process.env.SHARED_LOG_OUTBOX_PATH, { force: true }); } catch { /* ignore */ }
     for (const suffix of ["", "-shm", "-wal"]) {
       try {
         rmSync(`${path}${suffix}`, { force: true });

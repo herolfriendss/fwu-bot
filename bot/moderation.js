@@ -4,21 +4,20 @@
 // SQLite, toujours par serveur. Les permissions Discord sont revérifiées à chaque
 // commande ; aucune sanction ne peut viser un rôle supérieur au bot.
 import { updateModuleSettings } from "./module-settings.js";
-import { parsePndOwnerId } from "./pnd-owner-policy.js";
 import { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder, ModalBuilder, PermissionFlagsBits, TextInputBuilder, TextInputStyle } from "discord.js";
 import { createHash, randomInt, timingSafeEqual } from "node:crypto";
 import { db, transaction } from "./database.js";
 import { sendCentralLog } from "./logs.js";
-import { getStaffSupervisorId } from "./staff-hierarchy.js";
 import { LOGS_HUB_GUILD_ID, logSourceForGuild, sendToLogsHub } from "./logs-hub.js";
 import {
-  activeWarnings, canModerate, formatDuration, parseDuration, sanitizeReason, verificationEligible, warningExpiry,
+  activeWarnings, sanitizeReason, verificationEligible, warningExpiry,
 } from "./moderation-policy.js";
 import { respondInPlaceSafe } from "./interaction-reply.js";
+import { runModerationAction } from "./moderation-actions.js";
 
 const P = PermissionFlagsBits;
 const MAX_CASE_DETAILS = 1_000;
-const MODERATION_COMMANDS = new Set(["warn", "warnings", "mute", "unmute", "kick", "ban", "purge", "slowmode", "lock", "unlock", "verify"]);
+const MODERATION_COMMANDS = new Set(["warn", "warnings", "unmute", "kick", "ban", "purge", "slowmode", "lock", "unlock", "verify"]);
 const CASE_ACTIONS = new Set(["warn", "mute", "unmute", "kick", "ban"]);
 const APPEALABLE_ACTIONS = new Set(["warn", "mute", "kick", "ban"]);
 const APPEAL_WINDOW_MS = 7 * 86_400_000;
@@ -123,66 +122,18 @@ export function canReviewModerationAppeal(source, roleNames) {
   return Array.isArray(roleNames) && roleNames.some((name) => permitted.has(name));
 }
 
-function logEmbed(guild, interaction, action, target, reason, extra = [], supervisorId = null) {
-  return new EmbedBuilder()
-    .setColor(action === "warn" ? 0xf59e0b : 0xef4444)
-    .setTitle(`🛡️ Modération — ${action}`)
-    .addFields(
-      { name: "Membre", value: target ? `${target.tag ?? target.user?.tag ?? target.id} (${target.id})` : "Inconnu", inline: true },
-      { name: "Modérateur", value: `${interaction.user.tag} (${interaction.user.id})`, inline: true },
-      { name: "Responsable hiérarchique", value: supervisorId ? `<@${supervisorId}>` : "Responsable non configuré", inline: true },
-      { name: "Raison", value: reason, inline: false },
-      ...extra,
-      { name: "Serveur", value: `${guild.name} (${guild.id})`, inline: false },
-    )
-    .setTimestamp(new Date());
-}
-
-async function sendModerationLog(guild, settings, interaction, embed, supervisorId = null) {
-  const allowedUserIds = supervisorId ? [supervisorId] : [];
-  const payload = typeof embed?.toJSON === "function" ? embed.toJSON() : embed;
-  // PND Logs is the canonical central destination. Keep the existing local log
-  // channel as a compatibility destination until its migration is completed.
-  await Promise.allSettled([
-    sendToLogsHub(interaction.client, guild, payload, "Modération — sanction", [], allowedUserIds),
-    sendCentralLog(guild, settings, embed, [settings?.moderation?.logChannelId], [], allowedUserIds),
-  ]);
-}
-
 async function targetMember(guild, user) {
   return guild.members.fetch({ user: user.id, force: true }).catch(() => null);
-}
-
-function checkHierarchy(interaction, actor, target, requiredBit) {
-  return canModerate({
-    actorId: interaction.user.id,
-    targetId: target.id,
-    guildOwnerId: interaction.guild.ownerId,
-    pndOwnerId: parsePndOwnerId(process.env.PND_OWNER_DISCORD_ID),
-    actorPermissions: actor.permissions.bitfield.toString(),
-    targetPermissions: target.permissions?.bitfield?.toString() ?? "0",
-    actorPosition: actor.roles.highest.position,
-    targetPosition: target.roles?.highest?.position ?? -1,
-    botPosition: interaction.guild.members.me?.roles.highest.position ?? 0,
-    requiredBit: requiredBit.toString(),
-  });
 }
 
 async function confirm(interaction, content) {
   await interaction.editReply({ content, allowedMentions: { parse: [] } });
 }
 
-function appealButton(caseId) {
+export function appealButton(caseId) {
   return new ActionRowBuilder().addComponents(
     new ButtonBuilder().setCustomId(`moderation:appeal:${caseId}`).setLabel("Faire appel").setStyle(ButtonStyle.Secondary),
   );
-}
-
-async function notifySanctionedUser(user, guild, caseId, action, reason) {
-  const embed = new EmbedBuilder().setColor(0xef4444).setTitle(`Décision de modération · ${guild.name}`)
-    .setDescription(`Sanction : **${action}**\nDossier : **#${caseId}**\nMotif : ${reason.slice(0, 700)}\n\nTu peux faire appel dans les 7 jours. L’envoi d’un appel ne suspend pas la sanction.`)
-    .setTimestamp(new Date());
-  await user.send({ embeds: [embed], components: [appealButton(caseId)], allowedMentions: { parse: [] } }).catch(() => {});
 }
 
 async function showSanctionAppealModal(interaction) {
@@ -414,66 +365,43 @@ export async function handleModerationInteraction(interaction, guildSettings = {
     const user = interaction.options.getUser("membre", true);
     const target = await targetMember(guild, user);
     const reason = sanitizeReason(interaction.options.getString("raison") ?? "");
+    const bot = api?.bot ?? "fwu";
+    const common = { guild, actor, command, bot, targetId: user.id, targetMember: target, targetUser: user, reason, settings, recordCase: recordModerationCase, appealButton };
 
-    const required = command === "kick" ? P.KickMembers : command === "ban" ? P.BanMembers : command === "mute" || command === "unmute" ? P.ModerateMembers : P.ManageMessages;
-    const hierarchy = checkHierarchy(interaction, actor, target ?? { id: user.id, permissions: { bitfield: 0n }, roles: null }, required);
-    if (!hierarchy.allowed) throw new Error(hierarchy.reason ?? "Action refusée.");
-
-    const supervisorId = getStaffSupervisorId(guild.id, interaction.user.id);
-
+    // warn / unmute / kick / ban : accès par palier de rôle + quota partagé (shared/).
     if (command === "warn") {
       const days = interaction.options.getInteger("expire") ?? 0;
       const expiresAt = warningExpiry(Date.now(), days) ?? null;
-      // node:sqlite has no db.transaction() (better-sqlite3 API): /warn used to fail every time.
-      const caseId = transaction(() => {
-        db.prepare("INSERT INTO moderation_warnings(guild_id,user_id,moderator_id,reason,created_at,expires_at) VALUES(?,?,?,?,?,?)")
-          .run(guild.id, user.id, interaction.user.id, reason, Date.now(), expiresAt);
-        return recordModerationCase({ guildId: guild.id, userId: user.id, moderatorId: interaction.user.id, action: "warn", reason, details: { expiresAt, supervisorId } });
+      const { caseId } = await runModerationAction({
+        ...common,
+        notify: settings.moderation?.dmOnWarn !== false,
+        execute: async () => {
+          db.prepare("INSERT INTO moderation_warnings(guild_id,user_id,moderator_id,reason,created_at,expires_at) VALUES(?,?,?,?,?,?)")
+            .run(guild.id, user.id, interaction.user.id, reason, Date.now(), expiresAt);
+        },
       });
       const count = db.prepare("SELECT COUNT(*) AS count FROM moderation_warnings WHERE guild_id=? AND user_id=? AND (expires_at IS NULL OR expires_at>?)").get(guild.id, user.id, Date.now()).count;
-      if (settings.moderation?.dmOnWarn !== false) await notifySanctionedUser(user, guild, caseId, "warn", reason);
-      await sendModerationLog(guild, settings, interaction, logEmbed(guild, interaction, "warn", user, reason, [{ name: "Dossier", value: `#${caseId}`, inline: true }, { name: "Avertissements actifs", value: String(count), inline: true }], supervisorId), supervisorId);
-      await confirm(interaction, `⚠️ Dossier #${caseId} · <@${user.id}> averti (${count} actif(s)) : ${reason}`);
-      return true;
-    }
-
-    if (command === "mute") {
-      if (!target) throw new Error("Ce membre n’est pas sur le serveur.");
-      const minutes = parseDuration(interaction.options.getString("duree", true), 10);
-      if (minutes > 40_320) throw new Error("La sourdine Discord est limitée à 28 jours.");
-      await target.timeout(minutes * 60_000, reason);
-      const caseId = recordModerationCase({ guildId: guild.id, userId: user.id, moderatorId: interaction.user.id, action: "mute", reason, details: { durationMinutes: minutes, supervisorId } });
-      await notifySanctionedUser(user, guild, caseId, "mute", reason);
-      await sendModerationLog(guild, settings, interaction, logEmbed(guild, interaction, "mute", user, reason, [{ name: "Dossier", value: `#${caseId}`, inline: true }, { name: "Durée", value: formatDuration(minutes), inline: true }], supervisorId), supervisorId);
-      await confirm(interaction, `🔇 Dossier #${caseId} · <@${user.id}> mis en sourdine pendant ${formatDuration(minutes)}.`);
+      await confirm(interaction, `⚠️ ${caseId ? `Dossier #${caseId} · ` : ""}<@${user.id}> averti (${count} actif(s)) : ${reason}`);
       return true;
     }
 
     if (command === "unmute") {
       if (!target) throw new Error("Ce membre n’est pas sur le serveur.");
-      await target.timeout(null, reason);
-      const caseId = recordModerationCase({ guildId: guild.id, userId: user.id, moderatorId: interaction.user.id, action: "unmute", reason, details: { supervisorId } });
-      await sendModerationLog(guild, settings, interaction, logEmbed(guild, interaction, "unmute", user, reason, [{ name: "Dossier", value: `#${caseId}`, inline: true }], supervisorId), supervisorId);
-      await confirm(interaction, `🔊 Dossier #${caseId} · sourdine retirée à <@${user.id}>.`);
+      const { caseId } = await runModerationAction({ ...common, execute: () => target.timeout(null, reason) });
+      await confirm(interaction, `🔊 ${caseId ? `Dossier #${caseId} · ` : ""}exclusion retirée à <@${user.id}>.`);
       return true;
     }
 
     if (command === "kick") {
       if (!target) throw new Error("Ce membre n’est pas sur le serveur.");
-      await target.kick(reason);
-      const caseId = recordModerationCase({ guildId: guild.id, userId: user.id, moderatorId: interaction.user.id, action: "kick", reason, details: { supervisorId } });
-      await notifySanctionedUser(user, guild, caseId, "kick", reason);
-      await sendModerationLog(guild, settings, interaction, logEmbed(guild, interaction, "kick", user, reason, [{ name: "Dossier", value: `#${caseId}`, inline: true }], supervisorId), supervisorId);
-      await confirm(interaction, `👢 Dossier #${caseId} · <@${user.id}> expulsé.`);
+      const { caseId } = await runModerationAction({ ...common, execute: () => target.kick(reason) });
+      await confirm(interaction, `👢 ${caseId ? `Dossier #${caseId} · ` : ""}<@${user.id}> expulsé.`);
       return true;
     }
 
     if (command === "ban") {
-      await guild.members.ban(user.id, { reason, deleteMessageSeconds: 0 });
-      const caseId = recordModerationCase({ guildId: guild.id, userId: user.id, moderatorId: interaction.user.id, action: "ban", reason, details: { supervisorId } });
-      await notifySanctionedUser(user, guild, caseId, "ban", reason);
-      await sendModerationLog(guild, settings, interaction, logEmbed(guild, interaction, "ban", user, reason, [{ name: "Dossier", value: `#${caseId}`, inline: true }], supervisorId), supervisorId);
-      await confirm(interaction, `🔨 Dossier #${caseId} · <@${user.id}> banni.`);
+      const { caseId } = await runModerationAction({ ...common, execute: () => guild.members.ban(user.id, { reason, deleteMessageSeconds: 0 }) });
+      await confirm(interaction, `🔨 ${caseId ? `Dossier #${caseId} · ` : ""}<@${user.id}> banni.`);
       return true;
     }
   } catch (error) {

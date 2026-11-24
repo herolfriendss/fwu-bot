@@ -2,15 +2,17 @@
 
 **Tant que tu ne fais rien, rien ne change** : FWU (le bot actuel, `her-v5-bot`) continue de tout faire, exactement comme aujourd'hui.
 
-## Les 5 bots
+## Les 5 bots (répartition du 24/11/2026 — détail : `docs/FWU_BASE_PARTAGEE.md`)
 
-| Bot | Processus PM2 | Ce qu'il fait | Token (dans le `.env` de son dossier) |
-|---|---|---|---|
-| **FWU** | `her-v5-bot` (inchangé, avec le site `her-v5-web`) | Tous les événements et logs, `/ban`, `/blacklist`, `/live`, `/sondage`, `/nettoyer`, tickets, candidatures, social, cartes, jeux, giveaways, événements, RESUME (`/afk`), commandes personnalisées du site, mots-clés, alertes LIVE. **Reprend tout seul** le travail d'un bot arrêté. | `DISCORD_TOKEN` (inchangé) |
-| **GUARD** | `fwu-guard` | GuildGuard, `/warn`, `/mute`, `/kick`, `/purge`, `/lock`, `/verify`, anti-spam, filtre d'insultes, Guardian | `PND_GUARD_TOKEN` |
-| **FDPDLAVOC** | `fwu-fdpdlavoc` | Musique, radio, vocaux temporaires, `/pv activer|liste|retirer`, `/access`, `/voc` | `PND_FDPDLAVOC_TOKEN` |
-| **SUCK ME** | `fwu-suckme` | `/sysp`, rôles, `/rankall`, `/dmall` (toi seul), DOG, MENOTTE, WAKEUP, WOUAF, LOCKNAME, Anti-Move, automatisations, webhooks, `/panel`, `/setup` | `PND_SUCKME_TOKEN` |
-| **LE FISC** | `fwu-fisc` | Toute l'économie : solde, banque, boutique, marché, enchères, casino, roulette, blackjack, entreprises, investissements | `PND_FISC_TOKEN` |
+| Bot | Processus PM2 | Préfixe | Ce qu'il fait | Token (dans le `.env` de son dossier) |
+|---|---|---|---|---|
+| **FWU** | `her-v5-bot` (avec le site `her-v5-web`) | slash uniquement | Modération staff : `/tempmute`, `/unmute`, `/warn`, `/warnings`, `/sanction`, `/sanction-type`, `/quota` ; embeds `/embed`, règlement IA `/reglement`, écran d'adhésion `/screening`. Événements, logs et IA par mention. **Reprend les événements** (pas les commandes) d'un bot arrêté. | `DISCORD_TOKEN` |
+| **GUARD** | `fwu-guard` | `+` | `+ban`, `+unban`, `+kick`, `+blacklist`, `+purge`, `+lock`, `+slowmode` ; GuildGuard, `/verify`, anti-spam, filtre d'insultes, Guardian | `PND_GUARD_TOKEN` |
+| **FDPDLAVOC** | `fwu-fdpdlavoc` | `;` | Musique, radio, vocaux temporaires, `;pv`, `;access`, `;voc`, `;mv`, `;accessall` | `PND_FDPDLAVOC_TOKEN` |
+| **SUCK ME** | `fwu-suckme` | `=` | SYS+, rôles, DOG, MENOTTE, WAKEUP, LOCKNAME, Anti-Move, automatisations, webhooks, dmall ; tickets, candidatures, sondage, IA, live, AFK, social, giveaways, événements, commandes personnalisées du site | `PND_SUCKME_TOKEN` |
+| **LE FISC** | `fwu-fisc` | `-` | Économie, casino, jeux (dice, coinflip, trivia) et cartes | `PND_FISC_TOKEN` |
+
+Les quotas de modération sont communs aux 5 bots (base centrale PostgreSQL, `SHARED_DATABASE_URL`).
 
 `/aide` et `/status` existent sur chaque bot : chacun affiche ses propres commandes et cite les autres.
 La liste exacte, commande par commande, est dans `src/lib/bot-profiles.ts`. Pour déplacer une commande, il suffit de la changer de liste.
@@ -50,14 +52,13 @@ Emplacements sur le VPS Oracle :
 L'installateur de chaque bot lance `scripts/fwu-synchroniser.sh` : FWU retire de son application les commandes des bots en ligne. C'est ce qui libère la place pour `/afk`, `/dmall`, `/blacklist` et `/live`.
 
 ## Retour arrière
-- **Immédiat** : `pm2 stop fwu-guard`. FWU reprend le domaine en moins d'une minute (événements, tâches, filtre anti-spam).
-- **Complet** : après `pm2 stop fwu-guard`, lance `bash /home/opc/her-v5-production/scripts/fwu-synchroniser.sh` : FWU réenregistre les commandes de GUARD.
+- **Immédiat** : `pm2 stop fwu-guard`. FWU reprend en moins d'une minute les **événements** du domaine (tâches, filtre anti-spam, blacklist à l'arrivée). Les **commandes** de GUARD restent indisponibles tant que GUARD est arrêté : une commande n'existe que sur son bot (décision du 24/11).
 
 ## Mises à jour
 - FWU : `scripts/update-1942.sh`, comme avant. Les 4 autres bots continuent de tourner pendant la mise à jour de FWU.
 - Chaque bot : dézipper la nouvelle version dans `/home/opc/fwu-bots` (`unzip -o`), puis relancer son `installer.sh`. Son `.env` est conservé.
 
-## RESUME
+## RESUME (sur SUCK ME : `/afk` ou `=afk`)
 - `/afk on [raison]` : début de l'absence.
 - `/afk off` : fin de l'absence, avec le résumé de ce qui s'est passé.
 - `/afk resume [heures]` : le résumé, sans terminer l'absence (24 h par défaut si tu n'es pas absent).
@@ -70,17 +71,18 @@ L'installateur de chaque bot lance `scripts/fwu-synchroniser.sh` : FWU retire de
 - Pendant l'envoi, le même message affiche la progression et un bouton « Arrêter ». À la fin : le nombre de MP envoyés et le nombre de MP fermés.
 - Limites par défaut : 1 000 destinataires, un MP toutes les 1,5 s, 1 h entre deux envois. Réglables dans `bot/.env` de FWU, puis relancer l’installateur de SUCK ME (il recopie les réglages communs).
 
-## Blacklist (OWNER et SYS+, sur FWU)
+## Blacklist (OWNER et SYS+, sur GUARD : `/blacklist` ou `+blacklist`, soumise au quota « blacklist »)
 - `/blacklist add membre|id [raison]` : banni tout de suite, même s'il n'est pas sur le serveur, et rebanni automatiquement s'il revient.
 - `/blacklist remove`, `/blacklist list`, `/blacklist check`.
 - Retirer un compte de la blacklist le débannit aussi.
 
-## Alertes LIVE depuis Discord (OWNER et SYS+, sur FWU)
+## Alertes LIVE depuis Discord (OWNER et SYS+, sur SUCK ME)
 - `/live etat` · `/live activer` · `/live desactiver` · `/live salon #salon` · `/live role @rôle` (sans rôle : plus de mention).
 - `/live ajouter plateforme nom flux` : flux RSS/Atom en HTTPS public. `/live retirer nom`.
 - Les changements sont enregistrés sur le site : les deux restent toujours d'accord.
 
-## Commandes slash uniquement (décision du 23/11)
-- Les anciennes commandes `=` ne sont plus exécutées. Taper `=play` affiche un court message (effacé après 15 s, au plus toutes les 10 min par membre) qui indique la commande slash à utiliser.
-- Nouvelles commandes slash pour ce qui n'existait qu'en `=` : `/pv activer|liste|retirer`, `/rep donner|historique`, `/verify reaction|reaction-off`, `/automation regles …`, `/ia demande|historique`.
-- En cas d'urgence seulement : `PND_PREFIX_COMMANDS=on` dans `bot/.env` réactive les commandes `=`.
+## Préfixes (décision du 24/11, remplace « slash uniquement » du 23/11)
+- Chaque bot a son préfixe (GUARD `+`, FDPDLAVOC `;`, SUCK ME `=`, LE FISC `-`) ; FWU reste en slash uniquement.
+- Un seul fichier pour les 5 bots : `PND_DATA_DIR/bots.json` (modèle `bot/config/bots.example.json`), jamais écrasé par une mise à jour.
+- Une commande tapée avec le préfixe d'un autre bot n'existe pas (`=ban` ne fait rien : c'est `+ban`).
+- `PND_PREFIX_COMMANDS` n'est plus utilisé.

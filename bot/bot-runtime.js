@@ -9,7 +9,9 @@
 //     lease. With no dedicated bot running it behaves exactly as before, and it
 //     takes a domain back automatically if its dedicated bot stops.
 import { randomUUID } from "node:crypto";
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
+import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { db, transaction } from "./database.js";
 
 const sharedProfiles = new URL("../src/lib/bot-profiles.ts", import.meta.url);
@@ -18,6 +20,7 @@ const profilesModule = await import((existsSync(sharedProfiles) ? sharedProfiles
 export const {
   BOT_PROFILES,
   BOT_PROFILE_IDS,
+  DEFAULT_PREFIXES,
   PREFIX_COMMAND_OWNERS,
   SHARED_SLASH_COMMANDS,
   isBotProfileId,
@@ -25,8 +28,41 @@ export const {
   prefixCommandOwner,
   slashCommandNamesDelegatedAway,
   slashCommandNamesForProfile,
+  slashCommandNamesOwnedElsewhere,
   slashCommandOwner,
+  parsePrefixedMessage,
+  validatePrefixes,
 } = profilesModule;
+
+/** Commands replaced by another one: removed from every application. */
+export const RETIRED_SLASH_COMMANDS = Object.freeze(["mute", "vocal-panel"]);
+
+const LOCAL_BOTS_CONFIG = fileURLToPath(new URL("./config/bots.json", import.meta.url));
+
+/** Where the prefix file is read: PND_BOTS_CONFIG, then the folder shared by the 5 bots, then bot/config. */
+export function botsConfigPath(env = process.env) {
+  if (String(env.PND_BOTS_CONFIG ?? "").trim()) return String(env.PND_BOTS_CONFIG).trim();
+  const shared = String(env.PND_DATA_DIR ?? "").trim();
+  if (shared && existsSync(join(shared, "bots.json"))) return join(shared, "bots.json");
+  return LOCAL_BOTS_CONFIG;
+}
+
+/**
+ * Prefix of every bot. The 5 bots must read the SAME file: put it in the shared
+ * data folder (PND_DATA_DIR/bots.json). Missing file: defaults (bots.example.json).
+ * Invalid file: the bot refuses to start.
+ */
+export function loadBotPrefixes(env = process.env) {
+  const path = botsConfigPath(env);
+  if (!existsSync(path)) return validatePrefixes(DEFAULT_PREFIXES);
+  let parsed;
+  try {
+    parsed = JSON.parse(readFileSync(path, "utf8"));
+  } catch {
+    throw new Error(`${path} n'est pas un JSON valide.`);
+  }
+  return validatePrefixes(parsed?.prefixes ?? {});
+}
 
 export const LEASE_TTL_MS = 60_000;
 export const LEASE_RENEW_MS = 20_000;
@@ -196,19 +232,17 @@ export function takeRelayedLogs(limit = 25) {
   });
 }
 
-/** Commands this application must register and the ones FWU must retire. */
+/** Commands this application must register, and the ones it must remove (owned by another bot or retired). */
 export function slashRegistrationPlan(runtime, catalog, extras = [], maxRoot = 100) {
-  const wanted = new Set(slashCommandNamesForProfile(runtime.profile, runtime.delegated));
-  const byName = new Map([...catalog, ...extras].map((command) => [command.name, command]));
+  const wanted = new Set(slashCommandNamesForProfile(runtime.profile));
   const register = [];
   const skipped = [];
-  // Catalogue order first, extras last: the historical 100 always win.
   for (const command of [...catalog, ...extras]) {
     if (!wanted.has(command.name) || register.includes(command)) continue;
     if (register.length >= maxRoot) skipped.push(command.name);
     else register.push(command);
   }
-  const retire = runtime.profile === "fwu" ? slashCommandNamesDelegatedAway(runtime.delegated).filter((name) => byName.has(name)) : [];
+  const retire = [...new Set([...slashCommandNamesOwnedElsewhere(runtime.profile), ...RETIRED_SLASH_COMMANDS])];
   return { register, retire, skipped };
 }
 

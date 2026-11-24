@@ -10,7 +10,7 @@ import { parsePndOwnerId } from "./pnd-owner-policy.js";
 /** "command[ group] sub" → option holding the targeted member. */
 export const HIERARCHY_TARGETS = Object.freeze({
   warn: "membre",
-  mute: "membre",
+  tempmute: "membre",
   unmute: "membre",
   kick: "membre",
   ban: "membre",

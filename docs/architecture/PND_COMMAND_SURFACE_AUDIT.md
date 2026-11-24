@@ -36,7 +36,7 @@
 ### Modération — 11
 - /warn
 - /warnings
-- /mute
+- /tempmute
 - /unmute
 - /kick
 - /ban

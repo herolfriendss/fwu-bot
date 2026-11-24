@@ -16,6 +16,8 @@ export type SlashOption = {
   max_value?: number;
   channel_types?: number[];
   choices?: SlashOptionChoice[];
+  /** Discord autocomplete (dynamic choices, e.g. sanction types stored in the central database). */
+  autocomplete?: boolean;
   options?: SlashOption[];
 };
 
@@ -198,7 +200,6 @@ export const SLASH_COMMANDS: SlashCommandDef[] = [
     description: "Avertit un membre et enregistre la raison",
     usage: "/warn membre raison [expire]",
     category: "Modération",
-    defaultMemberPermissions: manageMessages,
     dmPermission: false,
     requiresBotProcess: true,
     options: [
@@ -217,17 +218,16 @@ export const SLASH_COMMANDS: SlashCommandDef[] = [
     options: [opt(6, "membre", "Membre à consulter (par défaut : toi)")],
   },
   {
-    name: "mute",
-    description: "Met un membre en sourdine (timeout Discord)",
-    usage: "/mute membre durée raison",
+    name: "tempmute",
+    description: "Exclut temporairement un membre avec une sanction prédéfinie (durée automatique)",
+    usage: "/tempmute membre sanction [raison]",
     category: "Modération",
-    defaultMemberPermissions: moderateMembers,
     dmPermission: false,
     requiresBotProcess: true,
     options: [
-      opt(6, "membre", "Membre à rendre muet", { required: true }),
-      opt(3, "duree", "Durée : 10m, 2h, 1d…", { required: true, max_length: 20 }),
-      opt(3, "raison", "Raison", { max_length: 300 }),
+      opt(6, "membre", "Membre à sanctionner", { required: true }),
+      opt(3, "sanction", "Sanction prédéfinie : sa durée s'applique automatiquement", { required: true, autocomplete: true, max_length: 20 }),
+      opt(3, "raison", "Précision facultative (contexte, message en cause)", { max_length: 300 }),
     ],
   },
   {
@@ -235,7 +235,6 @@ export const SLASH_COMMANDS: SlashCommandDef[] = [
     description: "Retire la sourdine d’un membre",
     usage: "/unmute membre [raison]",
     category: "Modération",
-    defaultMemberPermissions: moderateMembers,
     dmPermission: false,
     requiresBotProcess: true,
     options: [
@@ -248,7 +247,6 @@ export const SLASH_COMMANDS: SlashCommandDef[] = [
     description: "Expulse un membre du serveur",
     usage: "/kick membre raison",
     category: "Modération",
-    defaultMemberPermissions: kickMembers,
     dmPermission: false,
     requiresBotProcess: true,
     options: [
@@ -261,7 +259,6 @@ export const SLASH_COMMANDS: SlashCommandDef[] = [
     description: "Bannit un membre du serveur",
     usage: "/ban membre raison",
     category: "Modération",
-    defaultMemberPermissions: banMembers,
     dmPermission: false,
     requiresBotProcess: true,
     options: [
@@ -1630,6 +1627,23 @@ export const SLASH_COMMANDS: SlashCommandDef[] = [
  * dashboard's "register all" button stay within Discord's limit. Each bot
  * registers them when its own application has room (see bot-profiles.ts).
  */
+/** Commandes soumises aux quotas (doit rester identique à bot/shared/quotas.js). */
+export const QUOTA_COMMAND_NAMES = ["tempmute", "unmute", "warn", "kick", "ban", "unban", "blacklist", "mv"] as const;
+const QUOTA_COMMAND_CHOICES: SlashOptionChoice[] = QUOTA_COMMAND_NAMES.map((name) => ({ name, value: name }));
+const MODERATION_TIER_CHOICES: SlashOptionChoice[] = [
+  { name: "1 % · All Access", value: 1 },
+  { name: "5 % · Administrateur", value: 5 },
+  { name: "10 % · Modérateur", value: 10 },
+  { name: "50 % · Modérateur test", value: 50 },
+];
+const ALL_TIER_CHOICES: SlashOptionChoice[] = [
+  { name: "0 % · Owner", value: 0 },
+  ...MODERATION_TIER_CHOICES,
+  { name: "70 %", value: 70 },
+  { name: "80 %", value: 80 },
+  { name: "100 %", value: 100 },
+];
+
 export const EXTRA_SLASH_COMMANDS: SlashCommandDef[] = [
   {
     name: "live",
@@ -1720,6 +1734,163 @@ export const EXTRA_SLASH_COMMANDS: SlashCommandDef[] = [
       ]),
     ],
   },
+  {
+    name: "sanction",
+    description: "Historique complet des sanctions d'un membre (tous bots confondus)",
+    usage: "/sanction membre [page]",
+    category: "Modération",
+    dmPermission: false,
+    requiresBotProcess: true,
+    options: [
+      opt(6, "membre", "Membre à consulter", { required: true }),
+      opt(4, "page", "Page de l'historique (10 sanctions par page)", { min_value: 1, max_value: 100 }),
+    ],
+  },
+  {
+    name: "sanction-type",
+    description: "Admins : gère les sanctions prédéfinies de /tempmute et leurs durées",
+    usage: "/sanction-type liste · ajouter nom duree · modifier sanction [nom] [duree] · supprimer sanction",
+    category: "Modération",
+    dmPermission: false,
+    requiresBotProcess: true,
+    options: [
+      sub("liste", "Affiche les sanctions prédéfinies et leurs durées"),
+      sub("ajouter", "Ajoute une sanction prédéfinie", [
+        opt(3, "nom", "Nom de la sanction (ex. Spam)", { required: true, max_length: 80 }),
+        opt(3, "duree", "Durée : 10m, 1h, 1h30, 2j…", { required: true, max_length: 20 }),
+      ]),
+      sub("modifier", "Modifie le nom ou la durée d'une sanction", [
+        opt(3, "sanction", "Sanction à modifier", { required: true, autocomplete: true, max_length: 20 }),
+        opt(3, "nom", "Nouveau nom", { max_length: 80 }),
+        opt(3, "duree", "Nouvelle durée : 10m, 1h, 2j…", { max_length: 20 }),
+      ]),
+      sub("supprimer", "Supprime une sanction prédéfinie", [
+        opt(3, "sanction", "Sanction à supprimer", { required: true, autocomplete: true, max_length: 20 }),
+      ]),
+    ],
+  },
+  {
+    name: "quota",
+    description: "Owner : quotas de modération partagés entre les 5 bots",
+    usage: "/quota voir · definir · reinitialiser · palier · paliers · exemption … · bot … · journal",
+    category: "Modération",
+    dmPermission: false,
+    requiresBotProcess: true,
+    options: [
+      sub("voir", "Affiche les quotas en vigueur (et ton palier)", [
+        opt(3, "commande", "Limiter à une commande", { choices: QUOTA_COMMAND_CHOICES }),
+      ]),
+      sub("definir", "Modifie un quota à chaud (sans redéploiement)", [
+        opt(3, "commande", "Commande de modération", { required: true, choices: QUOTA_COMMAND_CHOICES }),
+        opt(4, "palier", "Palier de rôle", { required: true, choices: MODERATION_TIER_CHOICES }),
+        opt(3, "valeur", "Nombre d'utilisations (0 = interdit, « illimite » = sans limite)", { required: true, max_length: 10 }),
+        opt(3, "fenetre", "Fenêtre de temps : 30m, 1h, 1j…", { required: true, max_length: 20 }),
+      ]),
+      sub("reinitialiser", "Revient à la valeur par défaut pour ce serveur", [
+        opt(3, "commande", "Commande de modération", { required: true, choices: QUOTA_COMMAND_CHOICES }),
+        opt(4, "palier", "Palier de rôle", { required: true, choices: MODERATION_TIER_CHOICES }),
+      ]),
+      sub("palier", "Associe un rôle à un palier (0 %, 1 %, 5 %, 10 %, 50 %, 70 %, 80 %, 100 %)", [
+        opt(8, "role", "Rôle Discord", { required: true }),
+        opt(4, "palier", "Palier (−1 = retirer l'association)", { required: true, choices: [...ALL_TIER_CHOICES, { name: "Retirer l'association", value: -1 }] }),
+      ]),
+      sub("paliers", "Affiche les rôles associés à chaque palier"),
+      { type: 2, name: "exemption", description: "Exemptions de quota par utilisateur", options: [
+        sub("ajouter", "Exempte un utilisateur de tous les quotas", [
+          opt(3, "utilisateur", "Mention ou ID", { required: true, max_length: 40 }),
+          opt(3, "raison", "Raison", { max_length: 200 }),
+        ]),
+        sub("retirer", "Retire une exemption", [opt(3, "utilisateur", "Mention ou ID", { required: true, max_length: 40 })]),
+        sub("liste", "Liste les utilisateurs exemptés"),
+      ] },
+      { type: 2, name: "bot", description: "Whitelist des bots qui outrepassent les quotas", options: [
+        sub("ajouter", "Ajoute un bot à la whitelist", [opt(3, "bot", "Mention ou ID du bot", { required: true, max_length: 40 })]),
+        sub("retirer", "Retire un bot de la whitelist", [opt(3, "bot", "Mention ou ID du bot", { required: true, max_length: 40 })]),
+        sub("liste", "Liste les bots whitelistés"),
+      ] },
+      sub("journal", "Dernières modifications de configuration (qui, quoi, avant, après)"),
+    ],
+  },
+  {
+    name: "embed",
+    description: "Admins : crée, édite et publie des embeds",
+    usage: "/embed creer · modifier · champ · champ-retirer · apercu · publier · importer · liste · supprimer",
+    category: "Embeds & règlement",
+    dmPermission: false,
+    requiresBotProcess: true,
+    options: [
+      sub("creer", "Crée un embed (formulaire : titre, description, couleur, image, footer)", [
+        opt(3, "nom", "Identifiant court (lettres, chiffres, - et _)", { required: true, max_length: 32 }),
+      ]),
+      sub("modifier", "Modifie un embed (formulaire prérempli)", [
+        opt(3, "nom", "Embed à modifier", { required: true, autocomplete: true, max_length: 32 }),
+      ]),
+      sub("champ", "Ajoute un champ à un embed", [
+        opt(3, "nom", "Embed", { required: true, autocomplete: true, max_length: 32 }),
+        opt(3, "titre", "Titre du champ", { required: true, max_length: 256 }),
+        opt(3, "valeur", "Contenu du champ", { required: true, max_length: 1024 }),
+        opt(5, "en_ligne", "Afficher sur la même ligne que le champ voisin"),
+      ]),
+      sub("champ-retirer", "Retire un champ (par numéro)", [
+        opt(3, "nom", "Embed", { required: true, autocomplete: true, max_length: 32 }),
+        opt(4, "numero", "Numéro du champ (1 = premier)", { required: true, min_value: 1, max_value: 25 }),
+      ]),
+      sub("image", "Change l'image, la miniature ou l'auteur", [
+        opt(3, "nom", "Embed", { required: true, autocomplete: true, max_length: 32 }),
+        opt(3, "image", "URL HTTPS de la grande image (vide = retirer)", { max_length: 500 }),
+        opt(3, "miniature", "URL HTTPS de la miniature (vide = retirer)", { max_length: 500 }),
+      ]),
+      sub("apercu", "Affiche l'embed (visible par toi seul)", [
+        opt(3, "nom", "Embed", { required: true, autocomplete: true, max_length: 32 }),
+      ]),
+      sub("publier", "Publie l'embed dans un salon (ou met à jour le message déjà publié)", [
+        opt(3, "nom", "Embed", { required: true, autocomplete: true, max_length: 32 }),
+        opt(7, "salon", "Salon cible (par défaut : salon de la dernière publication)", { channel_types: [0, 5] }),
+      ]),
+      sub("importer", "Reprend un embed déjà publié par FWU pour pouvoir l'éditer", [
+        opt(3, "lien", "Lien du message", { required: true, max_length: 200 }),
+        opt(3, "nom", "Identifiant à lui donner", { required: true, max_length: 32 }),
+      ]),
+      sub("liste", "Liste les embeds enregistrés"),
+      sub("supprimer", "Supprime un embed enregistré (le message publié reste)", [
+        opt(3, "nom", "Embed", { required: true, autocomplete: true, max_length: 32 }),
+      ]),
+    ],
+  },
+  {
+    name: "reglement",
+    description: "Admins : génère le règlement avec l'IA, le valide puis le publie",
+    usage: "/reglement generer [consignes] [nombre] · apercu · publier salon",
+    category: "Embeds & règlement",
+    dmPermission: false,
+    requiresBotProcess: true,
+    options: [
+      sub("generer", "Génère un brouillon de règlement (aperçu à valider)", [
+        opt(3, "consignes", "Ton, thèmes à couvrir, points importants", { max_length: 1000 }),
+        opt(4, "nombre", "Nombre de règles (5 à 20)", { min_value: 5, max_value: 20 }),
+      ]),
+      sub("apercu", "Réaffiche le dernier brouillon et ses boutons de validation"),
+      sub("publier", "Publie le dernier règlement validé", [
+        opt(7, "salon", "Salon du règlement", { required: true, channel_types: [0, 5] }),
+      ]),
+    ],
+  },
+  {
+    name: "screening",
+    description: "Admins : écran d'adhésion alimenté par le règlement validé",
+    usage: "/screening configurer salon role · synchroniser · etat",
+    category: "Embeds & règlement",
+    dmPermission: false,
+    requiresBotProcess: true,
+    options: [
+      sub("configurer", "Publie le règlement avec un bouton « J'accepte » qui donne l'accès", [
+        opt(7, "salon", "Salon d'arrivée", { required: true, channel_types: [0] }),
+        opt(8, "role", "Rôle donné après acceptation", { required: true }),
+      ]),
+      sub("synchroniser", "Copie le règlement validé dans le Membership Screening natif de Discord"),
+      sub("etat", "Affiche la configuration de l'écran d'adhésion"),
+    ],
+  },
 ];
 
 const slashRootNames = SLASH_COMMANDS.map((command) => command.name);
@@ -1752,6 +1923,7 @@ function toDiscordOption(o: SlashOption): Record<string, unknown> {
     ...(o.max_value !== undefined ? { max_value: o.max_value } : {}),
     ...(o.channel_types?.length ? { channel_types: o.channel_types } : {}),
     ...(o.choices?.length ? { choices: o.choices } : {}),
+    ...(o.autocomplete ? { autocomplete: true } : {}),
     ...(o.options?.length ? { options: o.options.map(toDiscordOption) } : {}),
   };
 }

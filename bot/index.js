@@ -59,12 +59,18 @@ import { handleVoicePresenceMessage, reconcileActiveVoiceSessions, trackVoiceSta
 import { handleStaffMemberHistoryMessage } from "./staff-audit.js";
 import { captureGuildInviteSnapshot, resolveMemberInvite, recordInviteLifecycle } from "./invite-attribution.js";
 import { addCentralLogObserver, setCentralLogRelay, systemLogEmbed, sendCentralLog } from "./logs.js";
-import { BOT_PROFILES, LEASE_RENEW_MS, createDomainGate, enqueueRelayedLog, prefixCommandOwner, resolveBotRuntime, slashCommandOwner, slashRegistrationPlan, takeRelayedLogs } from "./bot-runtime.js";
+import { BOT_PROFILES, LEASE_RENEW_MS, createDomainGate, enqueueRelayedLog, loadBotPrefixes, parsePrefixedMessage, resolveBotRuntime, slashCommandOwner, slashRegistrationPlan, takeRelayedLogs } from "./bot-runtime.js";
 import { handleLiveInteraction, handleLiveMessage } from "./live-commands.js";
-import { slashifyPayload } from "./prefix-to-slash.js";
+import { prefixifyPayload, slashifyPayload } from "./prefix-to-slash.js";
 import { enforceBlacklistOnJoin, handleBlacklistInteraction, handleBlacklistMessage, isBlacklisted } from "./blacklist.js";
 import { handleDmAllInteraction, handleDmAllMessage, recoverInterruptedDmAllJobs } from "./dmall.js";
 import { handleResumeInteraction, handleResumeMessage, pruneResumeEvents, recordResumeEvent } from "./resume.js";
+import { handleStaffModerationInteraction, STAFF_COMMANDS } from "./staff-moderation.js";
+import { handleGuardPrefixCommand } from "./guard-commands.js";
+import { handleVoiceMoveCommand } from "./voice-move.js";
+import { handleEmbedInteraction, EMBED_COMMANDS } from "./embeds.js";
+import { startSharedLayer } from "./shared/index.js";
+import { logCommandUsage } from "./shared/audit.js";
 import { getVoiceConnections } from "@discordjs/voice";
 import { hasAiMemoryConsent, setAiMemoryConsent } from "./ai-memory-preferences.js";
 import { canUseAiMemory } from "./ai-memory-policy.js";
@@ -94,10 +100,15 @@ if (!DISCORD_TOKEN || !SITE_URL || !BOT_SYNC_SECRET) {
   process.exit(1);
 }
 const IS_FWU = RUNTIME.profile === "fwu";
-// Owner decision (23/11/2026): every command is a slash command. The former "="
-// commands are off; PND_PREFIX_COMMANDS=on re-enables them as an emergency fallback.
-const PREFIX_COMMANDS_ENABLED = String(process.env.PND_PREFIX_COMMANDS ?? "").trim().toLowerCase() === "on";
-const prefixHintCooldown = new Map();
+// Owner decision (24/11/2026, replaces the slash-only decision of 23/11): every
+// bot has its own prefix (bot/config/bots.json); FWU stays slash only. A command
+// exists on its owning bot only: no other bot answers it, even as a fallback.
+let BOT_PREFIXES;
+try { BOT_PREFIXES = loadBotPrefixes(process.env); } catch (error) {
+  console.error(`❌ ${error.message}`);
+  process.exit(1);
+}
+const OWN_PREFIX = BOT_PREFIXES[RUNTIME.profile];
 const BOT_LABEL = RUNTIME.config.label;
 // One gate per process: serves(domain) says whether this process handles that
 // domain right now. With no dedicated bot running, FWU serves everything.
@@ -238,6 +249,7 @@ function auditLog(guild, settingsForGuild, title, description, color = 0x6d28d9)
 
 function auditPrefixUsage(message, category) {
   const command = String(message.content ?? "").trim().split(/\s+/, 1)[0].slice(0, 40);
+  void logCommandUsage({ guildId: message.guild.id, userId: message.author.id, bot: RUNTIME.profile, command: `${OWN_PREFIX ?? "="}${command.replace(/^=/, "")}`, outcome: "ok", detail: category });
   auditLog(message.guild, settings[message.guild.id], `⚙️ ${category} — commande utilisée`,
     `Membre : <@${message.author.id}>\nCommande : \`${command}\`\nSalon : <#${message.channel.id}>`);
 }
@@ -251,6 +263,7 @@ function auditSlashUsage(interaction, category) {
     action = `/${interaction.commandName}${subcommand ? ` ${subcommand}` : ""}`;
   } else if (interaction.isButton?.()) action = "bouton de panneau";
   else if (interaction.isStringSelectMenu?.() || interaction.isUserSelectMenu?.() || interaction.isRoleSelectMenu?.() || interaction.isChannelSelectMenu?.()) action = "menu de panneau";
+  void logCommandUsage({ guildId: interaction.guildId, userId: interaction.user.id, bot: RUNTIME.profile, command: action.slice(0, 60), outcome: "ok", detail: category });
   auditLog(interaction.guild, settings[interaction.guildId], `⚙️ ${category} — action effectuée`,
     `Membre : <@${interaction.user.id}>\nAction : \`${action}\`\nSalon : ${interaction.channelId ? `<#${interaction.channelId}>` : "inconnu"}`);
 }
@@ -373,25 +386,11 @@ function pruneSpamState(now) {
   }
 }
 
-/** One discreet hint (deleted after 15 s, at most every 10 min per member) towards the slash command. */
-async function sendPrefixHint(msg, owner) {
-  const key = `${msg.guild.id}:${msg.author.id}`;
-  const now = Date.now();
-  if (now - (prefixHintCooldown.get(key) ?? 0) < 10 * 60_000) return;
-  prefixHintCooldown.set(key, now);
-  if (prefixHintCooldown.size > 5_000) for (const [k, at] of prefixHintCooldown) if (now - at > 10 * 60_000) prefixHintCooldown.delete(k);
-  const token = String(msg.content).trim().slice(1).split(/\s+/, 1)[0].toLowerCase();
-  const root = [...SLASH_COMMANDS, ...EXTRA_SLASH_COMMANDS].some((command) => command.name === token) ? `/${token}` : null;
-  // A command this application cannot register yet (FWU already at Discord's 100) arrives with the new bots.
-  const pending = root && !slashRegistrationPlan(RUNTIME, SLASH_COMMANDS, EXTRA_SLASH_COMMANDS).register.some((command) => command.name === token);
-  const botLabel = owner !== RUNTIME.profile ? ` (bot **${BOT_PROFILES[owner].label}**)` : "";
-  const reply = await msg.reply({
-    content: pending
-      ? `ℹ️ Les commandes \`=\` ont été remplacées par les commandes slash. **${root}** sera disponible dès la mise en service des nouveaux bots FWU.`
-      : `ℹ️ Les commandes \`=\` ont été remplacées par les commandes slash${root ? ` : utilise **${root}**${botLabel}` : ` : tape **/** et choisis la commande${botLabel}`}.`,
-    allowedMentions: { parse: [], repliedUser: false },
-  }).catch(() => null);
-  if (reply) setTimeout(() => { reply.delete().catch(() => {}); }, 15_000).unref?.();
+/** Replies of a prefix command show this bot's prefix instead of the canonical "=". */
+function prefixifyMessageReplies(msg, prefix) {
+  if (!prefix || prefix === "=" || typeof msg.reply !== "function") return;
+  const original = msg.reply;
+  msg.reply = (payload, ...rest) => original.call(msg, prefixifyPayload(payload, prefix), ...rest);
 }
 
 client.on("messageCreate", async (msg) => {
@@ -400,13 +399,17 @@ client.on("messageCreate", async (msg) => {
   // leave request is still in flight.
   if (!guildAllowed(msg.guild.id, ALLOWED_GUILDS) || isLogsHub(msg.guild.id)) return;
   const s = settings[msg.guild.id];
-  // Domain routing: a built-in "=" command is answered only by the bot that owns
-  // it; passive checks run in the bot that owns their domain. In the historical
-  // single-bot mode every check below is true, exactly as before.
-  const allDomains = gate.servesAll();
-  const prefixOwner = prefixCommandOwner(msg.content);
-  const prefixBlocked = !PREFIX_COMMANDS_ENABLED && /^=[a-z]/i.test(String(msg.content ?? "").trim());
-  const runCmd = (domain) => !prefixBlocked && (allDomains || (prefixOwner ? prefixOwner === domain && serves(domain) : serves(domain)));
+  // Command routing: a prefix command is answered only by the bot that owns it,
+  // read with that bot's own prefix ("+ban" on GUARD, ";mv" on FDPDLAVOC…).
+  // The handlers parse the canonical "=" form: the content is rewritten once here.
+  // Passive checks (anti-spam, Guardian…) still follow the domain leases.
+  const prefixed = parsePrefixedMessage(msg.content, BOT_PREFIXES);
+  const ownCommand = Boolean(prefixed && prefixed.owner === RUNTIME.profile);
+  if (ownCommand) {
+    msg.content = prefixed.canonical;
+    prefixifyMessageReplies(msg, OWN_PREFIX);
+  }
+  const runCmd = (...domains) => ownCommand && domains.includes(RUNTIME.profile);
   if (serves("fwu")) recordAnalyticsMetric(msg.guild.id, "messages");
   if (serves("guard")) {
   const guardianNow = Date.now();
@@ -461,33 +464,31 @@ client.on("messageCreate", async (msg) => {
       return;
     }
   }
-  if (prefixBlocked && prefixOwner && serves(prefixOwner)) {
-    await sendPrefixHint(msg, prefixOwner);
-    return;
-  }
+  if (runCmd("guard") && await handleGuardPrefixCommand(msg, s, { bot: RUNTIME.profile, record, audit: (title, description, color) => auditLog(msg.guild, s, title, description, color) })) { auditPrefixUsage(msg, "Administration GUARD"); return; }
+  if (runCmd("fdpdlavoc") && await handleVoiceMoveCommand(msg, s, { bot: RUNTIME.profile, record, audit: (title, description, color) => auditLog(msg.guild, s, title, description, color) })) { auditPrefixUsage(msg, "Déplacement vocal"); return; }
   try {
-    if (runCmd("fwu") && await handleResumeMessage(msg, s)) { auditPrefixUsage(msg, "RESUME"); return; }
-    if (runCmd("fwu") && await handleBlacklistMessage(msg, s)) { auditPrefixUsage(msg, "Blacklist"); return; }
-    if (runCmd("fwu") && await handleLiveMessage(msg, settings, { apiUrl: API, secret: BOT_SYNC_SECRET })) { auditPrefixUsage(msg, "Alertes LIVE"); return; }
+    if (runCmd("suckme") && await handleResumeMessage(msg, s)) { auditPrefixUsage(msg, "RESUME"); return; }
+    if (runCmd("guard") && await handleBlacklistMessage(msg, s)) { auditPrefixUsage(msg, "Blacklist"); return; }
+    if (runCmd("suckme") && await handleLiveMessage(msg, settings, { apiUrl: API, secret: BOT_SYNC_SECRET })) { auditPrefixUsage(msg, "Alertes LIVE"); return; }
     if (runCmd("suckme") && await handleDmAllMessage(msg, s)) { auditPrefixUsage(msg, "DM ALL"); return; }
     if (runCmd("suckme") && await handleDogCommand(msg, s)) { auditPrefixUsage(msg, "DOG"); return; }
     if (runCmd("suckme") && await handleLocknameMessage(msg, s)) { auditPrefixUsage(msg, "LOCKNAME"); return; }
     if (runCmd("suckme") && await handleKnowledgeMessage(msg)) { auditPrefixUsage(msg, "PND Knowledge"); return; }
-    if (runCmd("fwu") && await handleTicketsMessage(msg, s, { apiUrl: API, secret: BOT_SYNC_SECRET, record })) { auditPrefixUsage(msg, "Tickets"); return; }
+    if (runCmd("suckme") && await handleTicketsMessage(msg, s, { apiUrl: API, secret: BOT_SYNC_SECRET, record })) { auditPrefixUsage(msg, "Tickets"); return; }
     if (runCmd("suckme") && await handleCustomRolesMessage(msg, s)) { auditPrefixUsage(msg, "SYS+ rôles personnalisés"); return; }
     if (runCmd("suckme") && await handleRoleMessage(msg, s)) return;
     if (runCmd("fdpdlavoc") && await handleRadioMessage(msg)) { auditPrefixUsage(msg, "Radio"); return; }
     if (runCmd("fdpdlavoc") && await handleMusicMessage(msg)) { auditPrefixUsage(msg, "Musique"); return; }
     // voice-commands.js serves both FDPDLAVOC (=pv, =access…) and SUCK ME (=menotte, =wakeup…).
-    if ((runCmd("fdpdlavoc") || runCmd("suckme")) && await handleVoiceMessage(msg, s)) { auditPrefixUsage(msg, "Commandes vocales"); return; }
+    if (runCmd("fdpdlavoc", "suckme") && await handleVoiceMessage(msg, s)) { auditPrefixUsage(msg, "Commandes vocales"); return; }
     if (runCmd("fisc") && await handleEconomyMessage(msg, s)) { auditPrefixUsage(msg, "Économie PND"); return; }
     if (runCmd("fisc") && await handleBusinessInvestmentMessage(msg)) { auditPrefixUsage(msg, "Entreprises et investissements"); return; }
-    if (runCmd("fwu") && await handlePndIntelligenceMessage(msg, { apiUrl: API, secret: BOT_SYNC_SECRET, instructions: s?.ai?.instructions ?? "", settings, ownerIds: getPndPrivilegedIds(process.env.PND_OWNER_DISCORD_ID, process.env.PND_COFOUNDER_DISCORD_IDS) })) { auditPrefixUsage(msg, "PND Intelligence"); return; }
+    if (runCmd("suckme") && await handlePndIntelligenceMessage(msg, { apiUrl: API, secret: BOT_SYNC_SECRET, instructions: s?.ai?.instructions ?? "", settings, ownerIds: getPndPrivilegedIds(process.env.PND_OWNER_DISCORD_ID, process.env.PND_COFOUNDER_DISCORD_IDS) })) { auditPrefixUsage(msg, "PND Intelligence"); return; }
     if (runCmd("suckme") && await handleAutomationRulesMessage(msg)) { auditPrefixUsage(msg, "Règles d'automatisation"); return; }
-    if (runCmd("fwu") && await handleOrganizationMessage(msg, { settings, ownerIds: getPndPrivilegedIds(process.env.PND_OWNER_DISCORD_ID, process.env.PND_COFOUNDER_DISCORD_IDS) })) { auditPrefixUsage(msg, "Communauté / PND"); return; }
-    if (runCmd("fwu") && await handleSocialMessage(msg)) { auditPrefixUsage(msg, "Social"); return; }
-    if (runCmd("fwu") && await handleCardsMessage(msg)) { auditPrefixUsage(msg, "Cartes"); return; }
-    if (runCmd("fwu") && await handleGamesMessage(msg, record)) { auditPrefixUsage(msg, "Jeux"); return; }
+    if (runCmd("suckme") && await handleOrganizationMessage(msg, { settings, ownerIds: getPndPrivilegedIds(process.env.PND_OWNER_DISCORD_ID, process.env.PND_COFOUNDER_DISCORD_IDS) })) { auditPrefixUsage(msg, "Communauté / PND"); return; }
+    if (runCmd("suckme") && await handleSocialMessage(msg)) { auditPrefixUsage(msg, "Social"); return; }
+    if (runCmd("fisc") && await handleCardsMessage(msg)) { auditPrefixUsage(msg, "Cartes"); return; }
+    if (runCmd("suckme", "fisc") && await handleGamesMessage(msg, record)) { auditPrefixUsage(msg, "Jeux"); return; }
     if (runCmd("fisc") && await handleCasinoMessage(msg)) { auditPrefixUsage(msg, "PND Casino"); return; }
     if (runCmd("suckme") && await handleVoicePresenceMessage(msg)) { auditPrefixUsage(msg, "Historique vocal"); return; }
     if (runCmd("suckme") && await handleAutomationMessage(msg, s, { apiUrl: API, secret: BOT_SYNC_SECRET, record })) { auditPrefixUsage(msg, "Automatisation"); return; }
@@ -505,7 +506,7 @@ client.on("messageCreate", async (msg) => {
       if (s.filter.warn) await msg.channel.send({ content: fill(s.filter.warn, { user: `<@${msg.author.id}>` }), allowedMentions: noMentions });
       return;
     }
-    const aiMemoryCommand = runCmd("fwu") ? msg.content.trim().match(/^=ia\s+memoire\s+(on|off)$/i) : null;
+    const aiMemoryCommand = runCmd("suckme") ? msg.content.trim().match(/^=ia\s+memoire\s+(on|off)$/i) : null;
     if (aiMemoryCommand) {
       const enabled = aiMemoryCommand[1].toLowerCase() === "on";
       if (enabled && s.ai?.memoryEnabled !== true) {
@@ -522,7 +523,7 @@ client.on("messageCreate", async (msg) => {
       }
       return;
     }
-    if (runCmd("fwu") && /^=ia\s+oublier$/i.test(msg.content.trim())) {
+    if (runCmd("suckme") && /^=ia\s+oublier$/i.test(msg.content.trim())) {
       try {
         await clearAiMemory(msg.guild.id, msg.author.id);
         await msg.reply({ content: "🧹 Ta mémoire de conversation IA a été effacée pour ce serveur. Ton consentement n'a pas été modifié.", allowedMentions: noMentions });
@@ -534,14 +535,17 @@ client.on("messageCreate", async (msg) => {
     }
     // SYS+ commands are evaluated before user-defined prefix commands.
     if (runCmd("suckme") && await handleSysPlusMessage(msg, s, { apiUrl: API, secret: BOT_SYNC_SECRET, record, audit: (guild, title, description) => auditLog(guild, settings[guild.id], title, description) })) return;
-    // Dashboard prefix commands, AI mentions and keywords: FWU answers alone.
-    if (!serves("fwu")) return;
-    // Message commands are checked before AI and keyword responses.
-    const command = prefixBlocked ? null : resolvePrefixCommand(s.prefixCommands ?? [], msg.content, msg.member?.permissions.bitfield.toString() ?? "0");
-    if (command) {
-      await msg.reply({ content: command.content, allowedMentions: { parse: [], repliedUser: false } });
-      return;
+    // Dashboard prefix commands: SUCK ME answers them, with its own prefix.
+    if (RUNTIME.profile === "suckme" && OWN_PREFIX && String(msg.content).trim().startsWith(OWN_PREFIX)) {
+      const canonical = `=${String(msg.content).trim().slice(OWN_PREFIX.length)}`;
+      const command = resolvePrefixCommand(s.prefixCommands ?? [], canonical, msg.member?.permissions.bitfield.toString() ?? "0");
+      if (command) {
+        await msg.reply({ content: command.content, allowedMentions: { parse: [], repliedUser: false } });
+        return;
+      }
     }
+    // AI mentions and keywords: FWU answers alone, never to another bot's command.
+    if (!serves("fwu") || prefixed) return;
     // 3. IA quand on mentionne le bot
     if (s.ai.enabled && msg.mentions.users.has(client.user.id)) {
       const prompt = msg.content.replace(/<@!?\d+>/g, "").trim().slice(0, 1500);
@@ -651,12 +655,13 @@ client.on("guildMemberAdd", async (member) => {
   if (!guildAllowed(member.guild.id, ALLOWED_GUILDS)) return;
   const s = settings[member.guild.id];
   const allDomains = gate.servesAll();
-  // Blacklisted accounts are banned again before anything else (FWU owns /ban and the blacklist).
-  if (serves("fwu") && await enforceBlacklistOnJoin(member, record)) {
+  // Blacklisted accounts are banned again before anything else (GUARD owns ban and the blacklist;
+  // FWU takes this protection over while GUARD is offline).
+  if (serves("guard") && await enforceBlacklistOnJoin(member, record)) {
     auditLog(member.guild, s, "⛔ Blacklist — compte rebanni à son arrivée", `Compte : <@${member.id}>\nID : \`${member.id}\``, 0xef4444);
     return;
   }
-  if (!allDomains && !serves("fwu") && isBlacklisted(member.guild.id, member.id)) return;
+  if (!allDomains && !serves("guard") && isBlacklisted(member.guild.id, member.id)) return;
   if (serves("fwu")) recordAnalyticsMetric(member.guild.id, "joins");
   if (serves("suckme")) {
     void previewGuildAutomationRules(member.guild, "member_join", `${member.id}:${member.joinedTimestamp ?? Date.now()}`, buildAutomationEventFromMember(member), client, record);
@@ -1303,12 +1308,18 @@ client.on("interactionCreate", (interaction) => {
     // and menus always come back to the bot that posted them: no filter needed.
     if (interaction.isChatInputCommand?.() || interaction.isAutocomplete?.()) {
       const owner = slashCommandOwner(interaction.commandName);
-      if (owner && !serves(owner)) {
+      if (owner && owner !== RUNTIME.profile) {
         if (interaction.isChatInputCommand()) {
           await interaction.reply({ content: `Cette commande est désormais gérée par **${BOT_PROFILES[owner].label}**.`, ephemeral: true }).catch(() => {});
         }
         return;
       }
+    }
+    // Autocomplete (sanction types, embeds) answers before the hierarchy check: no target is acted upon.
+    if (interaction.isAutocomplete?.()) {
+      if (STAFF_COMMANDS.has(interaction.commandName)) await handleStaffModerationInteraction(interaction, settings[interaction.guildId], { bot: RUNTIME.profile });
+      else if (EMBED_COMMANDS.has(interaction.commandName)) await handleEmbedInteraction(interaction, settings[interaction.guildId], { bot: RUNTIME.profile, audit: auditLog });
+      return;
     }
     // Hierarchy: a member can only be targeted by someone ranked above them (OWNER: full access).
     const hierarchyRefusal = await checkInteractionHierarchy(interaction).catch(() => "⛔ Hiérarchie des rôles illisible : action refusée par sécurité.");
@@ -1366,7 +1377,9 @@ client.on("interactionCreate", (interaction) => {
       secret: BOT_SYNC_SECRET,
       record,
     })) return;
-    if (await handleModerationInteraction(interaction, settings[interaction.guildId], { apiUrl: API, secret: BOT_SYNC_SECRET })) return;
+    if (await handleStaffModerationInteraction(interaction, settings[interaction.guildId], { bot: RUNTIME.profile })) { auditSlashUsage(interaction, "Modération staff"); return; }
+    if (await handleEmbedInteraction(interaction, settings[interaction.guildId], { bot: RUNTIME.profile, audit: auditLog })) return;
+    if (await handleModerationInteraction(interaction, settings[interaction.guildId], { apiUrl: API, secret: BOT_SYNC_SECRET, bot: RUNTIME.profile })) return;
     if (await handleVoiceV2Interaction(interaction, settings[interaction.guildId])) { auditSlashUsage(interaction, "Vocal temporaire"); return; }
     if (await handleGamesInteraction(interaction, settings[interaction.guildId], record)) { auditSlashUsage(interaction, "Jeux & événements"); return; }
     if (await handleKnowledgeInteraction(interaction)) return;
@@ -1404,6 +1417,8 @@ client.on("interactionCreate", (interaction) => {
   });
 });
 
+// Base centrale (quotas, sanctions, journaux) : jamais bloquante au démarrage.
+await startSharedLayer({ record });
 await sync();
 setInterval(sync, 60_000);
 setInterval(reportStatus, 20_000);

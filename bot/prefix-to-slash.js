@@ -10,6 +10,7 @@ export const SLASH_FOR_PREFIX = Object.freeze({
   pack: "pack", trade: "trade", trades: "trade liste", dice: "dice", coinflip: "coinflip", trivia: "trivia",
   giveaway: "giveaway", event: "event", pndevent: "pndevent", academy: "academy", award: "award", story: "story",
   radar: "radar", wrapped: "wrapped", afk: "afk", blacklist: "blacklist", live: "live",
+  ban: "ban", kick: "kick", purge: "purge", nettoyer: "nettoyer", slowmode: "slowmode", lock: "lock", unlock: "unlock",
   "guardian-review": "guildguard review", verification: "verify reaction",
   pv: "pv activer", unpv: "pv retirer", access: "access", unaccess: "unaccess", panel: "voc vocal-panel",
   demandevocal: "voc demander", play: "play", p: "play", pause: "pause", resume: "resume", skip: "skip", stop: "stop",
@@ -79,5 +80,34 @@ export function slashifyPayload(payload) {
   const out = { ...payload };
   if (typeof out.content === "string") out.content = slashifyText(out.content);
   if (Array.isArray(out.embeds)) out.embeds = out.embeds.map(slashifyEmbed);
+  return out;
+}
+
+/** Rewrites every `=command` mention of a text with this bot's prefix (";play", "+ban"…). */
+export function prefixifyText(text, prefix) {
+  if (typeof text !== "string" || !prefix || prefix === "=" || !text.includes("`=")) return text;
+  return text.replace(/`=([a-z][a-z0-9-]*)/gi, (_whole, token) => `\`${prefix}${token}`);
+}
+
+function prefixifyEmbed(embed, prefix) {
+  if (!embed) return embed;
+  const data = typeof embed.toJSON === "function" ? embed.toJSON() : embed;
+  return {
+    ...data,
+    ...(data.title ? { title: prefixifyText(data.title, prefix) } : {}),
+    ...(data.description ? { description: prefixifyText(data.description, prefix) } : {}),
+    ...(data.footer?.text ? { footer: { ...data.footer, text: prefixifyText(data.footer.text, prefix) } } : {}),
+    ...(Array.isArray(data.fields) ? { fields: data.fields.map((field) => ({ ...field, name: prefixifyText(field.name, prefix), value: prefixifyText(field.value, prefix) })) } : {}),
+  };
+}
+
+/** Same rewrite for a whole message payload. */
+export function prefixifyPayload(payload, prefix) {
+  if (!prefix || prefix === "=") return payload;
+  if (typeof payload === "string") return prefixifyText(payload, prefix);
+  if (!payload || typeof payload !== "object") return payload;
+  const out = { ...payload };
+  if (typeof out.content === "string") out.content = prefixifyText(out.content, prefix);
+  if (Array.isArray(out.embeds)) out.embeds = out.embeds.map((embed) => prefixifyEmbed(embed, prefix));
   return out;
 }

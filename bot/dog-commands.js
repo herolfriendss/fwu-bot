@@ -203,7 +203,38 @@ export async function reconcileLeashedMembers(client) {
   return restored;
 }
 
-/** Move a connected leashed member to their owner's current voice channel. */
+// Anti-boucle : au plus LEASH_FOLLOW_MAX déplacements par minute et par membre
+// (un autre bot ou un modérateur qui la remet sans cesse ailleurs, rate limits Discord).
+const LEASH_FOLLOW_MAX = 6;
+const LEASH_FOLLOW_WINDOW_MS = 60_000;
+const leashFollowHistory = new Map();
+
+/** Tests only: reset the anti-loop counters. */
+export function forgetLeashFollowHistory() {
+  leashFollowHistory.clear();
+}
+
+function takeLeashFollowSlot(id, now = Date.now()) {
+  const recent = (leashFollowHistory.get(id) ?? []).filter((at) => now - at < LEASH_FOLLOW_WINDOW_MS);
+  if (recent.length >= LEASH_FOLLOW_MAX) {
+    leashFollowHistory.set(id, recent);
+    return false;
+  }
+  recent.push(now);
+  leashFollowHistory.set(id, recent);
+  if (leashFollowHistory.size > 5_000) {
+    for (const [entry, times] of leashFollowHistory) if (!times.some((at) => now - at < LEASH_FOLLOW_WINDOW_MS)) leashFollowHistory.delete(entry);
+  }
+  return true;
+}
+
+/**
+ * Move a connected leashed member to their owner's current voice channel.
+ * Only the BOT needs Move Members (source) and View + Connect (destination):
+ * Discord lets a mover place a member in a locked or full channel, so the
+ * leashed member's own Connect permission is deliberately not required.
+ * Never throws: a refused or failed move returns false.
+ */
 export async function enforceLeashVoice(guild, memberId) {
   if (!guild || !memberId) return false;
   const id = key(guild.id, memberId);
@@ -227,18 +258,23 @@ export async function enforceLeashVoice(guild, memberId) {
       const owner = guild.members.cache.get(record.ownerId) ?? await guild.members.fetch(record.ownerId).catch(() => null);
       const targetChannel = target?.voice.channel;
       const ownerChannel = owner?.voice.channel;
+      // Cible ou maître hors vocal, ou déjà ensemble : rien à faire.
       if (!target || !targetChannel || !ownerChannel || targetChannel.id === ownerChannel.id) continue;
 
-      const botMember = await guild.members.fetchMe();
+      const botMember = await guild.members.fetchMe().catch(() => null);
+      if (!botMember) return moved;
       const sourcePermissions = targetChannel.permissionsFor(botMember);
       const destinationPermissions = ownerChannel.permissionsFor(botMember);
-      const targetPermissions = ownerChannel.permissionsFor(target);
       if (!sourcePermissions?.has(PermissionFlagsBits.MoveMembers) ||
-          !destinationPermissions?.has([PermissionFlagsBits.ViewChannel, PermissionFlagsBits.Connect]) ||
-          !targetPermissions?.has(PermissionFlagsBits.Connect)) return moved;
+          !destinationPermissions?.has([PermissionFlagsBits.ViewChannel, PermissionFlagsBits.Connect])) return moved;
+      if (!takeLeashFollowSlot(id)) return moved;
 
-      await target.voice.setChannel(ownerChannel, "DOG : retour dans le vocal du propriétaire");
-      moved = true;
+      try {
+        await target.voice.setChannel(ownerChannel, "DOG : retour dans le vocal du propriétaire");
+        moved = true;
+      } catch {
+        return moved; // permissions retirées entre-temps, membre parti, rate limit : on n'insiste pas
+      }
     } while (run.rerun);
 
     return moved;
