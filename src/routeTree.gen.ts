@@ -17,12 +17,14 @@ import { Route as EconomieRouteImport } from './routes/economie'
 import { Route as InstallationRouteImport } from './routes/installation'
 import { Route as StatutRouteImport } from './routes/statut'
 import { Route as ApiIncidentRouteImport } from './routes/api/incident'
+import { Route as ServeurGuildIdRouteImport } from './routes/serveur.$guildId'
 import { Route as ApiPublicBotStatusRouteImport } from './routes/api/public/bot-status'
 import { Route as ApiPublicBotSyncRouteImport } from './routes/api/public/bot-sync'
 import { Route as ApiPublicDiscordInteractionsRouteImport } from './routes/api/public/discord-interactions'
 import { Route as ApiPublicEconomySnapshotRouteImport } from './routes/api/public/economy-snapshot'
 import { Route as ApiAuthDiscordCallbackRouteImport } from './routes/api/auth/discord/callback'
 import { Route as ApiAuthDiscordStartRouteImport } from './routes/api/auth/discord/start'
+import { Route as ApiPublicVitrineGuildIdRouteImport } from './routes/api/public/vitrine.$guildId'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -64,6 +66,11 @@ const ApiIncidentRoute = ApiIncidentRouteImport.update({
   path: '/api/incident',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ServeurGuildIdRoute = ServeurGuildIdRouteImport.update({
+  id: '/serveur/$guildId',
+  path: '/serveur/$guildId',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiPublicBotStatusRoute = ApiPublicBotStatusRouteImport.update({
   id: '/api/public/bot-status',
   path: '/api/public/bot-status',
@@ -96,6 +103,11 @@ const ApiAuthDiscordStartRoute = ApiAuthDiscordStartRouteImport.update({
   path: '/api/auth/discord/start',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPublicVitrineGuildIdRoute = ApiPublicVitrineGuildIdRouteImport.update({
+  id: '/api/public/vitrine/$guildId',
+  path: '/api/public/vitrine/$guildId',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -106,12 +118,14 @@ export interface FileRoutesByFullPath {
   '/installation': typeof InstallationRoute
   '/statut': typeof StatutRoute
   '/api/incident': typeof ApiIncidentRoute
+  '/serveur/$guildId': typeof ServeurGuildIdRoute
   '/api/public/bot-status': typeof ApiPublicBotStatusRoute
   '/api/public/bot-sync': typeof ApiPublicBotSyncRoute
   '/api/public/discord-interactions': typeof ApiPublicDiscordInteractionsRoute
   '/api/public/economy-snapshot': typeof ApiPublicEconomySnapshotRoute
   '/api/auth/discord/callback': typeof ApiAuthDiscordCallbackRoute
   '/api/auth/discord/start': typeof ApiAuthDiscordStartRoute
+  '/api/public/vitrine/$guildId': typeof ApiPublicVitrineGuildIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -122,12 +136,14 @@ export interface FileRoutesByTo {
   '/installation': typeof InstallationRoute
   '/statut': typeof StatutRoute
   '/api/incident': typeof ApiIncidentRoute
+  '/serveur/$guildId': typeof ServeurGuildIdRoute
   '/api/public/bot-status': typeof ApiPublicBotStatusRoute
   '/api/public/bot-sync': typeof ApiPublicBotSyncRoute
   '/api/public/discord-interactions': typeof ApiPublicDiscordInteractionsRoute
   '/api/public/economy-snapshot': typeof ApiPublicEconomySnapshotRoute
   '/api/auth/discord/callback': typeof ApiAuthDiscordCallbackRoute
   '/api/auth/discord/start': typeof ApiAuthDiscordStartRoute
+  '/api/public/vitrine/$guildId': typeof ApiPublicVitrineGuildIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -139,12 +155,14 @@ export interface FileRoutesById {
   '/installation': typeof InstallationRoute
   '/statut': typeof StatutRoute
   '/api/incident': typeof ApiIncidentRoute
+  '/serveur/$guildId': typeof ServeurGuildIdRoute
   '/api/public/bot-status': typeof ApiPublicBotStatusRoute
   '/api/public/bot-sync': typeof ApiPublicBotSyncRoute
   '/api/public/discord-interactions': typeof ApiPublicDiscordInteractionsRoute
   '/api/public/economy-snapshot': typeof ApiPublicEconomySnapshotRoute
   '/api/auth/discord/callback': typeof ApiAuthDiscordCallbackRoute
   '/api/auth/discord/start': typeof ApiAuthDiscordStartRoute
+  '/api/public/vitrine/$guildId': typeof ApiPublicVitrineGuildIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -157,12 +175,14 @@ export interface FileRouteTypes {
     | '/installation'
     | '/statut'
     | '/api/incident'
+    | '/serveur/$guildId'
     | '/api/public/bot-status'
     | '/api/public/bot-sync'
     | '/api/public/discord-interactions'
     | '/api/public/economy-snapshot'
     | '/api/auth/discord/callback'
     | '/api/auth/discord/start'
+    | '/api/public/vitrine/$guildId'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -173,12 +193,14 @@ export interface FileRouteTypes {
     | '/installation'
     | '/statut'
     | '/api/incident'
+    | '/serveur/$guildId'
     | '/api/public/bot-status'
     | '/api/public/bot-sync'
     | '/api/public/discord-interactions'
     | '/api/public/economy-snapshot'
     | '/api/auth/discord/callback'
     | '/api/auth/discord/start'
+    | '/api/public/vitrine/$guildId'
   id:
     | '__root__'
     | '/'
@@ -189,12 +211,14 @@ export interface FileRouteTypes {
     | '/installation'
     | '/statut'
     | '/api/incident'
+    | '/serveur/$guildId'
     | '/api/public/bot-status'
     | '/api/public/bot-sync'
     | '/api/public/discord-interactions'
     | '/api/public/economy-snapshot'
     | '/api/auth/discord/callback'
     | '/api/auth/discord/start'
+    | '/api/public/vitrine/$guildId'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -206,12 +230,14 @@ export interface RootRouteChildren {
   InstallationRoute: typeof InstallationRoute
   StatutRoute: typeof StatutRoute
   ApiIncidentRoute: typeof ApiIncidentRoute
+  ServeurGuildIdRoute: typeof ServeurGuildIdRoute
   ApiPublicBotStatusRoute: typeof ApiPublicBotStatusRoute
   ApiPublicBotSyncRoute: typeof ApiPublicBotSyncRoute
   ApiPublicDiscordInteractionsRoute: typeof ApiPublicDiscordInteractionsRoute
   ApiPublicEconomySnapshotRoute: typeof ApiPublicEconomySnapshotRoute
   ApiAuthDiscordCallbackRoute: typeof ApiAuthDiscordCallbackRoute
   ApiAuthDiscordStartRoute: typeof ApiAuthDiscordStartRoute
+  ApiPublicVitrineGuildIdRoute: typeof ApiPublicVitrineGuildIdRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -272,6 +298,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiIncidentRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/serveur/$guildId': {
+      id: '/serveur/$guildId'
+      path: '/serveur/$guildId'
+      fullPath: '/serveur/$guildId'
+      preLoaderRoute: typeof ServeurGuildIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/bot-status': {
       id: '/api/public/bot-status'
       path: '/api/public/bot-status'
@@ -314,6 +347,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiAuthDiscordStartRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/vitrine/$guildId': {
+      id: '/api/public/vitrine/$guildId'
+      path: '/api/public/vitrine/$guildId'
+      fullPath: '/api/public/vitrine/$guildId'
+      preLoaderRoute: typeof ApiPublicVitrineGuildIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -326,12 +366,14 @@ const rootRouteChildren: RootRouteChildren = {
   InstallationRoute: InstallationRoute,
   StatutRoute: StatutRoute,
   ApiIncidentRoute: ApiIncidentRoute,
+  ServeurGuildIdRoute: ServeurGuildIdRoute,
   ApiPublicBotStatusRoute: ApiPublicBotStatusRoute,
   ApiPublicBotSyncRoute: ApiPublicBotSyncRoute,
   ApiPublicDiscordInteractionsRoute: ApiPublicDiscordInteractionsRoute,
   ApiPublicEconomySnapshotRoute: ApiPublicEconomySnapshotRoute,
   ApiAuthDiscordCallbackRoute: ApiAuthDiscordCallbackRoute,
   ApiAuthDiscordStartRoute: ApiAuthDiscordStartRoute,
+  ApiPublicVitrineGuildIdRoute: ApiPublicVitrineGuildIdRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
