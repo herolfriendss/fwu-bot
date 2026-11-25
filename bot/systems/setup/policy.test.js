@@ -5,6 +5,7 @@ import {
   parseSetupId,
   parseSetupModule,
   setupChangedKeys,
+  setupFormFields,
   SETUP_MODULES,
 } from "./policy.js";
 
@@ -83,8 +84,10 @@ test("preserves unedited module settings and normalizes role lists", () => {
 });
 
 test("every setup module stays within Discord modal component limits", () => {
-  for (const definition of Object.values(SETUP_MODULES)) {
-    assert.ok(definition.fields.length >= 1 && definition.fields.length <= 5);
+  // The modal shows every field except `enabled` (handled by its own button): 5 inputs at most.
+  for (const [module, definition] of Object.entries(SETUP_MODULES)) {
+    assert.ok(definition.fields.length >= 1);
+    assert.ok(setupFormFields(module).length >= 1 && setupFormFields(module).length <= 5, module);
   }
 });
 
@@ -116,4 +119,10 @@ test("the DOG module is registered with a single labelled field", () => {
 test("the DOG leash field declares its default of 3 for the form display", () => {
   const field = SETUP_MODULES.dog.fields.find((f) => f.key === "maxActiveLeashes");
   assert.equal(field.default, 3);
+});
+
+test("temporary voice: the empty-channel grace period is a bounded integer", () => {
+  assert.equal(parseSetupModule("tempVoice", { emptyDeleteSeconds: "60" }, {}).emptyDeleteSeconds, 60);
+  assert.throws(() => parseSetupModule("tempVoice", { emptyDeleteSeconds: "301" }, {}), /entre 0 et 300/);
+  assert.throws(() => parseSetupModule("tempVoice", { emptyDeleteSeconds: "-1" }, {}), /nombre entier/);
 });

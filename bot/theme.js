@@ -4,7 +4,7 @@
 // FWU ecosystem: one identity, each bot signs its own messages ("FWU • GUARD").
 // PND_<BOT>_COLOR (#rrggbb) and PND_<BOT>_FOOTER (e.g. PND_GUARD_COLOR) in the
 // shared bot/.env let the owner restyle one bot without code.
-const PROFILE_SIGNATURES = Object.freeze({ fwu: "FWU", guard: "FWU • GUARD", fdpdlavoc: "FWU • FDPDLAVOC", suckme: "FWU • SUCK ME", fisc: "FWU • LE FISC" });
+const PROFILE_SIGNATURES = Object.freeze({ fwu: "FWU", guard: "FWU • GUARD", fdpdlavoc: "FWU • FDPDLAVOC", suckme: "FWU • SUCK ME", fisc: "FWU • LE FISC", investplus: "FWU • Invest +" });
 
 export function themeColorFrom(value, fallback = 0xe21d2f) {
   const match = /^#?([0-9a-f]{6})$/i.exec(String(value ?? "").trim());

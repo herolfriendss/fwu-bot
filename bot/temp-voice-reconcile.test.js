@@ -25,13 +25,21 @@ test("restart reconciliation: deleted rows dropped, emptied channels removed, tr
   const deleted = [];
   const channels = {
     "c-empty": {
-      members: { size: 0 },
+      id: "c-empty",
+      guild: { id: g },
+      // Only a music bot left: no human, so the channel is cleaned too.
+      members: new Map([["bot", { id: "bot", user: { bot: true } }]]),
       delete: async () => {
         deleted.push("c-empty");
       },
     },
     "c-busy": {
-      members: { size: 2 },
+      id: "c-busy",
+      guild: { id: g },
+      members: new Map([
+        ["850000000000000002", { id: "850000000000000002", user: { bot: false } }],
+        ["u2", { id: "u2", user: { bot: false } }],
+      ]),
       delete: async () => {
         deleted.push("c-busy");
       },

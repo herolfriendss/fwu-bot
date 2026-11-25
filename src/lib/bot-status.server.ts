@@ -37,7 +37,7 @@ export async function writeRuntimeStatus(report: RuntimeReport) {
   if (error) throw new Error("Impossible d’enregistrer le statut du bot.");
 }
 
-const DEDICATED_BOTS = ["guard", "fdpdlavoc", "suckme", "fisc"] as const;
+const DEDICATED_BOTS = ["guard", "fdpdlavoc", "suckme", "fisc", "investplus"] as const;
 
 /** Last report of each dedicated FWU bot (null when it never reported). */
 export async function readDedicatedBotStatuses(): Promise<Record<(typeof DEDICATED_BOTS)[number], { connected: boolean; lastSeen: string; startedAt: string } | null>> {
