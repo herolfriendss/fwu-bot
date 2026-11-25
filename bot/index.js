@@ -63,6 +63,7 @@ import { handleOrganizationMessage } from "./organization-commands.js";
 import { startOrganizationMaintenance } from "./organization-maintenance.js";
 import { recordAnalyticsMetric, flushAnalyticsMetrics } from "./analytics-buffer.js";
 import { installProcessGuard } from "./process-guard.js";
+import { autoIncidentNotice, recordGuardIncident } from "./systems/sysplus/auto-incidents.js";
 import { recoverInterruptedAutomationRuns } from "./automation-rules.js";
 import { handleAutomationRulesMessage } from "./automation-rules-commands.js";
 import { previewGuildAutomationRules, previewScheduledAutomationRules, buildAutomationEventFromMember } from "./automation-rules-runtime.js";
@@ -433,7 +434,15 @@ function prefixifyMessageReplies(msg, prefix) {
 }
 
 // GUARD anti-nuke: destructive actions in bulk are reverted and their author neutralised.
-const antiNuke = createAntiNuke({ client, report: guardReport, record: (code) => record(code) });
+const antiNuke = createAntiNuke({
+  client, report: guardReport, record: (code) => record(code),
+  // S5 : chaque attaque bloquée ouvre (ou complète) un incident SYS+.
+  onTriggered: async (guild, { executorId, action, outcome }) => {
+    const result = recordGuardIncident({ guildId: guild.id, botId: client.user.id, kind: "nuke", detail: `${action} par ${executorId}, mesure : ${outcome}` });
+    const notice = autoIncidentNotice(result);
+    if (notice) await guardReport(guild, { title: "📋 Incident SYS+", description: notice, color: 0xf59e0b });
+  },
+});
 const guardWatch = (guild) => guild && serves("guard") && guildAllowed(guild.id, ALLOWED_GUILDS) && !isLogsHub(guild.id);
 client.on("channelDelete", (channel) => { if (guardWatch(channel.guild)) void antiNuke.channelDelete(channel).catch(() => record("antinuke_error")); });
 client.on("roleDelete", (role) => { if (guardWatch(role.guild)) void antiNuke.roleDelete(role).catch(() => record("antinuke_error")); });

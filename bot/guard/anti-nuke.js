@@ -153,7 +153,7 @@ async function neutralize(guild, executorId) {
  * Wire this into the GUARD process. `report(guild, embed)` publishes an alert,
  * `record(code)` feeds the status page.
  */
-export function createAntiNuke({ client, report = async () => {}, record = () => {}, tracker = createNukeTracker() }) {
+export function createAntiNuke({ client, report = async () => {}, record = () => {}, tracker = createNukeTracker(), onTriggered = () => {} }) {
   const handled = new Set();
   async function onAction(guild, action, item, targetId) {
     const config = getAntiNukeConfig(guild.id);
@@ -171,6 +171,7 @@ export function createAntiNuke({ client, report = async () => {}, record = () =>
     const restored = await restore(guild, already ? [item] : recent.filter(Boolean), "Anti-nuke FWU : restauration");
     tracker.clear(guild.id, executor.id);
     record("antinuke_triggered");
+    try { await onTriggered(guild, { executorId: executor.id, action: NUKE_ACTIONS[action].label, outcome, restored }); } catch { /* l'incident ne bloque jamais la défense */ }
     await report(guild, {
       title: "🚨 Anti-nuke — attaque bloquée",
       description: `Auteur : <@${executor.id}> (\`${executor.id}\`)\nAction : **${NUKE_ACTIONS[action].label}** (${config.threshold}+ en ${config.windowSeconds} s)\nMesure : **${outcome}**\nÉléments restaurés : **${restored}**\nVérifie le journal d'audit du serveur.`,

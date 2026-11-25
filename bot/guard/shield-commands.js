@@ -5,6 +5,7 @@ import { applyBanner } from "../banners.js";
 import { parsePndOwnerId } from "../pnd-owner-policy.js";
 import { autoconfigValue } from "../autoconfig.js";
 import * as S from "./shield.js";
+import { autoIncidentNotice, recordGuardIncident, resolveGuardLockdownIncident } from "../systems/sysplus/auto-incidents.js";
 
 export const SHIELD_COMMANDS = new Set(["bouclier"]);
 const ephemeral = (content) => ({ content, flags: MessageFlags.Ephemeral });
@@ -161,9 +162,13 @@ export async function handleShieldInteraction(interaction) {
           reason: interaction.options.getString("raison") ?? "GUARD : verrouillage",
           startedBy: interaction.user.id,
         });
+        const notice = autoIncidentNotice(recordGuardIncident({
+          guildId: interaction.guildId, botId: interaction.client.user.id, kind: "lockdown",
+          detail: `par ${interaction.user.id}, ${count} salon(s) fermés${interaction.options.getString("raison") ? `, raison : ${interaction.options.getString("raison")}` : ""}`,
+        }));
         await interaction.editReply({
           embeds: [card("🔒 Serveur verrouillé").setDescription(
-            `${count} salon(s) fermés à l'écriture. Les salons déjà fermés n'ont pas été touchés et resteront fermés après le déverrouillage.\n\nRouvre avec \`/bouclier deverrouiller\`.`,
+            `${count} salon(s) fermés à l'écriture. Les salons déjà fermés n'ont pas été touchés et resteront fermés après le déverrouillage.\n\nRouvre avec \`/bouclier deverrouiller\`.${notice ? `\n\n${notice}` : ""}`,
           )],
         });
         return true;
@@ -171,7 +176,8 @@ export async function handleShieldInteraction(interaction) {
       case "deverrouiller": {
         await interaction.deferReply();
         const count = await S.liftLockdown(interaction.guild);
-        await interaction.editReply({ embeds: [card("🔓 Serveur rouvert").setDescription(`${count} salon(s) rouverts, exactement ceux que le verrouillage avait fermés.`)] });
+        const resolved = resolveGuardLockdownIncident({ guildId: interaction.guildId, botId: interaction.client.user.id, actorId: interaction.user.id, reopenedChannels: count });
+        await interaction.editReply({ embeds: [card("🔓 Serveur rouvert").setDescription(`${count} salon(s) rouverts, exactement ceux que le verrouillage avait fermés.${resolved ? `\n\n📋 Incident SYS+ automatique résolu, avec un résumé (\`${resolved.incidentId.slice(0, 8)}\`).` : ""}`)] });
         return true;
       }
       case "etat": {
