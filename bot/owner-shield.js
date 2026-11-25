@@ -107,7 +107,10 @@ async function enforceRank(guild, targetId, action, { allowMissingTarget = false
 
   // Missing targets are acceptable only for ban-by-ID. A failed lookup is never
   // confused with a member who is confirmed not to be in the guild.
-  if (targetPosition === null && allowMissingTarget) return;
+  if (targetPosition === null && allowMissingTarget) {
+    if (!Number.isFinite(actorPosition)) block(action, HIERARCHY_UNREADABLE_MESSAGE);
+    return;
+  }
   if (!rankAllows({
     actorId,
     targetId,
