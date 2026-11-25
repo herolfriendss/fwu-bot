@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { formatInstallationReport, suckMePlacementIssues, REQUIRED_PERMISSIONS } from "./install-check.js";
+import { formatInstallationReport, resolveInstallationBotIds, suckMePlacementIssues, REQUIRED_PERMISSIONS } from "./install-check.js";
 
 test("SUCK ME : doit dominer les rôles 0 % et les laisses, juste sous le rôle de l'owner", () => {
   const roles = [
@@ -44,4 +44,17 @@ test("une application principale absente demande une réinvitation, pas une corr
   });
   assert.match(text, /Réinvite ou redémarre 1 application principale absente/);
   assert.doesNotMatch(text, /Paramètres du serveur → Rôles/);
+});
+
+test("le diagnostic associe le client courant à son profil réel sans écraser FWU", () => {
+  const ids = resolveInstallationBotIds(
+    { fwu: "111111111111111111", guard: "222222222222222222" },
+    "suckme",
+    "333333333333333333",
+  );
+  assert.deepEqual(ids, {
+    fwu: "111111111111111111",
+    guard: "222222222222222222",
+    suckme: "333333333333333333",
+  });
 });
