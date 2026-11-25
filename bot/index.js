@@ -80,7 +80,7 @@ import { handleStaffModerationInteraction, STAFF_COMMANDS } from "./staff-modera
 import { handleGuardPrefixCommand } from "./guard-commands.js";
 import { handleVoiceMoveCommand } from "./voice-move.js";
 import { handleEmbedInteraction, EMBED_COMMANDS } from "./embeds.js";
-import { startSharedLayer } from "./shared/index.js";
+import { SHARED_DB_ALERTS, startSharedLayer } from "./shared/index.js";
 import { logCommandUsage } from "./shared/audit.js";
 import { getVoiceConnections } from "@discordjs/voice";
 import { hasAiMemoryConsent, setAiMemoryConsent } from "./ai-memory-preferences.js";
@@ -1557,7 +1557,22 @@ client.on("interactionCreate", (interaction) => {
 });
 
 // Base centrale (quotas, sanctions, journaux) : jamais bloquante au démarrage.
-await startSharedLayer({ record });
+// Seul FWU prévient (Logs Hub de chaque serveur source + MP à l'owner), pour éviter 5 alertes identiques.
+async function notifySharedDb(kind) {
+  const alert = SHARED_DB_ALERTS[kind];
+  if (!alert) return;
+  if (!client.isReady()) await new Promise((resolve) => client.once("clientReady", resolve)); // l'alerte peut précéder la connexion
+  for (const guild of client.guilds.cache.values()) {
+    if (isLogsHub(guild.id) || !guildAllowed(guild.id, ALLOWED_GUILDS)) continue;
+    auditLog(guild, settings[guild.id], alert.title, alert.description, alert.color);
+  }
+  const ownerId = String(process.env.PND_OWNER_DISCORD_ID ?? "").trim();
+  if (/^\d{17,20}$/.test(ownerId)) {
+    const owner = await client.users.fetch(ownerId).catch(() => null);
+    await owner?.send(`${alert.title}\n${alert.description}`).catch(() => {});
+  }
+}
+await startSharedLayer({ record, notify: IS_FWU ? notifySharedDb : null });
 await sync();
 setInterval(sync, 60_000);
 setInterval(reportStatus, 20_000);

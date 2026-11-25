@@ -17,6 +17,7 @@ import { consumeQuota, formatDurationFr, formatQuotaRefusal, refundQuota, setQuo
 import { resolveTier, tierFromRoleName, setRoleTier, loadRoleTiers, canUseModeration } from "./tiers.js";
 import { listSanctionTypes, addSanctionType, updateSanctionType, deleteSanctionType, listMemberSanctions, parseDurationToSeconds } from "./sanctions.js";
 import { flushOutbox, logCommandUsage, pendingOutboxEntries, recordSanction, setOutboxPathForTests } from "./audit.js";
+import { SHARED_DB_ALERTS, createSharedDbAlerter, formatSharedDbLine } from "./index.js";
 
 const TEST_URL = process.env.SHARED_DATABASE_URL_TEST;
 const pgTest = TEST_URL ? test : test.skip;
@@ -275,4 +276,31 @@ pgTest("porte de modération : palier lu sur les rôles, refus clair, remboursem
   assert.match((await openModerationGate({ member: member100, command: "warn", bot: "fwu", env: {} })).message, /n'a pas accès/);
   const { rows } = await sharedQuery("SELECT outcome FROM command_usage WHERE guild_id = '200000000000000009' ORDER BY id");
   assert.deepEqual(rows.map((r) => r.outcome), ["error", "ok", "quota", "denied"]);
+});
+
+test("base centrale : alerte après 2 min de coupure seulement, puis « revenue » une fois", () => {
+  const sent = [];
+  const timers = [];
+  const alerter = createSharedDbAlerter({ notify: (k) => sent.push(k), setTimer: (fn) => { timers.push(fn); return timers.length; }, clearTimer: (id) => { timers[id - 1] = null; } });
+  alerter.change(false);
+  alerter.change(false);
+  assert.equal(timers.length, 1, "une seule attente même si plusieurs signaux");
+  alerter.change(true);
+  assert.deepEqual(sent, [], "coupure courte : personne n'est dérangé");
+  alerter.change(false);
+  timers.at(-1)();
+  assert.deepEqual(sent, ["down"]);
+  alerter.change(false);
+  alerter.change(true);
+  alerter.change(true);
+  assert.deepEqual(sent, ["down", "up"]);
+  alerter.notConfigured();
+  assert.deepEqual(sent, ["down", "up", "not_configured"]);
+});
+
+test("base centrale : ligne du diagnostic", () => {
+  assert.match(formatSharedDbLine({ configured: false, available: false }), /non installée.*tempmute/);
+  assert.match(formatSharedDbLine({ configured: true, available: true }), /🟢 Base centrale : joignable/);
+  assert.match(formatSharedDbLine({ configured: true, available: false }, 1_700_000_000_000), /injoignable\*\* depuis <t:1700000000:R>/);
+  assert.match(SHARED_DB_ALERTS.not_configured.description, /install-shared-db\.sh/);
 });

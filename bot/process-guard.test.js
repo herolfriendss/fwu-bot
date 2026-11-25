@@ -31,7 +31,8 @@ test("le filet note et écrit chaque rejet, puis arrête le bot au-delà du seui
   const exits = [];
   installProcessGuard({ target, record: (c) => codes.push(c), stderr: (t) => written.push(t), exit: (c) => exits.push(c), env: { PND_REJECTION_LIMIT: "2" } });
   target.emit("unhandledRejection", Object.assign(new Error("Unknown Message"), { code: 10008 }));
-  assert.equal(codes[0], "unhandled_rejection:10008");
+  assert.equal(codes[0], "unhandled_rejection");
+  assert.match(written[0], /code=10008/);
   assert.match(written[0], /Unknown Message/, "l'erreur complète reste visible");
   target.emit("unhandledRejection", new Error("b"));
   target.emit("unhandledRejection", new Error("c"));

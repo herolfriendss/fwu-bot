@@ -70,7 +70,7 @@ export function installProcessGuard({ record = () => {}, exit = (code) => proces
     const { total, recent, overLimit } = counter.note(info);
     // L'erreur complète reste visible dans les logs d'erreur PM2 : le filet ne masque rien.
     stderr(`[process-guard] promesse rejetée sans catch n°${total} (${recent} en ${Math.round(limits.windowMs / 60_000)} min)${info.code ? ` code=${info.code}` : ""}${info.module ? ` module=${info.module}` : ""}\n${reason instanceof Error ? reason.stack : String(reason)}\n`);
-    record(`unhandled_rejection${info.code ? `:${info.code}` : ""}`);
+    record("unhandled_rejection"); // code fixe : le site refuse tout rapport avec un code inconnu
     if (overLimit && !stopping) {
       stopping = true;
       stderr(`[process-guard] plus de ${limits.limit} rejets en ${Math.round(limits.windowMs / 60_000)} min : arrêt volontaire, PM2 relance le bot.\n`);
