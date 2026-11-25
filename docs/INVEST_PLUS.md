@@ -1,6 +1,6 @@
 # Invest + : le 6e bot (abonnements des membres)
 
-**Statut** : code prêt et testé, **pas encore installé ni déployé**. Rien ne change sur le serveur tant que tu n'installes pas `FWU-INVEST-PLUS.zip`.
+**Statut du code** : prêt et intégré aux scripts multi-bots. **Statut de l'instance A1** : le dernier état rapporté le 25/11 indiquait que le processus n'était pas encore démarré faute de token ; vérifier `pm2 status` avant de considérer l'installation terminée. Invest + reste facultatif.
 
 ## À quoi il sert
 
@@ -67,5 +67,5 @@ Comme pour les autres bots : FWU reprend en moins d'une minute **les tâches aut
 ## Reste à faire (hors de ce lot)
 
 - Écran d'administration sur le site : à brancher sur le générateur de modules (`SETUP_MODULES`) une fois la PR du site fusionnée.
-- Ajouter Invest + aux scripts `TOUT-INSTALLER.sh`, `METTRE-A-JOUR-BOTS.sh`, `fwu-auto-update.sh` et `MIGRER-VERS-A1.sh` (laissés intacts pendant la migration vers l'Ampere A1).
+- **Scripts d'installation, de mise à jour et de migration : intégrés dans la PR #23** (`TOUT-INSTALLER.sh`, `METTRE-A-JOUR-BOTS.sh`, `fwu-auto-update.sh`, `MIGRER-VERS-A1.sh`). Invest + est passé comme optionnel lorsque son token manque ; son installation réelle sur l'A1 reste à vérifier.
 - Paiement en argent réel : seulement si tu le décides, avec les obligations ci-dessus.
