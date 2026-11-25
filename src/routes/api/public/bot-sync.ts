@@ -1,8 +1,28 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { BOT_MODULE_SETTINGS_KEYS, type BotModuleKey } from "@/lib/bot-settings";
 import { isDiscordSnowflake } from "@/lib/discord-ids";
+import { canConfigureGuildModuleSettings, isConfiguredPndOwner } from "@/lib/bot-sync-authorization";
 
 const json = (body: unknown, status = 200) => Response.json(body, { status, headers: { "Cache-Control": "no-store" } });
+
+async function verifyGuildModuleSettingsActor(guildId: string, actorId: string): Promise<boolean> {
+  // BOT_SYNC_SECRET authenticates the bot process, not the human actor. Resolve
+  // the actor's actual guild ownership/role permissions independently at the API boundary.
+  const { discord, invalidateCache } = await import("@/lib/discord.server");
+  invalidateCache(`guilds/${guildId}`);
+  const [guild, member, roles] = await Promise.all([
+    discord<{ id: string; owner_id: string }>(`guilds/${guildId}`),
+    discord<{ roles?: string[] }>(`guilds/${guildId}/members/${actorId}`),
+    discord<{ id: string; permissions: string }[]>(`guilds/${guildId}/roles`),
+  ]);
+  return canConfigureGuildModuleSettings({
+    guildId,
+    actorId,
+    guildOwnerId: guild.owner_id,
+    memberRoleIds: Array.isArray(member.roles) ? member.roles : [],
+    roles,
+  });
+}
 
 // Called by the self-hosted bot (VPS), authenticated with BOT_SYNC_SECRET.
 // GET -> all guild settings. POST -> AI reply or trusted SYS+ role update.
@@ -29,6 +49,9 @@ export const Route = createFileRoute("/api/public/bot-sync")({
           const actorId = String(body.actorId ?? "");
           if (![guildId, roleId, actorId].every(isDiscordSnowflake)) {
             return json({ error: "invalid identifiers" }, 400);
+          }
+          if (!isConfiguredPndOwner(actorId, process.env["PND_OWNER_DISCORD_ID"])) {
+            return json({ error: "forbidden" }, 403);
           }
           const { readBotSettings, writeBotSettings } = await import("@/lib/bot-settings.server");
           const current = await readBotSettings(guildId);
@@ -63,6 +86,9 @@ export const Route = createFileRoute("/api/public/bot-sync")({
             || (intelligenceChannelId !== null && !isDiscordSnowflake(intelligenceChannelId))
             || (intelligenceEnabled && !intelligenceChannelId)) {
             return json({ error: "invalid SYS+ Intelligence configuration" }, 400);
+          }
+          if (!isConfiguredPndOwner(actorId, process.env["PND_OWNER_DISCORD_ID"])) {
+            return json({ error: "forbidden" }, 403);
           }
           try {
             const { readBotSettings, writeBotSettings } = await import("@/lib/bot-settings.server");
@@ -105,6 +131,9 @@ export const Route = createFileRoute("/api/public/bot-sync")({
           const roleId = String(body.roleId ?? "");
           const actorId = String(body.actorId ?? "");
           if (![guildId, roleId, actorId].every(isDiscordSnowflake)) return json({ error: "invalid identifiers" }, 400);
+          if (!isConfiguredPndOwner(actorId, process.env["PND_OWNER_DISCORD_ID"])) {
+            return json({ error: "forbidden" }, 403);
+          }
           const { readBotSettings, writeBotSettings } = await import("@/lib/bot-settings.server");
           const current = await readBotSettings(guildId);
           const next = { ...current, sysPlus: { ...(current.sysPlus ?? {}), whitelistRoleId: roleId } };
@@ -132,7 +161,18 @@ export const Route = createFileRoute("/api/public/bot-sync")({
           const module = String(body.module ?? "");
           const modules = new Set<string>(BOT_MODULE_SETTINGS_KEYS);
           const guildId = String(body.guildId ?? "");
-          if (!modules.has(module) || !isDiscordSnowflake(guildId)) return json({ error: "invalid module" }, 400);
+          const actorId = String(body.actorId ?? "");
+          if (!modules.has(module) || !isDiscordSnowflake(guildId) || !isDiscordSnowflake(actorId)) {
+            return json({ error: "invalid module or actor" }, 400);
+          }
+          let actorAuthorized = false;
+          try {
+            actorAuthorized = await verifyGuildModuleSettingsActor(guildId, actorId);
+          } catch (error) {
+            console.error("[bot-sync] Could not verify module-settings actor:", error instanceof Error ? error.message : "unknown error");
+            return json({ error: "actor_authorization_unavailable" }, 503);
+          }
+          if (!actorAuthorized) return json({ error: "forbidden" }, 403);
           if (JSON.stringify(body.settings ?? {}).length > 100_000) return json({ error: "settings too large" }, 413);
           const { readBotSettings, writeBotSettings } = await import("@/lib/bot-settings.server");
           const { sanitizeSettings, applyModuleChanges } = await import("@/lib/bot-settings");
