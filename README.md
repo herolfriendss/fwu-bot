@@ -1,4 +1,4 @@
-> **Mise en production FWU : lire d'abord `MISE_EN_PRODUCTION.md`** (4 étapes), puis `RECETTE_STAGING.md` (liste à cocher) et `DECISIONS.md` (choix par défaut appliqués).
+> **Mise en production FWU : lire d'abord `MISE_EN_PRODUCTION.md`** (4 étapes), puis `RECETTE_STAGING.md` (liste à cocher) et `DECISIONS.md` (décisions en vigueur). Les anciens rapports sont dans `docs/archives/`.
 
 # FWU
 
@@ -47,7 +47,7 @@ Ne remplace pas `.env`, `bot/.env` ni `bot/data/` lors d’une mise à jour. `bo
 ## Fonctionnalités héritées de la V4
 
 - **Commandes slash** pour l’économie, DOG, le vocal, la musique, la radio et SYS+, avec les mêmes règles et les mêmes données que les commandes préfixées.
-- **Transition douce** : les anciennes commandes `=` restent disponibles pendant la migration.
+- **Préfixes** : FWU est en slash uniquement ; GUARD `+`, FDPDLAVOC `;`, SUCK ME `=`, LE FISC `-` (voir `MULTI_BOTS_FWU.md`).
 - **Dashboard PND** : masse totale, classement et boutique affichés depuis un instantané borné ; SQLite reste la source de vérité.
 - **Sauvegarde PND** : `npm --prefix bot run export:economy` produit un export JSON en lecture seule.
 - Modération, commandes préfixées et réponses configurées dans le dashboard.
