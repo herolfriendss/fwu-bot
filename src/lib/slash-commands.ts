@@ -1824,6 +1824,31 @@ export const EXTRA_SLASH_COMMANDS: SlashCommandDef[] = [
     ],
   },
   {
+    name: "confession",
+    description: "Envoie une confession anonyme : texte, image ou note vocale",
+    usage: "/confession envoyer | config | bloquer | debloquer | stats",
+    category: "Communauté",
+    dmPermission: false,
+    requiresBotProcess: true,
+    options: [
+      sub("envoyer", "Envoie une confession anonyme", [
+        opt(3, "texte", "Ce que tu veux dire (facultatif si tu joins un fichier)", { max_length: 1500 }),
+        opt(11, "image", "Image à joindre (PNG, JPEG, GIF ou WEBP, 8 Mo max)"),
+        opt(11, "vocal", "Note vocale à joindre (MP3, OGG, WAV, M4A ou WEBM, 8 Mo max)"),
+      ]),
+      sub("config", "Configure les confessions (staff)", [
+        opt(7, "salon", "Salon où les confessions sont publiées"),
+        opt(7, "salon_moderation", "Salon privé où le staff relit et voit les auteurs"),
+        opt(5, "moderation", "Relire avant publication (recommandé)"),
+        opt(4, "confiance_minimale", "Score de confiance requis (0 à 100)", { min_value: 0, max_value: 100 }),
+        opt(4, "par_jour", "Confessions maximum par membre et par jour", { min_value: 1, max_value: 20 }),
+      ]),
+      sub("bloquer", "Empêche un membre de confesser (staff)", [opt(6, "membre", "Membre à bloquer", { required: true }), opt(3, "raison", "Raison", { max_length: 200 })]),
+      sub("debloquer", "Rend l'accès aux confessions à un membre (staff)", [opt(6, "membre", "Membre à débloquer", { required: true })]),
+      sub("stats", "Statistiques des confessions du serveur"),
+    ],
+  },
+  {
     name: "anniversaire",
     description: "Anniversaires du serveur, souhaités automatiquement",
     usage: "/anniversaire definir jour mois · retirer · liste · config",
