@@ -64,6 +64,6 @@ export function parseTicketPrefixCommand(content, mentionedUserId = null) {
 /** Tickets require an explicit enablement and an existing support role; no Discord setup is provisioned. */
 export function ticketSetupIssue(settings) {
   if (settings?.enabled !== true) return "Les tickets ne sont pas activés sur ce serveur.";
-  if (!/^\d{5,25}$/.test(String(settings?.supportRoleId ?? ""))) return "Configure un rôle support existant dans les réglages des tickets avant de publier le panneau.";
+  if (!/^\d{5,25}$/.test(String(settings?.supportRoleId ?? ""))) return "Configure un rôle support existant dans les réglages des tickets avant d'utiliser le système de tickets.";
   return null;
 }
