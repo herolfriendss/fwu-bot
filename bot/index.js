@@ -70,7 +70,7 @@ import { handleVoicePresenceMessage, reconcileActiveVoiceSessions, trackVoiceSta
 import { handleStaffMemberHistoryMessage } from "./staff-audit.js";
 import { captureGuildInviteSnapshot, resolveMemberInvite, recordInviteLifecycle } from "./invite-attribution.js";
 import { addCentralLogObserver, setCentralLogRelay, systemLogEmbed, sendCentralLog } from "./logs.js";
-import { BOT_PROFILES, LEASE_RENEW_MS, createDomainGate, enqueueRelayedLog, loadBotPrefixes, parsePrefixedMessage, resolveBotRuntime, slashCommandOwner, slashRegistrationPlan, takeRelayedLogs } from "./bot-runtime.js";
+import { BOT_PROFILES, LEASE_RENEW_MS, createDomainGate, enqueueRelayedLog, loadBotPrefixes, parsePrefixedMessage, resolveBotRuntime, slashCommandOwner, slashRegistrationPlan, takeRelayedLogs, requeueRelayedLog, countLostRelayedLogs } from "./bot-runtime.js";
 import { handleLiveInteraction, handleLiveMessage } from "./live-commands.js";
 import { prefixifyPayload, slashifyPayload } from "./prefix-to-slash.js";
 import { enforceBlacklistOnJoin, handleBlacklistInteraction, handleBlacklistMessage, isBlacklisted } from "./blacklist.js";
@@ -1039,8 +1039,10 @@ client.once("clientReady", () => {
       void (async () => {
         for (const item of takeRelayedLogs(25)) {
           const guild = client.guilds.cache.get(item.guildId);
-          if (!guild) continue;
-          await sendCentralLog(guild, settings[guild.id], item.embed, item.fallbackChannelIds, item.components, item.allowedUserIds).catch(() => record("central_log_error"));
+          if (!guild) { countLostRelayedLogs("serveur_absent"); continue; }
+          // Un nouvel essai ne repasse pas par RESUME : il l'a déjà enregistré au premier.
+          const delivered = await sendCentralLog(guild, settings[guild.id], item.embed, item.fallbackChannelIds, item.components, item.allowedUserIds, { skipObservers: item.attempts > 0 }).catch(() => false);
+          if (!delivered) { record("central_log_error"); requeueRelayedLog(item); }
         }
       })().catch(() => record("log_relay_error")).finally(() => { relaying = false; });
     }, 2_000);

@@ -27,7 +27,7 @@ import { reconcileEconomyGuild } from "../../economy-integrity.js";
 import { listReconciliationReviews } from "../../economy.js";
 import { describeSignal, listFraudSignals } from "../../economy-antifraud.js";
 import { respondInPlaceSafe } from "../../interaction-reply.js";
-import { formatBotsDiagnostic } from "../../bot-runtime.js";
+import { formatBotsDiagnostic, formatRelayLossLine } from "../../bot-runtime.js";
 
 const DIAGNOSTIC_ACTIONS = new Set(["acl", "sante", "santé", "logs-couverture", "matrice", "economie", "économie", "bots"]);
 
@@ -48,7 +48,7 @@ export async function runSysPlusDiagnostic(guild, member, roleId, action, record
     return text;
   }
   if (action === "logs-couverture") return formatCoverageSummary();
-  if (action === "bots") return formatBotsDiagnostic();
+  if (action === "bots") return `${formatBotsDiagnostic()}\n${formatRelayLossLine()}`;
   if (action === "matrice") {
     const scopes = Object.fromEntries(Object.keys(ADMIN_PLUS_SCOPES).map((scope) => [scope, getAdminPlusScope(guild.id, scope)]));
     return formatPermissionMatrix(buildPermissionMatrix({

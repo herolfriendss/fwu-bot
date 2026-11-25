@@ -68,7 +68,10 @@ export function loadBotPrefixes(env = process.env) {
 export const LEASE_TTL_MS = 60_000;
 export const LEASE_RENEW_MS = 20_000;
 const RELAY_MAX_ROWS = 5_000;
-const RELAY_MAX_AGE_MS = 60 * 60_000;
+// 24 h : un FWU arrêté une nuit ne fait plus perdre les logs des 4 autres bots.
+const RELAY_MAX_AGE_MS = 24 * 60 * 60_000;
+export const RELAY_MAX_ATTEMPTS = 3;
+const RELAY_RETRY_BASE_MS = 30_000;
 
 db.exec(`
   CREATE TABLE IF NOT EXISTS bot_domain_leases (
@@ -85,7 +88,43 @@ db.exec(`
     created_at INTEGER NOT NULL
   );
   CREATE INDEX IF NOT EXISTS bot_log_outbox_created_idx ON bot_log_outbox(created_at);
+  CREATE TABLE IF NOT EXISTS bot_log_relay_losses (
+    reason TEXT PRIMARY KEY,
+    count INTEGER NOT NULL DEFAULT 0,
+    last_at INTEGER
+  );
 `);
+for (const column of ["attempts INTEGER NOT NULL DEFAULT 0", "next_try_at INTEGER NOT NULL DEFAULT 0"]) {
+  try { db.exec(`ALTER TABLE bot_log_outbox ADD COLUMN ${column}`); } catch { /* déjà là */ }
+}
+
+export const RELAY_LOSS_LABELS = Object.freeze({
+  trop_vieux: "plus de 24 h sans être publiés",
+  file_pleine: "file pleine (plus de 5 000)",
+  envoi_refuse: `non publiés après ${RELAY_MAX_ATTEMPTS} essais`,
+  serveur_absent: "serveur d'origine inconnu de FWU",
+});
+
+/** Compte des logs relayés perdus, par raison (jamais leur contenu). */
+export function countLostRelayedLogs(reason, n = 1, now = Date.now()) {
+  if (!n) return;
+  db.prepare(`INSERT INTO bot_log_relay_losses(reason, count, last_at) VALUES (?, ?, ?)
+    ON CONFLICT(reason) DO UPDATE SET count = count + excluded.count, last_at = excluded.last_at`).run(String(reason), Number(n), now);
+}
+
+export function relayedLogLosses() {
+  return db.prepare("SELECT reason, count, last_at AS lastAt FROM bot_log_relay_losses ORDER BY count DESC").all()
+    .map((row) => ({ reason: row.reason, count: Number(row.count), lastAt: row.lastAt == null ? null : Number(row.lastAt) }));
+}
+
+/** Ligne du diagnostic : logs relayés perdus depuis toujours. */
+export function formatRelayLossLine() {
+  const losses = relayedLogLosses();
+  const total = losses.reduce((sum, row) => sum + row.count, 0);
+  if (!total) return "🟢 Logs relayés perdus : 0.";
+  const last = Math.max(...losses.map((row) => row.lastAt ?? 0));
+  return `🟧 Logs relayés perdus : ${total} (${losses.map((row) => `${row.count} ${RELAY_LOSS_LABELS[row.reason] ?? row.reason}`).join(", ")})${last ? `, dernier <t:${Math.floor(last / 1000)}:R>` : ""}.`;
+}
 
 /**
  * Resolve the process profile from the environment. Without PND_BOT_PROFILE the
@@ -212,20 +251,47 @@ export function enqueueRelayedLog({ guildId, sourceProfile, embed, fallbackChann
   transaction(() => {
     db.prepare("INSERT INTO bot_log_outbox(guild_id, source_profile, payload, created_at) VALUES (?, ?, ?, ?)")
       .run(String(guildId), String(sourceProfile), payload, now);
-    db.prepare("DELETE FROM bot_log_outbox WHERE created_at < ?").run(now - RELAY_MAX_AGE_MS);
-    db.prepare(`DELETE FROM bot_log_outbox WHERE id <= (SELECT id FROM bot_log_outbox ORDER BY id DESC LIMIT 1 OFFSET ${RELAY_MAX_ROWS})`).run();
+    const old = db.prepare("DELETE FROM bot_log_outbox WHERE created_at < ?").run(now - RELAY_MAX_AGE_MS);
+    countLostRelayedLogs("trop_vieux", Number(old?.changes ?? 0), now);
+    const overflow = db.prepare(`DELETE FROM bot_log_outbox WHERE id <= (SELECT id FROM bot_log_outbox ORDER BY id DESC LIMIT 1 OFFSET ${RELAY_MAX_ROWS})`).run();
+    countLostRelayedLogs("file_pleine", Number(overflow?.changes ?? 0), now);
   });
   return true;
 }
 
-/** Take (and delete) the oldest relayed logs. Rows are removed before sending: at most once. */
-export function takeRelayedLogs(limit = 25) {
+/**
+ * Remet en file un log que FWU n'a pas pu publier (limite de débit, panne Discord).
+ * Nouvel essai après 30 s puis 60 s ; au 3e échec il est compté comme perdu.
+ */
+export function requeueRelayedLog(item, now = Date.now()) {
+  const attempts = Number(item?.attempts ?? 0) + 1;
+  if (!item?.guildId || attempts >= RELAY_MAX_ATTEMPTS) {
+    countLostRelayedLogs("envoi_refuse", 1, now);
+    return false;
+  }
+  const payload = JSON.stringify({
+    embed: item.embed,
+    fallbackChannelIds: item.fallbackChannelIds ?? [],
+    components: item.components ?? [],
+    allowedUserIds: item.allowedUserIds ?? [],
+  });
+  db.prepare("INSERT INTO bot_log_outbox(guild_id, source_profile, payload, created_at, attempts, next_try_at) VALUES (?, ?, ?, ?, ?, ?)")
+    .run(String(item.guildId), String(item.sourceProfile ?? "fwu"), payload, Number(item.createdAt ?? now), attempts, now + RELAY_RETRY_BASE_MS * 2 ** (attempts - 1));
+  return true;
+}
+
+/**
+ * Take (and delete) the oldest relayed logs that are due. Rows are removed before
+ * sending; a failed send goes back with requeueRelayedLog (3 tries at most).
+ */
+export function takeRelayedLogs(limit = 25, now = Date.now()) {
   return transaction(() => {
-    const rows = db.prepare("SELECT id, guild_id, source_profile, payload, created_at FROM bot_log_outbox ORDER BY id LIMIT ?").all(limit);
-    if (rows.length) db.prepare("DELETE FROM bot_log_outbox WHERE id <= ?").run(rows.at(-1).id);
+    const rows = db.prepare("SELECT id, guild_id, source_profile, payload, created_at, attempts FROM bot_log_outbox WHERE next_try_at <= ? ORDER BY id LIMIT ?").all(now, limit);
+    const remove = db.prepare("DELETE FROM bot_log_outbox WHERE id = ?");
+    for (const row of rows) remove.run(row.id);
     return rows.flatMap((row) => {
       try {
-        return [{ id: row.id, guildId: row.guild_id, sourceProfile: row.source_profile, createdAt: row.created_at, ...JSON.parse(row.payload) }];
+        return [{ id: row.id, guildId: row.guild_id, sourceProfile: row.source_profile, createdAt: row.created_at, attempts: Number(row.attempts ?? 0), ...JSON.parse(row.payload) }];
       } catch {
         return [];
       }
