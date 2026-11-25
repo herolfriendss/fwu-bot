@@ -97,7 +97,42 @@ for bot in guard fdpdlavoc suckme fisc investplus; do
   esac
 done
 
-step "5/5 — Résultat"
+step "5/6 — Préparation de /maj (mise à jour autonome)"
+if [[ -f "$HERE/fwu-auto-update.sh" ]]; then
+  install -m 700 "$HERE/fwu-auto-update.sh" /home/opc/fwu-auto-update.sh
+  mkdir -p /home/opc/fwu-data
+  chmod 700 /home/opc/fwu-data
+  if [[ ! -s /home/opc/fwu-data/.github-token ]]; then
+    cat <<'INFO'
+Pour activer /maj lancer directement depuis Discord, crée un jeton GitHub en lecture seule :
+  GitHub → Settings → Developer settings → Fine-grained tokens → Generate new token
+  Repository access : Only select repositories → her-v3-
+  Permissions : Contents → Read-only (aucune autre permission).
+Colle-le ci-dessous. La saisie est masquée ; Entrée seule = configurer plus tard.
+INFO
+    printf 'Jeton GitHub : '
+    IFS= read -rs GH_TOKEN || GH_TOKEN=""
+    printf '\n'
+    if [[ -n "$GH_TOKEN" ]]; then
+      if [[ "$GH_TOKEN" =~ ^(github_pat_[A-Za-z0-9_]{20,}|gh[pousr]_[A-Za-z0-9]{20,})$ ]]; then
+        ( umask 077; printf '%s' "$GH_TOKEN" > /home/opc/fwu-data/.github-token )
+        chmod 600 /home/opc/fwu-data/.github-token
+        echo "Jeton GitHub enregistré dans /home/opc/fwu-data/.github-token (lecture seule, jamais affiché)."
+      else
+        echo "Format de jeton GitHub non reconnu : /maj ne sera pas activé. Tu pourras relancer ce script après correction."
+      fi
+    else
+      echo "Jeton non fourni : /maj etat fonctionnera, mais /maj lancer attendra la configuration du jeton."
+    fi
+    unset GH_TOKEN
+  else
+    echo "Jeton GitHub existant conservé ; /maj est prêt."
+  fi
+else
+  echo "Script fwu-auto-update.sh absent du pack : /maj devra être configuré lors d'une mise à jour depuis un ordinateur."
+fi
+
+step "6/6 — Résultat"
 printf 'FWU        : 🟢 (her-v5-bot / her-v5-web)\n'
 for bot in guard fdpdlavoc suckme fisc investplus; do printf '%-10s : %s\n' "$bot" "${RESULT[$bot]}"; done
 cat <<MSG
