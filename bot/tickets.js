@@ -11,7 +11,6 @@ import { fetchChannelMessages, formatTicketTimeline, getTranscript, listTicketEv
 import { incrementDailyMetric } from "./organization.js";
 import { sendCentralLog } from "./logs.js";
 import { herBotAvatar, themePanelEmbed } from "./theme.js";
-import { updateModuleSettings } from "./module-settings.js";
 import { respondToInteraction } from "./interaction-response.js";
 import { recordSysPlusAudit } from "./systems/sysplus/audit.js";
 import { canUseAdminPlusScope, getAdminPlusScope } from "./systems/sysplus/admin-plus-scopes.js";
@@ -145,24 +144,11 @@ export async function handleTicketsInteraction(interaction, guildSettings = {}, 
   try {
     if (subcommand === "panel") {
       if (!isTicketStaff(member, settings)) throw new Error("Permission Gérer les salons requise.");
-      await interaction.deferReply({ ephemeral: true });
-      if (!settings.tickets?.enabled) {
-        const saved = await updateModuleSettings({
-          apiUrl,
-          secret,
-          guildId: guild.id,
-          module: "tickets",
-          value: {
-            ...(settings.tickets ?? {}),
-            enabled: true,
-            categoryId: settings.tickets?.categoryId ?? interaction.channel?.parentId ?? null,
-          },
-          actorId: interaction.user.id,
-        });
-        settings.tickets = saved.tickets;
-      }
+      if (!settings.tickets?.enabled) throw new Error("Active les tickets dans les réglages des modules avant de publier le panneau.");
+      if (!settings.tickets?.categoryId) throw new Error("Choisis une catégorie existante pour les tickets dans les réglages des modules.");
       const channel = interaction.channel;
-      if (!channel?.isTextBased()) throw new Error("Choisis un salon textuel.");
+      if (!channel?.isTextBased()) throw new Error("Choisis un salon textuel existant pour publier le panneau.");
+      await interaction.deferReply({ ephemeral: true });
       await channel.send({ embeds: [panelEmbed(settings, guild)], components: [panelButtons()], allowedMentions: { parse: [] } });
       await interaction.editReply({ content: `✅ Panneau de tickets publié dans <#${channel.id}>.` });
       record("ticket_panel");
