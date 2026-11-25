@@ -5,6 +5,7 @@
 // A perk is a row with an expiry. Each bot asks `perkActive` before applying
 // it, so nothing has to be pushed anywhere when one is bought or runs out.
 import { db, transaction } from "../database.js";
+import { roleGrantRefusal } from "../role-grant-guard.js";
 import { publishEventSafe } from "../event-bus.js";
 
 db.exec(`
@@ -99,7 +100,15 @@ export async function applyColourRole(member, colour, reason = "Avantage : coule
   const me = guild.members.me;
   if (!me?.permissions?.has?.("ManageRoles")) throw new Error("Le bot n'a pas la permission de gérer les rôles.");
   const name = `${COLOUR_ROLE_PREFIX} ${member.user.username}`.slice(0, 90);
-  const existing = guild.roles.cache.find((role) => role.name === name);
+  // Le nom seul ne suffit pas (un pseudo peut imiter un autre rôle) : on ne réutilise qu'un rôle
+  // sans aucune permission, non protégé, sous le bot et porté au plus par ce membre.
+  const candidates = guild.roles.cache.filter((role) => role.name === name);
+  let existing = null;
+  for (const role of candidates.values()) {
+    if (!(await isOwnColourRole(guild, role, member.id))) continue;
+    existing = role;
+    break;
+  }
   if (existing) {
     await existing.setColors({ primaryColor: colour }, reason).catch(() => existing.edit({ colors: { primaryColor: colour } }, reason));
     if (!member.roles.cache.has(existing.id)) await member.roles.add(existing, reason);
@@ -113,11 +122,27 @@ export async function applyColourRole(member, colour, reason = "Avantage : coule
   return role;
 }
 
+/** Rôle couleur réutilisable / supprimable : aucune permission, non protégé, sous le bot, porté seulement par ce membre. */
+export async function isOwnColourRole(guild, role, memberId) {
+  if (!role || role.managed || role.id === guild.id) return false;
+  let bits = 0n;
+  try { bits = BigInt(role.permissions?.bitfield ?? role.permissions ?? 0); } catch { return false; }
+  if (bits !== 0n) return false;
+  const me = guild.members?.me;
+  if (me && role.position >= me.roles.highest.position) return false;
+  const holders = [...(role.members?.keys?.() ?? [])];
+  if (holders.some((id) => id !== memberId)) return false;
+  return !(await roleGrantRefusal(guild, role, { automatic: true }));
+}
+
 /** Removes the colour role when the perk runs out. */
 export async function removeColourRole(guild, userId) {
   const member = await guild.members.fetch(userId).catch(() => null);
   const name = member ? `${COLOUR_ROLE_PREFIX} ${member.user.username}`.slice(0, 90) : null;
-  const role = name ? guild.roles.cache.find((r) => r.name === name) : null;
+  let role = null;
+  for (const candidate of (name ? guild.roles.cache.filter((r) => r.name === name) : new Map()).values()) {
+    if (await isOwnColourRole(guild, candidate, userId)) { role = candidate; break; }
+  }
   if (!role) return false;
   return role.delete("Avantage expiré : couleur de pseudo").then(() => true).catch(() => false);
 }

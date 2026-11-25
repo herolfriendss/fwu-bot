@@ -1,5 +1,6 @@
 // Her? V4 — automatisation : rôles automatiques, MP de bienvenue et messages planifiés.
 import { EmbedBuilder, PermissionFlagsBits } from "discord.js";
+import { assertRoleGrantable, filterGrantableRoleIds } from "./role-grant-guard.js";
 import { db } from "./database.js";
 import { herBotAvatar, themePanelEmbed } from "./theme.js";
 import { updateModuleSettings } from "./module-settings.js";
@@ -33,7 +34,8 @@ export async function handleAutomationJoin(member, settings, record = () => {}) 
       rolePositions,
       memberRoleIds: [...member.roles.cache.keys()],
     });
-    for (const roleId of plan.applicable) {
+    const grantable = await filterGrantableRoleIds(member.guild, plan.applicable, { settings, onRefused: () => record("automation_autorole_protected") });
+    for (const roleId of grantable) {
       try {
         await member.roles.add(roleId, "Rôle automatique FWU");
         touched = true;
@@ -164,6 +166,8 @@ export async function handleAutomationInteraction(interaction, guildSettings = {
       if (subcommand === "autorole-add") {
         const bot = guild.members.me ?? await guild.members.fetchMe();
         if (role.position >= bot.roles.highest.position) throw new Error("Le rôle doit être placé sous le rôle du bot.");
+        // Donné à chaque arrivant : jamais de rôle d'accès, de palier ou à permissions sensibles.
+        await assertRoleGrantable(guild, role, { automatic: true, settings });
       }
       const ids = subcommand === "autorole-add"
         ? [...new Set([...automation.autoRoleIds, role.id])].slice(0, 10)

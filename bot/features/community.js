@@ -3,6 +3,7 @@ import { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder, PermissionF
 import { db } from "../database.js";
 import { parsePndOwnerId } from "../pnd-owner-policy.js";
 import { isSysPlus } from "../systems/sysplus/permissions.js";
+import { filterGrantableRoleIds, roleGrantRefusal } from "../role-grant-guard.js";
 import { achievementsText, announceAchievements, checkAchievements } from "./achievements.js";
 import { publishEventSafe } from "../event-bus.js";
 import { boostedXp, perkActive } from "./perks.js";
@@ -96,7 +97,8 @@ async function applyLevelUp(guild, member, before, after, fallbackChannel = null
   const config = getLevelConfig(guild.id);
   const earned = Object.entries(config.rewards).filter(([lvl]) => Number(lvl) <= after).map(([, roleId]) => roleId)
     .filter((roleId) => guild.roles.cache.has(roleId) && !member.roles.cache.has(roleId));
-  if (earned.length) await member.roles.add(earned, `Niveau ${after} atteint`).catch(() => {});
+  const grantable = await filterGrantableRoleIds(guild, earned);
+  if (grantable.length) await member.roles.add(grantable, `Niveau ${after} atteint`).catch(() => {});
   const channel = config.channelId ? await guild.channels.fetch(config.channelId).catch(() => null) : fallbackChannel;
   if (!channel?.isTextBased?.()) return;
   await channel.send({ content: `🎉 <@${member.id}> passe **niveau ${after}** !${earned.length ? ` Nouveau rôle : ${earned.map((id) => `<@&${id}>`).join(", ")}.` : ""}`, allowedMentions: { users: [member.id] } }).catch(() => {});
@@ -176,7 +178,8 @@ async function niveau(interaction, settings) {
     const role = interaction.options.getRole("role", true);
     const me = guild.members.me ?? await guild.members.fetchMe();
     if (role.managed || role.id === guild.id || role.position >= me.roles.highest.position) return "❌ Ce rôle ne peut pas être donné par le bot (place mon rôle au-dessus).";
-    if (role.permissions?.has?.(P.Administrator) || role.permissions?.has?.(P.ManageGuild) || role.permissions?.has?.(P.BanMembers)) return "❌ Pour la sécurité, un rôle avec des permissions de modération ne peut pas être une récompense.";
+    const protectedReason = await roleGrantRefusal(guild, role, { automatic: true, settings });
+    if (protectedReason) return `❌ Ce rôle ne peut pas être une récompense : ${protectedReason}`;
     saveLevelConfig(guild.id, { ...config, rewards: { ...config.rewards, [level]: role.id } });
     return `✅ Niveau **${level}** → <@&${role.id}>.`;
   }
@@ -298,7 +301,9 @@ async function anniversaire(interaction, settings) {
     if (channel) setSetting(guild.id, "birthday_channel", channel.id);
     if (role) {
       const me = guild.members.me ?? await guild.members.fetchMe();
-      if (role.managed || role.position >= me.roles.highest.position || role.permissions?.has?.(P.Administrator)) return "❌ Ce rôle ne peut pas servir de rôle d'anniversaire.";
+      if (role.managed || role.position >= me.roles.highest.position) return "❌ Ce rôle ne peut pas servir de rôle d'anniversaire.";
+      const protectedReason = await roleGrantRefusal(guild, role, { automatic: true, settings });
+      if (protectedReason) return `❌ Ce rôle ne peut pas servir de rôle d'anniversaire : ${protectedReason}`;
       setSetting(guild.id, "birthday_role", role.id);
     }
     return `✅ Anniversaires : salon ${getSetting(guild.id, "birthday_channel") ? `<#${getSetting(guild.id, "birthday_channel")}>` : "non choisi"} · rôle du jour ${getSetting(guild.id, "birthday_role") ? `<@&${getSetting(guild.id, "birthday_role")}>` : "aucun"}. Annonce chaque jour à 9 h.`;
@@ -327,7 +332,7 @@ export async function runBirthdays(guilds, now = Date.now()) {
       const member = await guild.members.fetch({ user: userId }).catch(() => null);
       if (!member) continue;
       present.push(userId);
-      if (roleId) {
+      if (roleId && (await filterGrantableRoleIds(guild, [roleId])).length) {
         await member.roles.add(roleId, "Anniversaire").catch(() => {});
         db.prepare("INSERT OR REPLACE INTO community_birthday_roles(guild_id,user_id,role_id,given_date) VALUES(?,?,?,?)").run(guild.id, userId, roleId, today.key);
       }

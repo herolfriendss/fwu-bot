@@ -437,7 +437,15 @@ client.on("guildBanAdd", (ban) => { if (guardWatch(ban.guild)) void antiNuke.ban
 client.on("guildMemberRemove", (member) => { if (guardWatch(member.guild)) void antiNuke.memberRemove(member).catch(() => record("antinuke_error")); });
 client.on("webhooksUpdate", (channel) => { if (guardWatch(channel.guild)) void antiNuke.webhooksUpdate(channel).catch(() => record("antinuke_error")); });
 
-client.on("messageCreate", async (msg) => {
+// A prefix command runs on behalf of its author, like a slash command: the OWNER shield's
+// rank rule (owner-shield.js) then applies to "+ban", "=rank"… exactly as to their slash form.
+client.on("messageCreate", (msg) => (
+  !msg.author?.bot && msg.guild && parsePrefixedMessage(msg.content, BOT_PREFIXES)
+    ? runAsActor(msg.author.id, () => handleMessageCreate(msg))
+    : handleMessageCreate(msg)
+));
+
+async function handleMessageCreate(msg) {
   if (msg.author.bot || !msg.guild) return;
   // Defense in depth: a guild outside the allowlist is ignored even while the
   // leave request is still in flight.
@@ -661,7 +669,7 @@ client.on("messageCreate", async (msg) => {
   } catch {
     record("message_error");
   }
-});
+}
 
 client.on("messageDelete", (message) => {
   const guild = message.guild;

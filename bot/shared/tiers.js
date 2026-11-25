@@ -8,7 +8,7 @@
 //     son rôle perso comme il veut, ce serait une faille de droits).
 // Le membre prend le palier le plus fort (le plus petit) parmi ses rôles.
 import { parsePndOwnerId } from "../pnd-owner-policy.js";
-import { sharedQuery, sharedTransaction } from "./db.js";
+import { sharedDbConfigured, sharedQuery, sharedTransaction } from "./db.js";
 
 export const TIERS = Object.freeze([0, 1, 5, 10, 50, 70, 80, 100]);
 export const MODERATION_TIERS = Object.freeze([1, 5, 10, 50]);
@@ -74,6 +74,27 @@ export async function loadRoleTiers(guildId) {
     return map;
   } catch {
     return cached?.map ?? new Map();
+  }
+}
+
+/**
+ * Comme loadRoleTiers, mais pour une décision de SÉCURITÉ (donner un rôle) : si la base
+ * centrale est configurée mais injoignable et qu'aucun cache n'existe, on lève une erreur
+ * au lieu de répondre « aucun palier » (sinon un rôle 10 % passerait pour un rôle normal).
+ * Sans base configurée, aucune association ne peut exister : carte vide.
+ */
+export async function loadRoleTiersStrict(guildId, env = process.env) {
+  const cached = cache.get(guildId);
+  if (cached && Date.now() - cached.at < CACHE_MS) return cached.map;
+  try {
+    const { rows } = await sharedQuery("SELECT role_id, tier FROM role_tiers WHERE guild_id = $1", [guildId]);
+    const map = new Map(rows.map((row) => [row.role_id, Number(row.tier)]));
+    cache.set(guildId, { at: Date.now(), map });
+    return map;
+  } catch (error) {
+    if (cached) return cached.map;
+    if (!sharedDbConfigured(env)) return new Map();
+    throw error;
   }
 }
 

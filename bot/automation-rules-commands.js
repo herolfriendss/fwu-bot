@@ -3,6 +3,7 @@ import {
   executeConfirmedAutomation, getAutomationRule, getAutomationRun, listAutomationRules,
   setAutomationApprovalChannel,
 } from "./automation-rules.js";
+import { assertRoleGrantable } from "./role-grant-guard.js";
 
 const noMentions = { parse: [], repliedUser: false };
 const triggers = new Set(["member_join", "member_leave", "message_created", "voice_join", "voice_leave", "scheduled"]);
@@ -41,8 +42,10 @@ async function executeDiscordAction(guild, action, event) {
   const role = await guild.roles.fetch(action.roleId).catch(() => null);
   if (!target || !role || role.id === guild.id || role.managed) throw new Error("Membre ou rôle indisponible.");
   if (target.id === guild.ownerId || botMember.roles.highest.comparePositionTo(role) <= 0) throw new Error("Hiérarchie Discord insuffisante pour ce rôle.");
-  if (action.type === "add_role") await target.roles.add(role, "Automatisation PND confirmée par le staff");
-  else await target.roles.remove(role, "Automatisation PND confirmée par le staff");
+  if (action.type === "add_role") {
+    await assertRoleGrantable(guild, role, { automatic: true });
+    await target.roles.add(role, "Automatisation PND confirmée par le staff");
+  } else await target.roles.remove(role, "Automatisation PND confirmée par le staff");
   return { type: action.type, memberId: target.id, roleId: role.id };
 }
 
