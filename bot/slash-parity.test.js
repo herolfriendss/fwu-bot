@@ -33,7 +33,9 @@ test("each bot reads its own prefix (FWU: slash only) and a command answers on i
   const prefixes = loadBotPrefixes({});
   const example = JSON.parse(readFileSync(new URL("./config/bots.example.json", import.meta.url), "utf8"));
   assert.deepEqual(validatePrefixes(example.prefixes), prefixes, "le fichier d'exemple livré est valide et identique aux défauts");
-  assert.deepEqual(prefixes, { fwu: null, guard: "+", fdpdlavoc: ";", suckme: "=", fisc: "-" });
+  assert.deepEqual(prefixes, { fwu: null, guard: "+", fdpdlavoc: ";", suckme: "=", fisc: "-", investplus: "$" });
+  assert.equal(parsePrefixedMessage("$abo", prefixes).owner, "investplus");
+  assert.equal(parsePrefixedMessage("$100 pour moi", prefixes), null, "un montant n'est pas une commande");
   assert.deepEqual(parsePrefixedMessage("+ban 123456789012345678 spam", prefixes), { owner: "guard", prefix: "+", word: "ban", canonical: "=ban 123456789012345678 spam" });
   assert.equal(parsePrefixedMessage(";mv <@123456789012345678>", prefixes).owner, "fdpdlavoc");
   assert.equal(parsePrefixedMessage("-dice", prefixes).owner, "fisc");
