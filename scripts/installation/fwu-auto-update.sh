@@ -152,14 +152,22 @@ fi
 status running "Mise à jour des 4 bots"
 echo "==> Bots"
 cd "$H/fwu-bots" || fail "Dossier des bots introuvable."
-for z in GUARD FDPDLAVOC SUCK-ME LE-FISC; do unzip -oq "$H/FWU-installation/FWU-$z.zip" || fail "Paquet $z illisible."; done
-broken=""
-for b in guard fdpdlavoc suckme fisc; do
+broken=""; rolled=""
+# Chaque bot : copie de l'ancienne version, mise à jour, et retour arrière si son installateur échoue.
+for pair in GUARD:guard FDPDLAVOC:fdpdlavoc SUCK-ME:suckme LE-FISC:fisc; do
+  z="${pair%%:*}"; b="${pair##*:}"
   echo "--- $b"
-  bash "$H/fwu-bots/fwu-$b/installer.sh" </dev/null || broken="$broken $b"
+  bash "$REPO/scripts/installation/fwu-maj-un-bot.sh" "$H/FWU-installation/FWU-$z.zip" "$H/fwu-bots" "$b"
+  case $? in
+    0) ;;
+    2) broken="$broken $b(sans token)" ;;
+    4) rolled="$rolled $b" ;;
+    *) broken="$broken $b" ;;
+  esac
 done
 pm2 save >/dev/null 2>&1 || true
 pm2 ls --no-color || true
+[[ -z "$rolled" ]] || fail "Ancienne version remise pour :$rolled${broken:+ · en erreur :$broken} (détails : /maj etat)"
 [[ -z "$broken" ]] || fail "Bots en erreur :$broken"
 printf '%s\n' "$REF" > "$INSTALLED_FILE"
 echo "✅ Mise à jour terminée."
