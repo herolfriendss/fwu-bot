@@ -13,7 +13,7 @@ function settingsFor(raw, guildId) {
 }
 
 function logLockname(guild, settings, title, description) {
-  return sendCentralLog(guild, settings, systemLogEmbed({ title, description, color: 0x6d28d9 }));
+  return sendCentralLog(guild, settings, systemLogEmbed({ title, description, color: 0xe21d2f }));
 }
 
 function targetIdFromMessage(message) {

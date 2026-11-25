@@ -58,7 +58,7 @@ export async function publishVoiceAccessEntryPoint(channel, botMember) {
     // Discord's voice-channel chat uses the channel messages endpoint even
     // though discord.js does not expose GuildVoiceChannel as TextBasedChannel.
     const embed = new EmbedBuilder()
-      .setColor(0x6d28d9)
+      .setColor(0xe21d2f)
       .setTitle("🔒 Vocale privée")
       .setDescription("Tu souhaites rejoindre cette vocale ? Envoie une demande au propriétaire. Il pourra l'accepter, la refuser ou bloquer les demandes.")
       .setFooter({ text: "PND Voice Access • Les demandes expirent après 10 minutes" });
@@ -75,7 +75,7 @@ export async function publishVoiceAccessEntryPoint(channel, botMember) {
   }
 }
 
-function logAccessEvent(client, guild, title, description, color = 0x6d28d9) {
+function logAccessEvent(client, guild, title, description, color = 0xe21d2f) {
   const embed = systemLogEmbed({ title, description, color });
   void sendToLogsHub(client, guild, embed, title).catch(() => {});
 }

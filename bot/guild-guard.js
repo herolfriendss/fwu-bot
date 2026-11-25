@@ -31,7 +31,7 @@ const raidNotified = new Set();
 export function guardLogEmbed({ guild, member, action, reason, guard, ageDays }) {
   const colors = { allow: 0x22c55e, log: 0xf59e0b, quarantine: 0xf97316, kick: 0xef4444 };
   return new EmbedBuilder()
-    .setColor(colors[action] ?? 0x6d28d9)
+    .setColor(colors[action] ?? 0xe21d2f)
     .setTitle("🛡️ GuildGuard")
     .setDescription(guardReason(reason, guard?.minAccountAgeDays ?? 0))
     .addFields(

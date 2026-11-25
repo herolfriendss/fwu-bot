@@ -112,7 +112,7 @@ function resolveInput(input, allowedHosts = []) {
 function buildPanel(state) {
   const track = state.current;
   const embed = brandEmbed(new EmbedBuilder()
-    .setColor(0x6d28d9)
+    .setColor(0xe21d2f)
     .setTitle("🎵 FWU — Musique")
     .setDescription(track
       ? `**${track.title}**\n${track.artist ? `Artiste : ${track.artist}\n` : ""}Durée : ${formatDuration(track.duration)}\nDemandé par : ${track.requesterId === "radio" ? "Radio PND" : `<@${track.requesterId}>`}`
@@ -479,7 +479,7 @@ export async function handleMusicMessage(message) {
     } else if (command === "=queue") {
       const lines = state.queue.slice(0, 15).map((t, i) => `**${i + 1}.** ${t.title} — ${formatDuration(t.duration)}`);
       await message.reply({
-        embeds: [brandEmbed(new EmbedBuilder().setColor(0x6d28d9).setTitle("📜 File d'attente")
+        embeds: [brandEmbed(new EmbedBuilder().setColor(0xe21d2f).setTitle("📜 File d'attente")
           .setDescription(lines.length ? lines.join("\n") : "La file d'attente est vide.")
           .setFooter({ text: `${state.queue.length} titre(s) en attente` }))],
       });

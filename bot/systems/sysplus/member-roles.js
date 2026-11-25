@@ -72,7 +72,7 @@ export function memberRolePickerComponents() {
 }
 
 function memberRoleView(guild, target, role) {
-  const embed = new EmbedBuilder().setColor(role?.color || 0x6d28d9).setTitle("🎨 Rôle perso d'un membre").setDescription(role
+  const embed = new EmbedBuilder().setColor(role?.color || 0xe21d2f).setTitle("🎨 Rôle perso d'un membre").setDescription(role
     ? `Membre : <@${target.id}>\nRôle : <@&${role.id}>\nCouleur : #${role.color.toString(16).padStart(6, "0").toUpperCase()}`
     : `Membre : <@${target.id}>\nAucun rôle perso pour l'instant.`).setFooter({ text: `${guild.name} • Panel SYS+` });
   const buttons = role

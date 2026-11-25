@@ -41,7 +41,7 @@ function pageFor(guildId, key) {
 
 function pageEmbed(guild, page) {
   return new EmbedBuilder()
-    .setColor(0x6d28d9)
+    .setColor(0xe21d2f)
     .setTitle(`📚 ${page.title}`)
     .setDescription(page.content)
     .setFooter({ text: `${guild.name} • Base de connaissances PND` });

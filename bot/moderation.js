@@ -345,7 +345,7 @@ export async function handleModerationInteraction(interaction, guildSettings = {
           ?? interaction.channel;
         if (!channel?.isTextBased()) throw new Error("Choisis un salon textuel.");
         const embed = new EmbedBuilder()
-          .setColor(0x6d28d9)
+          .setColor(0xe21d2f)
           .setTitle("✅ Vérification")
           .setDescription(settings.verification?.message || "Résous le petit calcul pour confirmer que tu es humain.");
         await channel.send({

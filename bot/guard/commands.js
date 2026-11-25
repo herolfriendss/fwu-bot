@@ -101,7 +101,7 @@ async function handleCasier(interaction, settings) {
   const warnings = db.prepare("SELECT COUNT(*) AS n FROM moderation_warnings WHERE guild_id=? AND user_id=? AND (expires_at IS NULL OR expires_at > ?)").get(guild.id, user.id, Date.now()).n;
   const total = db.prepare("SELECT COUNT(*) AS n FROM moderation_cases WHERE guild_id=? AND user_id=?").get(guild.id, user.id).n;
   const lines = cases.map((c) => `**#${c.id}** · ${CASE_LABELS[c.action] ?? c.action.replace(/_/g, " ")} · <t:${Math.floor(c.created_at / 1000)}:d> · par <@${c.moderator_id}>\n↳ ${String(c.reason).slice(0, 150)}`);
-  return { embeds: [new EmbedBuilder().setColor(0x6d28d9).setTitle(`📁 Casier de ${user.username}`)
+  return { embeds: [new EmbedBuilder().setColor(0xe21d2f).setTitle(`📁 Casier de ${user.username}`)
     .setDescription(`Affaires : **${total}** · Avertissements actifs : **${warnings}**\n\n${lines.join("\n") || "Casier vierge."}`.slice(0, 4000))
     .setFooter({ text: "FWU • GUARD · /casier supprimer pour retirer une affaire" })] };
 }

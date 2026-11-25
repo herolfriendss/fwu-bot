@@ -140,7 +140,7 @@ async function niveau(interaction, settings) {
     const row = db.prepare("SELECT xp, messages, voice_minutes FROM community_levels WHERE guild_id=? AND user_id=?").get(guild.id, user.id) ?? { xp: 0, messages: 0, voice_minutes: 0 };
     const rank = db.prepare("SELECT COUNT(*) + 1 AS r FROM community_levels WHERE guild_id=? AND xp > ?").get(guild.id, row.xp).r;
     const l = levelFromXp(row.xp);
-    return { public: true, embeds: [new EmbedBuilder().setColor(0x6d28d9).setTitle(`⭐ Niveau de ${user.username}`)
+    return { public: true, embeds: [new EmbedBuilder().setColor(0xe21d2f).setTitle(`⭐ Niveau de ${user.username}`)
       .setDescription(`**Niveau ${l.level}** · rang **#${rank}**\n${progressBar(l.into, l.needed)} ${l.into}/${l.needed} XP\n\nXP total : **${row.xp}** · Messages : **${row.messages}** · Vocal : **${row.voice_minutes} min**`)] };
   }
   if (sub === "succes") {
@@ -152,7 +152,7 @@ async function niveau(interaction, settings) {
   if (sub === "classement") {
     const rows = db.prepare("SELECT user_id, xp FROM community_levels WHERE guild_id=? ORDER BY xp DESC LIMIT 10").all(guild.id);
     const medal = (i) => ["🥇", "🥈", "🥉"][i] ?? `**${i + 1}.**`;
-    return { public: true, embeds: [new EmbedBuilder().setColor(0x6d28d9).setTitle("🏆 Classement des niveaux")
+    return { public: true, embeds: [new EmbedBuilder().setColor(0xe21d2f).setTitle("🏆 Classement des niveaux")
       .setDescription(rows.map((r, i) => `${medal(i)} <@${r.user_id}> — niveau **${levelFromXp(r.xp).level}** (${r.xp} XP)`).join("\n") || "Personne n'a encore d'XP.")] };
   }
   if (!isStaff(interaction.member, settings)) return "⛔ Réglage réservé au staff (Gérer le serveur), aux SYS+ et à l'OWNER.";
@@ -188,7 +188,7 @@ async function niveau(interaction, settings) {
 // ---------------------------------------------------------------- Suggestions
 function suggestionEmbed(row, up, down) {
   const status = { open: "🟡 En attente", accepted: "🟢 Acceptée", refused: "🔴 Refusée" }[row.status] ?? row.status;
-  return new EmbedBuilder().setColor(row.status === "accepted" ? 0x22c55e : row.status === "refused" ? 0xef4444 : 0x6d28d9)
+  return new EmbedBuilder().setColor(row.status === "accepted" ? 0x22c55e : row.status === "refused" ? 0xef4444 : 0xe21d2f)
     .setTitle(`💡 Suggestion #${row.id}`).setDescription(row.content.slice(0, 3500))
     .addFields({ name: "Auteur", value: `<@${row.author_id}>`, inline: true }, { name: "Votes", value: `👍 ${up} · 👎 ${down}`, inline: true }, { name: "Statut", value: status, inline: true },
       ...(row.reason ? [{ name: "Réponse du staff", value: row.reason.slice(0, 1000) }] : []));
@@ -393,7 +393,7 @@ async function stats(interaction) {
   const voice = channels.filter((c) => c.isVoiceBased?.()).size;
   const top = db.prepare("SELECT user_id, xp FROM community_levels WHERE guild_id=? ORDER BY xp DESC LIMIT 3").all(guild.id);
   const totalMessages = db.prepare("SELECT COALESCE(SUM(messages),0) AS n FROM community_levels WHERE guild_id=?").get(guild.id).n;
-  return { public: true, embeds: [new EmbedBuilder().setColor(0x6d28d9).setTitle(`📊 ${guild.name}`).setThumbnail(guild.iconURL?.() ?? null).addFields(
+  return { public: true, embeds: [new EmbedBuilder().setColor(0xe21d2f).setTitle(`📊 ${guild.name}`).setThumbnail(guild.iconURL?.() ?? null).addFields(
     { name: "Membres", value: `${guild.memberCount} (dont ${bots} bots)`, inline: true },
     { name: "En vocal", value: String(inVoice), inline: true },
     { name: "Boosts", value: `${guild.premiumSubscriptionCount ?? 0} (niveau ${guild.premiumTier ?? 0})`, inline: true },

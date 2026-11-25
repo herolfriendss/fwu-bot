@@ -398,7 +398,7 @@ export async function handleSysPlusMessage(message, settings, { apiUrl, secret, 
     const lines = rows.map((row) => `• <t:${Math.floor(row.createdAt / 1000)}:R> — \`${row.action}\` par <@${row.actorId}>${row.targetId ? ` → ${row.targetId}` : ""}`);
     await message.reply({
       embeds: [new EmbedBuilder()
-        .setColor(0x6d28d9)
+        .setColor(0xe21d2f)
         .setTitle("🧾 Audit SYS+")
         .setDescription(lines.length ? lines.join("\n") : "Aucune action enregistrée.")
         .setFooter({ text: "Journal local du serveur, limité aux dix dernières actions." })],
@@ -992,7 +992,7 @@ ${reason}`, ephemeral: true });
     const lines = rows.map((row) => `• <t:${Math.floor(row.createdAt / 1000)}:R> — \`${row.action}\` par <@${row.actorId}>${row.targetId ? ` → ${row.targetId}` : ""}`);
     await interaction.reply({
       embeds: [new EmbedBuilder()
-        .setColor(0x6d28d9)
+        .setColor(0xe21d2f)
         .setTitle("🧾 Audit SYS+")
         .setDescription(lines.length ? lines.join("\n") : "Aucune action enregistrée.")
         .setFooter({ text: "Journal local du serveur, limité aux dix dernières actions." })],

@@ -87,7 +87,7 @@ export async function runTempRoles(client, now = Date.now()) {
 
 // ---------------------------------------------------------------- Announcements
 function announcementPayload(row) {
-  const embed = new EmbedBuilder().setColor(row.color ?? 0x6d28d9).setDescription(row.body.slice(0, 4000)).setTimestamp(new Date());
+  const embed = new EmbedBuilder().setColor(row.color ?? 0xe21d2f).setDescription(row.body.slice(0, 4000)).setTimestamp(new Date());
   if (row.title) embed.setTitle(row.title.slice(0, 256));
   return { content: row.role_id ? `<@&${row.role_id}>` : undefined, embeds: [embed], allowedMentions: { roles: row.role_id ? [row.role_id] : [] } };
 }

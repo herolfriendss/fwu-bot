@@ -60,7 +60,7 @@ async function logWaouf(guild, settings, title, description) {
   await sendCentralLog(
     guild,
     settings,
-    systemLogEmbed({ title, description, color: 0x6d28d9 }),
+    systemLogEmbed({ title, description, color: 0xe21d2f }),
   ).catch(() => {});
 }
 

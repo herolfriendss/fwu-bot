@@ -461,7 +461,7 @@ function blackjackButtons(gameId, disabled = false) {
 }
 
 function blackjackEmbed(game, reveal = false, result = "À toi de jouer.") {
-  return brandEmbed(new EmbedBuilder().setColor(0x6d28d9).setTitle("🃏 Blackjack · PND")
+  return brandEmbed(new EmbedBuilder().setColor(0xe21d2f).setTitle("🃏 Blackjack · PND")
     .addFields(
       { name: `Ta main (${handValue(game.playerCards)})`, value: handText(game.playerCards), inline: true },
       { name: `Croupier${reveal ? ` (${handValue(game.dealerCards)})` : ""}`, value: handText(game.dealerCards, !reveal), inline: true },

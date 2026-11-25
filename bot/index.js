@@ -46,6 +46,7 @@ import { handleAutomationInteraction, handleAutomationJoin, handleAutomationMess
 import { handleRoleInteraction, handleRoleMessage } from "./role-commands.js";
 import { handleCustomRolesInteraction, handleCustomRolesMessage } from "./systems/sysplus/custom-roles.js";
 import { handleCasinoMessage } from "./casino.js";
+import { handleCasinoInteraction } from "./casino/commands.js";
 import { handleBusinessInvestmentMessage } from "./business-investments-commands.js";
 import { startInvestmentMaintenance } from "./business-investments-maintenance.js";
 import { handlePndIntelligenceMessage, handlePndIntelligenceInteraction, expirePendingPndIntelligenceActions, recoverInterruptedPndIntelligenceActions } from "./pnd-intelligence.js";
@@ -248,7 +249,7 @@ const fill = (tpl, vars) => tpl.replace(/\{(\w+)\}/g, (m, k) => vars[k] ?? m);
 const noMentions = { parse: ["users"] };
 const ECONOMY_V4_COMMANDS = new Set(["pnd", "pnd-add", "pnd-remove", "pnd-history", "pnd-audit", "balance", "daily", "pay", "shop", "buy", "inventory", "leaderboard"]);
 
-function auditLog(guild, settingsForGuild, title, description, color = 0x6d28d9) {
+function auditLog(guild, settingsForGuild, title, description, color = 0xe21d2f) {
   if (!guild || isLogsHub(guild.id)) return;
   const embed = systemLogEmbed({ title, description: `Serveur source : **${guild.name}** (\`${guild.id}\`)\n${description}`, color });
   // sendCentralLog routes to the isolated Logs Hub and, when configured, the
@@ -788,7 +789,7 @@ client.on("voiceStateUpdate", (oldState, newState) => {
     void sendCentralLog(guild, guildSettings, systemLogEmbed({
       title: `🎙️ Join-to-Create — ${labels[code] ?? code}`,
       description: `Événement : \`${code}\`\nMembre : <@${newState.id}>`,
-      color: code === "temp_voice_error" ? 0xef4444 : 0x6d28d9,
+      color: code === "temp_voice_error" ? 0xef4444 : 0xe21d2f,
     })).catch(() => {});
   };
   void handleVoiceV2State(oldState, newState, guildSettings, logTempVoice)
@@ -870,7 +871,7 @@ client.on("guildUpdate", (oldGuild, newGuild) => {
   if (oldGuild.ownerId !== newGuild.ownerId) changes.push(`Propriété transférée : <@${oldGuild.ownerId}> → <@${newGuild.ownerId}>`);
   if (oldGuild.icon !== newGuild.icon) changes.push("Icône modifiée");
   if (!changes.length) return;
-  auditLog(newGuild, settings[newGuild.id], "⚙️ Serveur modifié", changes.join("\n"), oldGuild.ownerId !== newGuild.ownerId ? 0xdc2626 : 0x6d28d9);
+  auditLog(newGuild, settings[newGuild.id], "⚙️ Serveur modifié", changes.join("\n"), oldGuild.ownerId !== newGuild.ownerId ? 0xdc2626 : 0xe21d2f);
 });
 client.on("threadCreate", (thread, newlyCreated) => {
   if (!serves("fwu") || !newlyCreated || !thread.guild || !guildAllowed(thread.guild.id, ALLOWED_GUILDS) || isLogsHub(thread.guild.id)) return;
@@ -910,7 +911,7 @@ client.once("clientReady", () => {
   setTimeout(() => {
     void runAutoconfig(communityGuilds(), (domain) => serves(domain) && (IS_FWU ? domain === "fwu" : domain !== "fwu"), { ...communityAutoconfig, ladder: ladderOf, saveLadder }, (guild, line) => {
       console.log(`[autoconfig] ${guild.name} : ${line}`);
-      auditLog(guild, settings[guild.id], "⚙️ Configuration automatique", line, 0x6d28d9);
+      auditLog(guild, settings[guild.id], "⚙️ Configuration automatique", line, 0xe21d2f);
     }).catch(() => record("autoconfig_error"));
   }, 45_000).unref?.();
   setInterval(() => { if (serves("fwu")) void tickVoiceXp(communityGuilds()).catch(() => record("levels_error")); }, 60_000).unref?.();
@@ -1435,6 +1436,7 @@ client.on("interactionCreate", (interaction) => {
     })) return;
     if (await handleModerationInteraction(interaction, settings[interaction.guildId], { apiUrl: API, secret: BOT_SYNC_SECRET })) return;
     if (await handleVoiceV2Interaction(interaction, settings[interaction.guildId])) { auditSlashUsage(interaction, "Vocal temporaire"); return; }
+    if (serves("fisc") && await handleCasinoInteraction(interaction)) { auditSlashUsage(interaction, "PND Casino"); return; }
     if (await handleGamesInteraction(interaction, settings[interaction.guildId], record)) { auditSlashUsage(interaction, "Jeux & événements"); return; }
     if (await handleKnowledgeInteraction(interaction)) return;
     if (await handleTicketsInteraction(interaction, settings[interaction.guildId], {

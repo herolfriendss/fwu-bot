@@ -159,7 +159,7 @@ export function buildResumeEmbed(summary, { reason = "", ended = false } = {}) {
   return {
     title: ended ? "📋 RESUME — bon retour" : "📋 RESUME — pendant ton absence",
     description: lines.join("\n"),
-    color: summary.important.some((row) => row.severity === "high") ? 0xdc2626 : 0x6d28d9,
+    color: summary.important.some((row) => row.severity === "high") ? 0xdc2626 : 0xe21d2f,
     fields,
     footer: { text: "FWU • RESUME · détails complets dans le Logs Hub" },
   };

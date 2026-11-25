@@ -45,6 +45,9 @@ const sub = (name: string, description: string, options?: SlashOption[]): SlashO
   ...(options?.length ? { options } : {}),
 });
 
+/** The stake option shared by every casino game. */
+const MISE = opt(4, "mise", "Mise en PND", { required: true, min_value: 1, max_value: 1000000000 });
+
 /** Discord limits: 25 options per command level, 100 top-level commands per application. */
 export const DISCORD_MAX_OPTIONS = 25;
 export const DISCORD_MAX_ROOT_COMMANDS = 100;
@@ -1166,18 +1169,27 @@ export const SLASH_COMMANDS: SlashCommandDef[] = [
   },
   {
     name: "casino",
-    description: "Joue au Casino PND avec de la monnaie virtuelle",
-    usage: "/casino roulette | slots | coinflip | dice | historique | stats",
+    description: "PND Casino : blackjack, roulette, machine à sous, mines, crash et plinko",
+    usage: "/casino blackjack | roulette | slots | mines | crash | plinko | jackpot | vip",
     category: "Jeux & événements",
     dmPermission: false,
     requiresBotProcess: true,
     options: [
-      sub("roulette", "Mise sur une couleur ou un numéro", [opt(4, "mise", "Mise en PND", { required: true, min_value: 1, max_value: 1000000000 }), opt(3, "choix", "rouge, noir, vert ou numéro 0–36", { required: true, max_length: 5 })]),
-      sub("slots", "Lance la machine à sous", [opt(4, "mise", "Mise en PND", { required: true, min_value: 1, max_value: 1000000000 })]),
-      sub("coinflip", "Joue à pile ou face", [opt(4, "mise", "Mise en PND", { required: true, min_value: 1, max_value: 1000000000 }), opt(3, "choix", "pile ou face", { required: true, choices: [{ name: "Pile", value: "pile" }, { name: "Face", value: "face" }] })]),
-      sub("dice", "Parie sur une face du dé", [opt(4, "mise", "Mise en PND", { required: true, min_value: 1, max_value: 1000000000 }), opt(3, "choix", "Face attendue (1 à 6)", { required: true, choices: [1,2,3,4,5,6].map((n) => ({ name: String(n), value: String(n) })) })]),
-      sub("historique", "Consulte tes dernières parties"),
+      sub("blackjack", "Table de blackjack : doubler, séparer, assurance", [MISE]),
+      sub("roulette", "Roulette européenne, plusieurs mises par tour", [opt(3, "mises", "Ex. rouge:500, 17:100, douzaine2:200 — ou juste « rouge »", { required: true, max_length: 100 }), opt(4, "mise", "Mise par défaut si tu ne précises pas de montant", { min_value: 1, max_value: 1000000000 })]),
+      sub("slots", "Machine à sous : 5 lignes, joker, scatters et jackpot", [MISE]),
+      sub("mines", "Retourne des cases et encaisse avant la bombe", [MISE, opt(4, "bombes", "Nombre de mines cachées (1 à 24, défaut 3)", { min_value: 1, max_value: 24 })]),
+      sub("crash", "La courbe monte, encaisse avant qu'elle lâche", [MISE, opt(10, "auto", "Encaissement automatique, ex. 2.5", { min_value: 1.01, max_value: 1000 })]),
+      sub("plinko", "Lâche une bille sur 16 rangées", [MISE, opt(3, "risque", "Niveau de risque", { choices: [{ name: "Faible", value: "faible" }, { name: "Moyen", value: "moyen" }, { name: "Fort", value: "fort" }] })]),
+      sub("coinflip", "Joue à pile ou face", [MISE, opt(3, "choix", "pile ou face", { required: true, choices: [{ name: "Pile", value: "pile" }, { name: "Face", value: "face" }] })]),
+      sub("dice", "Parie sur une face du dé", [MISE, opt(3, "choix", "Face attendue (1 à 6)", { required: true, choices: [1,2,3,4,5,6].map((n) => ({ name: String(n), value: String(n) })) })]),
+      sub("jackpot", "Affiche la cagnotte progressive du serveur"),
+      sub("vip", "Consulte ton rang VIP et ton cashback"),
+      sub("cashback", "Récupère le cashback de tes pertes de la veille"),
+      sub("classement", "Classement des joueurs du serveur"),
       sub("stats", "Consulte tes statistiques Casino"),
+      sub("historique", "Consulte tes dernières parties"),
+      sub("regles", "Règles et taux de paiement de chaque jeu"),
       sub("limites", "Consulte tes protections de jeu"),
       sub("limite", "Fixe ta limite quotidienne de mises", [opt(4, "montant", "Maximum quotidien en PND", { required: true, min_value: 1, max_value: 1000000000 })]),
       sub("limite-off", "Désactive ta limite quotidienne de mises"),

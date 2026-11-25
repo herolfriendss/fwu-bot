@@ -72,8 +72,8 @@ test("each FWU bot signs its messages, owner can restyle without code", async ()
   assert.equal(themeFooterFrom({ PND_BOT_PROFILE: "suckme", PND_SUCKME_FOOTER: "SUCK ME" }), "SUCK ME");
   assert.equal(themeFooterFrom({ PND_SUCKME_FOOTER: "x" }), "FWU", "le réglage d'un bot ne touche pas FWU");
   assert.equal(themeColorForProfile({ PND_BOT_PROFILE: "guard", PND_GUARD_COLOR: "#dc2626" }), 0xdc2626);
-  assert.equal(themeColorForProfile({ PND_GUARD_COLOR: "#dc2626" }), 0x6d28d9);
+  assert.equal(themeColorForProfile({ PND_GUARD_COLOR: "#dc2626" }), 0xe21d2f);
   assert.equal(themeColorFrom("#22c55e"), 0x22c55e);
-  assert.equal(themeColorFrom("nope"), 0x6d28d9);
-  assert.equal(themeColorFrom(undefined), 0x6d28d9);
+  assert.equal(themeColorFrom("nope"), 0xe21d2f);
+  assert.equal(themeColorFrom(undefined), 0xe21d2f);
 });

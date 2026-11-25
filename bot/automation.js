@@ -309,7 +309,7 @@ export async function handleAutomationMessage(message, guildSettings = {}, { api
     const schedules = db.prepare("SELECT COUNT(*) AS count FROM automation_messages WHERE guild_id=? AND enabled=1").get(gid).count;
     await message.reply({
       embeds: [new EmbedBuilder()
-        .setColor(0x6d28d9)
+        .setColor(0xe21d2f)
         .setTitle("🤖 Automatisation")
         .setDescription(`Messages planifiés actifs : **${schedules}**\nRôles automatiques : ${automation.autoRoleIds.length ? automation.autoRoleIds.map((id) => `<@&${id}>`).join(", ") : "aucun"}\nMP de bienvenue : **${automation.welcomeDm ? "activé" : "désactivé"}**`)],
       allowedMentions: { parse: [] },
