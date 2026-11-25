@@ -3,6 +3,7 @@
 // only when the owner turned the leaderboard on. Never settings, ids of roles/channels, or logs.
 import type { BotSettings } from "./bot-settings";
 import type { EconomySnapshot } from "./economy";
+import { activityTotals, type ActivitySnapshot } from "./activity";
 import { BOT_PROFILES, BOT_PROFILE_IDS, slashCommandOwner, SHARED_SLASH_COMMANDS, type BotProfileId } from "./bot-profiles";
 import { SLASH_COMMANDS } from "./slash-commands";
 
@@ -19,6 +20,7 @@ export type PublicPage = {
   boostTier: number | null;
   bots: { id: BotProfileId; label: string; summary: string; online: boolean }[];
   economy: { totalBalance: number; walletCount: number; shop: { name: string; price: number }[]; leaderboard: { rank: number; name: string; balance: number }[] | null } | null;
+  activity: { rankedMembers: number; messages30: number; xpLeaderboard: { rank: number; name: string; level: number }[] | null } | null;
   commands: { category: string; items: { name: string; description: string; bot: string }[] }[];
   generatedAt: string;
 };
@@ -49,10 +51,12 @@ export function buildPublicPage(input: {
   settings: BotSettings;
   guild: PublicGuildCounts;
   economy: EconomySnapshot | null;
+  activity?: ActivitySnapshot | null;
   bots: Partial<Record<BotProfileId, PublicBotState>>;
   now: number;
 }): PublicPage | null {
   const { guildId, settings, guild, economy, bots, now } = input;
+  const activity = input.activity ?? null;
   if (!settings.publicPage.enabled) return null;
   return {
     guildId,
@@ -72,6 +76,13 @@ export function buildPublicPage(input: {
       shop: economy.shopItems.map((item) => ({ name: item.roleName ?? "Rôle", price: item.price })),
       leaderboard: settings.publicPage.showLeaderboard
         ? economy.topWallets.map((w, i) => ({ rank: i + 1, name: w.displayName ?? "Membre", balance: w.balance }))
+        : null,
+    } : null,
+    activity: activity ? {
+      rankedMembers: activity.rankedMembers,
+      messages30: activityTotals(activity.daily).messages,
+      xpLeaderboard: settings.publicPage.showLeaderboard && activity.levelsEnabled
+        ? activity.topXp.slice(0, 10).map((m, i) => ({ rank: i + 1, name: m.displayName ?? "Membre", level: m.level }))
         : null,
     } : null,
     commands: publicCommandList(),
