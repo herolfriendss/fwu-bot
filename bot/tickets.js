@@ -145,7 +145,6 @@ export async function handleTicketsInteraction(interaction, guildSettings = {}, 
     if (subcommand === "panel") {
       if (!isTicketStaff(member, settings)) throw new Error("Permission Gérer les salons requise.");
       if (!settings.tickets?.enabled) throw new Error("Active les tickets dans les réglages des modules avant de publier le panneau.");
-      if (!settings.tickets?.categoryId) throw new Error("Choisis une catégorie existante pour les tickets dans les réglages des modules.");
       const channel = interaction.channel;
       if (!channel?.isTextBased()) throw new Error("Choisis un salon textuel existant pour publier le panneau.");
       await interaction.deferReply({ ephemeral: true });
