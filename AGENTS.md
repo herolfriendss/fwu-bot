@@ -26,11 +26,11 @@
 - The live status page renders client-side after its owner-protected loader, preventing heartbeat changes between SSR and hydration from producing mismatched live data.
 - The public/downloads/bot-oracle.zip archive is a public source-only distribution; regenerate and inspect it whenever bot sources change, using an explicit allowlist, never including .env, data, repository metadata or dependencies. Updates preserve the VPS's existing configuration.
 
-## PND Assist + product and development rules
+## FWU product and development rules
 
-- The official product name is **PND Assist +**. Keep the existing Her? V5 implementation and validated features; migrate identity and presentation incrementally rather than rebuilding the project.
+- The official product name is **FWU**. Keep the existing Her? V5 implementation and validated features; migrate identity and presentation incrementally rather than rebuilding the project.
 - Discord First: Discord is the primary administration surface. The dashboard may configure and observe the bot, but everyday administration must not require it. Keep the current bot sync/API dependency server-side while designing a safe transition; never expose AI keys or sync credentials to Discord clients.
-- Maintain strict per-guild configuration and data isolation for the PND main server and MZ secondary server. MZ stays disabled until its configuration is explicitly validated. Central logs must retain the source guild identity and must never cross-post private data between source servers.
+- Maintain strict per-guild configuration and data isolation for the FWU main server and MZ secondary server. MZ stays disabled until its configuration is explicitly validated. Central logs must retain the source guild identity and must never cross-post private data between source servers.
 - Provide an interactive `/setup` flow using Discord buttons, selects and modals. Recheck permissions and guild context on every interaction; bind privileged component actions to their author where applicable.
 - Preserve the existing SYS+ and ADMIN+ tiers and add WHITELIST as an internal limit exemption only. WHITELIST must never bypass Discord-native permissions, role hierarchy, ownership checks, or authorization for privileged actions.
 - DOG marker roles are per owner (owner decision 2026-11-24): `En laisse (<owner display name>)`, one role shared by all leashes of that owner, deleted once nobody holds it; the former shared `En laisse` role is still recognised and migrated. Do not append a product name. Preserve persistent leash state and safe restoration behavior.
