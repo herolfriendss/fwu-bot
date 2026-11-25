@@ -102,3 +102,7 @@ test("le diagnostic associe le client courant à son profil réel sans écraser 
     suckme: "333333333333333333",
   });
 });
+test("le diagnostic ignore une identité bot invalide issue d’un client simulé", () => {
+  const ids = resolveInstallationBotIds({ fwu: "111111111111111111" }, "fwu", {});
+  assert.deepEqual(ids, { fwu: "111111111111111111" });
+});
