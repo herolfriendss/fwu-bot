@@ -69,10 +69,17 @@ jobs:
         with:
           node-version: 24
           cache: npm
-          cache-dependency-path: package-lock.json
+          cache-dependency-path: |
+            package-lock.json
+            bot/package-lock.json
 
       - name: Install dashboard dependencies
         run: npm ci
+
+      # Some dashboard integration tests import pure bot modules that still
+      # resolve the bot's runtime dependencies (for example discord.js).
+      - name: Install bot dependencies for integration tests
+        run: npm ci --prefix bot
 
       - name: Run dashboard tests
         run: npx vitest run
@@ -104,8 +111,15 @@ jobs:
           set -euo pipefail
           while IFS= read -r -d '' script; do
             bash -n "$script"
-          done < <(find . -type f -name '*.sh'             -not -path './.git/*'             -not -path '*/node_modules/*')
-      
+          done < <(
+            find . -type f -name '*.sh' \
+              -not -path './.git/*' \
+              -not -path '*/node_modules/*'
+          )
+
       - name: Validate packaging scripts
         run: |
-          python -m py_compile             scripts/package-fwu-archive.py             scripts/package-fwu-bots.py             scripts/package-fwu-installation.py
+          python -m py_compile \
+            scripts/package-fwu-archive.py \
+            scripts/package-fwu-bots.py \
+            scripts/package-fwu-installation.py
