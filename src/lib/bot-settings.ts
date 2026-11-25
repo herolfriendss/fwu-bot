@@ -72,7 +72,7 @@ export type BotSettings = {
   keywords: KeywordRule[];
   filter: { enabled: boolean; words: string[]; deleteMessage: boolean; warn: string };
   spam: { enabled: boolean; maxMessages: number; perSeconds: number; timeoutMinutes: number; maxMentions: number };
-  welcome: { enabled: boolean; channelId: string; message: string };
+  welcome: { enabled: boolean; channelId: string; message: string; leaveEnabled: boolean; leaveChannelId: string; leaveMessage: string };
   ai: { enabled: boolean; memoryEnabled: boolean; instructions: string };
   guildGuard: GuildGuardSettings;
   moderation: ModerationSettings;
@@ -101,7 +101,7 @@ export const DEFAULT_SETTINGS: BotSettings = {
   keywords: [],
   filter: { enabled: false, words: [], deleteMessage: true, warn: "{user}, ce message n’est pas autorisé ici." },
   spam: { enabled: false, maxMessages: 5, perSeconds: 5, timeoutMinutes: 5, maxMentions: 5 },
-  welcome: { enabled: false, channelId: "", message: "Bienvenue {user} sur **{server}** ! 👋" },
+  welcome: { enabled: false, channelId: "", message: "Bienvenue {user} sur **{server}** ! 👋", leaveEnabled: false, leaveChannelId: "", leaveMessage: "{user} a quitté **{server}**." },
   ai: { enabled: false, memoryEnabled: false, instructions: "Tu es un assistant sympathique et concis qui répond en français." },
   guildGuard: {
     enabled: false,
@@ -190,7 +190,7 @@ function sanitizeCoreSettings(raw: unknown): BotSettings {
       timeoutMinutes: int(r.spam?.timeoutMinutes, 1, 1440, d.spam.timeoutMinutes),
       maxMentions: int(r.spam?.maxMentions, 2, 20, d.spam.maxMentions),
     },
-    welcome: { enabled: bool(r.welcome?.enabled, false), channelId: /^\d{5,25}$/.test(channelId) ? channelId : "", message: str(r.welcome?.message, 2000) || d.welcome.message },
+    welcome: { enabled: bool(r.welcome?.enabled, false), channelId: /^\d{5,25}$/.test(channelId) ? channelId : "", message: str(r.welcome?.message, 2000) || d.welcome.message, leaveEnabled: bool(r.welcome?.leaveEnabled, false), leaveChannelId: snowflakeId(r.welcome?.leaveChannelId) ?? "", leaveMessage: str(r.welcome?.leaveMessage, 2000) || d.welcome.leaveMessage },
     ai: { enabled: bool(r.ai?.enabled, false), memoryEnabled: bool(r.ai?.memoryEnabled, false), instructions: str(r.ai?.instructions, 2000) || d.ai.instructions },
     guildGuard: {
       enabled: bool(r.guildGuard?.enabled, false),
