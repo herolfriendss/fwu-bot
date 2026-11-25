@@ -21,6 +21,7 @@ const { parseQuotaValue, parseUserReference, formatQuotaTable, formatSanctionLin
 const { describeDiscordError } = await import("./moderation-actions.js");
 const { closeSharedDb, initSharedDb, sharedQuery } = await import("./shared/db.js");
 const { runSharedMigrations } = await import("./shared/migrate.js");
+const { setRoleTiersForTests } = await import("./shared/tiers.js");
 
 const TEST_URL = process.env.SHARED_DATABASE_URL_TEST;
 const pgTest = TEST_URL ? test : test.skip;
@@ -157,11 +158,18 @@ test("embeds : limites Discord, couleurs, URL HTTPS, import et screening", () =>
 
 // ── Discord simulé ─────────────────────────────────────────────────────────
 
+// Le nom d'un rôle ne donne plus de palier : chaque rôle « N% » du test est associé via le cache.
+const TEST_GUILD_ID = "200000000000000777";
+const TEST_ROLE_TIERS = { "10% Modérateur": 10, "10%": 10, "50% Modérateur test": 50, "50%": 50, "100%": 100, "1%": 1, "5%": 5, "5% Administrateur": 5 };
 function roleCache(names) {
-  return new Map(names.map((name, index) => [`role${index}`, { id: `role${index}`, name }]));
+  return new Map(names.map((name) => [`role:${name}`, { id: `role:${name}`, name }]));
+}
+function primeTestRoleTiers() {
+  setRoleTiersForTests(TEST_GUILD_ID, Object.entries(TEST_ROLE_TIERS).map(([name, tier]) => [`role:${name}`, tier]));
 }
 
 function fakeVoiceWorld({ authorRoles = ["10% Modérateur"], authorPerms = [P.ViewChannel, P.Connect, P.MoveMembers], botPerms = [P.ViewChannel, P.Connect, P.MoveMembers, P.ManageRoles] } = {}) {
+  primeTestRoleTiers();
   const replies = [];
   const moves = [];
   const channels = new Map();

@@ -1,5 +1,6 @@
 // FWU GUARD — slash commands: /antinuke, /automod, /casier, /quarantaine.
 import { EmbedBuilder, PermissionFlagsBits as P } from "discord.js";
+import { roleGrantRefusal } from "../role-grant-guard.js";
 import { db } from "../database.js";
 import { parsePndOwnerId } from "../pnd-owner-policy.js";
 import { isSysPlus } from "../systems/sysplus/permissions.js";
@@ -119,6 +120,8 @@ async function handleQuarantaine(interaction, settings) {
     const role = roleId ? await guild.roles.fetch(roleId).catch(() => null) : null;
     if (!role) return "❌ Aucun rôle de quarantaine : il sera créé automatiquement au prochain démarrage de GUARD (ou `/guildguard quarantine role:@Quarantaine`).";
     if (role.position >= me.roles.highest.position) return "❌ Le rôle de quarantaine doit être sous mon rôle.";
+    const protectedReason = await roleGrantRefusal(guild, role, { automatic: true, settings });
+    if (protectedReason) return `❌ Rôle de quarantaine refusé : ${protectedReason}`;
     if (db.prepare("SELECT 1 FROM guard_quarantine WHERE guild_id=? AND user_id=?").get(guild.id, user.id)) return "ℹ️ Ce membre est déjà en quarantaine.";
     const removable = [...member.roles.cache.values()].filter((r) => r.id !== guild.id && !r.managed && r.id !== role.id && r.position < me.roles.highest.position);
     const reason = interaction.options.getString("raison") ?? "Quarantaine manuelle";

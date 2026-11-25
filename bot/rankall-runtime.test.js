@@ -328,3 +328,59 @@ test("prefix =rankall goes through the same preview", async () => {
   assert.match(replies[0].content, /aperçu/);
   assert.equal(replies[0].components[0].components.length, 2);
 });
+
+// ── Sécurité : rôles protégés ──────────────────────────────────────────────
+const { setRoleTiersForTests, forgetTierCache } = await import("./shared/tiers.js");
+
+function rankMessage(guild, actor, target, role) {
+  const replies = [];
+  return {
+    replies,
+    message: {
+      content: "=rank @m @r",
+      guild,
+      member: actor,
+      author: { id: actor.id },
+      mentions: { members: { first: () => target }, roles: { first: () => role } },
+      reply: async (p) => replies.push(p),
+    },
+  };
+}
+
+test("sécurité : un ADMIN+ ne peut pas donner un rôle de palier ; l'OWNER oui ; =rankall jamais", async () => {
+  const adminPlus = makeMember("400000000000000020", 40, { roles: ["adm"] });
+  const target = makeMember("400000000000000021", 2);
+  const guild = makeGuild({ members: [adminPlus, target] });
+  adminPlus.guild = guild;
+  const settings = { adminPlus: { roleId: "adm" } };
+  setRoleTiersForTests(guildId, [[roleId, 10]]);
+  try {
+    const denied = rankMessage(guild, adminPlus, target, guild.role);
+    await handleRoleMessage(denied.message, settings);
+    assert.match(denied.replies[0].content, /palier 10/);
+    assert.equal(target.has(roleId), false, "aucun rôle donné");
+
+    const owner = guild.map.get(ownerId);
+    owner.guild = guild;
+    const allowed = rankMessage(guild, owner, target, guild.role);
+    await handleRoleMessage(allowed.message, settings);
+    assert.equal(target.has(roleId), true, "l'OWNER peut donner un palier");
+
+    const slash = makeInteraction(guild, { command: "rankall" });
+    await handleRoleInteraction(slash, settings);
+    assert.match(lastPayload(slash).content, /palier/, "attribution générale d'un palier refusée, même à l'OWNER");
+  } finally {
+    forgetTierCache();
+  }
+});
+
+test("sécurité : un ADMIN+ ne peut pas donner un rôle à permission « Déplacer des membres »", async () => {
+  const adminPlus = makeMember("400000000000000030", 40, { roles: ["adm"] });
+  const target = makeMember("400000000000000031", 2);
+  const guild = makeGuild({ rolePermissions: 1n << 24n, members: [adminPlus, target] });
+  adminPlus.guild = guild;
+  const { replies, message } = rankMessage(guild, adminPlus, target, guild.role);
+  await handleRoleMessage(message, { adminPlus: { roleId: "adm" } });
+  assert.match(replies[0].content, /MoveMembers/);
+  assert.equal(target.has(roleId), false);
+});

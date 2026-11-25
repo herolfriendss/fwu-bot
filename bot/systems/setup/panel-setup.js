@@ -11,7 +11,12 @@ import {
   TextInputBuilder,
   TextInputStyle,
 } from "discord.js";
+import { roleGrantRefusal } from "../../role-grant-guard.js";
 import { updateModuleSettings } from "../../module-settings.js";
+
+// Rôles que le bot DONNE à des membres (vérification, rôles automatiques, quarantaine) :
+// jamais de rôle d'accès, de palier ou à permissions sensibles.
+const GRANTED_ROLE_FIELDS = new Set(["roleId", "autoRoleIds", "quarantineRoleId"]);
 import {
   SETUP_MODULES,
   parseSetupModule,
@@ -70,8 +75,9 @@ async function setupCandidateError(interaction, module, candidate, guildId) {
           role.managed ||
           role.id === guildId ||
           role.position >= botMember.roles.highest.position
+          || (GRANTED_ROLE_FIELDS.has(field.key) && await roleGrantRefusal(interaction.guild, role, { automatic: true }))
         ) {
-          return `Le rôle configuré pour « ${field.label} » n’existe plus ou ne peut plus être utilisé.`;
+          return `Le rôle configuré pour « ${field.label} » n’existe plus ou ne peut plus être utilisé (rôle protégé : accès, palier ou permissions sensibles).`;
         }
       } else if (["textChannel", "category", "voiceChannel"].includes(field.kind)) {
         const channel = await interaction.guild.channels.fetch(id).catch(() => null);

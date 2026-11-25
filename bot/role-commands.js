@@ -11,6 +11,7 @@ import { canUseAdminPlusScope, getAdminPlusScope } from "./systems/sysplus/admin
 import { getAdminPlusRoleId } from "./systems/sysplus/role-config.js";
 import { recordSysPlusAudit } from "./systems/sysplus/audit.js";
 import { roleAssignmentDecision } from "./role-policy.js";
+import { assertRoleGrantable } from "./role-grant-guard.js";
 import { systemLogEmbed, sendCentralLog } from "./logs.js";
 import { herBotAvatar, themePanelEmbed } from "./theme.js";
 import { parsePndOwnerId } from "./pnd-owner-policy.js";
@@ -66,6 +67,8 @@ async function applyRole({ guild, actor, targetId, roleId, add, settings }) {
   if (!botMember.permissions.has(P.ManageRoles)) throw new Error("Je dois avoir la permission Gérer les rôles.");
   const denied = hierarchyError(freshActor, target, role, botMember);
   if (denied) throw new Error(denied);
+  // SYS+, ADMIN+, WHITELIST, rôles de palier et rôles à permissions sensibles : OWNER seulement.
+  await assertRoleGrantable(guild, role, { actorId: freshActor.id, settings, removal: !add });
   const hasRole = target.roles.cache.has(role.id);
   if (add && hasRole) return { changed: false, target, role };
   if (!add && !hasRole) return { changed: false, target, role };
@@ -84,7 +87,7 @@ function isPndOwner(userId) {
 const RANKALL_DENIED = "⛔ Commande réservée au propriétaire configuré de FWU.";
 
 /** Shared preview for =rankall and /rankall. Throws user-facing errors; mutates nothing on Discord. */
-async function buildRankAllPreview(guild, actorId, roleId) {
+async function buildRankAllPreview(guild, actorId, roleId, settings = null) {
   const [actor, botMember, role] = await Promise.all([
     guild.members.fetch({ user: actorId, force: true }),
     guild.members.fetchMe({ force: true }),
@@ -94,6 +97,7 @@ async function buildRankAllPreview(guild, actorId, roleId) {
   if (role.managed || role.id === guild.id) throw new Error("Ce rôle est protégé ou géré par une intégration.");
   const dangerous = dangerousRolePermissions(role);
   if (dangerous.length) throw new Error(`Refusé : ce rôle porte des permissions sensibles (${dangerous.join(", ")}). Une attribution générale ne peut concerner qu'un rôle cosmétique ou d'accès.`);
+  await assertRoleGrantable(guild, role, { automatic: true, settings });
   if (!botMember.permissions.has(P.ManageRoles)) throw new Error("Je dois avoir la permission Gérer les rôles.");
   const members = await guild.members.fetch();
   const plan = planRankAll({ members: [...members.values()], role, guild, actor, botMember });
@@ -197,6 +201,7 @@ async function handleRankAllButton(interaction, settings) {
     ]);
     if (!role || role.managed || role.id === interaction.guild.id) throw new Error("Ce rôle est introuvable ou protégé.");
     if (dangerousRolePermissions(role).length) throw new Error("Ce rôle a reçu des permissions sensibles depuis l'aperçu : attribution refusée.");
+    await assertRoleGrantable(interaction.guild, role, { automatic: true, settings });
     if (!botMember.permissions.has(P.ManageRoles)) throw new Error("Permission Gérer les rôles manquante.");
     const members = await interaction.guild.members.fetch();
     const plan = planRankAll({ members: [...members.values()], role, guild: interaction.guild, actor, botMember });
@@ -278,7 +283,7 @@ export async function handleRoleMessage(message, settings = {}) {
       return true;
     }
     try {
-      await message.reply(await buildRankAllPreview(message.guild, message.author.id, role.id));
+      await message.reply(await buildRankAllPreview(message.guild, message.author.id, role.id, settings));
     } catch (error) {
       await message.reply({ content: `❌ ${error instanceof Error ? error.message : "Action impossible."}`, allowedMentions: { parse: [] } });
     }
@@ -311,7 +316,7 @@ export async function handleRoleInteraction(interaction, settings = {}) {
     await interaction.deferReply({ ephemeral: true });
     try {
       const role = interaction.options.getRole("role", true);
-      await interaction.editReply(await buildRankAllPreview(interaction.guild, interaction.user.id, role.id));
+      await interaction.editReply(await buildRankAllPreview(interaction.guild, interaction.user.id, role.id, settings));
     } catch (error) {
       await interaction.editReply({ content: `❌ ${error instanceof Error ? error.message : "Action impossible."}`, components: [] }).catch(() => {});
     }

@@ -39,7 +39,7 @@ test("permission sanitizer strips privileged bits and keeps ordinary ones", () =
   assert.equal(BigInt(result.permissions) & ADMINISTRATOR, 0n);
   assert.equal(BigInt(result.permissions) & MANAGE_GUILD, 0n);
   assert.equal(BigInt(result.permissions) & SEND_MESSAGES, SEND_MESSAGES);
-  assert.deepEqual(result.stripped.sort(), ["ADMINISTRATOR", "MANAGE_GUILD"]);
+  assert.deepEqual(result.stripped.sort(), ["Administrator", "ManageGuild"]);
 });
 
 test("plan is additive: existing roles and channels are referenced, never recreated", () => {
@@ -63,7 +63,7 @@ test("privileged permissions from a foreign blueprint are never planned for crea
   const plan = buildServerClonePlan({ snapshot: snap, guild: liveGuild() });
   assert.equal(plan.roles.length, 1);
   assert.equal(BigInt(plan.roles[0].permissions) & ADMINISTRATOR, 0n);
-  assert.deepEqual(plan.stripped, [{ role: "Staff", bits: ["ADMINISTRATOR", "MANAGE_GUILD"] }]);
+  assert.deepEqual(plan.stripped, [{ role: "Staff", bits: ["Administrator", "ManageGuild"] }]);
 });
 
 test("source @everyone overwrites are remapped to the target guild and existing roles resolve to target ids", () => {

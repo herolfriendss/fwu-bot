@@ -13,6 +13,9 @@ test("custom role names and colors are bounded and safe", () => {
   assert.equal(normalizeCustomRoleColor("#a1b2c3"), "#A1B2C3");
   assert.throws(() => normalizeCustomRoleName("x"), /entre 2 et 32/);
   assert.throws(() => normalizeCustomRoleName("@everyone"), /mentions/);
+  assert.throws(() => normalizeCustomRoleName("Moi 1 %"), /% est réservé/);
+  assert.throws(() => normalizeCustomRoleName("Intouchable 0%"), /% est réservé/);
+  assert.throws(() => normalizeCustomRoleName("Moi 1 ％"), /% est réservé/);
   assert.throws(() => normalizeCustomRoleName("x".repeat(33)), /entre 2 et 32/);
   assert.throws(() => normalizeCustomRoleColor("purple"), /#RRGGBB/);
 });
