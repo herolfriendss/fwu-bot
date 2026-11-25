@@ -393,3 +393,16 @@ pgTest("alerte d'abus du staff : rafale et cible répétée, une seule alerte, s
   const { rows } = await sharedQuery("SELECT count(*)::int AS n FROM config_changes WHERE guild_id = $1 AND entity = 'staff_abuse'", [guildId]);
   assert.equal(rows[0].n, 2);
 });
+
+pgTest("stats du staff : sanctions, commandes et refus de quota regroupés par membre sur la période", async () => {
+  const { loadCentralStaffActivity } = await import("./staff-stats.js");
+  const guildId = "stats-test";
+  await recordSanction({ guildId, targetId: "t1", moderatorId: "m1", action: "warn", reason: "", bot: "fwu" });
+  await recordSanction({ guildId, targetId: "t2", moderatorId: "m1", action: "warn", reason: "", bot: "guard" });
+  await recordSanction({ guildId, targetId: "t2", moderatorId: "m1", action: "kick", reason: "", bot: "fwu", at: new Date(Date.now() - 40 * 86_400_000).toISOString() });
+  await logCommandUsage({ guildId, userId: "m1", bot: "fwu", command: "warn", outcome: "ok" });
+  const data = await loadCentralStaffActivity(guildId, 30);
+  assert.deepEqual(data.sanctions.map((s) => [s.userId, s.action, s.count]), [["m1", "warn", 2]], "la sanction de plus de 30 jours est exclue");
+  assert.equal(data.usage[0].count, 1);
+  assert.deepEqual(data.violations, []);
+});

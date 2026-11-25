@@ -34,6 +34,7 @@ import { buildInstallationReport } from "../../install-check.js";
 import { handleFreezeCommand } from "./freeze-commands.js";
 import { handleAbuseAlertCommand } from "./abuse-alerts.js";
 import { handleMemberCardCommand } from "./member-card.js";
+import { handleStaffStatsCommand } from "./staff-stats.js";
 import { parsePndOwnerId } from "../../pnd-owner-policy.js";
 
 const DIAGNOSTIC_ACTIONS = new Set(["acl", "sante", "santé", "logs-couverture", "matrice", "economie", "économie", "bots", "installation"]);
@@ -464,6 +465,10 @@ export async function handleSysPlusInteraction(interaction, settings, { apiUrl, 
   if (subcommand === "fiche") {
     const ownerOfBot = parsePndOwnerId(process.env.PND_OWNER_DISCORD_ID);
     return handleMemberCardCommand(interaction, { member, roleId, isSysPlus, isOwner: Boolean(ownerOfBot) && interaction.user.id === ownerOfBot });
+  }
+  if (subcommand === "stats") {
+    const ownerOfBot = parsePndOwnerId(process.env.PND_OWNER_DISCORD_ID);
+    return handleStaffStatsCommand(interaction, { member, roleId, isSysPlus, isOwner: Boolean(ownerOfBot) && interaction.user.id === ownerOfBot, settings });
   }
   if (subcommand === "alerte-abus") {
     return handleAbuseAlertCommand(interaction, { bot: process.env.PND_BOT_PROFILE || "fwu", member, roleId, isSysPlus, audit });
