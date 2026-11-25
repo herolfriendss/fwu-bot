@@ -222,13 +222,13 @@ async function handleQuota(interaction, settings, tier, bot) {
     const chosen = interaction.options.getInteger("palier", true);
     const result = await setRoleTier({ guildId: guild.id, roleId: role.id, tier: chosen === -1 ? null : chosen, actorId, bot });
     await auditConfig(guild, settings, actorId, `Palier du rôle ${role.name}`, result.before == null ? null : { palier: result.before }, result.after == null ? null : { palier: result.after });
-    return reply(interaction, chosen === -1 ? `✅ Association retirée pour <@&${role.id}> (le nom du rôle reste utilisé s'il contient un pourcentage).` : `✅ <@&${role.id}> → **${TIER_LABELS[chosen]}**.`);
+    return reply(interaction, chosen === -1 ? `✅ Association retirée pour <@&${role.id}> : ce rôle ne donne plus de palier.` : `✅ <@&${role.id}> → **${TIER_LABELS[chosen]}**.`);
   }
   if (!group && sub === "paliers") {
     const rows = await listRoleTiers(guild.id);
-    const detected = [...(guild.roles?.cache?.values?.() ?? [])]
+    const unmapped = [...(guild.roles?.cache?.values?.() ?? [])]
       .filter((role) => !rows.some((row) => row.roleId === role.id) && /\d\s?%/.test(role.name)).map((role) => `<@&${role.id}>`);
-    return reply(interaction, `🎚️ **Paliers**\n${rows.length ? rows.map((row) => `• <@&${row.roleId}> → ${TIER_LABELS[row.tier]}`).join("\n") : "Aucune association explicite."}${detected.length ? `\nReconnus par leur nom : ${detected.join(", ")}` : ""}\nL'owner (\`PND_OWNER_DISCORD_ID\`) est toujours au palier 0 %.`);
+    return reply(interaction, `🎚️ **Paliers**\n${rows.length ? rows.map((row) => `• <@&${row.roleId}> → ${TIER_LABELS[row.tier]}`).join("\n") : "Aucune association explicite."}${unmapped.length ? `\n⚠️ Sans palier (le nom ne suffit plus, utilise \`/quota palier\`) : ${unmapped.join(", ")}` : ""}\nL'owner (\`PND_OWNER_DISCORD_ID\`) est toujours au palier 0 %.`);
   }
   if (!group && sub === "journal") {
     const rows = await recentConfigChanges(guild.id, 10);

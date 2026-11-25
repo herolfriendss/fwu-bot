@@ -41,7 +41,7 @@
 
 ## 3. Paliers et quotas
 
-- Palier d'un membre : l'owner (`PND_OWNER_DISCORD_ID`) est toujours **0 %** ; sinon le plus fort de ses rôles, d'après `/quota palier` ou, à défaut, le nom du rôle (« 10% », « 10 % Modérateur »…).
+- Palier d'un membre : l'owner (`PND_OWNER_DISCORD_ID`) est toujours **0 %** ; sinon le plus fort de ses rôles associés avec `/quota palier`. **Le nom d'un rôle ne donne jamais de palier** (un SYS+ pourrait se créer un rôle perso « Moi 1 % ») ; le symbole « % » est refusé dans les noms de rôles perso. `/quota paliers` liste les rôles avec « % » encore sans association.
 - 70 %, 80 %, 100 % et membres sans palier : aucune commande de modération.
 - Commandes à quota (tous bots) : `tempmute`, `unmute`, `warn`, `kick`, `ban`, `unban`, `blacklist`, `mv`.
 
@@ -88,7 +88,7 @@ Discord applique un clic droit tout de suite : aucun bot ne peut l'empêcher, SU
 | Déplacé de force | ramené (Anti-Move forcé, même désactivé) |
 | Expulsé, déconnecté | journalisé (impossible à annuler) |
 
-- Protégés : l'owner, les rôles nommés « 0% » / « 0 % » et les rôles associés au palier 0 par `/quota palier`. Le nom « 0% » donne la protection, jamais les pouvoirs de l'owner.
+- Protégés : l'owner et les rôles associés au palier 0 par `/quota palier`. Le nom d'un rôle (« 0% ») ne protège plus : **avant de déployer, associe le rôle 0 % avec `/quota palier`**.
 - Anti-acharnement : 8 annulations par minute et par type, puis alerte « intervention humaine » dans le Logs Hub.
 - Permissions de SUCK ME : Rendre muet, Mettre en sourdine, Exclure temporairement, Bannir, Gérer les pseudos, Gérer les rôles, Déplacer, Voir les logs. Pour un membre 0 % autre que l'owner, le rôle de SUCK ME doit être **au-dessus du rôle 0 %** (lever une exclusion, remettre un pseudo ou un rôle en dépend ; micro, casque et débannissement non).
 - Désactivation : `PND_TIER0_PROTECTION=off` dans `bot/.env`.
@@ -101,7 +101,7 @@ Discord applique un clic droit tout de suite : aucun bot ne peut l'empêcher, SU
 ## 6. Validation sur Discord (serveur et bots de test, jamais les tokens de production)
 
 1. `install-shared-db.sh`, redémarrer FWU, vérifier `shared_db_up` dans le statut du site.
-2. Rôles « 50% », « 10% »… sur des comptes de test ; `/quota paliers`.
+2. Rôles de test associés avec `/quota palier` (50 %, 10 %…) ; `/quota paliers`. Un rôle nommé « 10% » sans association ne donne rien.
 3. `/tempmute` ×3 avec un 50 % : 2 succès, 3e refusé avec délai ; `/sanction` affiche les deux.
 4. `+kick` avec un 50 % depuis GUARD puis `/tempmute` depuis FWU : compteurs indépendants par commande, partagés entre bots (`+kick` ×2 → refus).
 5. `/quota definir tempmute 50 1 10m` : effet immédiat ; `/quota journal` montre avant/après.

@@ -4,7 +4,8 @@
 // Résolution, du plus fort au plus faible :
 //  1. l'owner configuré (PND_OWNER_DISCORD_ID) est toujours au palier 0 ;
 //  2. association explicite rôle → palier en base (commande /quota palier) ;
-//  3. à défaut, un rôle nommé « 10% », « 10 % » ou « 10% Modérateur » est reconnu tout seul.
+//  3. rien d'autre : le NOM d'un rôle ne donne jamais de palier (un SYS+ peut nommer
+//     son rôle perso comme il veut, ce serait une faille de droits).
 // Le membre prend le palier le plus fort (le plus petit) parmi ses rôles.
 import { parsePndOwnerId } from "../pnd-owner-policy.js";
 import { sharedQuery, sharedTransaction } from "./db.js";
@@ -26,16 +27,6 @@ export function isTier(value) {
   return TIERS.includes(Number(value));
 }
 
-/**
- * Palier lu dans le nom d'un rôle, ou null. Le palier 0 (pouvoirs de l'owner)
- * n'est JAMAIS déduit d'un nom : seulement de PND_OWNER_DISCORD_ID ou d'une
- * association explicite faite par l'owner (/quota palier).
- */
-export function tierFromRoleName(name) {
-  const match = /(?:^|[\s|·\-[(])(1|5|10|50|70|80|100)\s?%(?=$|[\s|·\-\])])/u.exec(String(name ?? "").trim());
-  return match ? Number(match[1]) : null;
-}
-
 export function ownerId(env = process.env) {
   return parsePndOwnerId(env.PND_OWNER_DISCORD_ID);
 }
@@ -48,7 +39,8 @@ export function resolveTier({ userId, roles = [], explicit = new Map(), owner = 
   if (owner && userId === owner) return 0;
   let best = null;
   for (const role of roles) {
-    const tier = explicit.has(role.id) ? explicit.get(role.id) : tierFromRoleName(role.name);
+    if (!explicit.has(role.id)) continue;
+    const tier = explicit.get(role.id);
     if (tier == null) continue;
     if (best == null || tier < best) best = tier;
   }
@@ -64,6 +56,11 @@ const CACHE_MS = 30_000;
 
 export function forgetTierCache(guildId = null) {
   if (guildId) cache.delete(guildId); else cache.clear();
+}
+
+/** Tests : associations rôle → palier sans PostgreSQL (valables jusqu'au prochain forgetTierCache). */
+export function setRoleTiersForTests(guildId, entries) {
+  cache.set(guildId, { at: Number.MAX_SAFE_INTEGER / 2, map: new Map(entries) });
 }
 
 /** Explicit role → tier mapping for a guild (cached 30 s; stale cache kept if the DB is down). */
