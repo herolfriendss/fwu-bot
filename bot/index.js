@@ -43,7 +43,7 @@ import { handleGuardianReviewMessage, recordGuardianMessageRisk, pruneGuardianRi
 import { handleVoiceV2Interaction, handleVoiceV2State, forgetGuildTempVoices, forgetTempVoice, reconcileTempVoices } from "./voice-v2.js";
 import { handleGamesInteraction, handleGamesMessage, startGamesScheduler } from "./games.js";
 import { handleTicketChannelDelete, handleTicketsInteraction, handleTicketsMessage } from "./tickets.js";
-import { buildWelcomePayload } from "./welcome.js";
+import { buildWelcomePayload, buildDeparturePayload } from "./welcome.js";
 import { purgeExpiredTranscripts } from "./ticket-records.js";
 import { handleKnowledgeInteraction, handleKnowledgeMessage } from "./pnd-knowledge.js";
 import { handleAutomationInteraction, handleAutomationJoin, handleAutomationMessage, startAutomationScheduler } from "./automation.js";
@@ -496,7 +496,7 @@ const guardWatch = (guild) => guild && serves("guard") && guildAllowed(guild.id,
 client.on("channelDelete", (channel) => { if (guardWatch(channel.guild)) void antiNuke.channelDelete(channel).catch(() => record("antinuke_error")); });
 client.on("roleDelete", (role) => { if (guardWatch(role.guild)) void antiNuke.roleDelete(role).catch(() => record("antinuke_error")); });
 client.on("guildBanAdd", (ban) => { if (guardWatch(ban.guild)) void antiNuke.ban(ban).catch(() => record("antinuke_error")); });
-client.on("guildMemberRemove", (member) => { if (guardWatch(member.guild)) void antiNuke.memberRemove(member).catch(() => record("antinuke_error")); });
+client.on("guildMemberRemove", async (member) => { if (guardWatch(member.guild)) void antiNuke.memberRemove(member).catch(() => record("antinuke_error")); });
 client.on("webhooksUpdate", (channel) => { if (guardWatch(channel.guild)) void antiNuke.webhooksUpdate(channel).catch(() => record("antinuke_error")); });
 
 // A prefix command runs on behalf of its author, like a slash command: the OWNER shield's
@@ -847,7 +847,13 @@ client.on("guildMemberRemove", (member) => {
   if (serves("suckme")) void handleTier0Kick(member, { audit: (guild, title, description, color) => auditLog(guild, settings[guild.id], title, description, color), record }).catch(() => record("tier0_error"));
   if (!serves("fwu")) return;
   recordAnalyticsMetric(member.guild.id, "leaves");
-  auditLog(member.guild, settings[member.guild.id], "🚪 Départ d’un membre", `Membre : <@${member.id}>\nID : \`${member.id}\``, 0xef4444);
+  const guildSettings = settings[member.guild.id];
+  auditLog(member.guild, guildSettings, "🚪 Départ d’un membre", `Membre : <@${member.id}>\nID : \`${member.id}\``, 0xef4444);
+  const departure = buildDeparturePayload(member, guildSettings?.welcome);
+  if (!departure) return;
+  const channel = await member.guild.channels.fetch(departure.channelId).catch(() => null);
+  if (!channel?.isTextBased()) { record("departure_channel_unavailable"); return; }
+  await channel.send(departure.payload).catch(() => record("departure_message_error"));
 });
 
 client.on("guildMemberUpdate", (oldMember, newMember) => {
