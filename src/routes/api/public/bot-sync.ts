@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { BOT_MODULE_SETTINGS_KEYS } from "@/lib/bot-settings";
+import { BOT_MODULE_SETTINGS_KEYS, type BotModuleKey } from "@/lib/bot-settings";
 import { isDiscordSnowflake } from "@/lib/discord-ids";
 
 const json = (body: unknown, status = 200) => Response.json(body, { status, headers: { "Cache-Control": "no-store" } });
@@ -17,7 +17,7 @@ export const Route = createFileRoute("/api/public/bot-sync")({
       POST: async ({ request }) => {
         const { checkBotSecret } = await import("@/lib/bot-settings.server");
         if (!checkBotSecret(request)) return json({ error: "unauthorized" }, 401);
-        let body: { action?: unknown; guildId?: unknown; userId?: unknown; memoryEnabled?: unknown; roleId?: unknown; actorId?: unknown; intelligenceEnabled?: unknown; intelligenceChannelId?: unknown; applicationId?: unknown; name?: unknown; permissions?: unknown; prompt?: unknown; instructions?: unknown; author?: unknown; module?: unknown; settings?: unknown };
+        let body: { action?: unknown; guildId?: unknown; userId?: unknown; memoryEnabled?: unknown; roleId?: unknown; actorId?: unknown; intelligenceEnabled?: unknown; intelligenceChannelId?: unknown; applicationId?: unknown; name?: unknown; permissions?: unknown; prompt?: unknown; instructions?: unknown; author?: unknown; module?: unknown; settings?: unknown; changes?: unknown; expected?: unknown };
         try {
           body = await request.json();
         } catch {
@@ -135,8 +135,16 @@ export const Route = createFileRoute("/api/public/bot-sync")({
           if (!modules.has(module) || !isDiscordSnowflake(guildId)) return json({ error: "invalid module" }, 400);
           if (JSON.stringify(body.settings ?? {}).length > 100_000) return json({ error: "settings too large" }, 413);
           const { readBotSettings, writeBotSettings } = await import("@/lib/bot-settings.server");
-          const { sanitizeSettings } = await import("@/lib/bot-settings");
+          const { sanitizeSettings, applyModuleChanges } = await import("@/lib/bot-settings");
           const current = await readBotSettings(guildId);
+          if (body.changes && typeof body.changes === "object") {
+            // Field-level write: only the changed fields, refused (409) when one of them was
+            // modified elsewhere (dashboard, another /setup) since the bot read it.
+            const { conflicts, next } = applyModuleChanges(current, module as BotModuleKey, body.changes, body.expected);
+            if (conflicts.length) return json({ error: "conflict", conflicts, settings: current }, 409);
+            const saved = await writeBotSettings(guildId, next);
+            return json({ ok: true, settings: saved });
+          }
           const next = sanitizeSettings({ ...current, [module]: body.settings });
           const saved = await writeBotSettings(guildId, next);
           return json({ ok: true, settings: saved });

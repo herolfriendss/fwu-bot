@@ -13,10 +13,11 @@ import pg from "pg";
 
 import { closeSharedDb, initSharedDb, sharedDbAvailable, sharedQuery } from "./db.js";
 import { runSharedMigrations } from "./migrate.js";
-import { consumeQuota, formatDurationFr, formatQuotaRefusal, refundQuota, setQuota, resetQuota, addExemption, removeExemption, addWhitelistedBot, removeWhitelistedBot, listQuotas } from "./quotas.js";
+import { quotaStatusForUser, formatQuotaStatus, consumeQuota, formatDurationFr, formatQuotaRefusal, refundQuota, setQuota, resetQuota, addExemption, removeExemption, addWhitelistedBot, removeWhitelistedBot, listQuotas } from "./quotas.js";
 import { resolveTier, tierFromRoleName, setRoleTier, loadRoleTiers, canUseModeration } from "./tiers.js";
 import { listSanctionTypes, addSanctionType, updateSanctionType, deleteSanctionType, listMemberSanctions, parseDurationToSeconds } from "./sanctions.js";
 import { flushOutbox, logCommandUsage, pendingOutboxEntries, recordSanction, setOutboxPathForTests } from "./audit.js";
+import { SHARED_DB_ALERTS, createSharedDbAlerter, formatSharedDbLine } from "./index.js";
 
 const TEST_URL = process.env.SHARED_DATABASE_URL_TEST;
 const pgTest = TEST_URL ? test : test.skip;
@@ -94,7 +95,7 @@ test("le message de refus indique le temps restant", () => {
 pgTest("les migrations s'appliquent une seule fois", async () => {
   assert.deepEqual(await runSharedMigrations(), []);
   const { rows } = await sharedQuery("SELECT count(*)::int AS n FROM schema_migrations");
-  assert.equal(rows[0].n, 2);
+  assert.equal(rows[0].n, 3);
 });
 
 pgTest("quotas par défaut : Modérateur test = 2 tempmute / 30 min, puis refus avec délai", async () => {
@@ -275,4 +276,64 @@ pgTest("porte de modération : palier lu sur les rôles, refus clair, remboursem
   assert.match((await openModerationGate({ member: member100, command: "warn", bot: "fwu", env: {} })).message, /n'a pas accès/);
   const { rows } = await sharedQuery("SELECT outcome FROM command_usage WHERE guild_id = '200000000000000009' ORDER BY id");
   assert.deepEqual(rows.map((r) => r.outcome), ["error", "ok", "quota", "denied"]);
+});
+
+test("base centrale : alerte après 2 min de coupure seulement, puis « revenue » une fois", () => {
+  const sent = [];
+  const timers = [];
+  const alerter = createSharedDbAlerter({ notify: (k) => sent.push(k), setTimer: (fn) => { timers.push(fn); return timers.length; }, clearTimer: (id) => { timers[id - 1] = null; } });
+  alerter.change(false);
+  alerter.change(false);
+  assert.equal(timers.length, 1, "une seule attente même si plusieurs signaux");
+  alerter.change(true);
+  assert.deepEqual(sent, [], "coupure courte : personne n'est dérangé");
+  alerter.change(false);
+  timers.at(-1)();
+  assert.deepEqual(sent, ["down"]);
+  alerter.change(false);
+  alerter.change(true);
+  alerter.change(true);
+  assert.deepEqual(sent, ["down", "up"]);
+  alerter.notConfigured();
+  assert.deepEqual(sent, ["down", "up", "not_configured"]);
+});
+
+test("base centrale : ligne du diagnostic", () => {
+  assert.match(formatSharedDbLine({ configured: false, available: false }), /non installée.*tempmute/);
+  assert.match(formatSharedDbLine({ configured: true, available: true }), /🟢 Base centrale : joignable/);
+  assert.match(formatSharedDbLine({ configured: true, available: false }, 1_700_000_000_000), /injoignable\*\* depuis <t:1700000000:R>/);
+  assert.match(SHARED_DB_ALERTS.not_configured.description, /install-shared-db\.sh/);
+});
+
+pgTest("purge : usages de plus de 31 jours et commandes de plus de 90 jours, le reste est gardé", async () => {
+  const { purgeOldUsage } = await import("./retention.js");
+  await sharedQuery("DELETE FROM quota_usage WHERE guild_id = 'purge'");
+  await sharedQuery("DELETE FROM command_usage WHERE guild_id = 'purge'");
+  for (const days of [1, 29, 32]) await sharedQuery("INSERT INTO quota_usage(guild_id, user_id, command, bot, used_at) VALUES ('purge', 'u', 'ban', 'fwu', now() - make_interval(days => $1))", [days]);
+  for (const days of [1, 89, 91]) await sharedQuery("INSERT INTO command_usage(guild_id, user_id, bot, command, outcome, created_at) VALUES ('purge', 'u', 'fwu', 'ban', 'ok', now() - make_interval(days => $1))", [days]);
+  const removed = await purgeOldUsage();
+  assert.ok(removed.quota_usage >= 1 && removed.command_usage >= 1);
+  assert.equal(Number((await sharedQuery("SELECT COUNT(*) n FROM quota_usage WHERE guild_id = 'purge'")).rows[0].n), 2);
+  assert.equal(Number((await sharedQuery("SELECT COUNT(*) n FROM command_usage WHERE guild_id = 'purge'")).rows[0].n), 2);
+});
+
+pgTest("/quota moi : restant par commande, délai quand c'est plein, rien n'est consommé", async () => {
+  const guildId = "quota-moi";
+  const user = "300000000000000077";
+  await consumeQuota({ guildId, userId: user, command: "tempmute", tier: 50, bot: "fwu" });
+  await consumeQuota({ guildId, userId: user, command: "tempmute", tier: 50, bot: "fwu" });
+  const status = await quotaStatusForUser({ guildId, userId: user, tier: 50 });
+  const tempmute = status.rows.find((r) => r.command === "tempmute");
+  assert.equal(tempmute.used, 2);
+  assert.equal(tempmute.maxUses, 2);
+  assert.ok(tempmute.retryAfterSeconds > 0 && tempmute.retryAfterSeconds <= 1800);
+  assert.equal(status.rows.find((r) => r.command === "ban").maxUses, 0);
+  const again = await quotaStatusForUser({ guildId, userId: user, tier: 50 });
+  assert.equal(again.rows.find((r) => r.command === "tempmute").used, 2, "lire ne consomme pas");
+  const text = formatQuotaStatus(status, "50 %");
+  assert.match(text, /`tempmute` : ⏳ \*\*0\*\* restant \(2\/2 \/ 30 min\), prochain dans/);
+  assert.match(text, /`ban` : ⛔ non autorisée/);
+  assert.match(text, /`kick` : ✅ \*\*1\*\* restant/);
+  assert.deepEqual(await quotaStatusForUser({ guildId, userId: user, tier: 0 }), { exempt: "owner" });
+  assert.match(formatQuotaStatus(await quotaStatusForUser({ guildId, userId: user, tier: 70 })), /pas de palier de modération/);
 });

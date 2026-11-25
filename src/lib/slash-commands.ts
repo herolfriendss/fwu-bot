@@ -2120,12 +2120,12 @@ export const EXTRA_SLASH_COMMANDS: SlashCommandDef[] = [
   {
     name: "maj",
     description: "OWNER : met à jour FWU et les 4 bots depuis GitHub, sans ordinateur",
-    usage: "/maj lancer · /maj etat",
+    usage: "/maj lancer [version] · /maj etat",
     category: "SYS+",
     dmPermission: false,
     requiresBotProcess: true,
     options: [
-      sub("lancer", "Télécharge la dernière version et met tout à jour (10 à 30 min)"),
+      sub("lancer", "Installe la dernière version publiée, ou une version précise (10 à 30 min)", [opt(3, "version", "Version précise pour revenir en arrière, ex. v1.2.0", { max_length: 20 })]),
       sub("etat", "Avancement et journal de la dernière mise à jour"),
     ],
   },
@@ -2229,11 +2229,12 @@ export const EXTRA_SLASH_COMMANDS: SlashCommandDef[] = [
   {
     name: "quota",
     description: "Owner : quotas de modération partagés entre les 5 bots",
-    usage: "/quota voir · definir · reinitialiser · palier · paliers · exemption … · bot … · journal",
+    usage: "/quota moi · voir · definir · reinitialiser · palier · paliers · exemption … · bot … · journal",
     category: "Modération",
     dmPermission: false,
     requiresBotProcess: true,
     options: [
+      sub("moi", "Ce qu'il te reste pour chaque commande, et quand la suivante se libère"),
       sub("voir", "Affiche les quotas en vigueur (et ton palier)", [
         opt(3, "commande", "Limiter à une commande", { choices: QUOTA_COMMAND_CHOICES }),
       ]),

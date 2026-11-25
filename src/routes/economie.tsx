@@ -1,4 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { SiteNav } from "@/components/SiteNav";
 import { queryOptions, useSuspenseQuery } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { ArrowLeft, Coins, Crown, Gamepad2, RefreshCw, ShoppingBag, Wallet } from "lucide-react";
@@ -16,9 +17,9 @@ const economyQuery = queryOptions({
 export const Route = createFileRoute("/economie")({
   ssr: false,
   head: () => ({ meta: [
-    { title: "Économie PND — 1942" },
+    { title: "Économie PND — FWU" },
     { name: "description", content: "Soldes, classement et boutique PND synchronisés depuis le bot Oracle." },
-    { property: "og:title", content: "Économie PND — 1942" },
+    { property: "og:title", content: "Économie PND — FWU" },
     { property: "og:description", content: "Aperçu privé de l’économie PND du bot Discord." },
     { property: "og:type", content: "website" },
     { name: "twitter:card", content: "summary" },
@@ -67,6 +68,7 @@ function EconomyPage() {
         <RefreshCw className={`h-4 w-4 ${q.isFetching ? "animate-spin" : ""}`} />
       </Button>
     </div></header>
+    <SiteNav />
 
     <main className="console-content mx-auto max-w-6xl space-y-8 p-4 md:p-8">
       {q.isRefetchError && <p role="alert" className="text-destructive">Actualisation impossible : les dernières données reçues sont affichées.</p>}

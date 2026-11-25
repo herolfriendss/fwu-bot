@@ -215,3 +215,61 @@
 @media (prefers-reduced-motion: reduce) {
   .console-shell { background-image: linear-gradient(180deg, rgba(9, 6, 16, .95), rgba(9, 6, 16, .98)); }
 }
+
+/* Save bar of the settings tabs stays reachable at the bottom of long forms. */
+.console-save-bar {
+  position: sticky;
+  bottom: 0;
+  z-index: 5;
+  padding: 12px 0;
+  background: linear-gradient(180deg, transparent, var(--background) 35%);
+}
+
+/* Shared site navigation. */
+.site-nav { background: color-mix(in oklab, var(--sidebar) 88%, transparent); backdrop-filter: blur(18px); position: sticky; top: 0; z-index: 20; }
+.site-nav-link { display: inline-flex; align-items: center; gap: 8px; border-radius: 999px; padding: 6px 12px; font-size: 0.875rem; color: var(--muted-foreground); border: 1px solid transparent; transition: background 200ms ease, color 200ms ease, border-color 200ms ease; }
+.site-nav-link:hover { color: var(--foreground); background: rgba(255, 255, 255, 0.05); }
+.site-nav-link[aria-current="page"] { color: var(--primary); border-color: color-mix(in oklab, var(--primary) 30%, transparent); background: color-mix(in oklab, var(--primary) 12%, transparent); }
+
+/* Liquid glass (from the bot-dashboard theme): translucent panels, bevelled light edge,
+   inner highlight. Violet accent kept as the FWU identity. */
+:root {
+  --glass-bg: rgba(22, 12, 36, 0.55);
+  --glass-border: rgba(255, 255, 255, 0.09);
+  --glass-highlight: rgba(255, 255, 255, 0.16);
+}
+.console-theme-panel,
+.console-glass-tile,
+.dashboard-workspace > section {
+  position: relative;
+  isolation: isolate;
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.07), rgba(255, 255, 255, 0.012) 40%, rgba(255, 255, 255, 0.03)),
+    var(--glass-bg);
+  -webkit-backdrop-filter: blur(22px) saturate(170%);
+  backdrop-filter: blur(22px) saturate(170%);
+  border: 1px solid var(--glass-border);
+  box-shadow:
+    inset 0 1px 0 0 var(--glass-highlight),
+    inset 0 -1px 0 0 rgba(255, 255, 255, 0.03),
+    0 10px 40px -12px rgba(0, 0, 0, 0.65);
+}
+.console-theme-panel::before,
+.console-glass-tile::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1px;
+  background: linear-gradient(140deg, rgba(255, 255, 255, 0.32), rgba(255, 255, 255, 0.04) 30%, transparent 60%, color-mix(in oklab, var(--primary) 40%, transparent));
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  pointer-events: none;
+  z-index: 1;
+}
+.console-glass-tile { border-radius: 0.75rem; }
+.console-theme-panel:hover { border-color: color-mix(in oklab, var(--primary) 35%, var(--glass-border)); }
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .console-theme-panel, .console-glass-tile, .dashboard-workspace > section { background: rgba(18, 10, 30, 0.94); }
+}

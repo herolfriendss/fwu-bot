@@ -1,9 +1,10 @@
 import { createFileRoute, useRouter, Link, type ErrorComponentProps } from "@tanstack/react-router";
+import { SiteNav } from "@/components/SiteNav";
 import { queryOptions, useQuery, useQueryClient, useSuspenseQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useState } from "react";
 import { toast } from "sonner";
-import { Hash, Send, Server, RefreshCw, Bot, LogOut, Settings, Coins } from "lucide-react";
+import { Hash, Send, Server, RefreshCw, Bot, LogOut, Settings, Coins, Activity } from "lucide-react";
 import { getOverview, logout, getChannels, getMessages, sendMessage } from "@/lib/discord.functions";
 import { Button } from "@/components/ui/button";
 
@@ -16,9 +17,9 @@ const overviewQuery = queryOptions({
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "Tableau de bord — 1942" },
-      { name: "description", content: "Suivez vos serveurs, lisez les salons et envoyez des messages avec votre bot Discord 1942." },
-      { property: "og:title", content: "Tableau de bord — 1942" },
+      { title: "Tableau de bord — FWU" },
+      { name: "description", content: "Suivez vos serveurs, lisez les salons et envoyez des messages avec votre bot Discord FWU." },
+      { property: "og:title", content: "Tableau de bord — FWU" },
       { property: "og:description", content: "Serveurs, salons et messages de votre bot Discord en un coup d'œil." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
@@ -101,6 +102,9 @@ function Dashboard() {
             <div className="font-mono text-2xl font-medium text-primary">{data.guilds.length}</div>
             <div className="text-xs uppercase tracking-wider text-muted-foreground">serveurs</div>
           </div>
+          <Button asChild variant="ghost" size="icon"><Link to="/statut" aria-label="Statut des bots" title="Statut des bots">
+            <Activity className="h-5 w-5" />
+          </Link></Button>
           <Button asChild variant="ghost" size="icon"><Link to="/economie" aria-label="Économie PND" title="Économie PND">
             <Coins className="h-5 w-5" />
           </Link></Button>
@@ -112,6 +116,7 @@ function Dashboard() {
           </Button>
         </div>
       </header>
+      <SiteNav />
 
       <main className="dashboard-workspace mx-auto grid max-w-6xl gap-4 p-4 md:grid-cols-[180px_180px_minmax(0,1fr)] md:p-8">
         <section className="min-w-0 border border-border bg-sidebar p-2">
