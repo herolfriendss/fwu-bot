@@ -68,6 +68,7 @@ export const SYSP_LAYOUT: SubcommandLayoutEntry[] = [
   { group: "whitelist", description: "Exemption WHITELIST (propriétaire)", members: ["whitelist-add", "whitelist-remove", "whitelist-list"] },
   { group: "outils", description: "Ghost, composer, recherche, blueprints, clone, studio, packs", members: ["ghost", "composer", "search", "blueprint", "clone", "studio", "pack"] },
   { group: "diagnostic", description: "Audit ACL, santé du bot et couverture des logs (lecture seule)", members: ["acl", "sante", "logs-couverture", "matrice", "economie", "bots", "installation"] },
+  { group: "suivi", description: "Fiche complète d'un membre et activité du staff (lecture seule)", members: ["fiche"] },
   { group: "urgence", description: "Gel d'urgence du staff et alertes d'abus du staff", members: ["gel", "degel", "alerte-abus"] },
   { group: "market", description: "Marketplace d'extensions (désactivé par défaut)", members: ["catalog", "installed", "publish", "withdraw", "submit", "validate", "reject", "install", "uninstall", "rollback"] },
 ];
@@ -522,6 +523,7 @@ export const SLASH_COMMANDS: SlashCommandDef[] = [
         opt(5, "retirer_admin_plus", "Retire aussi le rôle ADMIN+ (rendu au dégel)"),
       ]),
       sub("degel", "Owner : lève le gel du staff tout de suite"),
+      sub("fiche", "Fiche complète d'un membre : arrivée, rôles, sanctions des 5 bots, activité", [opt(6, "membre", "Membre concerné", { required: true })]),
       sub("alerte-abus", "Alertes MP aux SYS+ si un membre du staff sanctionne en rafale ou s'acharne (owner pour modifier)", [
         opt(5, "active", "Active ou coupe les alertes"),
         opt(4, "rafale", "Nombre de sanctions qui déclenche l'alerte rafale (2 à 100)", { min_value: 2, max_value: 100 }),
