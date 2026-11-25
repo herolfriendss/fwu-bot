@@ -108,6 +108,19 @@ L'API interne `bot-sync` analysait directement le corps JSON sans limite explici
 - L'OAuth du dashboard utilise un état à usage unique, PKCE, session HTTP-only et vérification du propriétaire configuré.
 - Le catalogue de permissions des applications est spécifique à chaque profil et ne demande pas la permission globale Administrator.
 
+## Extension demandée — permissions et hiérarchie des six bots
+
+Le catalogue de permissions a été élargi : les six applications demandent désormais le même socle opérationnel Discord, couvrant la modération, la gestion des rôles et salons, les journaux d'audit, les messages, les fils, les événements, les webhooks et les fonctions vocales.
+
+**La permission `Administrator` reste volontairement exclue.** Elle contournerait les restrictions de salons et supprimerait une partie des barrières de sécurité recherchées. Les permissions puissantes restent donc explicites et vérifiables.
+
+Le diagnostic d'installation vérifie désormais pour chacun des six bots :
+- que son rôle est strictement sous le rôle le plus élevé de l'OWNER PND ;
+- que son rôle est au-dessus des rôles humains qu'il doit pouvoir administrer ;
+- que les rôles gérés par les intégrations ne sont pas pris pour des rôles humains à déplacer.
+
+Cela ne déplace pas automatiquement les rôles Discord et ne modifie pas les invitations OAuth : le propriétaire du serveur doit accorder les permissions lors de l'installation, puis placer les rôles dans le bon ordre. Le diagnostic `/sysp` signale les écarts.
+
 ## Points restant à vérifier avant toute mise en production
 
 Ces points ne sont pas présentés comme des vulnérabilités confirmées : ils nécessitent des accès/configurations ou des essais en environnement réel.
