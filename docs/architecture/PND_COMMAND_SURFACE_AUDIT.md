@@ -1,7 +1,7 @@
 # Audit du catalogue slash FWU
 
 - Applications Discord : **6**.
-- Définitions racine : **145** commandes uniques.
+- Définitions racine : **131** commandes uniques.
 - Commandes communes à chaque application : **/aide, /status**.
 - Doublons de définition : **0**.
 - Commandes attribuées à plusieurs bots : **0**.
@@ -13,7 +13,7 @@
 |---|---:|---:|---:|---:|
 | FWU | 10 | 2 | 12/100 | OK |
 | GUARD | 15 | 2 | 17/100 | OK |
-| FDPDLAVOC | 23 | 2 | 25/100 | OK |
+| FDPDLAVOC | 9 | 2 | 11/100 | OK |
 | SUCK ME | 61 | 2 | 63/100 | OK |
 | LE FISC | 32 | 2 | 34/100 | OK |
 | Invest + | 2 | 2 | 4/100 | OK |
@@ -55,21 +55,7 @@
 - /unaccess
 - /pv
 - /voc
-- /play
-- /pause
-- /resume
-- /skip
-- /stop
-- /queue
-- /nowplaying
-- /volume
-- /loop
-- /shuffle
-- /clearqueue
-- /remove
-- /join
-- /leave
-- /musicpanel
+- /music
 - /radio
 - /effet
 - /playlist

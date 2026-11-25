@@ -36,7 +36,11 @@ export const {
 } = profilesModule;
 
 /** Commands replaced by another one: removed from every application. */
-export const RETIRED_SLASH_COMMANDS = Object.freeze(["mute", "vocal-panel"]);
+export const RETIRED_SLASH_COMMANDS = Object.freeze([
+  "mute", "vocal-panel",
+  "play", "pause", "resume", "skip", "stop", "queue", "nowplaying", "volume", "loop",
+  "shuffle", "clearqueue", "remove", "join", "leave", "musicpanel",
+]);
 
 const LOCAL_BOTS_CONFIG = fileURLToPath(new URL("./config/bots.json", import.meta.url));
 

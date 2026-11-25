@@ -35,6 +35,19 @@ Le problème produit n'est donc pas un dépassement de quota : c'est la dispersi
 - Les commandes destructives et les actions d'administration conservent leurs autorisations actuelles et leurs confirmations.
 - Les six profils restent séparés : aucune commande GUARD ne devient une commande SUCK ME, et Invest + reste facultative.
 
-## Priorité
+## Migration 1 — musique FDPDLAVOC
 
-La première migration concrète doit être une famille à forte densité mais faible couplage, après cartographie des handlers. La famille musique (FDPDLAVOC) et la famille économie (LE FISC) sont candidates ; la consolidation SUCK ME sera découpée en plusieurs lots pour limiter le risque.
+- État : **implémentée sur la branche de développement**, à valider par CI.
+- Les 15 commandes racines du lecteur sont regroupées sous `/music player` : play, pause, resume, skip, stop, queue, nowplaying, volume, loop, shuffle, clearqueue, remove, join, leave et panel.
+- Les anciens noms préfixés restent disponibles et continuent d'appeler les mêmes fonctions métier.
+- Les anciens noms slash sont marqués comme retirés pour éviter qu'ils restent enregistrés sur l'application après une future mise en production.
+- `/radio`, `/effet`, `/playlist` et `/dj` restent séparés pour cette première migration afin de préserver leurs parcours spécialisés.
+- Le catalogue passe de 145 à 131 racines uniques ; FDPDLAVOC passe de 25 à 11 commandes racines communes comprises.
+
+## Architecture de propriété
+
+Le runtime actuel utilise une table globale nom de commande → application. Les futures racines consolidées doivent donc rester uniques entre applications, même si leurs sous-commandes peuvent porter des noms identiques. Toute évolution de ce modèle devra être accompagnée d'une migration de l'audit et des tests de propriété.
+
+## Priorité suivante
+
+Après validation de cette première migration, poursuivre avec les familles vocales FDPDLAVOC, économie LE FISC, puis les groupes de rôles, staff, communauté et événements de SUCK ME. La consolidation reste progressive pour éviter de modifier trop de handlers dans un même lot.

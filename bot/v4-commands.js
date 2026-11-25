@@ -60,8 +60,16 @@ const userPlan = (content, user, extra = {}) => ({
   mentions: { ...emptyMentions(), users: user ? [user] : [], members: user ? [user] : [] },
 });
 
+export function resolveLegacyCommandName(interaction) {
+  if (interaction.commandName !== "music") return interaction.commandName;
+  const group = interaction.options?.getSubcommandGroup?.(false);
+  if (group !== "player") return interaction.commandName;
+  const subcommand = interaction.options.getSubcommand(false);
+  return subcommand === "panel" ? "musicpanel" : subcommand;
+}
+
 function buildPlan(interaction) {
-  const name = interaction.commandName;
+  const name = resolveLegacyCommandName(interaction);
   const options = interaction.options;
   const mentions = emptyMentions();
   const rolePlan = (content, role, extra = {}) => ({ ...extra, content, mentions: { ...emptyMentions(), roles: [role] } });
