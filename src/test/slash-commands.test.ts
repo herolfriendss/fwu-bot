@@ -61,10 +61,11 @@ describe("V4 slash commands", () => {
       "play", "pause", "resume", "skip", "stop", "queue", "nowplaying", "volume",
       "loop", "shuffle", "clearqueue", "remove", "join", "leave", "panel",
     ]);
-    expect(SLASH_COMMANDS.map((command) => command.name)).not.toEqual(expect.arrayContaining([
+    const names = SLASH_COMMANDS.map((command) => command.name);
+    for (const retired of [
       "play", "pause", "resume", "skip", "stop", "queue", "nowplaying", "volume", "loop",
       "shuffle", "clearqueue", "remove", "join", "leave", "musicpanel",
-    ]));
+    ]) expect(names).not.toContain(retired);
   });
 
   it("uses /wouaf as the public WOUAF command name", () => {
