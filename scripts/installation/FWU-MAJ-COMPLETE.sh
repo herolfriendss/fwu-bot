@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # FWU — mise à jour complète depuis ton ordinateur (Chromebook/Linux/Mac) :
-# FWU + le site, puis GUARD, FDPDLAVOC, SUCK ME et LE FISC.
+# FWU + le site, puis GUARD, FDPDLAVOC, SUCK ME, LE FISC et Invest + (facultatif).
 #
 #   1. Télécharge le zip GitHub du projet (bouton Code -> Download ZIP) dans tes fichiers Linux.
 #   2. Dézippe-le, puis :   bash <dossier>/scripts/installation/FWU-MAJ-COMPLETE.sh opc@ADRESSE_DU_VPS
@@ -39,7 +39,7 @@ ssh "$TARGET" "mkdir -p /home/opc/FWU-installation"
 scp "$WORK/FWU-maj.zip" "$REPO/scripts/update-1942.sh" "$TARGET:/home/opc/FWU-installation/"
 ssh -t "$TARGET" "NODE_OPTIONS=--max-old-space-size=2048 PND_SUPABASE_MIGRATIONS_APPLIED=YES bash /home/opc/FWU-installation/update-1942.sh /home/opc/FWU-installation/FWU-maj.zip"
 
-echo "==> 3/3 Mise à jour des 4 bots"
+echo "==> 3/3 Mise à jour des bots spécialisés (Invest + facultatif)"
 BOTS_OK=1
 bash "$WORK/bots/METTRE-A-JOUR-BOTS.sh" "$TARGET" || BOTS_OK=0
 
