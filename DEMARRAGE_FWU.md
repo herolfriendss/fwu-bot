@@ -114,6 +114,37 @@ Il installe, démarre, vérifie que le bot tient, puis synchronise FWU.
 - `/sysp diagnostic bots` : les 5 bots doivent être 🟢.
 - Les commandes slash peuvent mettre jusqu'à 1 h à apparaître partout.
 
+## Les nouvelles commandes
+
+**Pour tout le monde**
+
+| Commande | Ce qu'elle fait |
+| --- | --- |
+| `/moi` | Ton profil complet en image : niveau, argent, casino, confiance, casier. Marche même si les autres bots sont éteints. |
+| `/fwu` | Les cinq bots, ce que chacun fait, et lesquels répondent en ce moment. |
+| `/quete` | Tes trois quêtes du jour et leurs récompenses. Bonus si tu fais les trois. |
+| `/clan` | Fonder ou rejoindre un clan : coffre commun, rangs, classement. |
+| `/saison` | La saison en cours et le palmarès des saisons passées. |
+| `/confession` | Message anonyme, avec image ou note vocale si tu veux. |
+| `/avantage` | Dépenser tes PND : boost d'XP, couleur de pseudo, droit DJ, protection anti-vol. |
+| `/casino` | Blackjack, roulette, machine à sous, mines, crash, plinko, jackpot, rang VIP. |
+
+**Pour toi et le staff**
+
+| Commande | Ce qu'elle fait |
+| --- | --- |
+| `/bouclier piege` | Crée un salon piège : les robots de spam qui y écrivent sont sanctionnés tout seuls. Le staff ne risque rien. |
+| `/bouclier sauvegarder` | Enregistre la structure du serveur. `/bouclier restaurer` recrée ce qui manque après un nuke, sans jamais rien supprimer. |
+| `/bouclier verrouiller` | Ferme tous les salons d'un coup, et `/bouclier deverrouiller` rouvre exactement ceux-là. |
+| `/saison demarrer` | Lance une saison. À la clôture, les podiums sont inscrits au palmarès pour toujours. |
+| `/confession config` | Choisis le salon public et le salon privé où le staff voit les auteurs. |
+
+**À savoir**
+
+- Les cinq bots partagent désormais la même mémoire. Un avertissement de GUARD gèle le casino, un passage de niveau rapporte des PND, une sanction se lève partout en même temps.
+- Chaque membre a un **score de confiance** de 0 à 100 qui décide de ses plafonds de mise et de ses accès. Un compte tout neuf est bridé, et remonte en participant.
+- Pour que les confessions fonctionnent, il faut configurer les deux salons avec `/confession config`.
+
 ## Si un bot pose problème
 
 ```bash
