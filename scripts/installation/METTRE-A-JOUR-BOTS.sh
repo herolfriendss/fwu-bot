@@ -22,8 +22,7 @@ for z in GUARD FDPDLAVOC SUCK-ME LE-FISC INVEST-PLUS; do unzip -oq "/home/opc/FW
 status=0
 for b in guard fdpdlavoc suckme fisc investplus; do
   printf "\n\033[1m▶ %s\033[0m\n" "$b"
-  bash "/home/opc/fwu-bots/fwu-$b/installer.sh" </dev/null
-  rc=$?
+  if bash "/home/opc/fwu-bots/fwu-$b/installer.sh" </dev/null; then rc=0; else rc=$?; fi
   # Invest + est facultatif : sans token il est simplement passé (code 2).
   if [ "$b" = investplus ] && [ "$rc" -eq 2 ]; then echo "Invest + passé (pas de token) : bash /home/opc/fwu-bots/fwu-investplus/installer.sh pour l ajouter."
   elif [ "$rc" -ne 0 ]; then status=1; fi
