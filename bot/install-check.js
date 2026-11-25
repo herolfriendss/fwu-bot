@@ -82,9 +82,9 @@ function botUserIds() {
 /** Ensure the application running the diagnostic is identified under its own profile, not always FWU. */
 export function resolveInstallationBotIds(savedIds, currentProfile, currentBotId) {
   const ids = { ...(savedIds ?? {}) };
-  if (BOT_PROFILE_IDS.includes(currentProfile) && /^\\d{17,20}$/.test(String(currentBotId ?? ""))) {\n    ids[currentProfile] = String(currentBotId);\n  }
-  return ids;
-}
+  if (BOT_PROFILE_IDS.includes(currentProfile) && /^\d{17,20}$/.test(String(currentBotId ?? ""))) {
+    ids[currentProfile] = String(currentBotId);
+  }
 
 /** Collecte sur Discord puis formate. `extraLines` : base centrale, sauvegarde… */
 export async function buildInstallationReport(guild, {
