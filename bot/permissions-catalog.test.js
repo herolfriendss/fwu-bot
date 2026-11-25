@@ -26,7 +26,7 @@ test("the permission catalogue covers every FWU application, including optional 
   }
 });
 
-test("permissions follow the six application responsibilities, not a shared global list", () => {
+test("all six applications share the same broad operational permission catalogue", () => {
   assert.ok(requiredPermissionsForProfile("fwu").includes("ModerateMembers"));
   assert.ok(requiredPermissionsForProfile("guard").includes("BanMembers"));
   assert.ok(requiredPermissionsForProfile("fdpdlavoc").includes("Connect"));
@@ -35,8 +35,11 @@ test("permissions follow the six application responsibilities, not a shared glob
   assert.ok(requiredPermissionsForProfile("fisc").includes("SendMessages"));
   assert.ok(requiredPermissionsForProfile("investplus").includes("ManageChannels"));
   assert.ok(requiredPermissionsForProfile("investplus").includes("ManageRoles"));
-  assert.equal(requiredPermissionsForProfile("fisc").includes("MoveMembers"), false);
-  assert.equal(requiredPermissionsForProfile("fwu").includes("ManageWebhooks"), false);
+  const catalogues = EXPECTED_PROFILES.map((profile) => requiredPermissionsForProfile(profile));
+  assert.ok(catalogues.every((permissions) => JSON.stringify(permissions) === JSON.stringify(catalogues[0])));
+  assert.ok(requiredPermissionsForProfile("fisc").includes("MoveMembers"));
+  assert.ok(requiredPermissionsForProfile("fwu").includes("ManageWebhooks"));
+  assert.ok(EXPECTED_PROFILES.every((profile) => !requiredPermissionsForProfile(profile).includes("Administrator")));
 });
 
 test("a permission critical to one bot is not automatically critical to another", () => {
