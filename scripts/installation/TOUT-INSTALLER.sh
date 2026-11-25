@@ -7,7 +7,7 @@
 # 2. crée le dossier de données partagé (une seule fois, sans risque si relancé) ;
 # 3. installe la base centrale PostgreSQL (quotas partagés, sanctions, journaux),
 #    le fichier des préfixes, et te propose la clé IA du règlement (facultative) ;
-# 4. installe GUARD, FDPDLAVOC, SUCK ME et LE FISC : chacun te demande son token
+# 4. installe GUARD, FDPDLAVOC, SUCK ME, LE FISC et Invest + : chacun te demande son token
 #    (saisie masquée, Entrée seule = passer ce bot) ;
 # 5. affiche l'état final.
 # Relançable sans risque : ce qui est déjà fait est conservé. Aucun token n'est affiché.
@@ -22,16 +22,16 @@ ask() { local reply; read -rp "$1 [O/n] " reply || reply=""; [[ ! "$reply" =~ ^[
 
 FWU_ZIP="$(ls -1t "$HERE"/FWU_[0-9]*.zip 2>/dev/null | head -n 1)"
 [[ -n "$FWU_ZIP" ]] || fail "FWU_<date>.zip introuvable à côté de ce script ($HERE)."
-for z in GUARD FDPDLAVOC SUCK-ME LE-FISC; do [[ -f "$HERE/FWU-$z.zip" ]] || fail "FWU-$z.zip introuvable dans $HERE."; done
+for z in GUARD FDPDLAVOC SUCK-ME LE-FISC INVEST-PLUS; do [[ -f "$HERE/FWU-$z.zip" ]] || fail "FWU-$z.zip introuvable dans $HERE."; done
 [[ -t 0 ]] || fail "Lance ce script dans un terminal (ssh -t), il doit pouvoir te demander les tokens."
 command -v python3 >/dev/null || fail "python3 introuvable."
 command -v unzip >/dev/null || fail "unzip introuvable : sudo dnf install -y unzip"
 
 cat <<MSG
 
-FWU — installation des 5 bots sur ce VPS.
+FWU — installation des 6 bots sur ce VPS.
 Avant de continuer, dans le portail développeur Discord (discord.com/developers/applications),
-pour GUARD, FDPDLAVOC, SUCK ME et LE FISC :
+pour GUARD, FDPDLAVOC, SUCK ME, LE FISC et Invest + :
   • onglet Bot : active « Server Members Intent » et « Message Content Intent » ;
   • le bot est invité sur ton serveur ;
   • garde la page ouverte : tu copieras le token (Reset Token → Copy) quand il sera demandé.
@@ -57,10 +57,10 @@ step "3/5 — Base centrale, préfixes et clé IA"
 # Base PostgreSQL locale (mot de passe généré sur le VPS, jamais affiché). Relançable : ne refait rien si déjà prête.
 sudo bash "$ROOT/deploy/oracle/install-shared-db.sh" "$ROOT/bot/.env" \
   || fail "Installation de la base centrale impossible (voir le message ci-dessus). FWU est à jour et fonctionne ; relance ce script après correction."
-# Préfixes : un seul fichier pour les 5 bots, jamais écrasé ensuite.
+# Préfixes : un seul fichier pour les 6 bots, jamais écrasé ensuite.
 if [[ ! -f "$SHARED_DIR/bots.json" ]]; then
   install -m 600 "$ROOT/bot/config/bots.example.json" "$SHARED_DIR/bots.json"
-  printf 'Préfixes : GUARD +, FDPDLAVOC ;, SUCK ME =, LE FISC -  (modifiables dans %s/bots.json)\n' "$SHARED_DIR"
+  printf 'Préfixes : GUARD +, FDPDLAVOC ;, SUCK ME =, LE FISC -, Invest + $  (modifiables dans %s/bots.json)\n' "$SHARED_DIR"
 else
   printf 'Préfixes : fichier existant conservé (%s/bots.json).\n' "$SHARED_DIR"
 fi
@@ -83,11 +83,11 @@ fi
 pm2 restart her-v5-bot --update-env >/dev/null || fail "Redémarrage de FWU impossible."
 printf 'FWU redémarré avec la base centrale.\n'
 
-step "4/5 — Installation des 4 bots (ils reçoivent la base centrale de FWU)"
+step "4/5 — Installation des 5 bots (ils reçoivent la base centrale de FWU)"
 mkdir -p "$BOTS_DIR"
-for z in GUARD FDPDLAVOC SUCK-ME LE-FISC; do unzip -oq "$HERE/FWU-$z.zip" -d "$BOTS_DIR" || fail "Décompression de FWU-$z.zip impossible."; done
+for z in GUARD FDPDLAVOC SUCK-ME LE-FISC INVEST-PLUS; do unzip -oq "$HERE/FWU-$z.zip" -d "$BOTS_DIR" || fail "Décompression de FWU-$z.zip impossible."; done
 declare -A RESULT
-for bot in guard fdpdlavoc suckme fisc; do
+for bot in guard fdpdlavoc suckme fisc investplus; do
   printf '\n\033[1m▶ %s\033[0m\n' "$bot"
   bash "$BOTS_DIR/fwu-$bot/installer.sh"
   case $? in
@@ -99,7 +99,7 @@ done
 
 step "5/5 — Résultat"
 printf 'FWU        : 🟢 (her-v5-bot / her-v5-web)\n'
-for bot in guard fdpdlavoc suckme fisc; do printf '%-10s : %s\n' "$bot" "${RESULT[$bot]}"; done
+for bot in guard fdpdlavoc suckme fisc investplus; do printf '%-10s : %s\n' "$bot" "${RESULT[$bot]}"; done
 cat <<MSG
 
 Dernières étapes, dans Discord :
@@ -107,7 +107,7 @@ Dernières étapes, dans Discord :
   • SUCK ME a besoin de : Rendre muet, Mettre en sourdine, Exclure temporairement, Bannir (rôle 0 % intouchable).
   • Rôles de staff nommés « 1% », « 5% », « 10% », « 50% » : reconnus tout seuls (sinon /quota palier).
   • /quota voir : quotas en vigueur · /sysp diagnostic bots : chaque bot installé doit être 🟢.
-  • Préfixes : GUARD +ban · FDPDLAVOC ;mv · SUCK ME =afk · LE FISC -dice · FWU en commandes slash.
+  • Préfixes : GUARD +ban · FDPDLAVOC ;mv · SUCK ME =afk · LE FISC -dice · Invest + $abo · FWU en commandes slash.
   • Les commandes slash peuvent mettre jusqu'à 1 h à apparaître partout.
 Arrêt d'urgence d'un bot : pm2 stop fwu-<bot>  (FWU reprend ses événements ; ses commandes attendent son retour).
 MSG
