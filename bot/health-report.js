@@ -123,7 +123,7 @@ export function evaluateHealth(snapshot, now = Date.now()) {
         : "Aucune.",
     );
 
-  if ((snapshot.rankallRunning ?? 0) > 0)
+  if (snapshot.profile === "suckme" && (snapshot.rankallRunning ?? 0) > 0)
     add(
       "Rankall",
       "info",
@@ -200,17 +200,24 @@ export function formatHealthReport(snapshot, evaluation) {
     degraded: "🟠 **Santé : dégradée**",
     critical: "🔴 **Santé : critique**",
   }[evaluation.status];
+  const profile = snapshot.profile ?? "fwu";
   const uptime = snapshot.uptimeMs
     ? `${Math.floor(snapshot.uptimeMs / 3_600_000)} h ${Math.floor((snapshot.uptimeMs % 3_600_000) / 60_000)} min`
     : "inconnue";
+  const persistent = profile === "suckme"
+    ? `État SUCK ME : ${snapshot.rankallRunning ?? 0} rankall en cours · ${snapshot.menottes ?? 0} menotte(s) · ${snapshot.antiMoveProtected ?? 0} membre(s) protégé(s) Anti-Move.`
+    : profile === "fdpdlavoc"
+      ? `État FDPDLAVOC : ${snapshot.pvLocks ?? 0} salon(s) vocal(aux) privatisé(s).`
+      : null;
   return [
     header,
+    `Application : ${profile}`,
     `Disponibilité : ${uptime}`,
     ...evaluation.checks.map(
-      (c) => `${icon[c.severity]} **${c.name}** — ${c.detail}`,
+      (check) => `${icon[check.severity]} **${check.name}** — ${check.detail}`,
     ),
-    `État persistant : ${snapshot.pvLocks ?? 0} salon(s) privatisé(s) · ${snapshot.menottes ?? 0} menotte(s) · ${snapshot.antiMoveProtected ?? 0} membre(s) protégé(s) Anti-Move.`,
-  ].join("\n");
+    ...(persistent ? [persistent] : []),
+  ].join("\\n");
 }
 
 export function buildHealthReport(client, guild, now = Date.now(), profile = "fwu") {
