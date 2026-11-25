@@ -104,9 +104,12 @@ import { STAFF_ONLY_MESSAGE, isServerStaff } from "./server-staff.js";
 import { installOwnerShield, runAsActor } from "./owner-shield.js";
 import { assertOwnerConfig } from "./owner-config.js";
 import { db } from "./database.js";
+import { installDiscordCompat } from "./discord-compat.js";
 import { clearConnectedMarker, clearGatewayFailures, createGatewayWatchdog, recordGatewayFailure, writeConnectedMarker } from "./gateway-watchdog.js";
 import { LOGS_HUB_GUILD_ID, ACTIVE_SOURCE_GUILD_IDS, allowedRuntimeGuild, filterInactiveSourceGuilds, isLogsHub, provisionLogsHub } from "./logs-hub.js";
 
+// ephemeral/fetchReply options (≈440 call sites) converted once, before any interaction.
+installDiscordCompat();
 const { SITE_URL, BOT_SYNC_SECRET } = process.env;
 // FWU multi-bot: PND_BOT_PROFILE selects the application (fwu by default, the
 // historical one). See src/lib/bot-profiles.ts and bot-runtime.js.

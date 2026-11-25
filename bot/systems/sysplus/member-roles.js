@@ -107,7 +107,7 @@ export async function createMemberRole({ guild, actor, botMember, target, name, 
   if (countRows.get(guild.id).n >= MEMBER_ROLE_LIMIT) throw new Error(`Limite atteinte : ${MEMBER_ROLE_LIMIT} rôles perso sur ce serveur.`);
   const role = await guild.roles.create({
     name: normalizeCustomRoleName(name),
-    color: Number.parseInt(normalizeCustomRoleColor(color).slice(1), 16),
+    colors: { primaryColor: Number.parseInt(normalizeCustomRoleColor(color).slice(1), 16) },
     permissions: [],
     hoist: false,
     mentionable: false,
@@ -128,7 +128,7 @@ export async function createMemberRole({ guild, actor, botMember, target, name, 
 export async function editMemberRole({ guild, actor, target, action, name, color }) {
   const role = await currentRole(guild, target.id);
   if (!role) throw new Error("Ce membre n'a pas de rôle perso.");
-  const changes = action === "rename" ? { name: normalizeCustomRoleName(name) } : { color: Number.parseInt(normalizeCustomRoleColor(color).slice(1), 16) };
+  const changes = action === "rename" ? { name: normalizeCustomRoleName(name) } : { colors: { primaryColor: Number.parseInt(normalizeCustomRoleColor(color).slice(1), 16) } };
   await role.edit(changes, `Rôle perso de ${target.id} modifié par ${actor.id}`);
   touchRow.run(Date.now(), guild.id, target.id);
   recordSysPlusAudit(guild.id, actor.id, `sysplus.member_role.${action}`, target.id, { roleId: role.id });

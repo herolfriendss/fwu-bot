@@ -123,7 +123,7 @@ async function restore(guild, items, reason) {
         });
         restored += 1;
       } else if (item.kind === "role") {
-        await guild.roles.create({ name: item.name, color: item.color, hoist: item.hoist, mentionable: item.mentionable, permissions: BigInt(item.permissions), reason });
+        await guild.roles.create({ name: item.name, colors: { primaryColor: item.color }, hoist: item.hoist, mentionable: item.mentionable, permissions: BigInt(item.permissions), reason });
         restored += 1;
       } else if (item.kind === "ban") {
         await guild.bans.remove(item.userId, reason);

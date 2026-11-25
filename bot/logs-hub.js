@@ -205,7 +205,7 @@ export async function provisionLogsHub(guild, record = () => {}) {
     if (!role)
       role = await guild.roles.create({
         name: spec.name,
-        color: spec.color,
+        colors: { primaryColor: spec.color },
         permissions: [],
         hoist: true,
         mentionable: false,

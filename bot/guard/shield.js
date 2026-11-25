@@ -173,7 +173,7 @@ export async function applyRestore(guild, plan, { reason = "GUARD : restauration
 
   for (const role of [...plan.missingRoles].reverse()) {
     const made = await guild.roles.create({
-      name: role.name, color: role.color, hoist: role.hoist, mentionable: role.mentionable,
+      name: role.name, colors: { primaryColor: role.color }, hoist: role.hoist, mentionable: role.mentionable,
       permissions: BigInt(role.permissions), reason,
     }).catch(() => null);
     if (made) {
