@@ -170,6 +170,11 @@ describe("bot wiring", () => {
       // bot/index.js but not in the catalog (the 100 root-command limit is reached), so they
       // cannot be invoked via slash. Kept for now; removal/folding is an owner decision.
       "vocal-panel", "salut", "info-serveur",
+      // Retired top-level commands remain in internal dispatch code for stale
+      // registrations/compatibility, but are no longer published by the catalogue.
+      "access", "unaccess", "pv",
+      "play", "pause", "resume", "skip", "stop", "queue", "nowplaying", "volume", "loop",
+      "shuffle", "clearqueue", "remove", "join", "leave", "musicpanel",
     ]);
     expect([...handled].filter((name) => !registered.includes(name) && !LEGACY_ALIASES.has(name))).toEqual([]);
   });
