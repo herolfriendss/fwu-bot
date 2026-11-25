@@ -121,7 +121,7 @@ import { installOwnerShield, runAsActor } from "./owner-shield.js";
 import { assertOwnerConfig } from "./owner-config.js";
 import { db } from "./database.js";
 import { clearConnectedMarker, clearGatewayFailures, createGatewayWatchdog, recordGatewayFailure, writeConnectedMarker } from "./gateway-watchdog.js";
-import { LOGS_HUB_GUILD_ID, ACTIVE_SOURCE_GUILD_IDS, allowedRuntimeGuild, filterInactiveSourceGuilds, isLogsHub, provisionLogsHub } from "./logs-hub.js";
+import { LOGS_HUB_GUILD_ID, ACTIVE_SOURCE_GUILD_IDS, allowedRuntimeGuild, filterInactiveSourceGuilds, isLogsHub, inspectLogsHub } from "./logs-hub.js";
 
 const { SITE_URL, BOT_SYNC_SECRET } = process.env;
 // FWU multi-bot: PND_BOT_PROFILE selects the application (fwu by default, the
@@ -1139,8 +1139,11 @@ client.once("clientReady", () => {
   } catch {
     record("voice_sessions_reconcile_error");
   }
-  const logsGuild = client.guilds.cache.get(LOGS_HUB_GUILD_ID);
-  if (logsGuild && IS_FWU) void provisionLogsHub(logsGuild, record).catch(() => record("logs_hub_provision_error"));
+  if (IS_FWU) {
+    const logsGuild = client.guilds.cache.get(LOGS_HUB_GUILD_ID);
+    const report = logsGuild ? inspectLogsHub(logsGuild) : { ready: false };
+    record(report.ready ? "logs_hub_verified" : "logs_hub_incomplete");
+  }
   if (serves("fdpdlavoc")) void reconcileTempVoices(client, record, settings).catch(() => record("temp_voice_reconcile_error"));
   startOrganizationMaintenance(client, ALLOWED_GUILDS.filter((guildId) => !isLogsHub(guildId)), record, () => serves("fwu"));
   startInvestmentMaintenance(client, ALLOWED_GUILDS.filter((guildId) => !isLogsHub(guildId)), record, () => serves("fisc"));

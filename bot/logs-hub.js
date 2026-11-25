@@ -184,108 +184,37 @@ export function hasIsolatedLogPermissions(category, source) {
   );
 }
 
-export async function provisionLogsHub(guild, record = () => {}) {
+/**
+ * Read-only verification of the dedicated log server.
+ * This function deliberately never creates, edits, moves or deletes channels,
+ * categories, roles or permission overwrites.
+ */
+export function inspectLogsHub(guild) {
   if (!guild || guild.id !== LOGS_HUB_GUILD_ID)
     throw new Error("Serveur central de logs incorrect.");
-  const me = guild.members.me ?? (await guild.members.fetchMe());
-  const { PermissionFlagsBits, ChannelType } = await import("discord.js");
-  if (
-    !me.permissions.has(PermissionFlagsBits.ManageChannels) ||
-    !me.permissions.has(PermissionFlagsBits.ManageRoles)
-  ) {
-    throw new Error(
-      "FWU doit disposer de Gérer les salons et Gérer les rôles sur le serveur de logs.",
-    );
-  }
-  const everyone = guild.roles.everyone;
-  const roleByName = new Map(guild.roles.cache.map((r) => [r.name, r]));
-  const createdRoles = new Map();
-  for (const spec of [...LOG_ROLES, ...MZ_LOG_ROLES]) {
-    let role = roleByName.get(spec.name);
-    if (!role)
-      role = await guild.roles.create({
-        name: spec.name,
-        color: spec.color,
-        permissions: [],
-        hoist: true,
-        mentionable: false,
-        reason: "Initialisation du serveur central FWU",
-      });
-    createdRoles.set(spec.name, role);
-  }
-  const categoryIds = new Map();
-  const categories = [...new Set(ALL_LOG_CHANNELS.map((c) => c.category))];
-  for (const name of categories) {
-    const mzCategory = name.startsWith("MZ — ");
-    const sourceRoles = logRolesForCategory(name, mzCategory ? "mz" : "pnd");
-    let category = guild.channels.cache.find(
-      (c) => c.type === ChannelType.GuildCategory && c.name === name,
-    );
-    if (!category)
-      category = await guild.channels.create({
-        name,
-        type: ChannelType.GuildCategory,
-        permissionOverwrites: [
-          { id: everyone.id, deny: [PermissionFlagsBits.ViewChannel] },
-          {
-            id: me.id,
-            allow: [
-              PermissionFlagsBits.ViewChannel,
-              PermissionFlagsBits.SendMessages,
-              PermissionFlagsBits.EmbedLinks,
-              PermissionFlagsBits.ManageChannels,
-            ],
-          },
-          ...sourceRoles
-            .map((spec) => createdRoles.get(spec.name))
-            .filter(Boolean)
-            .map((role) => ({
-              id: role.id,
-              allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.ReadMessageHistory],
-            })),
-        ],
-        reason: "Catégories du journal central FWU",
-      });
-    categoryIds.set(name, category.id);
-  }
+
   const channels = new Map();
+  const missing = [];
   for (const spec of ALL_LOG_CHANNELS) {
-    const parent = categoryIds.get(spec.category);
-    let channel = guild.channels.cache.find(
-      (c) => c.type === ChannelType.GuildText && c.name === spec.name && c.parentId === parent,
+    const channel = guild.channels.cache.find(
+      (item) => item.name === spec.name && item.isTextBased(),
     );
-    const sourceRoles = logRolesForCategory(spec.category, spec.source);
-    if (!channel)
-      channel = await guild.channels.create({
-        name: spec.name,
-        type: ChannelType.GuildText,
-        parent,
-        topic: `Journal ${spec.source.toUpperCase()} • provenance du serveur indiquée dans chaque événement • accès par rôles Logs`,
-        permissionOverwrites: [
-          { id: everyone.id, deny: [PermissionFlagsBits.ViewChannel] },
-          {
-            id: me.id,
-            allow: [
-              PermissionFlagsBits.ViewChannel,
-              PermissionFlagsBits.SendMessages,
-              PermissionFlagsBits.EmbedLinks,
-              PermissionFlagsBits.ManageChannels,
-            ],
-          },
-          ...sourceRoles
-            .map((spec) => createdRoles.get(spec.name))
-            .filter(Boolean)
-            .map((role) => ({
-              id: role.id,
-              allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.ReadMessageHistory],
-            })),
-        ],
-        reason: `Salon du journal ${spec.source.toUpperCase()} FWU`,
-      });
+    if (!channel) {
+      missing.push({ key: spec.key, channel: spec.name, reason: "missing_channel" });
+      continue;
+    }
+    if (
+      !channel.parent ||
+      channel.parent.name !== spec.category ||
+      channel.permissionsLocked !== true ||
+      !hasIsolatedLogPermissions(channel.parent, spec.source)
+    ) {
+      missing.push({ key: spec.key, channel: spec.name, reason: "unsafe_or_misplaced_channel" });
+      continue;
+    }
     channels.set(spec.key, channel.id);
   }
-  record("logs_hub_provisioned");
-  return { channels, roles: createdRoles };
+  return { ready: missing.length === 0, channels, missing };
 }
 
 export async function sendToLogsHub(client, sourceGuild, embed, title = "", components = [], allowedUserIds = []) {
@@ -297,6 +226,7 @@ export async function sendToLogsHub(client, sourceGuild, embed, title = "", comp
   const channel = hub.channels.cache.find((c) => c.name === spec.name && c.isTextBased());
   if (
     !channel?.parent ||
+    channel.parent.name !== spec.category ||
     channel.permissionsLocked !== true ||
     !hasIsolatedLogPermissions(channel.parent, spec.source)
   )
