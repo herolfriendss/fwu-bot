@@ -33,3 +33,15 @@ test("rapport : bots principaux absents signalés, Invest + facultatif sans alar
   assert.match(text, /Paramètres du serveur → Rôles/);
   assert.ok(REQUIRED_PERMISSIONS.suckme.includes("MuteMembers"), "rôle 0 % intouchable : rendre muet requis");
 });
+
+test("une application principale absente demande une réinvitation, pas une correction de rôles", () => {
+  const text = formatInstallationReport({
+    bots: [
+      { label: "FWU", present: true, missing: [], placement: [] },
+      { label: "GUARD", present: false, optional: false, missing: [], placement: [] },
+      { label: "Invest +", present: false, optional: true, missing: [], placement: [] },
+    ],
+  });
+  assert.match(text, /Réinvite ou redémarre 1 application principale absente/);
+  assert.doesNotMatch(text, /Paramètres du serveur → Rôles/);
+});
