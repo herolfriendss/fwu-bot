@@ -6,6 +6,7 @@ import { memberOverview } from "../../features/overview.js";
 import { formatHistoryEntry, HISTORY_LABELS, loadMemberHistory, summarizeHistory } from "../../member-history.js";
 import { getMemberInvite } from "../../invite-attribution.js";
 import { listSysPlusAudit, recordSysPlusAudit } from "./audit.js";
+import { countMemberNotes, readMemberNotes } from "./staff-notes.js";
 
 const ts = (ms, style = "R") => (ms ? `<t:${Math.floor(Number(ms) / 1000)}:${style}>` : "inconnu");
 const pnd = (value) => `${Number(value ?? 0).toLocaleString("fr-FR")} PND`;
@@ -29,7 +30,7 @@ function inviteLine(invite) {
 }
 
 /** Données de la fiche (séparées de l'affichage pour les tests). */
-export async function collectMemberCard({ guildId, userId, member = null, now = Date.now(), loadCentral }) {
+export async function collectMemberCard({ guildId, userId, member = null, now = Date.now(), loadCentral, readerId = null }) {
   const history = await loadMemberHistory({ guildId, userId, limit: 100, ...(loadCentral ? { loadCentral } : {}) });
   return {
     overview: memberOverview(guildId, userId, { member, now }),
@@ -39,11 +40,14 @@ export async function collectMemberCard({ guildId, userId, member = null, now = 
     tickets: ticketStats(guildId, userId),
     quarantine: quarantineOf(guildId, userId),
     audit: listSysPlusAudit(guildId, 3, { memberId: userId }),
+    // Les notes lues par la fiche sont journalisées comme toute lecture de notes.
+    notes: readerId ? readMemberNotes({ guildId, userId, readerId, limit: 3, purpose: "note.lecture.fiche" }) : [],
+    noteCount: countMemberNotes(guildId, userId),
   };
 }
 
 export function memberCardEmbed(card, { user, member = null }) {
-  const { overview, history, counts, invite, tickets, quarantine, audit } = card;
+  const { overview, history, counts, invite, tickets, quarantine, audit, notes = [], noteCount = 0 } = card;
   const embed = new EmbedBuilder().setColor(0x6d28d9)
     .setTitle(`🗂️ Fiche de ${user.tag ?? user.username ?? user.id}`.slice(0, 250))
     .setFooter({ text: "SYS+ · lecture seule · cette consultation est notée dans l'audit SYS+" });
@@ -85,6 +89,12 @@ export function memberCardEmbed(card, { user, member = null }) {
   if (tickets) activity.push(`🎫 Tickets : ${tickets.total} (${tickets.open} ouvert${tickets.open > 1 ? "s" : ""})`);
   if (activity.length) embed.addFields({ name: "📊 Activité", value: activity.join("\n").slice(0, 1024) });
 
+  if (noteCount) {
+    embed.addFields({
+      name: `📝 Notes du staff (${noteCount})`,
+      value: [...notes.map((n) => `• <t:${Math.floor(n.createdAt / 1000)}:d> <@${n.authorId}> : ${n.body.slice(0, 200)}`), noteCount > notes.length ? "Toutes les notes : `/sysp suivi notes`." : null].filter(Boolean).join("\n").slice(0, 1024),
+    });
+  }
   if (audit.length) {
     embed.addFields({
       name: "🧾 Dernières actions SYS+ le concernant",
@@ -102,7 +112,7 @@ export async function handleMemberCardCommand(interaction, { member, roleId, isS
   const user = interaction.options.getUser("membre", true);
   await interaction.deferReply({ ephemeral: true });
   const target = await interaction.guild.members.fetch({ user: user.id, force: true }).catch(() => null);
-  const card = await collectMemberCard({ guildId: interaction.guildId, userId: user.id, member: target });
+  const card = await collectMemberCard({ guildId: interaction.guildId, userId: user.id, member: target, readerId: interaction.user.id });
   try { recordSysPlusAudit(interaction.guildId, interaction.user.id, "fiche.consultation", user.id); } catch { /* l'affichage passe quand même */ }
   await interaction.editReply({ embeds: [memberCardEmbed(card, { user, member: target })], allowedMentions: { parse: [] } });
   return true;
