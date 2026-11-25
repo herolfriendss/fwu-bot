@@ -1,5 +1,6 @@
 // FWU — achievements unlocked from activity already tracked (levels, messages, voice, suggestions, birthday).
 import { db } from "../database.js";
+import { publishEventSafe } from "../event-bus.js";
 
 db.exec(`CREATE TABLE IF NOT EXISTS community_achievements (
   guild_id TEXT NOT NULL, user_id TEXT NOT NULL, key TEXT NOT NULL, unlocked_at INTEGER NOT NULL,
@@ -40,7 +41,10 @@ export function checkAchievements(guildId, userId, now = Date.now()) {
   const have = unlockedKeys(guildId, userId);
   const fresh = ACHIEVEMENTS.filter((a) => !have.has(a.key) && a.test(stats));
   const insert = db.prepare("INSERT OR IGNORE INTO community_achievements(guild_id,user_id,key,unlocked_at) VALUES(?,?,?,?)");
-  for (const a of fresh) insert.run(guildId, userId, a.key, now);
+  for (const a of fresh) {
+    insert.run(guildId, userId, a.key, now);
+    publishEventSafe({ guildId, kind: "member.achievement", subjectId: userId, source: "fwu", payload: { key: a.key, name: a.name } });
+  }
   return fresh;
 }
 

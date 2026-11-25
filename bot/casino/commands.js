@@ -17,6 +17,7 @@ import {
   openRound, loadRound, saveRoundState, stakeMore, closeRound, openRoundOf,
   jackpotInfo, awardJackpot, vipStatus, cashbackDue, claimCashback, walletBalance, casinoLeaderboard,
 } from "./store.js";
+import { permissionFor } from "../trust.js";
 import {
   blackjackView, minesView, crashView, slotsView, rouletteView, plinkoView,
   jackpotView, vipView, leaderboardView, casinoEmbed, pnd,
@@ -26,6 +27,7 @@ export const CASINO_COMMANDS = new Set(["casino", "blackjack", "roulette"]);
 const uniform = () => randomInt(1 << 30) / (1 << 30);
 const ephemeral = (content) => ({ content, flags: MessageFlags.Ephemeral });
 
+const CASINO_BASE_MAX_BET = 100_000;
 const SELF_EXCLUSION = { "24h": 24 * 60 * 60_000, "7j": 7 * 24 * 60 * 60_000, "30j": 30 * 24 * 60 * 60_000, permanent: Number.MAX_SAFE_INTEGER };
 
 // --------------------------------------------------------------- helpers ----
@@ -34,6 +36,22 @@ async function failed(interaction, error) {
   const content = `❌ ${error instanceof Error ? error.message : "Partie impossible."}`;
   if (interaction.deferred || interaction.replied) await interaction.editReply({ content, embeds: [], components: [] }).catch(() => {});
   else await interaction.reply(ephemeral(content)).catch(() => {});
+}
+
+/**
+ * The shared trust score decides who may bet and how much: a fresh account, a
+ * warned member or someone GUARD froze is limited here without the casino
+ * knowing anything about moderation.
+ */
+function guardStake(interaction, total) {
+  const verdict = permissionFor(interaction.guildId, interaction.user.id, "casino", {
+    member: interaction.member, baseBet: CASINO_BASE_MAX_BET,
+  });
+  if (!verdict.allowed) throw new Error(verdict.reason);
+  if (verdict.maxBet && total > verdict.maxBet) {
+    throw new Error(`Ton rang de confiance ${verdict.trust.tier.emoji} ${verdict.trust.tier.label} limite tes mises à ${pnd(verdict.maxBet)} par partie.`);
+  }
+  return verdict;
 }
 
 /** Resolves the round behind a component and checks the presser owns it. */
@@ -48,6 +66,7 @@ function roundFor(interaction, id) {
 // ------------------------------------------------------------- blackjack ----
 
 async function startBlackjack(interaction, bet) {
+  guardStake(interaction, bet);
   const state = newBlackjackGame({ bet, rng: randomInt });
   const round = openRound({ guildId: interaction.guildId, userId: interaction.user.id, game: "blackjack", bet, state });
   if (state.phase === "dealer") return finishBlackjack(interaction, round.id, state);
@@ -85,6 +104,7 @@ async function blackjackButton(interaction, action, id) {
 // ----------------------------------------------------------------- mines ----
 
 async function startMines(interaction, bet, mines) {
+  guardStake(interaction, bet);
   const state = newMinesGame({ bet, mines, rng: randomInt });
   const round = openRound({ guildId: interaction.guildId, userId: interaction.user.id, game: "mines", bet, state });
   await interaction.editReply(minesView({ roundId: round.id, state }));
@@ -140,6 +160,7 @@ function runCrash(interaction, id) {
 }
 
 async function startCrash(interaction, bet, autoCashout) {
+  guardStake(interaction, bet);
   const state = newCrashGame({ bet, uniform, autoCashout });
   const round = openRound({ guildId: interaction.guildId, userId: interaction.user.id, game: "crash", bet, state });
   await interaction.editReply(crashView({ roundId: round.id, state }));
@@ -160,6 +181,7 @@ async function crashCash(interaction, id) {
 // --------------------------------------------------- single-shot games ----
 
 async function playSlots(interaction, bet) {
+  guardStake(interaction, bet);
   const round = openRound({ guildId: interaction.guildId, userId: interaction.user.id, game: "slots", bet, state: {} });
   const result = resolveSlots({ bet, grid: spinSlots(randomInt) });
   const jackpotWon = result.jackpotWon ? awardJackpot({ guildId: interaction.guildId, userId: interaction.user.id }) : 0;
@@ -171,6 +193,7 @@ async function playSlots(interaction, bet) {
 async function playRoulette(interaction, text, fallbackBet) {
   const bets = parseRouletteBets(text, fallbackBet);
   const total = bets.reduce((sum, b) => sum + b.amount, 0);
+  guardStake(interaction, total);
   const round = openRound({ guildId: interaction.guildId, userId: interaction.user.id, game: "roulette", bet: total, state: {} });
   const spin = resolveRouletteSpin(bets, randomInt(37));
   const closed = closeRound({ id: round.id, payout: spin.totalPayout, outcome: { game: "roulette", number: spin.number, color: spin.color, net: spin.net } });
@@ -180,6 +203,7 @@ async function playRoulette(interaction, text, fallbackBet) {
 
 /** Coin flip and dice keep their simple one-shot form, on the same round pipeline. */
 async function playSimple(interaction, game, bet, outcome, title, description) {
+  guardStake(interaction, bet);
   const round = openRound({ guildId: interaction.guildId, userId: interaction.user.id, game, bet, state: {} });
   const closed = closeRound({ id: round.id, payout: outcome.payout, outcome: { game, ...outcome } });
   const net = outcome.payout - bet;
@@ -196,6 +220,7 @@ async function playSimple(interaction, game, bet, outcome, title, description) {
 }
 
 async function playPlinko(interaction, bet, risk) {
+  guardStake(interaction, bet);
   const round = openRound({ guildId: interaction.guildId, userId: interaction.user.id, game: "plinko", bet, state: {} });
   const drop = dropPlinko(randomInt);
   const result = resolvePlinko({ bet, risk, bucket: drop.bucket });

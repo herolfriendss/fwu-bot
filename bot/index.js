@@ -47,6 +47,8 @@ import { handleRoleInteraction, handleRoleMessage } from "./role-commands.js";
 import { handleCustomRolesInteraction, handleCustomRolesMessage } from "./systems/sysplus/custom-roles.js";
 import { handleCasinoMessage } from "./casino.js";
 import { handleCasinoInteraction } from "./casino/commands.js";
+import { runCascade, startCascade } from "./cascade.js";
+import { pruneEvents } from "./event-bus.js";
 import { handleBusinessInvestmentMessage } from "./business-investments-commands.js";
 import { startInvestmentMaintenance } from "./business-investments-maintenance.js";
 import { handlePndIntelligenceMessage, handlePndIntelligenceInteraction, expirePendingPndIntelligenceActions, recoverInterruptedPndIntelligenceActions } from "./pnd-intelligence.js";
@@ -1094,6 +1096,21 @@ client.once("clientReady", () => {
   if (serves("fisc")) void runEconomyReconciliation(gate.servesAll() ? 0 : 10 * 60_000);
   const economyReconcileTimer = setInterval(() => { if (serves("fisc")) void runEconomyReconciliation(10 * 60_000); }, 10 * 60_000);
   economyReconcileTimer.unref?.();
+
+  // Inter-bot reactions: one process drains the shared bus so a bonus is never
+  // paid twice. The bot serving "fwu" owns it; if it is down the events wait.
+  if (serves("fwu")) {
+    startCascade();
+    const drain = () => void runCascade({
+      guildIds: ALLOWED_GUILDS,
+      onEffect: (event, line) => console.log(`[cascade] ${event.kind} → ${line}`),
+    }).catch(() => record("cascade_error"));
+    drain();
+    const cascadeTimer = setInterval(drain, 20_000);
+    cascadeTimer.unref?.();
+    const pruneTimer = setInterval(() => { try { pruneEvents(); } catch { record("event_prune_error"); } }, 6 * 60 * 60_000);
+    pruneTimer.unref?.();
+  }
   if (serves("suckme")) {
     void reconcileDogLeashes();
     void expireVoiceMenottes(client, settings).then((count) => { if (count) record("menotte_expired"); }).catch(() => record("menotte_expiration_error"));

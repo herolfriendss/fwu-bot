@@ -4,6 +4,7 @@ import { db } from "../database.js";
 import { parsePndOwnerId } from "../pnd-owner-policy.js";
 import { isSysPlus } from "../systems/sysplus/permissions.js";
 import { achievementsText, announceAchievements, checkAchievements } from "./achievements.js";
+import { publishEventSafe } from "../event-bus.js";
 
 export const COMMUNITY_COMMANDS = new Set(["niveau", "suggestion", "anniversaire", "rappel", "stats"]);
 
@@ -80,6 +81,10 @@ export function addXp(guildId, userId, amount, { message = false, voiceMinutes =
     ON CONFLICT(guild_id,user_id) DO UPDATE SET xp=excluded.xp, level=excluded.level, messages=community_levels.messages+?,
     voice_minutes=community_levels.voice_minutes+?, last_message_xp_at=CASE WHEN ? THEN excluded.last_message_xp_at ELSE community_levels.last_message_xp_at END`)
     .run(guildId, userId, xp, after, message ? 1 : 0, voiceMinutes, message ? now : 0, message ? 1 : 0, voiceMinutes, message ? 1 : 0);
+  // LE FISC pays the level bonus and GUARD refreshes the trust score from this.
+  if (after > row.level) {
+    publishEventSafe({ guildId, kind: "member.levelup", subjectId: userId, source: "fwu", payload: { level: after, from: row.level } });
+  }
   return { before: row.level, after, xp };
 }
 
