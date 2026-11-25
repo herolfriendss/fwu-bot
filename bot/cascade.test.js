@@ -99,3 +99,27 @@ test("an expired sanction is announced on the bus and lifted", async () => {
   assert.equal(sanctionUntil(guild, USER, "dj"), null);
   assert.ok(recentEvents(guild, { kinds: ["sanction.expired"] }).length >= 1);
 });
+
+test("activity from a clan member feeds the clan, once", async () => {
+  const { createClan, clanById, membershipOf } = await import("./features/clans.js");
+  const guild = "100000000000000020";
+  db.prepare("INSERT INTO wallets(guild_id,user_id,balance,bank) VALUES(?,?,?,0)").run(guild, USER, 200_000);
+  const clan = createClan({ guildId: guild, userId: USER, name: "Cascadeurs", tag: "CS" });
+
+  const levelUp = event("member.levelup", { guildId: guild, payload: { level: 4 } });
+  applyPlan(levelUp);
+  assert.equal(clanById(clan.id).season_points, 40);
+  applyPlan(levelUp);
+  assert.equal(clanById(clan.id).season_points, 40, "un rejeu ne gonfle pas le classement");
+  assert.ok(membershipOf(guild, USER));
+});
+
+test("a season past its end date is closed by the cascade", async () => {
+  const { startSeason, currentSeason } = await import("./features/clans.js");
+  const guild = "100000000000000021";
+  startSeason({ guildId: guild, lengthMs: 1000, now: Date.now() - 10_000 });
+  const lines = [];
+  await runCascade({ onEffect: (_e, line) => lines.push(line) });
+  assert.equal(currentSeason(guild), null);
+  assert.ok(lines.some((line) => /saison 1 clôturée/.test(line)));
+});

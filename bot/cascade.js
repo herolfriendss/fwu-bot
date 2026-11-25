@@ -7,6 +7,7 @@
 import { db, transaction } from "./database.js";
 import { consumeEvents, initCursor, publishEventSafe, EVENT_KINDS } from "./event-bus.js";
 import { applySanction, liftSanction, invalidateTrust, expireSanctions, SANCTION_SCOPES } from "./trust.js";
+import { addClanPoints, dueSeasons, closeSeason } from "./features/clans.js";
 
 export const CASCADE_CONSUMER = "cascade:core";
 const MAX_BALANCE = 1_000_000_000_000;
@@ -69,6 +70,7 @@ export function planFor(event) {
   if (event.kind === "member.verified" && event.subjectId) actions.push({ type: "retrust" });
   if (event.kind === "member.levelup" && event.subjectId) {
     actions.push({ type: "grant", amount: levelBonus(event.payload?.level), reason: "niveau_bonus", label: `niveau ${event.payload?.level ?? "?"}` });
+    actions.push({ type: "clan", points: 10 * (Number(event.payload?.level) || 1), label: "passage de niveau" });
     actions.push({ type: "retrust" });
   }
   if (event.kind === "member.birthday" && event.subjectId) {
@@ -76,6 +78,10 @@ export function planFor(event) {
   }
   if (event.kind === "member.achievement" && event.subjectId) {
     actions.push({ type: "grant", amount: 1000, reason: "succes_bonus", label: `succès ${event.payload?.key ?? ""}`.trim() });
+    actions.push({ type: "clan", points: 25, label: "succès" });
+  }
+  if (event.kind === "quest.completed" && event.subjectId) {
+    actions.push({ type: "clan", points: Number(event.payload?.points) || 15, label: "quête" });
   }
   return actions;
 }
@@ -94,6 +100,12 @@ export function applyPlan(event, now = Date.now()) {
       if (lifted.length) applied.push(`levée ${lifted.join(", ")}`);
     } else if (action.type === "retrust") {
       invalidateTrust(event.guildId, event.subjectId);
+    } else if (action.type === "clan") {
+      // Idempotent like a payout: a replay must not inflate a clan's standing.
+      if (claim(event.id, `clan:${action.label}`, now)) {
+        const points = addClanPoints(event.guildId, event.subjectId, action.points);
+        if (points) applied.push(`+${points} pts de clan (${action.label})`);
+      }
     } else if (action.type === "grant") {
       const paid = grantPnd({
         eventId: event.id, rule: action.reason, guildId: event.guildId, userId: event.subjectId,
@@ -117,6 +129,18 @@ export async function runCascade({ guildIds = null, onEffect = () => {}, now = D
       onEffect(event, line);
     }
   }, { guildIds, limit: 100 });
+
+  // A season that ran past its end date is closed here rather than by a
+  // separate timer, so the podium lands on the bus like everything else.
+  for (const season of dueSeasons(now)) {
+    try {
+      const { boards } = closeSeason({ guildId: season.guild_id, now });
+      effects += 1;
+      onEffect({ kind: "season.ended", guildId: season.guild_id }, `saison ${season.number} clôturée (${boards.clans.length} clan(s) au podium)`);
+    } catch (error) {
+      console.error("[cascade] clôture de saison impossible:", error?.message ?? "erreur");
+    }
+  }
 
   for (const lifted of expireSanctions(now)) {
     publishEventSafe({

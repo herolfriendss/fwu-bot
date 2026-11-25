@@ -65,7 +65,7 @@ export const SLASH_COMMAND_OWNERS: Record<BotProfileId, readonly string[]> = {
     "profil", "bio", "rep", "toprep", "color", "cards", "card", "pack", "trade",
     "academy", "award", "story", "radar", "wrapped",
     "dice", "coinflip", "trivia", "giveaway", "event", "pndevent",
-    "afk", "blacklist", "live", "niveau", "suggestion", "anniversaire", "rappel", "stats", "confession", "moi", "fwu",
+    "afk", "blacklist", "live", "niveau", "suggestion", "anniversaire", "rappel", "stats", "confession", "moi", "fwu", "clan", "saison", "quete",
   ],
   guard: [
     "guildguard", "warn", "warnings", "mute", "unmute", "kick", "purge", "slowmode",

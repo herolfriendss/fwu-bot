@@ -50,6 +50,8 @@ import { handleCasinoInteraction } from "./casino/commands.js";
 import { runCascade, startCascade } from "./cascade.js";
 import { handleConfessionInteraction } from "./features/confessions-commands.js";
 import { handleOverviewInteraction } from "./features/overview.js";
+import { handleClanInteraction } from "./features/clans-commands.js";
+import { handleQuestInteraction } from "./features/quests-commands.js";
 import { pruneEvents } from "./event-bus.js";
 import { handleBusinessInvestmentMessage } from "./business-investments-commands.js";
 import { startInvestmentMaintenance } from "./business-investments-maintenance.js";
@@ -1455,6 +1457,8 @@ client.on("interactionCreate", (interaction) => {
     })) return;
     if (await handleModerationInteraction(interaction, settings[interaction.guildId], { apiUrl: API, secret: BOT_SYNC_SECRET })) return;
     if (await handleVoiceV2Interaction(interaction, settings[interaction.guildId])) { auditSlashUsage(interaction, "Vocal temporaire"); return; }
+    if (serves("fwu") && await handleQuestInteraction(interaction)) { auditSlashUsage(interaction, "Quêtes"); return; }
+    if (serves("fwu") && await handleClanInteraction(interaction)) { auditSlashUsage(interaction, "Clans & saisons"); return; }
     if (serves("fwu") && await handleOverviewInteraction(interaction)) { auditSlashUsage(interaction, "Profil FWU"); return; }
     if (serves("fwu") && await handleConfessionInteraction(interaction)) { auditSlashUsage(interaction, "Confessions"); return; }
     if (serves("fisc") && await handleCasinoInteraction(interaction)) { auditSlashUsage(interaction, "PND Casino"); return; }
