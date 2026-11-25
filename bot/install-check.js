@@ -7,17 +7,7 @@ import { BOT_PROFILES, BOT_PROFILE_IDS, listDomainLeases } from "./bot-runtime.j
 import { PERMISSION_LABELS, REQUIRED_PERMISSIONS } from "./permissions-catalog.js";
 import { loadRoleTiers } from "./shared/tiers.js";
 
-export { REQUIRED_PERMISSIONS } from "./permissions-catalog.js";
-
-
-
-export const REQUIRED_PERMISSIONS = Object.freeze({
-  fwu: ["SendMessages", "EmbedLinks", "ManageRoles", "ManageChannels", "ViewAuditLog"],
-  guard: ["ManageMessages", "KickMembers", "BanMembers", "ModerateMembers", "ManageRoles", "ManageChannels", "ViewAuditLog", "AddReactions"],
-  fdpdlavoc: ["Connect", "Speak", "MoveMembers", "ManageChannels", "ManageRoles"],
-  suckme: ["ManageRoles", "ManageNicknames", "MoveMembers", "ViewAuditLog", "ManageMessages", "ManageWebhooks", "MuteMembers", "DeafenMembers", "ModerateMembers", "BanMembers"],
-  fisc: ["ManageRoles"],
-});
+export { REQUIRED_PERMISSIONS };
 
 /** Pur : rôles que SUCK ME doit dominer (0 % et laisses DOG) mais qui sont au-dessus ou au même niveau. */
 export function suckMePlacementIssues({ botTop, roles, tier0RoleIds, ownerTop }) {
