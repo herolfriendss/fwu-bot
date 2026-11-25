@@ -64,6 +64,7 @@ import { startOrganizationMaintenance } from "./organization-maintenance.js";
 import { recordAnalyticsMetric, flushAnalyticsMetrics } from "./analytics-buffer.js";
 import { installProcessGuard } from "./process-guard.js";
 import { autoIncidentNotice, recordGuardIncident } from "./systems/sysplus/auto-incidents.js";
+import { setSysPlusAuditObserver } from "./systems/sysplus/audit.js";
 import { recoverInterruptedAutomationRuns } from "./automation-rules.js";
 import { handleAutomationRulesMessage } from "./automation-rules-commands.js";
 import { previewGuildAutomationRules, previewScheduledAutomationRules, buildAutomationEventFromMember } from "./automation-rules-runtime.js";
@@ -195,6 +196,12 @@ function record(code) {
   console.log(`[bot] ${code}`);
 }
 registerHealthProvider(() => ({ events: [...events], lastSync, startedAt }));
+// S1 : les actions SYS+ qui changent des droits partent aussi au Logs Hub (le bot qui agit publie).
+setSysPlusAuditObserver(({ guildId, actorId, action, targetId }) => {
+  const guild = client.guilds.cache.get(guildId);
+  if (!guild) return;
+  auditLog(guild, settings[guildId], "🧾 Journal SYS+", `Action : \`${action}\`\nPar : <@${actorId}> (\`${actorId}\`)${targetId ? `\nCible : ${/^\d{17,20}$/.test(String(targetId)) ? `<@${targetId}> (\`${targetId}\`)` : `\`${String(targetId).slice(0, 60)}\``}` : ""}\nHistorique : \`/sysp audit\``, 0x8b5cf6);
+});
 // Promesses oubliées : comptées et visibles, redémarrage au-delà de 10 en 10 min (process-guard.js).
 installProcessGuard({ record });
 const lastHealthStatus = new Map();

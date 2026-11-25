@@ -396,7 +396,11 @@ export async function handleSysPlusMessage(message, settings, { apiUrl, secret, 
   }
 
   if (args[0]?.toLowerCase() === "audit") {
-    const rows = listSysPlusAudit(message.guild.id, 10);
+    // =sysp audit [@membre|ID] [début d'action]
+    const memberArg = args.slice(1).map((a) => /^<@!?(\d{17,20})>$|^(\d{17,20})$/.exec(a)).find(Boolean);
+    const memberId = memberArg ? memberArg[1] ?? memberArg[2] : null;
+    const actionArg = args.slice(1).find((a) => !/^<@!?\d{17,20}>$|^\d{17,20}$/.test(a)) ?? null;
+    const rows = listSysPlusAudit(message.guild.id, memberId || actionArg ? 25 : 10, { memberId, action: actionArg });
     const lines = rows.map((row) => `• <t:${Math.floor(row.createdAt / 1000)}:R> — \`${row.action}\` par <@${row.actorId}>${row.targetId ? ` → ${row.targetId}` : ""}`);
     await message.reply({
       embeds: [new EmbedBuilder()
@@ -990,14 +994,17 @@ ${reason}`, ephemeral: true });
       await interaction.reply({ content: "⛔ Accès réservé au rôle Perm SYS+.", ephemeral: true });
       return true;
     }
-    const rows = listSysPlusAudit(guild.id, 10);
+    const memberFilter = interaction.options.getUser?.("membre")?.id ?? null;
+    const actionFilter = interaction.options.getString?.("action")?.trim() || null;
+    const rows = listSysPlusAudit(guild.id, memberFilter || actionFilter ? 25 : 10, { memberId: memberFilter, action: actionFilter });
     const lines = rows.map((row) => `• <t:${Math.floor(row.createdAt / 1000)}:R> — \`${row.action}\` par <@${row.actorId}>${row.targetId ? ` → ${row.targetId}` : ""}`);
+    const filters = [memberFilter ? `membre <@${memberFilter}>` : null, actionFilter ? `action « ${actionFilter.slice(0, 40)} »` : null].filter(Boolean).join(", ");
     await interaction.reply({
       embeds: [new EmbedBuilder()
         .setColor(0xe21d2f)
-        .setTitle("🧾 Audit SYS+")
-        .setDescription(lines.length ? lines.join("\n") : "Aucune action enregistrée.")
-        .setFooter({ text: "Journal local du serveur, limité aux dix dernières actions." })],
+        .setTitle(`🧾 Audit SYS+${filters ? ` · ${filters.replace(/<@\d+>/, "filtré")}` : ""}`.slice(0, 250))
+        .setDescription((filters ? `Filtre : ${filters}\n` : "") + (lines.length ? lines.join("\n") : "Aucune action enregistrée.").slice(0, 3900))
+        .setFooter({ text: filters ? "Journal local du serveur, 25 dernières actions correspondantes." : "Journal local du serveur, dix dernières actions. Filtre possible : membre, action." })],
       ephemeral: true,
       allowedMentions: { parse: [] },
     });

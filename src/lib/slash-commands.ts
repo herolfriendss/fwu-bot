@@ -401,7 +401,7 @@ export const SLASH_COMMANDS: SlashCommandDef[] = [
     requiresBotProcess: true,
     options: groupSubcommands([
       sub("panel", "Ouvre le centre de contrôle SYS+"),
-      sub("audit", "Affiche les dernières actions staff"),
+      sub("audit", "Affiche les dernières actions staff (filtre par membre ou action)", [opt(6, "membre", "Actions faites par ce membre ou le visant"), opt(3, "action", "Début du nom d’action, ex. whitelist, adminplus", { max_length: 60 })]),
       sub("role", "Configure le rôle Perm SYS+", [opt(8, "role", "Rôle à attribuer comme Perm SYS+", { required: true })]),
       sub("admin-role", "Configure le rôle ADMIN+ (permissions administratives limitées)", [opt(8, "role", "Rôle à attribuer comme ADMIN+", { required: true })]),
       sub("whitelist-role", "Configure le rôle exact WHITELIST (propriétaire uniquement)", [opt(8, "role", "Rôle nommé WHITELIST", { required: true })]),
