@@ -1,24 +1,37 @@
 # FWU — pack emoji v1
 
-Palette : rouge profond, noir et métal argenté. Les exports PNG sont transparents et dimensionnés en 128 × 128 px.
+## Direction artistique
 
-| Nom proposé | Usage |
+- Palette : rouge sombre, noir profond, blanc cassé et reflets métalliques.
+- Style : pictogrammes épais, lisibles en petite taille, cohérents avec l'identité FWU.
+- Fond : transparent.
+- Export : 16 PNG individuels, 256 × 256 px.
+- Usage : emojis de statut, sécurité, accueil, tickets, vocal, staff, économie et système.
+
+## Fichiers livrés
+
+| Nom Discord conseillé | Fichier |
 |---|---|
-| fwu_shield | protection / sécurité |
-| fwu_alert | alerte / incident |
-| fwu_lock | verrouillage / confidentialité |
-| fwu_watch | surveillance |
-| fwu_ticket | support / tickets |
-| fwu_support | aide / relation membre |
-| fwu_owner | propriétaire / autorité |
-| fwu_team | équipe / staff |
-| fwu_microphone | vocal / micro |
-| fwu_headphones | musique / radio |
-| fwu_coin | économie |
-| fwu_growth | progression / statistiques |
-| fwu_gift | récompense / cadeau |
-| fwu_award | succès / distinction |
-| fwu_event | événement / calendrier |
-| fwu_ai | intelligence artificielle |
+| `:fwu_crest:` | `fwu-crest.png` |
+| `:fwu_guard:` | `guard-shield.png` |
+| `:fwu_alert:` | `emergency-alert.png` |
+| `:fwu_ticket:` | `ticket.png` |
+| `:fwu_welcome:` | `welcome.png` |
+| `:fwu_departure:` | `departure.png` |
+| `:fwu_voice:` | `voice-headset.png` |
+| `:fwu_mic:` | `voice-microphone.png` |
+| `:fwu_moderation:` | `moderation.png` |
+| `:fwu_staff:` | `staff-award.png` |
+| `:fwu_coin:` | `premium-coin.png` |
+| `:fwu_growth:` | `analytics-growth.png` |
+| `:fwu_owner:` | `owner-crown.png` |
+| `:fwu_award:` | `achievement-star.png` |
+| `:fwu_community:` | `community.png` |
+| `:fwu_system:` | `system-health.png` |
 
-Ces noms sont des propositions de nommage pour le pack. Aucun emoji n'a été téléversé, créé ou modifié sur le serveur Discord.
+## Règles d'intégration
+
+- Les PNG sont préparés individuellement pour un éventuel ajout manuel ultérieur.
+- Aucun emoji n'est téléversé, créé ou modifié sur Discord dans ce chantier.
+- Le pack n'impose aucun changement de salon, rôle ou configuration d'application.
+- Les noms Discord sont des propositions cohérentes ; ils peuvent être adaptés au moment d'un futur ajout manuel.
