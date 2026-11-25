@@ -145,7 +145,8 @@ export async function handleTicketsInteraction(interaction, guildSettings = {}, 
   try {
     if (subcommand === "panel") {
       if (!isTicketStaff(member, settings)) throw new Error("Permission Gérer les salons requise.");
-      const setupIssue = ticketSetupIssue(settings.tickets);\n      if (setupIssue) throw new Error(setupIssue);
+      const setupIssue = ticketSetupIssue(settings.tickets); throw new Error(setupIssue);
+      if (setupIssue) throw new Error(setupIssue);
       const channel = interaction.channel;
       if (!channel?.isTextBased()) throw new Error("Choisis un salon textuel existant pour publier le panneau.");
       await interaction.deferReply({ ephemeral: true });
@@ -342,6 +343,7 @@ async function openTicket(interaction, guildSettings = {}, record = () => {}) {
     openingTickets.add(lockKey);
     lockAcquired = true;
     const setupIssue = ticketSetupIssue(settings.tickets);\n    if (setupIssue) throw new Error(setupIssue);
+      if (setupIssue) throw new Error(setupIssue);
     if (!ticketOpenAllowed(openTicketsFor(guild.id, interaction.user.id), settings.tickets.maxOpenPerUser)) {
       throw new Error("Tu as déjà un ticket ouvert. Ferme-le avant d’en ouvrir un autre.");
     }
