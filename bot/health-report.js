@@ -218,7 +218,7 @@ export function formatHealthReport(snapshot, evaluation) {
       (check) => `${icon[check.severity]} **${check.name}** — ${check.detail}`,
     ),
     ...(persistent ? [persistent] : []),
-  ].join("\\n");
+  ].join("\n");
 }
 
 export function buildHealthReport(client, guild, now = Date.now(), profile = "fwu") {
