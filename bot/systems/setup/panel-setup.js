@@ -11,9 +11,15 @@ import {
   TextInputBuilder,
   TextInputStyle,
 } from "discord.js";
-import { db } from "../../database.js";
 import { updateModuleSettings } from "../../module-settings.js";
-import { SETUP_MODULES, parseSetupModule, setupChangedKeys } from "./policy.js";
+import {
+  SETUP_MODULES,
+  parseSetupModule,
+  setupChangedKeys,
+  setupFormFields,
+  setupHasToggle,
+  setupRequirementError,
+} from "./policy.js";
 
 const MODULE_NAMES = Object.keys(SETUP_MODULES);
 const PANEL_SECTIONS = {
@@ -21,7 +27,7 @@ const PANEL_SECTIONS = {
     label: "Accueil",
     description: "Administration Discord First de FWU.",
     commands:
-      "`/setup` — configurer un module avec aperçu et validation\n`/panel` — revenir à ce centre\n`/voc vocal-panel` — ouvrir le panneau vocal historique",
+      "`/setup` — activer, désactiver et régler les modules\n`/panel` — revenir à ce centre\n`/voc vocal-panel` — ouvrir le panneau vocal historique",
   },
 };
 const CATEGORY_DESCRIPTIONS = {
@@ -36,50 +42,6 @@ const CATEGORY_DESCRIPTIONS = {
   "Vocal & DOG": "Commandes vocales et systèmes DOG/MENOTTE.",
   "Musique & radio": "Commandes audio disponibles sur ce serveur.",
 };
-
-db.exec(`
-  CREATE TABLE IF NOT EXISTS discord_setup_drafts (
-    draft_id TEXT PRIMARY KEY, guild_id TEXT NOT NULL, actor_id TEXT NOT NULL,
-    module TEXT NOT NULL, settings_json TEXT NOT NULL, previous_json TEXT NOT NULL DEFAULT '{}', changed_keys TEXT NOT NULL,
-    expires_at INTEGER NOT NULL, created_at INTEGER NOT NULL, retained_until INTEGER NOT NULL DEFAULT 0
-  );
-  CREATE INDEX IF NOT EXISTS discord_setup_drafts_expiry_idx ON discord_setup_drafts(expires_at);
-`);
-const draftColumns = db
-  .prepare("PRAGMA table_info(discord_setup_drafts)")
-  .all()
-  .map((column) => column.name);
-if (!draftColumns.includes("previous_json"))
-  db.exec("ALTER TABLE discord_setup_drafts ADD COLUMN previous_json TEXT NOT NULL DEFAULT '{}'");
-if (!draftColumns.includes("retained_until")) {
-  db.exec("ALTER TABLE discord_setup_drafts ADD COLUMN retained_until INTEGER NOT NULL DEFAULT 0");
-  db.exec(
-    "UPDATE discord_setup_drafts SET retained_until=created_at+604800000 WHERE retained_until=0",
-  );
-}
-db.exec(
-  "CREATE INDEX IF NOT EXISTS discord_setup_drafts_retention_idx ON discord_setup_drafts(retained_until)",
-);
-
-const insertDraft = db.prepare(`INSERT INTO discord_setup_drafts
-  (draft_id,guild_id,actor_id,module,settings_json,previous_json,changed_keys,expires_at,created_at,retained_until)
-  VALUES(?,?,?,?,?,?,?,?,?,?)`);
-const getDraft = db.prepare(
-  "SELECT * FROM discord_setup_drafts WHERE draft_id=? AND guild_id=? AND actor_id=? AND expires_at>?",
-);
-const getRetainedDraft = db.prepare(
-  "SELECT * FROM discord_setup_drafts WHERE draft_id=? AND guild_id=? AND actor_id=? AND retained_until>?",
-);
-const listRetainedDrafts = db.prepare(
-  "SELECT * FROM discord_setup_drafts WHERE guild_id=? AND actor_id=? AND retained_until>? ORDER BY created_at DESC LIMIT 25",
-);
-const refreshDraftExpiry = db.prepare(
-  "UPDATE discord_setup_drafts SET expires_at=? WHERE draft_id=? AND guild_id=? AND actor_id=? AND retained_until>?",
-);
-const deleteDraft = db.prepare(
-  "DELETE FROM discord_setup_drafts WHERE draft_id=? AND guild_id=? AND actor_id=?",
-);
-db.prepare("DELETE FROM discord_setup_drafts WHERE retained_until<=?").run(Date.now());
 
 function authorized(member, guild) {
   return (
@@ -160,57 +122,165 @@ async function setupCandidateError(interaction, module, candidate, guildId) {
 export function fieldValue(field, current) {
   const value = current?.[field.key];
   if (field.kind === "roleList") return Array.isArray(value) ? value.join(", ") : "";
+  if (field.kind === "boolean" && typeof value === "boolean") return value ? "oui" : "non";
+  if (field.kind === "enum" && field.aliases && value != null) {
+    const alias = Object.entries(field.aliases).find(([, target]) => target === value)?.[0];
+    if (alias) return alias;
+  }
   // A stored value always wins; the field default only fills an absent (null/undefined) value.
   if (value != null) return String(value);
   return field.default == null ? "" : String(field.default);
 }
 
-function moduleSelect(actorId) {
+const COLOR_ON = 0x2ecc71;
+const COLOR_OFF = 0x95a5a6;
+const COLOR_HOME = 0xe21d2f;
+
+function moduleState(module, current) {
+  if (!setupHasToggle(module)) return { emoji: "⚙️", text: "Toujours actif" };
+  return current?.enabled === true
+    ? { emoji: "🟢", text: "Activé" }
+    : { emoji: "🔴", text: "Désactivé" };
+}
+
+/** Libellé lisible : retire les indications techniques « (ID) », « (oui/non) »… */
+function displayLabel(field) {
+  return field.label.replace(/\s*\((?:ID|oui\/non|ID ou mention|IDs séparés par virgule)\)/gi, "").trim();
+}
+
+function displayValue(field, current) {
+  const value = current?.[field.key] ?? field.default ?? null;
+  const none = "*Non défini*";
+  switch (field.kind) {
+    case "boolean":
+      return value === true ? "✅ Oui" : value === false ? "❌ Non" : none;
+    case "role":
+      return value ? `<@&${value}>` : none;
+    case "roleList":
+      return Array.isArray(value) && value.length ? value.map((id) => `<@&${id}>`).join(" ") : none;
+    case "textChannel":
+    case "category":
+    case "voiceChannel":
+      return value ? `<#${value}>` : none;
+    case "enum":
+      return value ? (field.choices?.[value] ?? String(value)) : none;
+    case "liveCreators":
+      return Array.isArray(value) && value.length
+        ? `${value.length} créateur(s) : ${value.map((creator) => creator.displayName).join(", ")}`
+        : "Aucun créateur";
+    case "text":
+      return value ? `« ${String(value).slice(0, 200)} »` : none;
+    default:
+      return value == null || value === "" ? none : String(value);
+  }
+}
+
+function moduleSelect(actorId, guildSettings, selected) {
   return new ActionRowBuilder().addComponents(
     new StringSelectMenuBuilder()
       .setCustomId(`pndsetup:module:${actorId}`)
-      .setPlaceholder("Choisir un module à configurer")
-      .addOptions(MODULE_NAMES.map((value) => ({ label: SETUP_MODULES[value].label, value }))),
+      .setPlaceholder("Choisir un module à régler")
+      .addOptions(
+        MODULE_NAMES.map((value) => {
+          const state = moduleState(value, guildSettings?.[value]);
+          return {
+            label: SETUP_MODULES[value].label.slice(0, 100),
+            description: state.text,
+            emoji: state.emoji,
+            value,
+            default: value === selected,
+          };
+        }),
+      ),
   );
 }
 
-function draftActionRow(draftId, actorId) {
-  return new ActionRowBuilder().addComponents(
-    new ButtonBuilder()
-      .setCustomId(`pndsetup:apply:${draftId}:${actorId}`)
-      .setLabel("Appliquer")
-      .setStyle(ButtonStyle.Success),
-    new ButtonBuilder()
-      .setCustomId(`pndsetup:cancel:${draftId}:${actorId}`)
-      .setLabel("Annuler")
-      .setStyle(ButtonStyle.Secondary),
-  );
+export function homeView(guildSettings, actorId) {
+  const lines = MODULE_NAMES.map((key) => {
+    const state = moduleState(key, guildSettings?.[key]);
+    return `${state.emoji} **${SETUP_MODULES[key].label}** — ${state.text}`;
+  });
+  const embed = new EmbedBuilder()
+    .setColor(COLOR_HOME)
+    .setTitle("⚙️ Réglages des modules")
+    .setDescription(
+      "Choisis un module dans le menu ci-dessous pour l’activer, le désactiver ou modifier ses réglages.\n" +
+        "Chaque changement est enregistré **immédiatement**.\n\n" +
+        lines.join("\n"),
+    )
+    .setFooter({ text: "Réglages propres à ce serveur • réservé aux gestionnaires du serveur" });
+  return {
+    content: "",
+    embeds: [embed],
+    components: [moduleSelect(actorId, guildSettings)],
+    allowedMentions: { parse: [] },
+  };
 }
 
-function draftHomeButton(actorId) {
-  return new ActionRowBuilder().addComponents(
+export function moduleView(module, guildSettings, actorId, notice = "") {
+  const definition = SETUP_MODULES[module];
+  const current = guildSettings?.[module] ?? {};
+  const state = moduleState(module, current);
+  const toggle = setupHasToggle(module);
+  const embed = new EmbedBuilder()
+    .setColor(toggle && current.enabled !== true ? COLOR_OFF : COLOR_ON)
+    .setTitle(`${state.emoji} ${definition.label}`)
+    .setDescription(`${definition.description ?? ""}\n\n**Statut :** ${state.text}`.trim())
+    .addFields(
+      setupFormFields(module).map((field) => ({
+        name: displayLabel(field).slice(0, 256),
+        value: displayValue(field, current).slice(0, 1024),
+        inline: !["text", "liveCreators", "roleList"].includes(field.kind),
+      })),
+    )
+    .setFooter({ text: "« Modifier les réglages » ouvre un formulaire pré-rempli." });
+  const buttons = [];
+  if (toggle) {
+    const on = current.enabled === true;
+    buttons.push(
+      new ButtonBuilder()
+        .setCustomId(`pndsetup:toggle:${module}:${actorId}`)
+        .setLabel(on ? "Désactiver" : "Activer")
+        .setEmoji(on ? "⏸️" : "▶️")
+        .setStyle(on ? ButtonStyle.Danger : ButtonStyle.Success),
+    );
+  }
+  buttons.push(
     new ButtonBuilder()
-      .setCustomId(`pndsetup:drafts:${actorId}`)
-      .setLabel("Mes brouillons")
+      .setCustomId(`pndsetup:form:${module}:${actorId}`)
+      .setLabel("Modifier les réglages")
+      .setEmoji("✏️")
+      .setStyle(ButtonStyle.Primary),
+    new ButtonBuilder()
+      .setCustomId(`pndsetup:home:${actorId}`)
+      .setLabel("Retour à la liste")
       .setStyle(ButtonStyle.Secondary),
   );
+  return {
+    content: notice,
+    embeds: [embed],
+    components: [moduleSelect(actorId, guildSettings, module), new ActionRowBuilder().addComponents(...buttons)],
+    allowedMentions: { parse: [] },
+  };
 }
 
 function setupModal(module, actorId, current) {
   const definition = SETUP_MODULES[module];
   const modal = new ModalBuilder()
-    .setCustomId(`pndsetup:edit:${module}:${actorId}`)
+    .setCustomId(`pndsetup:save:${module}:${actorId}`)
     .setTitle(definition.label.slice(0, 45));
-  for (const field of definition.fields) {
+  for (const field of setupFormFields(module)) {
     const input = new TextInputBuilder()
       .setCustomId(field.key)
       .setLabel(field.label.slice(0, 45))
       .setStyle(
-        ["text", "liveCreators"].includes(field.kind) && field.max > 100 ? TextInputStyle.Paragraph : TextInputStyle.Short,
+        ["text", "liveCreators"].includes(field.kind) && field.max > 100
+          ? TextInputStyle.Paragraph
+          : TextInputStyle.Short,
       )
       .setRequired(field.required !== false)
       .setMaxLength(field.max ?? 100)
-      .setPlaceholder(field.placeholder ?? "Valeur actuelle ou nouvelle valeur");
+      .setPlaceholder((field.placeholder ?? (field.kind === "boolean" ? "oui ou non" : "Laisse vide pour aucun")).slice(0, 100));
     const value = fieldValue(field, current);
     if (value) input.setValue(value.slice(0, field.max ?? 100));
     modal.addComponents(new ActionRowBuilder().addComponents(input));
@@ -219,10 +289,10 @@ function setupModal(module, actorId, current) {
 }
 
 function moduleStatus(settings) {
-  return MODULE_NAMES.map(
-    (key) =>
-      `${settings?.[key]?.enabled === false ? "⏸️" : "⚙️"} ${SETUP_MODULES[key].label} — ${settings?.[key] ? (settings[key].enabled === false ? "désactivé" : "configuré") : "valeurs par défaut"}`,
-  ).join("\n");
+  return MODULE_NAMES.map((key) => {
+    const state = moduleState(key, settings?.[key]);
+    return `${state.emoji} ${SETUP_MODULES[key].label} — ${state.text}`;
+  }).join("\n");
 }
 
 function panelPayload(guild, settings, section = "home", commandGroups = []) {
@@ -261,7 +331,7 @@ function panelPayload(guild, settings, section = "home", commandGroups = []) {
       value: moduleStatus(settings).slice(0, 1024),
     })
     .setFooter({
-      text: "Les réglages sont isolés par serveur. /setup présente un aperçu avant application.",
+      text: "Les réglages sont propres à chaque serveur. Utilise /setup pour les modifier.",
     });
   const select = new ActionRowBuilder().addComponents(
     new StringSelectMenuBuilder()
@@ -351,12 +421,7 @@ export async function handlePanelSetupInteraction(
     return true;
   }
   if (isSetupCommand) {
-    await interaction.reply({
-      content:
-        "Choisis un module. Tu verras un aperçu et devras appliquer explicitement les changements.",
-      components: [moduleSelect(interaction.user.id), draftHomeButton(interaction.user.id)],
-      ephemeral: true,
-    });
+    await interaction.reply({ ...homeView(guildSettings, interaction.user.id), ephemeral: true });
     return true;
   }
   if (isPanelComponent) {
@@ -371,161 +436,55 @@ export async function handlePanelSetupInteraction(
       return true;
     }
   }
-  if (customId.startsWith("pndsetup:drafts:")) {
-    const drafts = listRetainedDrafts.all(guildId, interaction.user.id, Date.now());
-    if (!drafts.length) {
-      await interaction.reply({
-        content: "Aucun brouillon conservé pour ce serveur.",
-        ephemeral: true,
-      });
-      return true;
-    }
-    const select = new ActionRowBuilder().addComponents(
-      new StringSelectMenuBuilder()
-        .setCustomId(`pndsetup:resume:${interaction.user.id}`)
-        .setPlaceholder("Reprendre un aperçu enregistré")
-        .addOptions(
-          drafts.map((draft) => ({
-            label:
-              `${SETUP_MODULES[draft.module]?.label ?? draft.module} · ${new Date(draft.created_at).toLocaleDateString("fr-FR")}`.slice(
-                0,
-                100,
-              ),
-            description: `${JSON.parse(draft.changed_keys).length} réglage(s) modifié(s)`.slice(
-              0,
-              100,
-            ),
-            value: draft.draft_id,
-          })),
-        ),
-    );
-    await interaction.reply({
-      content:
-        "Les brouillons sont privés à leur auteur et à ce serveur. Choisis celui à reprendre.",
-      components: [select],
-      ephemeral: true,
-    });
+  const [, action, ...rest] = customId.split(":");
+  const actorId = interaction.user.id;
+  const module = ["toggle", "form", "save"].includes(action) ? rest[0] : null;
+  if (module !== null && !SETUP_MODULES[module]) {
+    await respondInPlace(interaction, { content: "Module inconnu. Relance `/setup`.", ephemeral: true });
     return true;
   }
-  if (customId.startsWith("pndsetup:resume:")) {
-    const [draftId] = interaction.values ?? [];
-    const draft = draftId
-      ? getRetainedDraft.get(draftId, guildId, interaction.user.id, Date.now())
-      : null;
-    if (!draft || !SETUP_MODULES[draft.module]) {
-      await interaction.reply({
-        content: "Ce brouillon n’existe plus ou appartient à un autre contexte.",
-        ephemeral: true,
-      });
-      return true;
-    }
-    refreshDraftExpiry.run(
-      Date.now() + 15 * 60_000,
-      draftId,
-      guildId,
-      interaction.user.id,
-      Date.now(),
-    );
-    const changed = JSON.parse(draft.changed_keys);
-    await interaction.update({
-      content: `**Aperçu repris — ${SETUP_MODULES[draft.module].label}**\nChamps modifiés :\n${changed.map((key) => `• \`${key}\``).join("\n") || "Aucune différence détectée."}\n\nCet aperçu est réactivé 15 minutes. Les conflits seront revérifiés avant application.`,
-      components: [draftActionRow(draftId, interaction.user.id)],
-    });
+
+  if (action === "home") {
+    await interaction.update(homeView(guildSettings, actorId));
     return true;
   }
-  if (customId.startsWith("pndsetup:module:")) {
-    if (interaction.values.length !== 1 || !SETUP_MODULES[interaction.values[0]]) {
+  if (action === "module") {
+    const [selected] = interaction.values ?? [];
+    if (!SETUP_MODULES[selected]) {
       await interaction.reply({ content: "Module inconnu.", ephemeral: true });
       return true;
     }
-    await interaction.showModal(
-      setupModal(interaction.values[0], interaction.user.id, guildSettings[interaction.values[0]]),
-    );
+    await interaction.update(moduleView(selected, guildSettings, actorId));
     return true;
   }
-  if (customId.startsWith("pndsetup:edit:")) {
-    const [, , module, actorId] = customId.split(":");
-    if (!SETUP_MODULES[module] || actorId !== interaction.user.id) {
-      await interaction.reply({ content: "Formulaire invalide ou expiré.", ephemeral: true });
-      return true;
-    }
-    const raw = Object.fromEntries(
-      SETUP_MODULES[module].fields.map((field) => [
-        field.key,
-        interaction.fields.getTextInputValue(field.key),
-      ]),
-    );
-    let candidate;
-    try {
-      candidate = parseSetupModule(module, raw, guildSettings[module] ?? {});
-    } catch (error) {
-      await interaction.reply({ content: `❌ ${error.message}`, ephemeral: true });
-      return true;
-    }
-    if (module === "liveAlerts") {
-      const { validatePublicFeedUrl } = await import("../../live-alerts.js");
-      for (const creator of candidate.creators ?? []) {
-        try { await validatePublicFeedUrl(creator.feedUrl); }
-        catch { await interaction.reply({ content: `❌ Le flux de **${creator.displayName}** doit être une URL HTTPS publique, résoluble et non privée.`, ephemeral: true }); return true; }
+  if (action === "form") {
+    await interaction.showModal(setupModal(module, actorId, guildSettings[module]));
+    return true;
+  }
+  if (action === "toggle" || action === "save") {
+    let patch;
+    if (action === "toggle") {
+      patch = { enabled: guildSettings[module]?.enabled !== true };
+    } else {
+      const raw = Object.fromEntries(
+        setupFormFields(module).map((field) => [field.key, interaction.fields.getTextInputValue(field.key)]),
+      );
+      try {
+        // Seuls les champs du formulaire sont relus ; `enabled` reste inchangé.
+        const parsed = parseSetupModule(module, raw, guildSettings[module] ?? {});
+        patch = Object.fromEntries(setupFormFields(module).map((field) => [field.key, parsed[field.key]]));
+      } catch (error) {
+        await interaction.reply({ content: `❌ ${error.message}`, ephemeral: true });
+        return true;
       }
-    }
-    for (const field of SETUP_MODULES[module].fields) {
-      const ids = field.kind === "roleList" ? candidate[field.key] : [candidate[field.key]];
-      for (const id of ids.filter(Boolean)) {
-        if (field.kind === "role" || field.kind === "roleList") {
-          const role = await interaction.guild.roles.fetch(id, { force: true }).catch(() => null);
-          const botMember = await interaction.guild.members
-            .fetchMe({ force: true })
-            .catch(() => null);
-          if (
-            !role ||
-            role.managed ||
-            role.id === guildId ||
-            !botMember ||
-            role.position >= botMember.roles.highest.position
-          ) {
+      if (module === "liveAlerts") {
+        const { validatePublicFeedUrl } = await import("../../live-alerts.js");
+        for (const creator of patch.creators ?? []) {
+          try {
+            await validatePublicFeedUrl(creator.feedUrl);
+          } catch {
             await interaction.reply({
-              content: `❌ Le rôle indiqué pour « ${field.label} » n’existe pas ou ne peut pas être utilisé.`,
-              ephemeral: true,
-            });
-            return true;
-          }
-        } else if (["textChannel", "category", "voiceChannel"].includes(field.kind)) {
-          const channel = await interaction.guild.channels.fetch(id).catch(() => null);
-          const valid =
-            channel?.guildId === guildId &&
-            (field.kind === "category"
-              ? channel.type === ChannelType.GuildCategory
-              : field.kind === "voiceChannel"
-                ? channel.type === ChannelType.GuildVoice
-                : [ChannelType.GuildText, ChannelType.GuildAnnouncement].includes(channel.type));
-          if (!valid) {
-            await interaction.reply({
-              content: `❌ Le salon indiqué pour « ${field.label} » n’existe pas ou son type est incompatible.`,
-              ephemeral: true,
-            });
-            return true;
-          }
-          const botMember = await interaction.guild.members
-            .fetchMe({ force: true })
-            .catch(() => null);
-          if (!botMember) {
-            await interaction.reply({
-              content: "❌ Je ne peux pas vérifier les permissions du bot pour ce salon.",
-              ephemeral: true,
-            });
-            return true;
-          }
-          const permissions = channel.permissionsFor(botMember);
-          const required =
-            field.kind === "category"
-              ? [PermissionFlagsBits.ViewChannel]
-              : field.key === "hubChannelId"
-                ? [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.Connect]
-                : [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages];
-          if (!permissions || required.some((permission) => !permissions.has(permission))) {
-            await interaction.reply({
-              content: `❌ Le bot n’a pas les permissions nécessaires dans le salon indiqué pour « ${field.label} ».`,
+              content: `❌ Le flux de **${creator.displayName}** doit être une URL HTTPS publique, résoluble et non privée.`,
               ephemeral: true,
             });
             return true;
@@ -533,177 +492,75 @@ export async function handlePanelSetupInteraction(
         }
       }
     }
-    const botMember = await interaction.guild.members.fetchMe({ force: true }).catch(() => null);
-    if (!botMember) {
-      await interaction.reply({
-        content: "❌ Je ne peux pas vérifier les permissions du bot pour appliquer ce réglage.",
-        ephemeral: true,
-      });
-      return true;
-    }
-    if (
-      ((module === "tickets" && candidate.enabled) ||
-        (module === "tempVoice" && candidate.enabled)) &&
-      !botMember.permissions.has(PermissionFlagsBits.ManageChannels)
-    ) {
-      await interaction.reply({
-        content:
-          "❌ Pour activer ce module, le bot doit avoir la permission Gérer les salons sur ce serveur.",
-        ephemeral: true,
-      });
-      return true;
-    }
-    const needsManageRoles =
-      (module === "verification" && candidate.enabled) ||
-      (module === "guildGuard" && candidate.quarantineRoleId) ||
-      (module === "automation" && candidate.autoRoleIds?.length);
-    if (needsManageRoles && !botMember?.permissions.has(PermissionFlagsBits.ManageRoles)) {
-      await interaction.reply({
-        content:
-          "❌ Pour utiliser ces rôles, le bot doit avoir la permission Gérer les rôles sur ce serveur.",
-        ephemeral: true,
-      });
-      return true;
-    }
-    if (module === "spam" && candidate.enabled
-      && (!botMember.permissions.has(PermissionFlagsBits.ManageMessages)
-        || !botMember.permissions.has(PermissionFlagsBits.ModerateMembers))) {
-      await interaction.reply({
-        content: "❌ Pour activer l’anti-spam, le bot doit avoir Gérer les messages et Modérer les membres.",
-        ephemeral: true,
-      });
-      return true;
-    }
-    const previous = guildSettings[module] ?? {};
-    const changed = setupChangedKeys(previous, candidate);
-    const draftId = `${interaction.id}`;
-    const expiresAt = Date.now() + 15 * 60_000;
-    insertDraft.run(
-      draftId,
-      guildId,
-      interaction.user.id,
-      module,
-      JSON.stringify(candidate),
-      JSON.stringify(previous),
-      JSON.stringify(changed),
-      expiresAt,
-      Date.now(),
-      Date.now() + 7 * 24 * 60 * 60_000,
-    );
-    const rows = new ActionRowBuilder().addComponents(
-      new ButtonBuilder()
-        .setCustomId(`pndsetup:apply:${draftId}:${interaction.user.id}`)
-        .setLabel("Appliquer")
-        .setStyle(ButtonStyle.Success)
-        .setDisabled(changed.length === 0),
-      new ButtonBuilder()
-        .setCustomId(`pndsetup:cancel:${draftId}:${interaction.user.id}`)
-        .setLabel("Annuler")
-        .setStyle(ButtonStyle.Secondary),
-    );
-    const summary = changed.length
-      ? changed.map((key) => `• \`${key}\``).join("\n")
-      : "Aucune différence détectée.";
-    await interaction.reply({
-      content: `**Aperçu — ${SETUP_MODULES[module].label}**\nServeur : **${interaction.guild.name}**\nChamps modifiés :\n${summary}\n\nCe brouillon expire dans 15 minutes. Aucun réglage n’a encore été appliqué.`,
-      components: [rows],
-      ephemeral: true,
+    const fromMessage = action === "toggle" || interaction.isFromMessage?.() !== false;
+    if (fromMessage) await interaction.deferUpdate();
+    else await interaction.deferReply({ ephemeral: true });
+    const result = await saveModule(interaction, module, patch, { apiUrl, secret, settings, audit, record });
+    const latest = settings[guildId] ?? guildSettings;
+    let notice;
+    if (result.error) notice = `⚠️ ${result.error}`;
+    else if (!result.changed.length) notice = "ℹ️ Aucun changement : les valeurs étaient déjà celles-ci.";
+    else if (action === "toggle")
+      notice = patch.enabled
+        ? `✅ **${SETUP_MODULES[module].label}** est maintenant activé.`
+        : `⏸️ **${SETUP_MODULES[module].label}** est maintenant désactivé.`;
+    else notice = `✅ Réglages de **${SETUP_MODULES[module].label}** enregistrés.`;
+    await interaction.editReply(moduleView(module, latest, actorId, notice));
+    return true;
+  }
+
+  // Anciennes fenêtres (système de brouillons supprimé) ou contrôle inconnu.
+  await respondInPlace(interaction, {
+    content: "Cette fenêtre de réglages n’est plus valable. Relance `/setup` pour afficher la nouvelle version.",
+    ephemeral: true,
+  });
+  return true;
+}
+
+/**
+ * Enregistre directement un changement de module, sans brouillon.
+ * Les réglages sont relus juste avant l’écriture afin de ne jamais écraser
+ * une modification faite entre-temps sur un autre champ du module.
+ */
+async function saveModule(interaction, module, patch, { apiUrl, secret, settings, audit, record }) {
+  const guildId = interaction.guildId;
+  let current;
+  try {
+    const response = await fetch(apiUrl, {
+      headers: { Authorization: `Bearer ${secret}` },
+      signal: AbortSignal.timeout(10_000),
     });
-    return true;
+    if (!response.ok) throw new Error("settings refresh failed");
+    const fresh = (await response.json())?.guilds?.[guildId];
+    if (!fresh) throw new Error("guild settings unavailable");
+    settings[guildId] = fresh;
+    current = fresh[module] ?? {};
+  } catch {
+    record("discord_setup_apply_error");
+    return { error: "Impossible de joindre le tableau de bord pour le moment. Rien n’a été modifié, réessaie dans un instant." };
   }
-  if (customId.startsWith("pndsetup:cancel:")) {
-    const [, , , draftId, actorId] = customId.split(":");
-    if (actorId !== interaction.user.id) return true;
-    deleteDraft.run(draftId, guildId, actorId);
-    await interaction.update({
-      content: "Configuration annulée. Aucun réglage n’a été modifié.",
-      components: [],
-      embeds: [],
-    });
-    return true;
+  const merged = { ...current, ...patch };
+  const changed = setupChangedKeys(current, merged);
+  if (!changed.length) return { changed };
+  const requirement = setupRequirementError(module, merged);
+  if (requirement) return { error: `${requirement} Clique sur « Modifier les réglages » pour les compléter.` };
+  // Désactiver doit toujours rester possible, même si un rôle ou salon a disparu.
+  const disablingOnly = Object.keys(patch).length === 1 && patch.enabled === false;
+  const invalid = disablingOnly ? null : await setupCandidateError(interaction, module, merged, guildId);
+  if (invalid) return { error: invalid };
+  try {
+    const updated = await updateModuleSettings({ apiUrl, secret, guildId, module, value: merged, actorId: interaction.user.id });
+    settings[guildId] = updated;
+    audit(
+      interaction.guild,
+      updated,
+      "Configuration Discord modifiée",
+      `Module : **${SETUP_MODULES[module].label}**\nChamps : ${changed.map((key) => `\`${key}\``).join(", ")}\nAuteur : <@${interaction.user.id}>`,
+    );
+    record("discord_setup_applied");
+    return { changed };
+  } catch {
+    record("discord_setup_apply_error");
+    return { error: "L’enregistrement a échoué. Rien n’a été modifié, réessaie dans un instant." };
   }
-  if (customId.startsWith("pndsetup:apply:")) {
-    const [, , , draftId, actorId] = customId.split(":");
-    const draft =
-      actorId === interaction.user.id ? getDraft.get(draftId, guildId, actorId, Date.now()) : null;
-    if (!draft) {
-      await interaction.update({
-        content: "Ce brouillon a expiré ou n’est plus disponible. Aucun réglage n’a été modifié.",
-        components: [],
-        embeds: [],
-      });
-      return true;
-    }
-    await interaction.deferUpdate();
-    try {
-      const value = JSON.parse(draft.settings_json);
-      const previous = JSON.parse(draft.previous_json);
-      const changedKeys = JSON.parse(draft.changed_keys);
-      const freshResponse = await fetch(apiUrl, {
-        headers: { Authorization: `Bearer ${secret}` },
-        signal: AbortSignal.timeout(10_000),
-      });
-      if (!freshResponse.ok) throw new Error("settings refresh failed");
-      const freshSettings = (await freshResponse.json())?.guilds?.[guildId];
-      if (!freshSettings) throw new Error("guild settings unavailable");
-      const current = freshSettings[draft.module] ?? {};
-      const conflict = changedKeys.some(
-        (key) => JSON.stringify(current[key] ?? null) !== JSON.stringify(previous[key] ?? null),
-      );
-      if (conflict) {
-        deleteDraft.run(draftId, guildId, actorId);
-        await interaction.editReply({
-          content:
-            "⚠️ Un autre administrateur a modifié ces réglages depuis l’aperçu. Relance `/setup` pour consulter la version actuelle.",
-          components: [],
-        });
-        return true;
-      }
-      const merged = {
-        ...current,
-        ...Object.fromEntries(changedKeys.map((key) => [key, value[key]])),
-      };
-      const invalid = await setupCandidateError(interaction, draft.module, merged, guildId);
-      if (invalid) {
-        deleteDraft.run(draftId, guildId, actorId);
-        await interaction.editReply({
-          content: `⚠️ ${invalid} Relance /setup pour créer un aperçu à jour.`,
-          components: [],
-        });
-        return true;
-      }
-      const updated = await updateModuleSettings({
-        apiUrl,
-        secret,
-        guildId,
-        module: draft.module,
-        value: merged,
-        actorId,
-      });
-      settings[guildId] = updated;
-      deleteDraft.run(draftId, guildId, actorId);
-      const keys = changedKeys;
-      audit(
-        interaction.guild,
-        updated,
-        "Configuration Discord appliquée",
-        `Module : **${SETUP_MODULES[draft.module].label}**\nChamps : ${keys.map((key) => `\`${key}\``).join(", ") || "aucun"}\nAuteur : <@${actorId}>`,
-      );
-      record("discord_setup_applied");
-      await interaction.editReply({
-        content: `✅ **${SETUP_MODULES[draft.module].label}** mis à jour sur **${interaction.guild.name}**.`,
-        components: [],
-        embeds: [],
-      });
-    } catch {
-      record("discord_setup_apply_error");
-      await interaction.editReply({
-        content:
-          "❌ Enregistrement indisponible. Le brouillon est conservé quelques minutes ; réessaie ou annule-le.",
-        components: [],
-      });
-    }
-    return true;
-  }
-  return false;
 }
