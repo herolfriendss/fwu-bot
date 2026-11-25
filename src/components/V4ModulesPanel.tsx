@@ -320,9 +320,9 @@ export function V4ModulesPanel({ guildId, channels, roles, onDirtyChange }: { gu
         </div>
       </Section>
 
-      <Section title="Page publique du serveur" icon={Sparkles} description="Une page visible sans connexion : membres, boosts, état des bots, boutique PND et commandes accessibles à tous. Désactivée par défaut.">
+      <Section title="Page publique du serveur" icon={Sparkles} description="Une page visible sans connexion : membres, boosts, état des bots, activité, boutique PND et commandes accessibles à tous. Désactivée par défaut.">
         <label className="flex items-center gap-2 text-sm"><Switch checked={s.publicPage.enabled} onCheckedChange={(v) => set("publicPage", { enabled: v })} /> Publier la page de ce serveur</label>
-        <label className="flex items-center gap-2 text-sm"><Switch checked={s.publicPage.showLeaderboard} disabled={!s.publicPage.enabled} onCheckedChange={(v) => set("publicPage", { showLeaderboard: v })} /> Afficher le classement PND avec les pseudos des 10 premiers</label>
+        <label className="flex items-center gap-2 text-sm"><Switch checked={s.publicPage.showLeaderboard} disabled={!s.publicPage.enabled} onCheckedChange={(v) => set("publicPage", { showLeaderboard: v })} /> Afficher les classements PND et XP avec les pseudos des 10 premiers</label>
         {q.data?.publicPage.enabled && <p className="text-sm">Adresse : <a className="text-primary underline" href={`/serveur/${guildId}`} target="_blank" rel="noreferrer">{typeof window !== "undefined" ? window.location.origin : ""}/serveur/{guildId}</a></p>}
         <p className="text-xs text-muted-foreground">La page ne montre jamais les réglages, les journaux ni les identifiants. Elle se met à jour toutes les 5 minutes au plus.</p>
       </Section>
