@@ -1,3 +1,6 @@
+> [!WARNING]
+> **Recette historique de 1942.** Cette liste précède la répartition FWU multi-bots et ne constitue pas à elle seule la validation actuelle. Pour le staging FWU, couvre séparément FWU, GUARD, FDPDLAVOC, SUCK ME, LE FISC et Invest + (facultatif), avec les préfixes de [DECISIONS.md](DECISIONS.md). Ajoute obligatoirement les essais DAVE/audio de la PR #4. N'utilise jamais un token de production.
+
 # 1942 — Recette sur serveur de test (liste unique à cocher)
 
 Durée : environ 45 minutes. But : vérifier en vrai sur Discord ce que les tests automatiques ne peuvent pas prouver.
