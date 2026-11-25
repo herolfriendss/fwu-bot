@@ -6,7 +6,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 OUT = ROOT / "livraison" / "FWU_INSTALLATION_COMPLETE.zip"
 fwu = sorted((ROOT / "livraison").glob("FWU_2*.zip"))[-1]
-files = [fwu, *[ROOT / "livraison" / "bots" / f"FWU-{b}.zip" for b in ("GUARD", "FDPDLAVOC", "SUCK-ME", "LE-FISC")],
+files = [fwu, *[ROOT / "livraison" / "bots" / f"FWU-{b}.zip" for b in ("GUARD", "FDPDLAVOC", "SUCK-ME", "LE-FISC", "INVEST-PLUS")],
          ROOT / "DEMARRAGE_FWU.md", *sorted((ROOT / "scripts" / "installation").iterdir())]
 with zipfile.ZipFile(OUT, "w", zipfile.ZIP_DEFLATED) as archive:
     for path in files:
