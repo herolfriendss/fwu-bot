@@ -1,8 +1,8 @@
-# FWU — Passer de 1 à 5 bots (guide de bascule)
+# FWU — Architecture multi-bots : 5 bots principaux + Invest + facultatif
 
 **Tant que tu ne fais rien, rien ne change** : FWU (le bot actuel, `her-v5-bot`) continue de tout faire, exactement comme aujourd'hui.
 
-## Les 5 bots (répartition du 24/11/2026 — détail : `docs/FWU_BASE_PARTAGEE.md`)
+## Les cinq bots principaux et le sixième bot facultatif (répartition du 25/11/2026 — détail : `docs/FWU_BASE_PARTAGEE.md`)
 
 | Bot | Processus PM2 | Préfixe | Ce qu'il fait | Token (dans le `.env` de son dossier) |
 |---|---|---|---|---|
