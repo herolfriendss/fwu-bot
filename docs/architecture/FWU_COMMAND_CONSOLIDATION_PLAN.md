@@ -53,6 +53,10 @@ Les racines doivent rester uniques à l'échelle des six applications, car le ru
 - Les routes préfixées `;access`, `;unaccess`, `;pv` et `;unpv` restent disponibles et leurs aides sont traduites vers les nouveaux chemins slash.
 - `/voc` et ses sous-commandes de salons temporaires restent inchangées.
 
+## État actuel du catalogue
+
+Les deux premiers lots regroupent 18 anciennes commandes racines sous `/music player` et `/voice`, sans retirer les commandes préfixées historiques. Le catalogue est maintenant à **129 racines uniques** sur les six applications ; FDPDLAVOC passe de 25 à 9 racines communes comprises. Les commandes slash historiques seront nettoyées uniquement lors d'une future synchronisation applicative, jamais par ce chantier sur le serveur en fonctionnement.
+
 ## Architecture de propriété
 
 Le runtime actuel utilise une table globale nom de commande → application. Les futures racines consolidées doivent donc rester uniques entre applications, même si leurs sous-commandes peuvent porter des noms identiques. Toute évolution de ce modèle devra être accompagnée d'une migration de l'audit et des tests de propriété.
