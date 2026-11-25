@@ -1,5 +1,6 @@
 // Bot Discord 24h/24 — à lancer sur ton VPS. Les réglages viennent du site (onglet « Bot 24h/24 »).
 import { Client, GatewayIntentBits, Partials, PermissionFlagsBits, REST } from "discord.js";
+import { startPresence } from "./presence.js";
 import { buildActivitySnapshot } from "./activity-snapshot.js";
 import { existsSync } from "node:fs";
 // The dashboard and the Oracle bot share one command definition file. In the
@@ -1028,6 +1029,8 @@ client.once("clientReady", () => {
   try { registerBotIdentity(RUNTIME.profile, client.user.id); } catch { record("bot_identity_error"); }
   // FWU community jobs: voice XP (1 min), reminders (30 s), birthdays (5 min).
   const communityGuilds = () => [...client.guilds.cache.values()].filter((g) => guildAllowed(g.id, ALLOWED_GUILDS) && !isLogsHub(g.id));
+  // Statut riche : chaque bot affiche sa propre rotation (réglable dans bots.json).
+  startPresence(client, { profile: RUNTIME.profile, label: BOT_LABEL, prefix: OWN_PREFIX, guilds: communityGuilds, onError: () => record("presence_error") });
   // One-time automatic configuration (channels, roles, staff ladder) once leases are settled.
   setTimeout(() => {
     void runAutoconfig(communityGuilds(), (domain) => serves(domain) && (IS_FWU ? domain === "fwu" : domain !== "fwu"), { ...communityAutoconfig, ladder: ladderOf, saveLadder }, (guild, line) => {
