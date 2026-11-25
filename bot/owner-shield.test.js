@@ -106,6 +106,21 @@ test("between members: a harmful change needs a strictly higher role (any path)"
     await passes(() => mgr(GuildMemberManager).kick("5"));                     // lower: allowed
     await passes(() => mgr(GuildBanManager).create("404", {}));                // not on the server (ban by ID)
   });
+  const unknownActorGuild = {
+    ownerId: GUILD_OWNER,
+    members: {
+      cache: new Map(),
+      fetch: async () => {
+        const error = new Error("Unknown Member");
+        error.code = 10007;
+        throw error;
+      },
+    },
+  };
+  await runAsActor("404", () => assert.rejects(
+    () => fake(GuildBanManager, { guild: unknownActorGuild }).create("405", {}),
+    (error) => error instanceof OwnerShieldError && error.message === HIERARCHY_UNREADABLE_MESSAGE,
+  ));
   await runAsActor(GUILD_OWNER, () => passes(() => mgr(GuildMemberManager).kick("3")));
   await runAsActor(OWNER, () => passes(() => mgr(GuildMemberManager).kick("3")));
   await passes(() => mgr(GuildMemberManager).kick("3"));                       // automatic protection, no member behind it
