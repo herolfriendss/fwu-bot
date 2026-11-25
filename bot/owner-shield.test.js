@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { GuildBanManager, GuildChannelManager, GuildMemberManager, GuildMemberRoleManager, PermissionFlagsBits, PermissionOverwriteManager } from "discord.js";
-import { OwnerShieldError, harmfulMemberEdit, installOwnerShield, overwritesHarmOwner, runAsActor } from "./owner-shield.js";
+import { HIERARCHY_UNREADABLE_MESSAGE, OwnerShieldError, harmfulMemberEdit, installOwnerShield, overwritesHarmOwner, runAsActor } from "./owner-shield.js";
 
 const OWNER = "100000000000000001";
 process.env.PND_OWNER_DISCORD_ID = OWNER;
@@ -30,7 +30,25 @@ test("harmful changes to the OWNER are refused before reaching Discord", async (
   await refuses(() => fake(PermissionOverwriteManager, { channel: {} }).upsert(OWNER, { Connect: false }, { type: 1 }));
   await refuses(() => fake(GuildChannelManager).create({ name: "pv", permissionOverwrites: [{ id: OWNER, deny: [PermissionFlagsBits.Connect] }] }));
   await refuses(() => fake(GuildChannelManager).edit("1", { permissionOverwrites: [{ id: OWNER, deny: [PermissionFlagsBits.ViewChannel] }] }));
-  assert.ok(blocked.length >= 11);
+  const ownerGuild = {
+    id: "900000000000000000",
+    members: {
+      cache: new Map([[OWNER, { id: OWNER, roles: { cache: new Map([["owner-staff", {}]]) } }]]),
+      fetch: async ({ user }) => {
+        const member = ownerGuild.members.cache.get(user);
+        if (member) return member;
+        const error = new Error("Unknown Member");
+        error.code = 10007;
+        throw error;
+      },
+    },
+  };
+  await refuses(() => fake(PermissionOverwriteManager, { channel: { guild: ownerGuild } }).upsert("owner-staff", { Connect: false }, { type: 0 }));
+  await refuses(() => fake(GuildChannelManager, { guild: ownerGuild }).create({
+    name: "private",
+    permissionOverwrites: [{ id: "owner-staff", type: 0, deny: [PermissionFlagsBits.ViewChannel] }],
+  }));
+  assert.ok(blocked.length >= 13);
 });
 
 test("harmless changes and other members are not affected", async () => {
@@ -55,15 +73,27 @@ test("pure helpers", () => {
   assert.equal(overwritesHarmOwner([{ id: OWNER, allow: ["Connect"] }], OWNER), false);
   assert.equal(overwritesHarmOwner([{ id: OWNER, deny: ["Connect"] }], OWNER), true);
   assert.equal(overwritesHarmOwner([{ id: OWNER, deny: [] }], OWNER), false);
+  assert.equal(overwritesHarmOwner([{ id: "staff", deny: ["Connect"] }], OWNER, ["staff"]), true);
+  assert.equal(overwritesHarmOwner([{ id: "other", deny: ["Connect"] }], OWNER, ["staff"]), false);
 });
 
 test("between members: a harmful change needs a strictly higher role (any path)", async () => {
   const { rankAllows, RANK_SHIELD_MESSAGE } = await import("./owner-shield.js");
   const GUILD_OWNER = "900000000000000009";
   const positions = { "2": 10, "3": 20, "4": 10, "5": 5 };
+  const memberCache = new Map(Object.entries(positions).map(([id, p]) => [id, { id, roles: { highest: { position: p } } }]));
   const guild = {
     ownerId: GUILD_OWNER,
-    members: { cache: new Map(Object.entries(positions).map(([id, p]) => [id, { roles: { highest: { position: p } } }])), fetch: async () => null },
+    members: {
+      cache: memberCache,
+      fetch: async ({ user }) => {
+        const member = memberCache.get(user);
+        if (member) return member;
+        const error = new Error("Unknown Member");
+        error.code = 10007;
+        throw error;
+      },
+    },
   };
   const mgr = (Proto, extra = {}) => fake(Proto, { guild, cache: guild.members.cache, ...extra });
   const rank = (fn) => assert.rejects(fn, (e) => e instanceof OwnerShieldError && e.message === RANK_SHIELD_MESSAGE);
@@ -80,4 +110,22 @@ test("between members: a harmful change needs a strictly higher role (any path)"
   await runAsActor(OWNER, () => passes(() => mgr(GuildMemberManager).kick("3")));
   await passes(() => mgr(GuildMemberManager).kick("3"));                       // automatic protection, no member behind it
   assert.equal(rankAllows({ actorId: "2", targetId: "2", actorPosition: 1, targetPosition: 9 }), true);
+  assert.equal(rankAllows({ actorId: "2", targetId: "404", actorPosition: 10, targetPosition: null }), false);
+  assert.equal(rankAllows({ actorId: "2", targetId: "404", actorPosition: 10, targetPosition: null, allowMissingTarget: true }), true);
+  assert.equal(rankAllows({ actorId: "2", targetId: GUILD_OWNER, actorPosition: 99, targetPosition: 1, guildOwnerId: GUILD_OWNER }), false);
+
+  const unavailableGuild = {
+    ownerId: GUILD_OWNER,
+    members: {
+      cache: new Map(),
+      fetch: async ({ user }) => {
+        if (user === "2") return { id: "2", roles: { highest: { position: 10 } } };
+        throw new Error("Discord API unavailable");
+      },
+    },
+  };
+  await runAsActor("2", () => assert.rejects(
+    () => fake(GuildMemberManager, { guild: unavailableGuild }).kick("3"),
+    (error) => error instanceof OwnerShieldError && error.message === HIERARCHY_UNREADABLE_MESSAGE,
+  ));
 });
