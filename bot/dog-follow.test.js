@@ -2,7 +2,7 @@
 // Discord simulé : aucun token, aucun réseau.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, statSync, utimesSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { PermissionFlagsBits as P } from "discord.js";
@@ -12,8 +12,12 @@ const statePath = join(directory, "dog-state.json");
 process.env.PND_DOG_STATE_PATH = statePath;
 process.env.HER_DB_PATH = join(directory, "economy.sqlite");
 
+// Keeps the previous modification time on purpose: on a fast machine two writes
+// can share one clock tick, and the bot must still see the new content.
 function writeLeash(records) {
+  const before = existsSync(statePath) ? statSync(statePath) : null;
   writeFileSync(statePath, JSON.stringify(records));
+  if (before) utimesSync(statePath, before.atime, before.mtime);
 }
 writeLeash({
   "g:pet": { guildId: "g", memberId: "pet", ownerId: "master", ownerName: "Master", since: Date.now(), previousNickname: null, leashRoleId: "leash" },

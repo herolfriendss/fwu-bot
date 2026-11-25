@@ -104,9 +104,15 @@ async function releaseLeashRoleIfUnused(guild, roleId, records) {
   return Boolean(await role.delete("DOG : plus aucune laisse pour ce maître").catch(() => null));
 }
 
+// Fingerprint of the file as last read. The modification time alone is not
+// enough: on a fast machine two writes can land within the same clock tick and
+// keep the same mtime, so size and inode (an atomic rename gives a new one) count too.
 let stateMtimeMs = null;
 async function fileMtime() {
-  try { return (await stat(stateFile)).mtimeMs; } catch (error) { if (error.code === "ENOENT") return null; throw error; }
+  try {
+    const info = await stat(stateFile);
+    return `${info.mtimeMs}:${info.size}:${info.ino}`;
+  } catch (error) { if (error.code === "ENOENT") return null; throw error; }
 }
 
 // Several FWU bots share this file (shared data folder): reload it when another
