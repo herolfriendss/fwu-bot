@@ -49,6 +49,7 @@ import { handleCasinoMessage } from "./casino.js";
 import { handleCasinoInteraction } from "./casino/commands.js";
 import { runCascade, startCascade } from "./cascade.js";
 import { handleConfessionInteraction } from "./features/confessions-commands.js";
+import { handleOverviewInteraction } from "./features/overview.js";
 import { pruneEvents } from "./event-bus.js";
 import { handleBusinessInvestmentMessage } from "./business-investments-commands.js";
 import { startInvestmentMaintenance } from "./business-investments-maintenance.js";
@@ -1454,6 +1455,7 @@ client.on("interactionCreate", (interaction) => {
     })) return;
     if (await handleModerationInteraction(interaction, settings[interaction.guildId], { apiUrl: API, secret: BOT_SYNC_SECRET })) return;
     if (await handleVoiceV2Interaction(interaction, settings[interaction.guildId])) { auditSlashUsage(interaction, "Vocal temporaire"); return; }
+    if (serves("fwu") && await handleOverviewInteraction(interaction)) { auditSlashUsage(interaction, "Profil FWU"); return; }
     if (serves("fwu") && await handleConfessionInteraction(interaction)) { auditSlashUsage(interaction, "Confessions"); return; }
     if (serves("fisc") && await handleCasinoInteraction(interaction)) { auditSlashUsage(interaction, "PND Casino"); return; }
     if (await handleGamesInteraction(interaction, settings[interaction.guildId], record)) { auditSlashUsage(interaction, "Jeux & événements"); return; }

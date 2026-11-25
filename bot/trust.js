@@ -4,7 +4,7 @@
 // It is not a punishment — it decides how much rope a member gets: casino
 // stakes, economy ceilings, DJ control, voice access. A fresh or sanctioned
 // account is limited everywhere at once, and earns its way back automatically.
-import { db } from "./database.js";
+import { db, tableExists } from "./database.js";
 
 db.exec(`
   CREATE TABLE IF NOT EXISTS fwu_trust (
@@ -79,14 +79,6 @@ export function computeTrust(signals = {}) {
   const final = clamp(score);
   return { score: final, tier: tierForScore(final), reasons };
 }
-
-/**
- * Each bot loads a different set of modules, so a table this reads may not
- * exist in the process asking (GUARD never creates the level tables). A
- * missing table means "no signal", never a crash.
- */
-const tableExists = (name) =>
-  Boolean(db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name=?").get(name));
 
 /** Reads every signal the bots share about one member. */
 export function trustSignals(guildId, userId, member = null, now = Date.now()) {

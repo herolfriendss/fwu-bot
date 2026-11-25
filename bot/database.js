@@ -693,6 +693,13 @@ let transactionDepth = 0;
  * lieu d’ouvrir une seconde transaction SQLite, ce qui échouerait avec
  * « cannot start a transaction within a transaction ».
  */
+/**
+ * Each bot loads a different set of modules, so a table one bot creates may be
+ * absent in another process. Readers that span domains check first.
+ */
+export const tableExists = (name) =>
+  Boolean(db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name=?").get(name));
+
 export function transaction(action) {
   if (transactionDepth > 0) {
     const savepoint = `her_sp_${transactionDepth}`;
