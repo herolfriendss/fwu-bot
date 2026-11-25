@@ -1,7 +1,7 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useBlocker } from "@tanstack/react-router";
 import { queryOptions, useQuery, useQueryClient, useSuspenseQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import { toast } from "sonner";
 import { ArrowLeft, ArrowUpRight, Bot, Hash, Megaphone, Shield, Users, Trash2, Plus, Volume2, Folder, Save, BarChart3, Command, UserRoundCheck, Server, Activity, FileKey, Coins, SlidersHorizontal } from "lucide-react";
 import { getOverview } from "@/lib/discord.functions";
@@ -17,15 +17,18 @@ import { MembershipRequests } from "@/components/MembershipRequests";
 import { BotSettingsPanel } from "@/components/BotSettingsPanel";
 import { V4ModulesPanel } from "@/components/V4ModulesPanel";
 import { Button } from "@/components/ui/button";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 const overviewQuery = queryOptions({ queryKey: ["discord", "overview"], queryFn: () => getOverview(), staleTime: 60_000 });
 
 export const Route = createFileRoute("/configuration")({
   head: () => ({
     meta: [
-      { title: "Configuration — 1942" },
-      { name: "description", content: "Analyses du serveur, profil, salons, rôles, membres, modération et annonces de votre bot Discord 1942." },
-      { property: "og:title", content: "Configuration — 1942" },
+      { title: "Configuration — FWU" },
+      { name: "description", content: "Analyses du serveur, profil, salons, rôles, membres, modération et annonces de vos bots Discord FWU." },
+      { property: "og:title", content: "Configuration — FWU" },
       { property: "og:description", content: "Configuration et statistiques des serveurs de votre bot Discord." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
@@ -49,8 +52,8 @@ const TABS = [
   { id: "membres", label: "Rôles & membres", icon: Users },
   { id: "moderation", label: "Modération", icon: Shield },
   { id: "annonces", label: "Annonces", icon: Megaphone },
-  { id: "bot", label: "Bot 24h/24", icon: Server },
-  { id: "modules", label: "Modules V4", icon: SlidersHorizontal },
+  { id: "bot", label: "Réponses et filtres", icon: Server },
+  { id: "modules", label: "Modules", icon: SlidersHorizontal },
   { id: "commandes", label: "Commandes", icon: Command },
   { id: "adhesions", label: "Adhésions", icon: UserRoundCheck },
 ] as const;
@@ -80,8 +83,16 @@ function useAction() {
 
 function Config() {
   const { data } = useSuspenseQuery(overviewQuery);
-  const [tab, setTab] = useState<Tab>("profil");
-  const [guildId, setGuildId] = useState(data.guilds[0]?.id ?? "");
+  const [tab, setTabNow] = useState<Tab>("profil");
+  const [guildId, setGuildIdNow] = useState(data.guilds[0]?.id ?? "");
+  // Unsaved edits in the settings tabs: ask before switching tab, server or page.
+  const [dirty, setDirty] = useState(false);
+  const onDirtyChange = useCallback((value: boolean) => setDirty(value), []);
+  const [pending, setPending] = useState<(() => void) | null>(null);
+  const guarded = (fn: () => void) => (dirty ? setPending(() => fn) : fn());
+  const setTab = (next: Tab) => { if (next !== tab) guarded(() => { setDirty(false); setTabNow(next); }); };
+  const setGuildId = (next: string) => { if (next !== guildId) guarded(() => { setDirty(false); setGuildIdNow(next); }); };
+  const blocker = useBlocker({ shouldBlockFn: () => dirty, enableBeforeUnload: () => dirty, withResolver: true });
   const fetchAdmin = useServerFn(getGuildAdmin);
   const admin = useQuery({
     queryKey: ["discord", "admin", guildId],
@@ -113,10 +124,10 @@ function Config() {
               <t.icon className="h-4 w-4" /> {t.label}
             </Button>
           ))}
-          <Button asChild variant="ghost" className="console-nav-item px-3 text-sm"><Link to="/admin"><Shield className="h-4 w-4" /> Admin <ArrowUpRight className="ml-auto h-3 w-3" /></Link></Button>
-          <Button asChild variant="ghost" className="console-nav-item px-3 text-sm"><Link to="/installation"><FileKey className="h-4 w-4" /> Installation Oracle</Link></Button>
-          <Button asChild variant="ghost" className="console-nav-item px-3 text-sm"><Link to="/statut"><Activity className="h-4 w-4" /> Statut du bot</Link></Button>
-          <Button asChild variant="ghost" className="console-nav-item px-3 text-sm"><Link to="/economie"><Coins className="h-4 w-4" /> Économie PND</Link></Button>
+          <Button asChild variant="ghost" className="console-nav-item px-3 text-sm"><Link to="/admin"><Shield className="h-4 w-4" /> Accès vocaux <ArrowUpRight className="ml-auto h-3 w-3" /></Link></Button>
+          <Button asChild variant="ghost" className="console-nav-item px-3 text-sm"><Link to="/installation"><FileKey className="h-4 w-4" /> Installation sur le VPS</Link></Button>
+          <Button asChild variant="ghost" className="console-nav-item px-3 text-sm"><Link to="/statut"><Activity className="h-4 w-4" /> Statut des bots</Link></Button>
+          <Button asChild variant="ghost" className="console-nav-item px-3 text-sm"><Link to="/economie"><Coins className="h-4 w-4" /> Économie</Link></Button>
           <Button asChild variant="ghost" className="console-nav-item px-3 md:hidden"><Link to="/"><ArrowLeft className="h-4 w-4" /> Tableau de bord</Link></Button>
           </div>
           <div className="mt-10 hidden border-t border-border px-3 pt-5 md:block"><p className="flex items-center gap-2 text-xs text-muted-foreground"><Shield className="h-3.5 w-3.5 text-primary" /> Accès propriétaire</p></div>
@@ -133,13 +144,25 @@ function Config() {
           {admin.data && tab === "membres" && <Members guildId={guildId} admin={admin.data} />}
           {admin.data && tab === "moderation" && <Moderation guildId={guildId} admin={admin.data} />}
           {admin.data && tab === "annonces" && <Announce channels={admin.data.channels} />}
-          {admin.data && tab === "bot" && <BotSettingsPanel key={guildId} guildId={guildId} channels={admin.data.channels.filter((c) => c.type === 0 || c.type === 5)} />}
-          {admin.data && tab === "modules" && <V4ModulesPanel key={guildId} guildId={guildId} channels={admin.data.channels} roles={admin.data.roles} />}
+          {admin.data && tab === "bot" && <BotSettingsPanel key={guildId} guildId={guildId} channels={admin.data.channels.filter((c) => c.type === 0 || c.type === 5)} onDirtyChange={onDirtyChange} />}
+          {admin.data && tab === "modules" && <V4ModulesPanel key={guildId} guildId={guildId} channels={admin.data.channels} roles={admin.data.roles} onDirtyChange={onDirtyChange} />}
           {tab === "commandes" && <CommandManager guildId={guildId} />}
           {tab === "adhesions" && guildId && <MembershipRequests guildId={guildId} />}
           </div>
         </main>
       </div>
+      <AlertDialog open={pending !== null || blocker.status === "blocked"} onOpenChange={(open) => { if (!open) { setPending(null); blocker.reset?.(); } }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Modifications non enregistrées</AlertDialogTitle>
+            <AlertDialogDescription>Si tu quittes maintenant, les changements faits sur cette page seront perdus.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Rester sur la page</AlertDialogCancel>
+            <AlertDialogAction onClick={() => { const next = pending; setPending(null); setDirty(false); if (next) next(); else blocker.proceed?.(); }}>Quitter sans enregistrer</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

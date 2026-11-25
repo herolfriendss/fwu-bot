@@ -14,7 +14,7 @@ const botSync = read("src/routes/api/public/bot-sync.ts");
 describe("V4 dashboard wiring", () => {
   it("renders the V4 modules panel from the configuration tab", () => {
     expect(configuration).toContain('import { V4ModulesPanel } from "@/components/V4ModulesPanel"');
-    expect(configuration).toContain('{ id: "modules", label: "Modules V4"');
+    expect(configuration).toContain('{ id: "modules", label: "Modules"');
     expect(configuration).toContain('tab === "modules" && <V4ModulesPanel');
   });
 
@@ -23,8 +23,10 @@ describe("V4 dashboard wiring", () => {
       expect(panel, module).toContain(`s.${module}.`);
       expect(panel, module).toContain(`"${module}"`);
     }
-    expect(panel).toContain("save({ data: { guildId, settings: s } })");
-    expect(panel).toContain('queryKey: ["bot-settings", guildId]');
+    expect(panel).toContain("useSectionSettings(guildId, SECTIONS, onDirtyChange)");
+    const hook = read("src/components/useSectionSettings.ts");
+    expect(hook).toContain('queryKey: ["bot-settings", guildId]');
+    expect(hook).toContain("saveSections({ data: { guildId, patch: toSend, base } })");
   });
 
   it("previews the branded animated webhook art and explains its Discord switch", () => {
@@ -40,6 +42,7 @@ describe("V4 dashboard wiring", () => {
     const calls = functions.match(/requireOwner\(\)/g) ?? [];
     expect(calls.length).toBeGreaterThanOrEqual(4);
     expect(functions).toContain("sanitizeSettings(d.settings)");
+    expect(functions).toContain("writeSettingsSections(data.guildId, data.patch, data.base)");
   });
 
   it("accepts only the configured bot modules in bot-sync", () => {

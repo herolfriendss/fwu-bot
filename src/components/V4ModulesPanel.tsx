@@ -1,10 +1,8 @@
-import { useEffect, useState } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useServerFn } from "@tanstack/react-start";
+import { useState } from "react";
 import { toast } from "sonner";
 import { Save, ShieldCheck, Sparkles } from "lucide-react";
-import { getBotSettings, saveBotSettings } from "@/lib/bot-settings.functions";
-import { DEFAULT_SETTINGS, type BotSettings } from "@/lib/bot-settings";
+import { type BotSettings } from "@/lib/bot-settings";
+import { useSectionSettings } from "@/components/useSectionSettings";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -63,33 +61,14 @@ function RoleSelect({ value, onChange, roles, placeholder }: {
   );
 }
 
-export function V4ModulesPanel({ guildId, channels, roles }: { guildId: string; channels: Chan[]; roles: Role[] }) {
-  const qc = useQueryClient();
-  const fetchSettings = useServerFn(getBotSettings);
-  const save = useServerFn(saveBotSettings);
-  const q = useQuery({ queryKey: ["bot-settings", guildId], queryFn: () => fetchSettings({ data: { guildId } }), enabled: !!guildId });
-  const [s, setS] = useState<BotSettings>(DEFAULT_SETTINGS);
-  const [saving, setSaving] = useState(false);
+const SECTIONS = ["logs", "ai", "guildGuard", "moderation", "verification", "tickets", "tempVoice", "liveAlerts", "automation"] as const;
+
+export function V4ModulesPanel({ guildId, channels, roles, onDirtyChange }: { guildId: string; channels: Chan[]; roles: Role[]; onDirtyChange?: (dirty: boolean) => void }) {
+  const { q, s, set, dirty, saving, save } = useSectionSettings(guildId, SECTIONS, onDirtyChange);
   const [livePlatform, setLivePlatform] = useState<"youtube" | "tiktok" | "twitch" | "other">("youtube");
   const [liveName, setLiveName] = useState("");
   const [liveFeed, setLiveFeed] = useState("");
-
-  useEffect(() => { if (q.data) setS(q.data); }, [q.data]);
-
-  const set = <K extends keyof BotSettings>(key: K, value: Partial<BotSettings[K]>) => setS((prev) => ({ ...prev, [key]: { ...(prev[key] as object), ...value } }));
-
-  async function onSave() {
-    setSaving(true);
-    try {
-      const saved = await save({ data: { guildId, settings: s } });
-      qc.setQueryData(["bot-settings", guildId], saved);
-      toast.success("Modules V4 enregistrés : le bot appliquera les réglages d’ici 1 minute.");
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Échec de l’enregistrement");
-    } finally {
-      setSaving(false);
-    }
-  }
+  const onSave = () => save();
 
   if (!guildId) return <p className="text-muted-foreground">Choisis un serveur.</p>;
   if (q.isLoading) return <p className="text-muted-foreground">Chargement…</p>;
@@ -104,9 +83,9 @@ export function V4ModulesPanel({ guildId, channels, roles }: { guildId: string; 
           <p className="mt-1 text-xs text-muted-foreground">Le bot doit pouvoir voir le salon, envoyer des messages et intégrer des liens. Chaque serveur possède son propre salon de logs.</p>
         </div>
       </Section>
-      <Section title="Identité visuelle & annonces webhook" icon={Sparkles} description="Les panneaux 1942 reprennent l'identité visuelle du serveur. Les publications webhook sont animées par défaut.">
+      <Section title="Identité visuelle & annonces webhook" icon={Sparkles} description="Les panneaux FWU reprennent l'identité visuelle du serveur. Les publications webhook sont animées par défaut.">
         <div className="overflow-hidden rounded-xl border border-violet-400/25 shadow-[0_12px_32px_-18px_rgba(139,92,246,.55)]">
-          <img src="/media/her-v5-city-loop.gif" alt="Ville nocturne aux lumières violettes — identité visuelle 1942" className="block aspect-[3/1] w-full object-cover" loading="lazy" />
+          <img src="/media/her-v5-city-loop.gif" alt="Ville nocturne aux lumières violettes — identité visuelle FWU" className="block aspect-[3/1] w-full object-cover" loading="lazy" />
         </div>
         <p className="text-sm text-muted-foreground">Les annonces webhook reçoivent cette bannière animée. L'animation est activée à la création de chaque webhook ; tu peux la désactiver ou la réactiver sans supprimer le webhook.</p>
         <div className="rounded-lg border border-violet-400/20 bg-violet-950/20 p-3 text-sm">
@@ -115,17 +94,17 @@ export function V4ModulesPanel({ guildId, channels, roles }: { guildId: string; 
           <p className="mt-1 text-xs text-muted-foreground">Coupe l'animation pour tous les webhooks de ce serveur. Ajoute l'option <code>id</code> pour ne modifier qu'un webhook. Utilise <code>etat:on</code> pour la réactiver.</p>
         </div>
       </Section>
-      <Section title="Assistant IA 1942" icon={Sparkles} description="Répond lorsqu’un membre mentionne le bot. La mémoire est facultative et isolée par serveur et par membre.">
+      <Section title="Assistant IA" icon={Sparkles} description="Répond lorsqu’un membre mentionne le bot. La mémoire est facultative et isolée par serveur et par membre.">
         <label className="flex items-center gap-2 text-sm"><Switch checked={s.ai.enabled} onCheckedChange={(v) => set("ai", { enabled: v })} /> Activer les réponses IA aux mentions</label>
         <label className="flex items-center gap-2 text-sm"><Switch checked={s.ai.memoryEnabled} onCheckedChange={(v) => set("ai", { memoryEnabled: v })} /> Activer la mémoire des conversations</label>
-        <p className="text-xs text-muted-foreground">La mémoire nécessite deux accords : l'activation par l'équipe dans ce panneau, puis le consentement individuel du membre avec <code>/ia memoire etat:Activer</code> ou <code>=ia memoire on</code>. Chaque membre peut retirer son accord avec <code>/ia memoire</code> / <code>=ia memoire off</code>, ou supprimer son historique avec <code>/ia oublier</code>. 1942 conserve au maximum 12 messages de contexte pendant 30 jours. Limite : 5 demandes par membre et par minute.</p>
+        <p className="text-xs text-muted-foreground">La mémoire nécessite deux accords : l'activation par l'équipe dans ce panneau, puis le consentement individuel du membre avec <code>/ia memoire etat:Activer</code> ou <code>=ia memoire on</code>. Chaque membre peut retirer son accord avec <code>/ia memoire</code> / <code>=ia memoire off</code>, ou supprimer son historique avec <code>/ia oublier</code>. FWU conserve au maximum 12 messages de contexte pendant 30 jours. Limite : 5 demandes par membre et par minute.</p>
         <div>
           <Label>Instructions de l’assistant</Label>
           <Textarea rows={4} maxLength={2000} value={s.ai.instructions} onChange={(e) => set("ai", { instructions: e.target.value })} />
         </div>
       </Section>
-      <Section title="GuildGuard" icon={ShieldCheck} description="Admission, anti-raid et confinement. Chaque serveur garde ses propres réglages.">
-        <label className="flex items-center gap-2 text-sm"><Switch checked={s.guildGuard.enabled} onCheckedChange={(v) => set("guildGuard", { enabled: v })} /> Activer GuildGuard</label>
+      <Section title="Sécurité anti-raid" icon={ShieldCheck} description="Admission, anti-raid et confinement. Chaque serveur garde ses propres réglages.">
+        <label className="flex items-center gap-2 text-sm"><Switch checked={s.guildGuard.enabled} onCheckedChange={(v) => set("guildGuard", { enabled: v })} /> Activer la sécurité anti-raid</label>
         <div className="grid gap-3 sm:grid-cols-2">
           <div>
             <Label>Âge minimal du compte (jours)</Label>
@@ -143,7 +122,7 @@ export function V4ModulesPanel({ guildId, channels, roles }: { guildId: string; 
             <Label>Rôle de quarantaine</Label>
             <RoleSelect value={s.guildGuard.quarantineRoleId} roles={roles} onChange={(v) => set("guildGuard", { quarantineRoleId: v })} placeholder="Aucun" />
           </div>
-          <p className="text-xs text-muted-foreground sm:col-span-2">Les événements GuildGuard sont envoyés dans le salon unique configuré dans « Journal centralisé ».</p>
+          <p className="text-xs text-muted-foreground sm:col-span-2">Les événements anti-raid sont envoyés dans le salon unique configuré dans « Journal centralisé ».</p>
           <div>
             <Label>Connexions autorisées avant alerte</Label>
             <Input type="number" min={0} max={100} value={s.guildGuard.raidJoinThreshold} onChange={(e) => set("guildGuard", { raidJoinThreshold: Number(e.target.value) })} />
@@ -156,7 +135,7 @@ export function V4ModulesPanel({ guildId, channels, roles }: { guildId: string; 
         <label className="flex items-center gap-2 text-sm"><Switch checked={s.guildGuard.lockdown} onCheckedChange={(v) => set("guildGuard", { lockdown: v })} /> Confinement : contrôler toutes les nouvelles arrivées</label>
       </Section>
 
-      <Section title="Modération & vérification" icon={Sparkles} description="Journal centralisé, sanctions et CAPTCHA par défi de calcul avec tentatives limitées.">
+      <Section title="Modération et vérification des membres" icon={Sparkles} description="Journal centralisé, sanctions et CAPTCHA par défi de calcul avec tentatives limitées.">
         <div className="grid gap-3 sm:grid-cols-2">
           <p className="text-xs text-muted-foreground sm:col-span-2">Les sanctions et vérifications utilisent le même salon #logs que tous les autres modules.</p>
           <div>
@@ -188,7 +167,7 @@ export function V4ModulesPanel({ guildId, channels, roles }: { guildId: string; 
         </div>
       </Section>
 
-      <Section title="Tickets staff" icon={Sparkles} description="Salons privés ouverts à la demande. Publie le panneau avec /ticket panel.">
+      <Section title="Tickets communautaires" icon={Sparkles} description="Salons privés ouverts à la demande. Publie le panneau avec /ticket panel.">
         <label className="flex items-center gap-2 text-sm"><Switch checked={s.tickets.enabled} onCheckedChange={(v) => set("tickets", { enabled: v })} /> Activer les tickets</label>
         <div className="grid gap-3 sm:grid-cols-2">
           <div>
@@ -207,7 +186,7 @@ export function V4ModulesPanel({ guildId, channels, roles }: { guildId: string; 
         </div>
       </Section>
 
-      <Section title="Vocal V2" icon={Sparkles} description="Hub « rejoindre pour créer » : chaque membre obtient un salon temporaire.">
+      <Section title="Salons vocaux temporaires" icon={Sparkles} description="Hub « rejoindre pour créer » : chaque membre obtient un salon temporaire.">
         <label className="flex items-center gap-2 text-sm"><Switch checked={s.tempVoice.enabled} onCheckedChange={(v) => set("tempVoice", { enabled: v })} /> Activer les salons vocaux temporaires</label>
         <div className="grid gap-3 sm:grid-cols-2">
           <div>
@@ -229,9 +208,9 @@ export function V4ModulesPanel({ guildId, channels, roles }: { guildId: string; 
         </div>
       </Section>
 
-      <Section title="Alertes LIVE — TikTok, YouTube, Twitch…" icon={Sparkles} description="Le bot surveille les flux RSS/Atom HTTPS des créateurs choisis et publie une alerte dans le salon configuré lorsqu’un nouvel élément annonce explicitement un LIVE.">
+      <Section title="Alertes de démarrage LIVE (TikTok, YouTube, Twitch…)" icon={Sparkles} description="Le bot surveille les flux RSS/Atom HTTPS des créateurs choisis et publie une alerte dans le salon configuré lorsqu’un nouvel élément annonce explicitement un LIVE.">
         <label className="flex items-center gap-2 text-sm"><Switch checked={s.liveAlerts.enabled} onCheckedChange={(v) => set("liveAlerts", { enabled: v })} /> Activer les alertes LIVE</label>
-        <label className="flex items-center gap-2 text-sm"><Switch checked={s.liveAlerts.animated} onCheckedChange={(v) => set("liveAlerts", { animated: v })} /> Afficher les bannières LIVE animées FWU</label>
+        <label className="flex items-center gap-2 text-sm"><Switch checked={s.liveAlerts.animated} onCheckedChange={(v) => set("liveAlerts", { animated: v })} /> Afficher les bannières LIVE animées</label>
         <div>
           <Label>Salon de diffusion des alertes</Label>
           <ChannelSelect value={s.liveAlerts.channelId} channels={channels} onChange={(v) => set("liveAlerts", { channelId: v })} placeholder="Choisir le salon des annonces" />
@@ -276,7 +255,7 @@ export function V4ModulesPanel({ guildId, channels, roles }: { guildId: string; 
         <p className="text-xs text-muted-foreground">Vérification toutes les 60 secondes. Pour TikTok et Twitch, ajoute un flux RSS/Atom compatible avec les événements LIVE (par exemple un flux fourni par un service que tu héberges ou auquel tu fais confiance). Les flux vidéo ordinaires ne garantissent pas la détection d’un démarrage de direct. Aucun mot de passe de réseau social n’est demandé.</p>
       </Section>
 
-      <Section title="Automatisation" icon={Sparkles} description="Rôles automatiques et MP de bienvenue. Les messages planifiés se gèrent avec /automation schedule.">
+      <Section title="Automatisations de bienvenue" icon={Sparkles} description="Rôles automatiques et MP de bienvenue. Les messages planifiés se gèrent avec /automation schedule.">
         <div>
           <Label>Rôles attribués automatiquement (maximum 10)</Label>
           <div className="mt-2 grid max-h-48 gap-2 overflow-auto sm:grid-cols-2">
@@ -305,9 +284,9 @@ export function V4ModulesPanel({ guildId, channels, roles }: { guildId: string; 
         </div>
       </Section>
 
-      <div className="flex flex-wrap items-center gap-3">
-        <Button onClick={onSave} disabled={saving}><Save className="h-4 w-4" /> {saving ? "Enregistrement…" : "Enregistrer les modules V4"}</Button>
-        <p className="text-xs text-muted-foreground">Les commandes Discord et le dashboard écrivent la même configuration, sans écraser les autres modules.</p>
+      <div className="console-save-bar flex flex-wrap items-center gap-3">
+        <Button onClick={onSave} disabled={saving || !dirty}><Save className="h-4 w-4" /> {saving ? "Enregistrement…" : "Enregistrer les modules"}</Button>
+        <p className="text-xs text-muted-foreground">{dirty ? "Modifications non enregistrées. " : ""}Seules les parties modifiées sont envoyées : un réglage changé depuis Discord entre-temps n’est jamais écrasé.</p>
       </div>
     </div>
   );

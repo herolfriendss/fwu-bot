@@ -215,3 +215,12 @@
 @media (prefers-reduced-motion: reduce) {
   .console-shell { background-image: linear-gradient(180deg, rgba(9, 6, 16, .95), rgba(9, 6, 16, .98)); }
 }
+
+/* Save bar of the settings tabs stays reachable at the bottom of long forms. */
+.console-save-bar {
+  position: sticky;
+  bottom: 0;
+  z-index: 5;
+  padding: 12px 0;
+  background: linear-gradient(180deg, transparent, var(--background) 35%);
+}

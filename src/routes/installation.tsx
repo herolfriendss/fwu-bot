@@ -5,8 +5,8 @@ import { ArrowLeft, Download, FileKey } from "lucide-react";
 
 export const Route = createFileRoute("/installation")({
   head: () => ({ meta: [
-    { title: "Installation du bot — 1942" }, { name: "description", content: "Préparez le fichier de configuration du bot Discord 1942 pour Oracle." },
-    { property: "og:title", content: "Installation du bot — 1942" }, { property: "og:description", content: "Préparation privée de l’installation du bot sur Oracle." },
+    { title: "Installation du bot — FWU" }, { name: "description", content: "Préparez le fichier de configuration du bot Discord FWU pour Oracle." },
+    { property: "og:title", content: "Installation du bot — FWU" }, { property: "og:description", content: "Préparation privée de l’installation du bot sur Oracle." },
     { property: "og:type", content: "website" }, { name: "twitter:card", content: "summary" },
   ] }), loader: () => getBotConnection(), component: InstallationPage,
 });
@@ -25,7 +25,7 @@ function InstallationPage() {
     <section className="space-y-4 border-b border-border pb-6">
       <h2 className="text-lg font-semibold">Dernière version du bot</h2>
       <p className="text-sm text-muted-foreground">L’archive du bot contient les commandes DOG, les accès vocaux, la lecture de flux audio HTTPS autorisés, la radio configurable, l’économie PND, les jeux et les commandes slash partagées. Node.js 24 et npm install restent nécessaires.</p>
-      <Button asChild><a href="/downloads/bot-oracle.zip" download="1942-bot.zip"><Download className="h-4 w-4" /> Télécharger 1942 (ZIP)</a></Button>
+      <Button asChild><a href="/downloads/bot-oracle.zip" download="fwu-bot.zip"><Download className="h-4 w-4" /> Télécharger FWU (ZIP)</a></Button>
       <p className="text-sm text-muted-foreground">Pour une mise à jour, conserve ton fichier .env et le dossier data sur Oracle : ils ne sont pas inclus dans le ZIP. Tu n’as pas besoin de ressaisir tes accès.</p>
       <p className="text-sm text-muted-foreground">Pour une première installation, Node.js et l’installation des dépendances restent nécessaires ; le token et le secret doivent être renseignés sur Oracle.</p>
     </section>
