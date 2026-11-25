@@ -91,6 +91,13 @@ La migration historique de création de `bot_settings` accordait `ALL` à `servi
 
 La migration est ajoutée au dépôt mais n'a pas été appliquée au projet Supabase distant. Il faudra l'exécuter et vérifier son état dans Supabase avant de considérer ce point comme corrigé en production.
 
+### SEC-006 — Corps de requête interne non borné
+**Sévérité : faible à moyenne (P2) — corrigé dans cette branche**
+
+L'API interne `bot-sync` analysait directement le corps JSON sans limite explicite de taille. Un processus possédant le secret interne pouvait donc provoquer une consommation mémoire excessive avec un payload inutilement volumineux.
+
+**Correction :** le POST est maintenant limité à 256 Ko avant parsing ; les JSON invalides, tableaux et valeurs primitives sont refusés avant le traitement des actions.
+
 ## Contrôles existants positifs observés
 
 - Le propriétaire PND est identifié par ID Discord configuré, pas par nom ou surnom.
