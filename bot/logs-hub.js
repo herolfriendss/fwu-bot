@@ -193,7 +193,7 @@ export function inspectLogsHub(guild) {
   if (!guild || guild.id !== LOGS_HUB_GUILD_ID)
     throw new Error("Serveur central de logs incorrect.");
 
-  // Only allowlisted source guilds are required; dormant servers never block log-hub health.
+  // Only allowlisted source guilds and their exact existing log categories are considered healthy.
   const activeSources = new Set(ACTIVE_SOURCE_GUILD_IDS.map(logSourceForGuild).filter(Boolean));
   const requiredChannels = ALL_LOG_CHANNELS.filter((spec) => activeSources.has(spec.source));
   const channels = new Map();
