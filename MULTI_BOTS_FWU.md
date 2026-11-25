@@ -11,6 +11,7 @@
 | **FDPDLAVOC** | `fwu-fdpdlavoc` | `;` | Musique, radio, vocaux temporaires, `;pv`, `;access`, `;voc`, `;mv`, `;accessall` | `PND_FDPDLAVOC_TOKEN` |
 | **SUCK ME** | `fwu-suckme` | `=` | SYS+, rôles, DOG, MENOTTE, WAKEUP, LOCKNAME, Anti-Move, automatisations, webhooks, dmall ; tickets, candidatures, sondage, IA, live, AFK, social, giveaways, événements, commandes personnalisées du site | `PND_SUCKME_TOKEN` |
 | **LE FISC** | `fwu-fisc` | `-` | Économie, casino, jeux (dice, coinflip, trivia) et cartes | `PND_FISC_TOKEN` |
+| **Invest +** | `fwu-investplus` | `$` | Abonnements des membres, salon privé par membre, administration des formules (`/abonnement`, `/investadmin`). Guide : `docs/INVEST_PLUS.md` | `PND_INVESTPLUS_TOKEN` |
 
 Les quotas de modération sont communs aux 5 bots (base centrale PostgreSQL, `SHARED_DATABASE_URL`).
 
@@ -91,3 +92,10 @@ L'installateur de chaque bot lance `scripts/fwu-synchroniser.sh` : FWU retire de
 - Un seul fichier pour les 5 bots : `PND_DATA_DIR/bots.json` (modèle `bot/config/bots.example.json`), jamais écrasé par une mise à jour.
 - Une commande tapée avec le préfixe d'un autre bot n'existe pas (`=ban` ne fait rien : c'est `+ban`).
 - `PND_PREFIX_COMMANDS` n'est plus utilisé.
+
+## Statut riche (25/11)
+- Chaque bot affiche un statut qui tourne toutes les minutes, avec des compteurs à jour : `{membres}`, `{serveurs}`, `{vocal}`, `{prefixe}`, `{bot}`.
+- Pour le changer, ajouter une section `presence` dans `PND_DATA_DIR/bots.json`, puis relancer le bot :
+  `"presence": { "guard": { "status": "dnd", "interval": 90, "activities": [{ "type": "watching", "text": "{membres} membres" }, { "type": "custom", "text": "🔒 Anti-nuke actif" }] } }`
+- Types : `playing`, `watching`, `listening`, `competing`, `custom`. Statut : `online`, `idle`, `dnd`. Intervalle : 30 s minimum. 10 activités maximum.
+- Un réglage invalide ne bloque jamais le bot : il est signalé dans ses logs et les statuts par défaut s'appliquent.

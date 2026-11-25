@@ -12,6 +12,7 @@
 import { isConnectionError, SharedDbUnavailableError, sharedDbAvailable, sharedQuery, sharedTransaction } from "./db.js";
 import { logQuotaViolation } from "./audit.js";
 import { MODERATION_TIERS, TIER_LABELS, canUseModeration } from "./tiers.js";
+import { getStaffFreeze } from "./freeze.js";
 
 /** Commandes soumises aux quotas, quel que soit le bot. */
 export const QUOTA_COMMANDS = Object.freeze(["tempmute", "unmute", "warn", "kick", "ban", "unban", "blacklist", "mv"]);
@@ -48,6 +49,8 @@ export function formatQuotaRefusal(decision, command) {
       return `⛔ Aucun quota n'est configuré pour ${name} et ton rôle : commande refusée par sécurité.`;
     case "bot_not_whitelisted":
       return "⛔ Ce bot n'est pas dans la whitelist des quotas.";
+    case "frozen":
+      return `🧊 Le staff est **gelé** par l'owner jusqu'à <t:${Math.floor(Number(decision.until) / 1000)}:t> (<t:${Math.floor(Number(decision.until) / 1000)}:R>) : commandes de modération suspendues sur les 5 bots.`;
     case "unavailable":
       return "🛑 La base centrale des quotas est injoignable : commande refusée par sécurité. Réessaie dans un instant.";
     default:
@@ -95,6 +98,9 @@ export async function consumeQuota({ guildId, userId, command, tier, bot, isBot 
     }
     if (await isExempt(guildId, userId)) return { allowed: true, exempt: "user_exemption" };
     if (!canUseModeration(tier)) return { allowed: false, reason: "no_access", tier };
+    // Gel d'urgence : tout le staff (hors owner et exemptés) à 0, sur les 5 bots.
+    const freeze = await getStaffFreeze(guildId);
+    if (freeze) return { allowed: false, reason: "frozen", tier, until: freeze.until };
 
     const decision = await sharedTransaction(async (client) => {
       await client.query("SELECT pg_advisory_xact_lock(hashtext($1))", [`quota:${guildId}:${userId}:${command}`]);

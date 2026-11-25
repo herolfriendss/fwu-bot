@@ -13,7 +13,7 @@ command -v pm2 >/dev/null 2>&1 || fail "PM2 introuvable."
 
 ONLINE="$(pm2 jlist | node --input-type=module -e '
   let raw = ""; process.stdin.on("data", (c) => raw += c).on("end", () => {
-    const names = ["guard", "fdpdlavoc", "suckme", "fisc"];
+    const names = ["guard", "fdpdlavoc", "suckme", "fisc", "investplus"];
     const rows = JSON.parse(raw);
     console.log(names.filter((n) => rows.some((p) => p.name === `fwu-${n}` && p.pm2_env?.status === "online")).join(","));
   });')"

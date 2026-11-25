@@ -62,6 +62,14 @@ function PublicServerPage() {
         </ul>
       </section>
 
+      {p.activity && (
+        <section className="console-theme-panel space-y-3 p-4">
+          <h2 className="flex items-center gap-2 font-semibold"><Crown className="h-4 w-4" /> Classement XP</h2>
+          <p className="text-sm text-muted-foreground">{number(p.activity.rankedMembers)} membres classés · {number(p.activity.messages30)} messages ces 30 derniers jours</p>
+          {p.activity.xpLeaderboard?.length ? <ol className="space-y-1 text-sm">{p.activity.xpLeaderboard.map((m) => <li key={m.rank} className="flex justify-between gap-3"><span><span className="mr-2 font-mono text-muted-foreground">{m.rank}.</span>{m.name}</span><span className="font-mono">niveau {m.level}</span></li>)}</ol> : null}
+        </section>
+      )}
+
       {p.economy && (
         <section className="grid gap-4 lg:grid-cols-2">
           <div className="console-theme-panel space-y-3 p-4">

@@ -68,6 +68,8 @@ export const SYSP_LAYOUT: SubcommandLayoutEntry[] = [
   { group: "whitelist", description: "Exemption WHITELIST (propriétaire)", members: ["whitelist-add", "whitelist-remove", "whitelist-list"] },
   { group: "outils", description: "Ghost, composer, recherche, blueprints, clone, studio, packs", members: ["ghost", "composer", "search", "blueprint", "clone", "studio", "pack"] },
   { group: "diagnostic", description: "Audit ACL, santé du bot et couverture des logs (lecture seule)", members: ["acl", "sante", "logs-couverture", "matrice", "economie", "bots", "installation"] },
+  { group: "suivi", description: "Fiche d'un membre, notes du staff et activité du staff", members: ["fiche", "stats", "notes", "note-ajouter", "note-retirer"] },
+  { group: "urgence", description: "Gel d'urgence du staff et alertes d'abus du staff", members: ["gel", "degel", "alerte-abus"] },
   { group: "market", description: "Marketplace d'extensions (désactivé par défaut)", members: ["catalog", "installed", "publish", "withdraw", "submit", "validate", "reject", "install", "uninstall", "rollback"] },
 ];
 
@@ -515,6 +517,29 @@ export const SLASH_COMMANDS: SlashCommandDef[] = [
       sub("economie", "Intégrité du grand livre PND et signaux de fraude"),
       sub("bots", "Bots FWU : quel bot traite chaque domaine en ce moment"),
       sub("installation", "Bilan : permissions et place du rôle de chaque bot, base centrale, sauvegarde"),
+      sub("gel", "Owner : suspend toutes les commandes du staff sur les 5 bots, pour une durée", [
+        opt(3, "duree", "Durée : 30m, 2h, 1j (7 jours maximum)", { required: true, max_length: 20 }),
+        opt(3, "raison", "Raison (visible dans le Logs Hub)", { max_length: 300 }),
+        opt(5, "retirer_admin_plus", "Retire aussi le rôle ADMIN+ (rendu au dégel)"),
+      ]),
+      sub("degel", "Owner : lève le gel du staff tout de suite"),
+      sub("fiche", "Fiche complète d'un membre : arrivée, rôles, sanctions des 5 bots, activité", [opt(6, "membre", "Membre concerné", { required: true })]),
+      sub("stats", "Activité du staff : sanctions, tickets, vocal, refus de quota, inactifs", [
+        opt(3, "periode", "Période (7 jours par défaut)", { choices: [{ name: "7 jours", value: "7j" }, { name: "30 jours", value: "30j" }] }),
+      ]),
+      sub("notes", "Notes privées du staff sur un membre (chaque lecture est journalisée)", [opt(6, "membre", "Membre concerné", { required: true })]),
+      sub("note-ajouter", "Ajoute une note privée du staff sur un membre (gardée 1 an, pas de données sensibles)", [
+        opt(6, "membre", "Membre concerné", { required: true }),
+        opt(3, "texte", "La note (500 caractères maximum)", { required: true, max_length: 500 }),
+      ]),
+      sub("note-retirer", "Retire une note (son auteur, un SYS+ ou l'owner)", [opt(4, "note", "Numéro de la note", { required: true, min_value: 1 })]),
+      sub("alerte-abus", "Alertes MP aux SYS+ si un membre du staff sanctionne en rafale ou s'acharne (owner pour modifier)", [
+        opt(5, "active", "Active ou coupe les alertes"),
+        opt(4, "rafale", "Nombre de sanctions qui déclenche l'alerte rafale (2 à 100)", { min_value: 2, max_value: 100 }),
+        opt(4, "rafale_minutes", "En combien de minutes (1 à 1440)", { min_value: 1, max_value: 1440 }),
+        opt(4, "cible", "Nombre de sanctions sur la même personne (2 à 50)", { min_value: 2, max_value: 50 }),
+        opt(4, "cible_heures", "En combien d'heures (1 à 720)", { min_value: 1, max_value: 720 }),
+      ]),
       sub("add", "Attribue le rôle SYS+ à un membre (propriétaire)", [opt(6, "membre", "Membre concerné", { required: true })]),
       sub("remove", "Retire le rôle SYS+ à un membre (propriétaire)", [opt(6, "membre", "Membre concerné", { required: true })]),
       sub("permissions", "Consulte les scopes ADMIN+"),
@@ -1526,12 +1551,12 @@ export const SLASH_COMMANDS: SlashCommandDef[] = [
   {
     name: "voc",
     description: "Gère ton salon vocal temporaire",
-    usage: "/voc panel | vocal-panel | demander | demander-id | limit | name | claim | expulser | inviter | transferer | lock | unlock | delete",
+    usage: "/voc panel | vocal-panel | demander | demander-id | limit | name | claim | expulser | inviter | transferer | lock | unlock | delete | confiance | bloquer | retirer | listes",
     category: "Vocal & DOG",
     dmPermission: false,
     requiresBotProcess: true,
     options: [
-      sub("panel", "Affiche les informations du salon temporaire"),
+      sub("panel", "Affiche le panneau de contrôle du salon temporaire"),
       sub("vocal-panel", "Ouvre le panneau de contrôle d’accès vocal classique"),
       sub("demander", "Demande l’accès à une vocale privée", [opt(7, "salon", "Vocale privée à rejoindre", { required: true, channel_types: [2] })]),
       sub("demander-id", "Demande l’accès à une vocale cachée via son ID", [opt(3, "id", "ID de la vocale privée", { required: true, min_length: 5, max_length: 25 })]),
@@ -1549,6 +1574,10 @@ export const SLASH_COMMANDS: SlashCommandDef[] = [
       sub("lock", "Empêche les autres membres de rejoindre"),
       sub("unlock", "Autorise à nouveau les membres à rejoindre"),
       sub("delete", "Supprime ton salon temporaire"),
+      sub("confiance", "Ajoute un membre de confiance : il entre toujours dans tes salons", [opt(6, "membre", "Membre", { required: true })]),
+      sub("bloquer", "Bloque un membre : il ne peut plus entrer dans tes salons", [opt(6, "membre", "Membre", { required: true })]),
+      sub("retirer", "Retire un membre de ta liste de confiance ou de blocage", [opt(6, "membre", "Membre", { required: true })]),
+      sub("listes", "Affiche tes membres de confiance et tes membres bloqués"),
     ],
   },
 
@@ -1663,6 +1692,45 @@ const ALL_TIER_CHOICES: SlashOptionChoice[] = [
 
 export const EXTRA_SLASH_COMMANDS: SlashCommandDef[] = [
   {
+    name: "outils",
+    description: "Outils staff : message collé en bas d'un salon et modmail (MP au staff)",
+    usage: "/outils sticky definir|retirer|liste · /outils modmail config|etat|repondre|fermer|bloquer|debloquer|desactiver",
+    category: "Administration & sécurité",
+    dmPermission: false,
+    requiresBotProcess: true,
+    options: [
+      {
+        type: 2, name: "sticky", description: "Message toujours affiché en bas d'un salon",
+        options: [
+          sub("definir", "Colle un message en bas d'un salon (remplace l'ancien)", [
+            opt(7, "salon", "Salon", { required: true, channel_types: [0, 5] }),
+            opt(3, "texte", "Texte du message (\\n pour aller à la ligne)", { required: true, max_length: 1500 }),
+          ]),
+          sub("retirer", "Retire le message collé d'un salon", [opt(7, "salon", "Salon", { required: true, channel_types: [0, 5] })]),
+          sub("liste", "Les messages collés du serveur"),
+        ],
+      },
+      {
+        type: 2, name: "modmail", description: "Les membres écrivent en MP au bot, le staff répond dans un fil",
+        options: [
+          sub("repondre", "Dans un fil modmail : envoie une réponse en MP au membre", [
+            opt(3, "message", "Ta réponse", { required: true, max_length: 1800 }),
+            opt(5, "anonyme", "Signer « Staff du serveur » au lieu de ton nom (réglage du serveur par défaut)"),
+          ]),
+          sub("fermer", "Dans un fil modmail : ferme la conversation", [opt(3, "raison", "Raison montrée au membre", { max_length: 300 })]),
+          sub("config", "Staff : salon privé où arrivent les conversations", [
+            opt(7, "salon", "Salon réservé au staff", { required: true, channel_types: [0] }),
+            opt(5, "anonyme", "Réponses signées « Staff du serveur » (oui par défaut)"),
+          ]),
+          sub("etat", "Le modmail est-il activé ?"),
+          sub("bloquer", "Staff : empêche un membre d'écrire au staff", [opt(6, "membre", "Membre", { required: true })]),
+          sub("debloquer", "Staff : autorise de nouveau un membre", [opt(6, "membre", "Membre", { required: true })]),
+          sub("desactiver", "Staff : arrête le modmail"),
+        ],
+      },
+    ],
+  },
+  {
     name: "anim",
     description: "Animation du serveur : salon de comptage, mur des célébrités, question du jour",
     usage: "/anim comptage salon|etat|classement|desactiver · /anim vedette config|etat|desactiver · /anim qdj config|etat|ajouter|maintenant|sans_role|desactiver",
@@ -1710,6 +1778,29 @@ export const EXTRA_SLASH_COMMANDS: SlashCommandDef[] = [
           sub("desactiver", "Staff : arrête la question du jour"),
         ],
       },
+    ],
+  },
+  {
+    name: "jeu",
+    description: "Jeux entre membres : morpion et puissance 4 (mise en PND possible), pendu en groupe",
+    usage: "/jeu morpion @adversaire [mise] · /jeu puissance4 @adversaire [mise] · /jeu pendu · /jeu stats [membre] · /jeu classement jeu",
+    category: "Jeux & événements",
+    dmPermission: false,
+    requiresBotProcess: true,
+    options: [
+      sub("morpion", "Défie un membre au morpion", [
+        opt(6, "adversaire", "Le membre que tu défies", { required: true }),
+        opt(4, "mise", "Mise en PND de chaque joueur (0 = amical)", { min_value: 0, max_value: 100000 }),
+      ]),
+      sub("puissance4", "Défie un membre au puissance 4", [
+        opt(6, "adversaire", "Le membre que tu défies", { required: true }),
+        opt(4, "mise", "Mise en PND de chaque joueur (0 = amical)", { min_value: 0, max_value: 100000 }),
+      ]),
+      sub("pendu", "Lance un pendu dans ce salon : tout le monde peut jouer"),
+      sub("stats", "Victoires, défaites et nuls d'un membre", [opt(6, "membre", "Membre (toi par défaut)")]),
+      sub("classement", "Les meilleurs joueurs du serveur", [
+        opt(3, "jeu", "Jeu", { required: true, choices: [{ name: "Morpion", value: "morpion" }, { name: "Puissance 4", value: "puissance4" }, { name: "Pendu", value: "pendu" }] }),
+      ]),
     ],
   },
   {
@@ -1831,13 +1922,13 @@ export const EXTRA_SLASH_COMMANDS: SlashCommandDef[] = [
   {
     name: "casier",
     description: "GUARD : historique des sanctions d'un membre",
-    usage: "/casier voir membre · /casier supprimer affaire",
+    usage: "/casier voir membre · /casier supprimer affaire motif",
     category: "Modération",
     dmPermission: false,
     requiresBotProcess: true,
     options: [
       sub("voir", "Affiche le casier d'un membre", [opt(6, "membre", "Membre", { required: true })]),
-      sub("supprimer", "Supprime une affaire du casier", [opt(4, "affaire", "Numéro de l'affaire", { required: true, min_value: 1 })]),
+      sub("supprimer", "SYS+ : retire une affaire du casier (archivée, avec un motif)", [opt(4, "affaire", "Numéro de l'affaire", { required: true, min_value: 1 }), opt(3, "motif", "Pourquoi l'affaire est retirée", { required: true, max_length: 300 })]),
     ],
   },
   {
@@ -2061,6 +2152,86 @@ export const EXTRA_SLASH_COMMANDS: SlashCommandDef[] = [
     dmPermission: false,
     requiresBotProcess: true,
     options: [sub("serveur", "Membres, salons, vocal, top niveaux")],
+  },
+  {
+    name: "abonnement",
+    description: "Invest + : ton abonnement, tes avantages et ton espace privé",
+    usage: "/abonnement voir · formules · historique · espace · demande",
+    category: "Invest +",
+    dmPermission: false,
+    requiresBotProcess: true,
+    options: [
+      sub("voir", "Ton abonnement : formule, échéance, avantages"),
+      sub("formules", "Les formules proposées (et le paiement en PND quand il est possible)"),
+      sub("historique", "L'historique de ton abonnement"),
+      sub("espace", "Ouvre (ou retrouve) ton salon privé Invest +"),
+      sub("demande", "Écris à l'administration (renouvellement, changement, question)", [
+        opt(3, "type", "Objet de la demande", { required: true, choices: [{ name: "Renouveler", value: "renouveler" }, { name: "Changer de formule", value: "changer" }, { name: "Question", value: "question" }] }),
+        opt(3, "formule", "Formule concernée (nom ou numéro)", { max_length: 40 }),
+        opt(3, "message", "Ton message", { max_length: 500 }),
+      ]),
+    ],
+  },
+  {
+    name: "investadmin",
+    description: "Invest + : administration des formules, abonnés et espaces",
+    usage: "/investadmin installer · tableau · formule-creer · attribuer · prolonger · resilier · demandes…",
+    category: "Invest +",
+    dmPermission: false,
+    requiresBotProcess: true,
+    defaultMemberPermissions: manageServer,
+    options: [
+      sub("installer", "Crée la catégorie des espaces et le salon d'administration"),
+      sub("tableau", "Tableau de bord : abonnés, échéances, demandes, revenus"),
+      sub("config", "Réglages d'Invest +", [
+        opt(5, "actif", "Invest + activé"),
+        opt(7, "categorie", "Catégorie des espaces membres", { channel_types: [4] }),
+        opt(7, "salon_admin", "Salon d'administration (demandes, journal)", { channel_types: [0] }),
+        opt(8, "role_staff", "Rôle qui voit les espaces membres (facultatif)"),
+        opt(4, "rappel_jours", "Rappel avant échéance, en jours (0 = aucun)", { min_value: 0, max_value: 30 }),
+        opt(3, "accueil", "Texte d'accueil du panneau membre", { max_length: 900 }),
+      ]),
+      sub("formules", "Toutes les formules, archivées comprises"),
+      sub("formule-creer", "Crée une formule", [
+        opt(3, "nom", "Nom de la formule", { required: true, max_length: 40 }),
+        opt(4, "prix", "Prix par période (0 = gratuit)", { required: true, min_value: 0, max_value: 1000000000 }),
+        opt(4, "duree", "Durée d'une période, en jours", { required: true, min_value: 1, max_value: 3650 }),
+        opt(3, "paiement", "Comment la formule est payée", { choices: [{ name: "Manuel (attribuée par l'admin)", value: "manuel" }, { name: "En PND (payée par le membre)", value: "pnd" }] }),
+        opt(8, "role", "Rôle donné aux abonnés (jamais un rôle protégé)"),
+        opt(3, "description", "À quoi sert la formule", { max_length: 300 }),
+        opt(3, "avantages", "Avantages, séparés par ;", { max_length: 900 }),
+      ]),
+      sub("formule-modifier", "Modifie une formule", [
+        opt(3, "formule", "Formule (nom ou numéro)", { required: true, max_length: 40 }),
+        opt(3, "nom", "Nouveau nom", { max_length: 40 }),
+        opt(4, "prix", "Nouveau prix", { min_value: 0, max_value: 1000000000 }),
+        opt(4, "duree", "Nouvelle durée en jours", { min_value: 1, max_value: 3650 }),
+        opt(3, "paiement", "Mode de paiement", { choices: [{ name: "Manuel", value: "manuel" }, { name: "En PND", value: "pnd" }] }),
+        opt(8, "role", "Nouveau rôle des abonnés"),
+        opt(5, "retirer_role", "Ne plus donner de rôle"),
+        opt(3, "description", "Nouvelle description", { max_length: 300 }),
+        opt(3, "avantages", "Nouveaux avantages, séparés par ;", { max_length: 900 }),
+      ]),
+      sub("formule-archiver", "Ne plus proposer une formule (les abonnés la gardent)", [opt(3, "formule", "Formule (nom ou numéro)", { required: true, max_length: 40 })]),
+      sub("formule-reactiver", "Proposer de nouveau une formule archivée", [opt(3, "formule", "Formule (nom ou numéro)", { required: true, max_length: 40 })]),
+      sub("attribuer", "Donne une formule à un membre", [
+        opt(6, "membre", "Membre", { required: true }),
+        opt(3, "formule", "Formule (nom ou numéro)", { required: true, max_length: 40 }),
+        opt(4, "jours", "Durée en jours (vide = durée de la formule, 0 = sans fin)", { min_value: 0, max_value: 3650 }),
+        opt(3, "note", "Note interne (visible par l'admin seulement)", { max_length: 200 }),
+      ]),
+      sub("prolonger", "Ajoute des jours à l'abonnement d'un membre", [opt(6, "membre", "Membre", { required: true }), opt(4, "jours", "Jours à ajouter", { required: true, min_value: 1, max_value: 3650 })]),
+      sub("pause", "Met un abonnement en pause (les jours restants sont gardés)", [opt(6, "membre", "Membre", { required: true })]),
+      sub("reprendre", "Reprend un abonnement en pause", [opt(6, "membre", "Membre", { required: true })]),
+      sub("resilier", "Résilie un abonnement tout de suite", [opt(6, "membre", "Membre", { required: true }), opt(3, "raison", "Motif (envoyé au membre)", { max_length: 200 })]),
+      sub("note", "Note interne sur un abonné", [opt(6, "membre", "Membre", { required: true }), opt(3, "texte", "Note (vide = effacer)", { max_length: 200 })]),
+      sub("fiche", "Fiche complète d'un abonné", [opt(6, "membre", "Membre", { required: true })]),
+      sub("abonnes", "Liste des abonnés", [opt(3, "statut", "Filtrer", { choices: [{ name: "Actifs", value: "active" }, { name: "En pause", value: "paused" }, { name: "Expirés", value: "expired" }, { name: "Résiliés", value: "cancelled" }] })]),
+      sub("espace", "Crée ou répare l'espace privé d'un membre", [opt(6, "membre", "Membre", { required: true })]),
+      sub("espace-fermer", "Supprime l'espace privé d'un membre", [opt(6, "membre", "Membre", { required: true })]),
+      sub("demandes", "Demandes des membres en attente"),
+      sub("actualiser", "Met à jour tous les panneaux des espaces"),
+    ],
   },
   {
     name: "impots",

@@ -31,6 +31,12 @@ import { formatBotsDiagnostic, formatRelayLossLine } from "../../bot-runtime.js"
 import { formatSharedDbLine } from "../../shared/index.js";
 import { formatBackupLine, readBackupStatus } from "../../backup-status.js";
 import { buildInstallationReport } from "../../install-check.js";
+import { handleFreezeCommand } from "./freeze-commands.js";
+import { handleAbuseAlertCommand } from "./abuse-alerts.js";
+import { handleMemberCardCommand } from "./member-card.js";
+import { handleStaffStatsCommand } from "./staff-stats.js";
+import { handleStaffNotesCommand } from "./staff-notes.js";
+import { isStaffForFreeze } from "../../staff-freeze-gate.js";
 import { parsePndOwnerId } from "../../pnd-owner-policy.js";
 
 const DIAGNOSTIC_ACTIONS = new Set(["acl", "sante", "santé", "logs-couverture", "matrice", "economie", "économie", "bots", "installation"]);
@@ -455,6 +461,29 @@ export async function handleSysPlusInteraction(interaction, settings, { apiUrl, 
   }
   const roleId = settings?.[guild.id]?.sysPlus?.roleId ?? null;
 
+  if (subcommand === "gel" || subcommand === "degel") {
+    return handleFreezeCommand(interaction, { bot: process.env.PND_BOT_PROFILE || "fwu", audit });
+  }
+  if (subcommand === "fiche") {
+    const ownerOfBot = parsePndOwnerId(process.env.PND_OWNER_DISCORD_ID);
+    return handleMemberCardCommand(interaction, { member, roleId, isSysPlus, isOwner: Boolean(ownerOfBot) && interaction.user.id === ownerOfBot });
+  }
+  if (subcommand === "notes" || subcommand === "note-ajouter" || subcommand === "note-retirer") {
+    const ownerOfBot = parsePndOwnerId(process.env.PND_OWNER_DISCORD_ID);
+    const isOwnerActor = Boolean(ownerOfBot) && interaction.user.id === ownerOfBot;
+    return handleStaffNotesCommand(interaction, {
+      subcommand, member,
+      isStaff: async (m) => isOwnerActor || isSysPlus(m, roleId) || isStaffForFreeze(m, settings),
+      isSysPlusOrOwner: isOwnerActor || isSysPlus(member, roleId),
+    });
+  }
+  if (subcommand === "stats") {
+    const ownerOfBot = parsePndOwnerId(process.env.PND_OWNER_DISCORD_ID);
+    return handleStaffStatsCommand(interaction, { member, roleId, isSysPlus, isOwner: Boolean(ownerOfBot) && interaction.user.id === ownerOfBot, settings });
+  }
+  if (subcommand === "alerte-abus") {
+    return handleAbuseAlertCommand(interaction, { bot: process.env.PND_BOT_PROFILE || "fwu", member, roleId, isSysPlus, audit });
+  }
   if (subcommand === "clone") {
     try {
       const text = await runServerCloneAction({

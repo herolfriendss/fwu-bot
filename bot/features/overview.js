@@ -177,6 +177,7 @@ const PANEL_HINTS = Object.freeze({
   fdpdlavoc: "`/play` `/queue` `/radio` `/pv` `/dj`",
   suckme: "`/sysp` `/rank` `/annonce` `/staff` `/maj`",
   fisc: "`/balance` `/daily` `/casino` `/shop` `/business`",
+  investplus: "`/abonnement` `/investadmin tableau`",
 });
 
 export function panelView(now = Date.now()) {

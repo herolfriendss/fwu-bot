@@ -1,5 +1,7 @@
 // Bot Discord 24h/24 — à lancer sur ton VPS. Les réglages viennent du site (onglet « Bot 24h/24 »).
 import { Client, GatewayIntentBits, Partials, PermissionFlagsBits, REST } from "discord.js";
+import { startPresence } from "./presence.js";
+import { buildActivitySnapshot } from "./activity-snapshot.js";
 import { existsSync } from "node:fs";
 // The dashboard and the Oracle bot share one command definition file. In the
 // repository it lives in ../src/lib; the public source archive ships a copy at
@@ -50,6 +52,7 @@ import { handleCasinoMessage } from "./casino.js";
 import { handleCasinoInteraction } from "./casino/commands.js";
 import { runCascade, startCascade } from "./cascade.js";
 import { handleConfessionInteraction } from "./features/confessions-commands.js";
+import { handleInvestPlusChannelDelete, handleInvestPlusInteraction, handleInvestPlusMessage, runInvestPlusJobs } from "./features/investplus-commands.js";
 import { handleAnimationInteraction, handleCountingDelete, handleCountingMessage, handleStarboardReaction } from "./features/animation-commands.js";
 import { runQotd } from "./features/qotd.js";
 import { handleOverviewInteraction } from "./features/overview.js";
@@ -67,12 +70,16 @@ import { recordAnalyticsMetric, flushAnalyticsMetrics } from "./analytics-buffer
 import { installProcessGuard } from "./process-guard.js";
 import { autoIncidentNotice, recordGuardIncident } from "./systems/sysplus/auto-incidents.js";
 import { setSysPlusAuditObserver } from "./systems/sysplus/audit.js";
+import { freezeRefusal, startFreezeRefresh } from "./staff-freeze-gate.js";
+import { startFreezeExpiry } from "./systems/sysplus/freeze-commands.js";
+import { startStaffAbuseAlerts } from "./systems/sysplus/abuse-alerts.js";
+import { startNotesRetention } from "./systems/sysplus/staff-notes.js";
 import { recoverInterruptedAutomationRuns } from "./automation-rules.js";
 import { handleAutomationRulesMessage } from "./automation-rules-commands.js";
 import { previewGuildAutomationRules, previewScheduledAutomationRules, buildAutomationEventFromMember } from "./automation-rules-runtime.js";
 import { handleVoicePresenceMessage, reconcileActiveVoiceSessions, trackVoiceStateUpdate } from "./voice-audit.js";
 import { handleStaffMemberHistoryMessage } from "./staff-audit.js";
-import { captureGuildInviteSnapshot, resolveMemberInvite, recordInviteLifecycle } from "./invite-attribution.js";
+import { captureGuildInviteSnapshot, resolveMemberInvite, recordMemberInvite, recordInviteLifecycle } from "./invite-attribution.js";
 import { addCentralLogObserver, setCentralLogRelay, systemLogEmbed, sendCentralLog } from "./logs.js";
 import { BOT_PROFILES, LEASE_RENEW_MS, createDomainGate, enqueueRelayedLog, loadBotPrefixes, parsePrefixedMessage, resolveBotRuntime, slashCommandOwner, slashRegistrationPlan, takeRelayedLogs, requeueRelayedLog, countLostRelayedLogs } from "./bot-runtime.js";
 import { handleLiveInteraction, handleLiveMessage } from "./live-commands.js";
@@ -103,6 +110,8 @@ import { runAutoconfig } from "./autoconfig.js";
 import { handleGuardInteraction } from "./guard/commands.js";
 import { communityAutoconfig, handleCommunityInteraction, handleLevelMessage, runBirthdays, runReminders, tickVoiceXp } from "./features/community.js";
 import { handleFiscInteraction, runLoanCollection, runWealthTax } from "./features/fisc.js";
+import { handleModmailDm, handleToolsInteraction, onStickyChannelMessage } from "./features/tools-commands.js";
+import { handleVersusInteraction, runVersusExpiry } from "./features/versus.js";
 import { announceUpdateResult, handleSelfUpdateInteraction } from "./features/self-update.js";
 import { handleSuckmeInteraction, ladderOf, runAnnouncements, runTempRoles, saveLadder } from "./features/suckme.js";
 import { armSlowCommandWatchdog } from "./interaction-watchdog.js";
@@ -183,6 +192,7 @@ const API = `${SITE_URL.replace(/\/$/, "")}/api/public/bot-sync`;
 const AUTH = { Authorization: `Bearer ${BOT_SYNC_SECRET}` };
 const STATUS_API = `${SITE_URL.replace(/\/$/, "")}/api/public/bot-status`;
 const ECONOMY_API = `${SITE_URL.replace(/\/$/, "")}/api/public/economy-snapshot`;
+const ACTIVITY_API = `${SITE_URL.replace(/\/$/, "")}/api/public/activity-snapshot`;
 // Optional isolation allowlist. Empty = accept every guild, but each guild's
 // data remains isolated by guild_id in SQLite and in bot_settings.
 const CONFIGURED_GUILDS = filterInactiveSourceGuilds(
@@ -323,9 +333,38 @@ installOwnerShield({ report: () => record("owner_shield_blocked") });
 const guardReport = (guild, { title, description, color }) => sendCentralLog(guild, settings[guild.id], systemLogEmbed({ title, description, color }));
 const automod = createAutomod({ report: guardReport, record: (code) => record(code) });
 const client = new Client({
-  intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildVoiceStates, GatewayIntentBits.GuildMessages, GatewayIntentBits.GuildMessageReactions, GatewayIntentBits.GuildInvites, GatewayIntentBits.MessageContent, GatewayIntentBits.GuildMembers, GatewayIntentBits.GuildModeration, GatewayIntentBits.GuildWebhooks],
+  intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildVoiceStates, GatewayIntentBits.GuildMessages, GatewayIntentBits.GuildMessageReactions, GatewayIntentBits.GuildInvites, GatewayIntentBits.MessageContent, GatewayIntentBits.GuildMembers, GatewayIntentBits.GuildModeration, GatewayIntentBits.GuildWebhooks, GatewayIntentBits.DirectMessages],
   partials: [Partials.Channel, Partials.Message, Partials.Reaction],
 });
+
+let activityReporting = false;
+let activitySnapshotReported = false;
+/** Classement XP et activité pour le site : un instantané borné par serveur (format du 25/11/2026). */
+async function reportActivity() {
+  if (activityReporting || !client.isReady()) return;
+  activityReporting = true;
+  try {
+    const snapshots = client.guilds.cache
+      .filter((guild) => guildAllowed(guild.id, ALLOWED_GUILDS) && !isLogsHub(guild.id))
+      .map((guild) => buildActivitySnapshot(guild.id, guild));
+    if (!snapshots.length) return;
+    const res = await fetch(ACTIVITY_API, {
+      method: "POST",
+      headers: { ...AUTH, "Content-Type": "application/json" },
+      signal: AbortSignal.timeout(15_000),
+      body: JSON.stringify({ snapshots }),
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    if (!activitySnapshotReported) {
+      activitySnapshotReported = true;
+      record("activity_snapshot_ok");
+    }
+  } catch {
+    record("activity_snapshot_error");
+  } finally {
+    activityReporting = false;
+  }
+}
 
 let economyReporting = false;
 let economySnapshotReported = false;
@@ -471,6 +510,11 @@ client.on("messageCreate", (msg) => (
 ));
 
 async function handleMessageCreate(msg) {
+  // Modmail: a private message to SUCK ME (or to FWU when it runs alone) goes to the staff.
+  if (!msg.guild && !msg.author.bot && (RUNTIME.profile === "suckme" || (IS_FWU && serves("suckme")))) {
+    void handleModmailDm(msg, { client, guildAllowed: (id) => guildAllowed(id, ALLOWED_GUILDS) && !isLogsHub(id) }).catch(() => record("modmail_error"));
+    return;
+  }
   if (msg.author.bot || !msg.guild) return;
   // Defense in depth: a guild outside the allowlist is ignored even while the
   // leave request is still in flight.
@@ -487,6 +531,10 @@ async function handleMessageCreate(msg) {
     prefixifyMessageReplies(msg, OWN_PREFIX);
   }
   const runCmd = (...domains) => ownCommand && domains.includes(RUNTIME.profile);
+  if (ownCommand) {
+    const refusal = await freezeRefusal({ guildId: msg.guild.id, member: msg.member, prefixed: true, settings });
+    if (refusal) { await msg.reply({ content: refusal, allowedMentions: { parse: [] } }).catch(() => {}); return; }
+  }
   if (serves("fwu")) recordAnalyticsMetric(msg.guild.id, "messages");
   // GUARD trap channel: anyone writing there is handled and the message is gone.
   if (serves("guard")) {
@@ -520,6 +568,8 @@ async function handleMessageCreate(msg) {
   }
   }
   if (runCmd("guard") && await handleGuardianReviewMessage(msg)) return;
+  // SUCK ME: keep the staff's sticky message at the bottom of its channel.
+  if (serves("suckme")) onStickyChannelMessage(msg, { botUserId: client.user?.id, onError: () => record("sticky_error") });
   // SUCK ME animation: a number in the counting channel is handled here and stops.
   if (serves("suckme")) {
     try { if (await handleCountingMessage(msg)) return; } catch { record("counting_error"); }
@@ -583,6 +633,7 @@ async function handleMessageCreate(msg) {
     if (runCmd("fisc") && await handleCardsMessage(msg)) { auditPrefixUsage(msg, "Cartes"); return; }
     if (runCmd("suckme", "fisc") && await handleGamesMessage(msg, record)) { auditPrefixUsage(msg, "Jeux"); return; }
     if (runCmd("fisc") && await handleCasinoMessage(msg)) { auditPrefixUsage(msg, "PND Casino"); return; }
+    if (runCmd("investplus") && await handleInvestPlusMessage(msg)) { auditPrefixUsage(msg, "Invest +"); return; }
     if (runCmd("suckme") && await handleVoicePresenceMessage(msg)) { auditPrefixUsage(msg, "Historique vocal"); return; }
     if (runCmd("suckme") && await handleAutomationMessage(msg, s, { apiUrl: API, secret: BOT_SYNC_SECRET, record })) { auditPrefixUsage(msg, "Automatisation"); return; }
   } catch { record("voice_error"); return; }
@@ -771,6 +822,7 @@ client.on("guildMemberAdd", async (member) => {
   }
   if (serves("fwu")) {
     const invite = await resolveMemberInvite(member.guild);
+    try { recordMemberInvite(member.guild.id, member.id, invite); } catch { /* la fiche membre affichera « inconnu » */ }
     const inviteLabel = invite.source === "invite" ? `\nInvitation : ${invite.code} · créée par ${invite.inviterId ? `<@${invite.inviterId}>` : "créateur inconnu"}` : invite.source === "vanity" ? "\nInvitation : URL personnalisée du serveur" : "\nInvitation : attribution inconnue";
     auditLog(member.guild, s, "👋 Arrivée d’un membre", `Membre : <@${member.id}>\nID : \`${member.id}\`${inviteLabel}`, 0x22c55e);
   }
@@ -866,7 +918,7 @@ client.on("voiceStateUpdate", (oldState, newState) => {
     record(code);
     const guild = newState.guild ?? oldState.guild;
     if (!guild || !guildSettings?.logs?.channelId) return;
-    const labels = { temp_voice_created: "Salon vocal temporaire créé", temp_voice_deleted: "Salon vocal temporaire supprimé", temp_voice_error: "Erreur Join-to-Create" };
+    const labels = { temp_voice_created: "Salon vocal temporaire créé", temp_voice_deleted: "Salon vocal temporaire supprimé", temp_voice_transferred: "Propriété transférée (propriétaire parti)", temp_voice_error: "Erreur Join-to-Create" };
     void sendCentralLog(guild, guildSettings, systemLogEmbed({
       title: `🎙️ Join-to-Create — ${labels[code] ?? code}`,
       description: `Événement : \`${code}\`\nMembre : <@${newState.id}>`,
@@ -905,6 +957,7 @@ client.on("channelDelete", (channel) => {
   forgetTempVoice(channel.id);
   forgetVoicePanels(channel.id);
   if (serves("fwu")) handleTicketChannelDelete(channel, record);
+  if (channel.guild && serves("investplus")) { try { handleInvestPlusChannelDelete(channel); } catch { record("investplus_job_error"); } }
 });
 client.on("roleCreate", (role) => {
   if (serves("fwu") && guildAllowed(role.guild.id, ALLOWED_GUILDS)) auditLog(role.guild, settings[role.guild.id], "🎭 Rôle créé", `Rôle : **${role.name}**\nID : \`${role.id}\``);
@@ -993,6 +1046,8 @@ client.once("clientReady", () => {
   try { registerBotIdentity(RUNTIME.profile, client.user.id); } catch { record("bot_identity_error"); }
   // FWU community jobs: voice XP (1 min), reminders (30 s), birthdays (5 min).
   const communityGuilds = () => [...client.guilds.cache.values()].filter((g) => guildAllowed(g.id, ALLOWED_GUILDS) && !isLogsHub(g.id));
+  // Statut riche : chaque bot affiche sa propre rotation (réglable dans bots.json).
+  startPresence(client, { profile: RUNTIME.profile, label: BOT_LABEL, prefix: OWN_PREFIX, guilds: communityGuilds, onError: () => record("presence_error") });
   // One-time automatic configuration (channels, roles, staff ladder) once leases are settled.
   setTimeout(() => {
     void runAutoconfig(communityGuilds(), (domain) => serves(domain) && (IS_FWU ? domain === "fwu" : domain !== "fwu"), { ...communityAutoconfig, ladder: ladderOf, saveLadder }, (guild, line) => {
@@ -1013,11 +1068,19 @@ client.once("clientReady", () => {
     void runTempRoles(client).catch(() => record("suckme_job_error"));
     void runAnnouncements(client).catch(() => record("suckme_job_error"));
   }, 60_000).unref?.();
+  // LE FISC: /jeu invitations (2 min), idle players (3 min) and idle hangman games (10 min).
+  setInterval(() => { if (serves("fisc")) void runVersusExpiry(client).catch(() => record("versus_error")); }, 60_000).unref?.();
   // LE FISC jobs: weekly wealth tax and overdue loans (hourly checks).
   setInterval(() => {
     if (!serves("fisc")) return;
     try { runWealthTax(communityGuilds().map((g) => g.id)); runLoanCollection(); } catch { record("fisc_job_error"); }
   }, 60 * 60_000).unref?.();
+  // Invest + jobs: reminders before the due date, then expirations (every 5 minutes).
+  setInterval(() => {
+    if (!serves("investplus")) return;
+    void runInvestPlusJobs(client, { isAllowedGuild: (gid) => guildAllowed(gid, ALLOWED_GUILDS) && !isLogsHub(gid), settingsFor: (gid) => settings[gid] ?? null })
+      .catch(() => record("investplus_job_error"));
+  }, 5 * 60_000).unref?.();
   // Creator Studio scheduler: publishes due drafts only on allowlisted guilds (MZ stays excluded).
   const studioSender = createClientStudioSender(client, { isAllowedGuild: (gid) => guildAllowed(gid, ALLOWED_GUILDS) && !isLogsHub(gid) });
   // Each scheduled job checks its domain at every tick: exactly one process runs it.
@@ -1071,7 +1134,7 @@ client.once("clientReady", () => {
   }
   const logsGuild = client.guilds.cache.get(LOGS_HUB_GUILD_ID);
   if (logsGuild && IS_FWU) void provisionLogsHub(logsGuild, record).catch(() => record("logs_hub_provision_error"));
-  if (serves("fdpdlavoc")) void reconcileTempVoices(client, record).catch(() => record("temp_voice_reconcile_error"));
+  if (serves("fdpdlavoc")) void reconcileTempVoices(client, record, settings).catch(() => record("temp_voice_reconcile_error"));
   startOrganizationMaintenance(client, ALLOWED_GUILDS.filter((guildId) => !isLogsHub(guildId)), record, () => serves("fwu"));
   startInvestmentMaintenance(client, ALLOWED_GUILDS.filter((guildId) => !isLogsHub(guildId)), record, () => serves("fisc"));
   void enforceGuildAllowlist(client, ALLOWED_GUILDS, record);
@@ -1152,6 +1215,9 @@ client.once("clientReady", () => {
   liveAlertsTimer.unref?.();
   const economyTimer = setInterval(() => { if (serves("fisc")) void reportEconomy(); }, 5 * 60_000);
   economyTimer.unref?.();
+  if (serves("fwu")) void reportActivity();
+  const activityTimer = setInterval(() => { if (serves("fwu")) void reportActivity(); }, 15 * 60_000);
+  activityTimer.unref?.();
   const auctionSettlementTimer = setInterval(() => {
     if (!client.isReady() || !serves("fisc")) return;
     void settleExpiredEconomyAuctions(Date.now(), async (transfer) => {
@@ -1475,6 +1541,12 @@ client.on("interactionCreate", (interaction) => {
       || (isLogsHub(interaction.guildId) && !interaction.customId?.startsWith("moderation:appeal-review:")))) return;
     // A slash command is handled only by the bot that owns its domain. Buttons
     // and menus always come back to the bot that posted them: no filter needed.
+    // Gel d'urgence du staff : commandes du staff refusées (sauf owner), sur les 5 bots.
+    if (interaction.isChatInputCommand?.() && interaction.guildId) {
+      const definition = SLASH_COMMANDS.find((c) => c.name === interaction.commandName);
+      const refusal = await freezeRefusal({ guildId: interaction.guildId, member: interaction.member, commandName: interaction.commandName, category: definition?.category ?? "", settings });
+      if (refusal) { await interaction.reply({ content: refusal, ephemeral: true }).catch(() => {}); return; }
+    }
     if (interaction.isChatInputCommand?.() || interaction.isAutocomplete?.()) {
       const owner = slashCommandOwner(interaction.commandName);
       if (owner && owner !== RUNTIME.profile) {
@@ -1497,13 +1569,15 @@ client.on("interactionCreate", (interaction) => {
       await interaction.reply({ content: hierarchyRefusal, ephemeral: true, allowedMentions: { parse: [] } }).catch(() => {});
       return;
     }
+    if (await handleToolsInteraction(interaction, { client, guildAllowed: (id) => guildAllowed(id, ALLOWED_GUILDS) && !isLogsHub(id) })) { auditSlashUsage(interaction, "Outils staff"); return; }
     if (await handleResumeInteraction(interaction, settings[interaction.guildId])) { auditSlashUsage(interaction, "RESUME"); return; }
     if (await handleDmAllInteraction(interaction, settings[interaction.guildId])) return;
     if (await handleUndogAllInteraction(interaction, settings[interaction.guildId])) return;
     if (await handleBlacklistInteraction(interaction, settings[interaction.guildId])) return;
-    if (await handleGuardInteraction(interaction, settings[interaction.guildId])) { auditSlashUsage(interaction, "GUARD"); return; }
+    if (await handleGuardInteraction(interaction, settings[interaction.guildId], { report: guardReport })) { auditSlashUsage(interaction, "GUARD"); return; }
     if (await handleCommunityInteraction(interaction, settings[interaction.guildId])) { auditSlashUsage(interaction, "Communauté"); return; }
     if (await handleFiscInteraction(interaction)) { auditSlashUsage(interaction, "LE FISC"); return; }
+    if (await handleVersusInteraction(interaction)) { auditSlashUsage(interaction, "Jeux entre membres"); return; }
     if (await handleSelfUpdateInteraction(interaction)) { auditSlashUsage(interaction, "SUCK ME"); return; }
     if (await handleSuckmeInteraction(interaction, settings[interaction.guildId])) { auditSlashUsage(interaction, "SUCK ME"); return; }
     if (await handleMusicExtrasInteraction(interaction)) { auditSlashUsage(interaction, "Musique & radio"); return; }
@@ -1521,14 +1595,15 @@ client.on("interactionCreate", (interaction) => {
     if (await handlePndIntelligenceInteraction(interaction, { settings, ownerIds: getPndPrivilegedIds(process.env.PND_OWNER_DISCORD_ID, process.env.PND_COFOUNDER_DISCORD_IDS) })) { auditSlashUsage(interaction, "PND Intelligence"); return; }
     if (await handlePackInteraction(interaction, { configuredOwners: process.env.PND_OWNER_DISCORD_ID })) return;
     if (await handleMarketInteraction(interaction, { roleId: settings[interaction.guildId]?.sysPlus?.roleId ?? null, configuredOwners: process.env.PND_OWNER_DISCORD_ID })) return;
-    if (await handleWhitelistInteraction(interaction, settings, { audit: auditLog })) return;
+    if (await handleWhitelistInteraction(interaction, settings, { audit: (guild, title, description) => auditLog(guild, settings[guild?.id], title, description) })) return;
     if (await handleLocknameInteraction(interaction, settings[interaction.guildId])) { auditSlashUsage(interaction, "LOCKNAME"); return; }
     if (await handleWaoufInteraction(interaction, settings[interaction.guildId], record)) { auditSlashUsage(interaction, "WAOUF"); return; }
     if (await handleSysPlusInteraction(interaction, settings, {
       apiUrl: API,
       secret: BOT_SYNC_SECRET,
       record,
-      audit: auditLog,
+      // Les handlers SYS+ appellent audit(guild, titre, description) : on ajoute les réglages du serveur.
+      audit: (guild, title, description) => auditLog(guild, settings[guild?.id], title, description),
     })) return;
     if (await handleCustomRolesInteraction(interaction, settings[interaction.guildId])) return;
     if (await handleRoleInteraction(interaction, settings[interaction.guildId])) return;
@@ -1555,7 +1630,7 @@ client.on("interactionCreate", (interaction) => {
     if (await handleStaffModerationInteraction(interaction, settings[interaction.guildId], { bot: RUNTIME.profile })) { auditSlashUsage(interaction, "Modération staff"); return; }
     if (await handleEmbedInteraction(interaction, settings[interaction.guildId], { bot: RUNTIME.profile, audit: auditLog })) return;
     if (await handleModerationInteraction(interaction, settings[interaction.guildId], { apiUrl: API, secret: BOT_SYNC_SECRET, bot: RUNTIME.profile })) return;
-    if (await handleVoiceV2Interaction(interaction, settings[interaction.guildId])) { auditSlashUsage(interaction, "Vocal temporaire"); return; }
+    if (await handleVoiceV2Interaction(interaction, settings[interaction.guildId], record)) { auditSlashUsage(interaction, "Vocal temporaire"); return; }
     // Commandes et boutons : une commande slash n'arrive qu'à son bot propriétaire (filtre en tête),
     // un bouton revient toujours au bot qui l'a publié. Aucune condition de domaine ici.
     if (await handleShieldInteraction(interaction)) { auditSlashUsage(interaction, "Bouclier"); return; }
@@ -1563,6 +1638,7 @@ client.on("interactionCreate", (interaction) => {
     if (await handleClanInteraction(interaction)) { auditSlashUsage(interaction, "Clans & saisons"); return; }
     if (await handleOverviewInteraction(interaction)) { auditSlashUsage(interaction, "Profil FWU"); return; }
     if (await handleConfessionInteraction(interaction)) { auditSlashUsage(interaction, "Confessions"); return; }
+    if (await handleInvestPlusInteraction(interaction, settings[interaction.guildId])) { auditSlashUsage(interaction, "Invest +"); return; }
     if (await handleAnimationInteraction(interaction)) { auditSlashUsage(interaction, "Animation"); return; }
     if (await handleCasinoInteraction(interaction)) { auditSlashUsage(interaction, "PND Casino"); return; }
     if (await handlePerkInteraction(interaction)) { auditSlashUsage(interaction, "Avantages"); return; }
@@ -1620,6 +1696,10 @@ async function notifySharedDb(kind) {
 }
 await startSharedLayer({ record, notify: IS_FWU ? notifySharedDb : null });
 if (IS_FWU) startUsageRetention({ record });
+startFreezeRefresh(() => ALLOWED_GUILDS.filter((guildId) => !isLogsHub(guildId)));
+if (IS_FWU) startFreezeExpiry({ client, bot: RUNTIME.profile, record, audit: (guild, title, description) => auditLog(guild, settings[guild.id], title, description, 0x38bdf8) });
+if (IS_FWU) startNotesRetention({ record });
+startStaffAbuseAlerts({ client, bot: RUNTIME.profile, getSettings: (guildId) => settings[guildId], record, audit: (guild, title, description) => auditLog(guild, settings[guild.id], title, description, 0xef4444) });
 await sync();
 setInterval(sync, 60_000);
 setInterval(reportStatus, 20_000);

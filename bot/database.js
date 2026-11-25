@@ -241,6 +241,17 @@ db.exec(`
   CREATE TABLE IF NOT EXISTS temp_voice (
     channel_id TEXT PRIMARY KEY, guild_id TEXT NOT NULL, owner_id TEXT NOT NULL, created_at INTEGER NOT NULL
   );
+  -- Listes personnelles du propriétaire (confiance / bloqués), par serveur.
+  CREATE TABLE IF NOT EXISTS temp_voice_lists (
+    guild_id TEXT NOT NULL, owner_id TEXT NOT NULL, target_id TEXT NOT NULL,
+    kind TEXT NOT NULL CHECK (kind IN ('trusted','blocked')), created_at INTEGER NOT NULL,
+    PRIMARY KEY (guild_id, owner_id, target_id)
+  );
+  -- Préférences reprises à la création du prochain salon (nom, limite).
+  CREATE TABLE IF NOT EXISTS temp_voice_prefs (
+    guild_id TEXT NOT NULL, owner_id TEXT NOT NULL, name TEXT, user_limit INTEGER, updated_at INTEGER NOT NULL,
+    PRIMARY KEY (guild_id, owner_id)
+  );
 
   -- Staff / tickets ----------------------------------------------------------
   CREATE TABLE IF NOT EXISTS tickets (

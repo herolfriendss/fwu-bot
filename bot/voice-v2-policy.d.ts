@@ -2,3 +2,16 @@ export function renderVoiceName(template: unknown, displayName: unknown): string
 export function clampVoiceLimit(raw: unknown): number;
 export function canManageTempVoice(input: { ownerId: string; userId: string | null; hasManageChannels?: boolean }): boolean;
 export function tempVoiceNameIsValid(raw: unknown): boolean;
+export const MAX_EMPTY_DELETE_SECONDS: number;
+export function clampEmptyDeleteSeconds(raw: unknown): number;
+export const RENAME_WINDOW_MS: number;
+export const RENAMES_PER_WINDOW: number;
+export function renameAllowed(history?: number[], now?: number): { allowed: boolean; recent: number[]; retryAt: number | null };
+export function pickNextOwner(members?: { id: string; bot?: boolean }[], previousOwnerId?: string | null): string | null;
+export const TEMP_VOICE_LIST_KINDS: readonly ("trusted" | "blocked")[];
+export const MAX_LIST_ENTRIES: number;
+export function listAddRefusal(input: { kind: string; ownerId: string; targetId: string | null; targetIsBot?: boolean; currentSize?: number; alreadyListed?: boolean }): string | null;
+export function listOverwritePlan(entries?: { targetId: string; kind: string }[], options?: { outranksOwner?: (id: string) => boolean }): { id: string; Connect: boolean; ViewChannel?: boolean }[];
+export const PANEL_ACTIONS: readonly string[];
+export function buildPanelId(action: string, channelId: string): string;
+export function parsePanelId(customId: unknown): { action: string; channelId: string } | null;

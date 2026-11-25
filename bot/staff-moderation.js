@@ -2,6 +2,7 @@
 // Tout passe par la base centrale (shared/) : types de sanctions, historique,
 // quotas partagés avec les 4 autres bots, exemptions et whitelist.
 import { EmbedBuilder } from "discord.js";
+import { formatHistoryEntry, loadMemberHistory } from "./member-history.js";
 import { sendCentralLog, systemLogEmbed } from "./logs.js";
 import { ModerationRefusal, runModerationAction } from "./moderation-actions.js";
 import { appealButton, recordModerationCase } from "./moderation.js";
@@ -11,7 +12,7 @@ import {
   recentConfigChanges, removeExemption, removeWhitelistedBot, resetQuota, setQuota, quotaStatusForUser, formatQuotaStatus,
 } from "./shared/quotas.js";
 import {
-  addSanctionType, deleteSanctionType, getSanctionType, listMemberSanctions, listSanctionTypes, parseDurationToSeconds, updateSanctionType,
+  addSanctionType, deleteSanctionType, getSanctionType, listSanctionTypes, parseDurationToSeconds, updateSanctionType,
 } from "./shared/sanctions.js";
 import { TIER_LABELS, canUseModeration, listRoleTiers, memberTier, ownerId, setRoleTier } from "./shared/tiers.js";
 
@@ -116,11 +117,14 @@ async function handleSanctionHistory(interaction, tier) {
   await interaction.deferReply({ ephemeral: true });
   const user = interaction.options.getUser("membre", true);
   const page = interaction.options.getInteger("page") ?? 1;
-  const { total, items } = await listMemberSanctions(interaction.guildId, user.id, { limit: 10, offset: (page - 1) * 10 });
+  // Historique unifié : base centrale (5 bots) + casier local (numéros d'affaire, retraits).
+  const { entries, centralAvailable } = await loadMemberHistory({ guildId: interaction.guildId, userId: user.id, limit: 100 });
+  const total = entries.length;
   const pages = Math.max(1, Math.ceil(total / 10));
+  const items = entries.slice((page - 1) * 10, page * 10);
   const embed = new EmbedBuilder().setColor(0x6d28d9)
     .setTitle(`📁 Sanctions de ${user.tag ?? user.username ?? user.id}`)
-    .setDescription(items.length ? items.map(formatSanctionLine).join("\n").slice(0, 4000) : total ? "Page vide." : "✅ Aucune sanction enregistrée.")
+    .setDescription(`${items.length ? items.map(formatHistoryEntry).join("\n").slice(0, 3800) : total ? "Page vide." : "✅ Aucune sanction enregistrée."}${centralAvailable ? "" : "\n\n⚠️ Base centrale injoignable : seules les affaires de ce bot sont affichées."}`)
     .setFooter({ text: `${total} sanction(s) au total · page ${Math.min(page, pages)}/${pages} · tous bots confondus` });
   return interaction.editReply({ embeds: [embed], allowedMentions: { parse: [] } });
 }
