@@ -19,6 +19,8 @@ Le problème produit n'est donc pas un dépassement de quota : c'est la dispersi
 
 Les racines doivent rester uniques à l'échelle des six applications, car le runtime actuel utilise une table globale nom de commande → application. Les sous-commandes peuvent partager les mêmes noms sans conflit. Les anciens `/fwu` de SUCK ME et `/invest` du FISC seront déplacés comme sous-commandes de leur racine propriétaire avant d'être retirés.
 
+L'audit détaillé conserve la liste complète des commandes de chaque application après chaque lot ; il ne se limite pas au comptage des racines.
+
 ## Méthode de migration
 
 1. Construire une table explicite ancien nom → nouvelle racine et sous-commande, incluant chaque option, permission, handler et profil propriétaire.
