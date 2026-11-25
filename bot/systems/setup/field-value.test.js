@@ -24,9 +24,9 @@ test("a field without default keeps the previous empty-string behaviour", () => 
   assert.equal(fieldValue(plain, { minAccountAgeDays: 0 }), "0");
 });
 
-test("other field kinds keep their previous behaviour", () => {
-  assert.equal(fieldValue({ key: "enabled", kind: "boolean" }, { enabled: false }), "false");
-  assert.equal(fieldValue({ key: "enabled", kind: "boolean" }, { enabled: true }), "true");
+test("booleans are shown as oui/non and other kinds keep their behaviour", () => {
+  assert.equal(fieldValue({ key: "enabled", kind: "boolean" }, { enabled: false }), "non");
+  assert.equal(fieldValue({ key: "enabled", kind: "boolean" }, { enabled: true }), "oui");
   assert.equal(fieldValue({ key: "welcome", kind: "text" }, { welcome: "" }), "");
   assert.equal(fieldValue({ key: "roleId", kind: "role" }, {}), "");
 });
@@ -36,4 +36,10 @@ test("roleList fields keep their list rendering and never use a default", () => 
   assert.equal(fieldValue(roles, { roleIds: ["1", "2"] }), "1, 2");
   assert.equal(fieldValue(roles, { roleIds: "not-an-array" }), "");
   assert.equal(fieldValue(roles, {}), "");
+});
+
+test("enum fields with French aliases are pre-filled in French", () => {
+  const field = { key: "action", kind: "enum", values: ["log", "kick"], aliases: { journal: "log", expulser: "kick" } };
+  assert.equal(fieldValue(field, { action: "kick" }), "expulser");
+  assert.equal(fieldValue(field, { action: "log" }), "journal");
 });

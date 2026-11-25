@@ -11,9 +11,9 @@ process.env.FWU_AUTO_UPDATE_SCRIPT = join(dir, "fwu-auto-update.sh");
 process.env.PND_OWNER_DISCORD_ID = "111111111111111111";
 const m = await import("./self-update.js");
 
-function interaction(userId, sub) {
+function interaction(userId, sub, version = null) {
   const replies = [];
-  return { replies, user: { id: userId }, commandName: "maj", isChatInputCommand: () => true, options: { getSubcommand: () => sub }, reply: async (p) => { replies.push(p); } };
+  return { replies, user: { id: userId }, commandName: "maj", isChatInputCommand: () => true, options: { getSubcommand: () => sub, getString: () => version }, reply: async (p) => { replies.push(p); } };
 }
 
 test("only the OWNER can start an update; launch is detached", async () => {
@@ -49,4 +49,26 @@ test("log is masked and the result is announced once", async () => {
   assert.equal(await m.announceUpdateResult(client, dir), false);
   assert.equal(sent.length, 1);
   assert.equal(JSON.parse(readFileSync(join(dir, "maj-status.json"), "utf8")).announced, true);
+});
+
+test("/maj lancer version : seule une version numérotée est transmise au script", async () => {
+  writeFileSync(process.env.FWU_AUTO_UPDATE_SCRIPT, "#!/bin/bash\n");
+  writeFileSync(join(dir, "maj-status.json"), JSON.stringify({ state: "done", step: "x", at: 1 }));
+  assert.equal(m.parseVersionTag("1.2.3"), "v1.2.3");
+  assert.equal(m.parseVersionTag("v10.0.1"), "v10.0.1");
+  for (const bad of ["main", "fwu-quotas-prefixes", "v1.2", "v1.2.3; rm -rf /", "$(id)"]) assert.equal(m.parseVersionTag(bad), null, bad);
+  const calls = [];
+  const spawnFn = (...args) => { calls.push(args); return { unref() {} }; };
+  const bad = interaction("111111111111111111", "lancer", "ma-branche");
+  await m.handleSelfUpdateInteraction(bad, { spawnFn });
+  assert.equal(calls.length, 0);
+  assert.match(bad.replies[0].content, /Version illisible/);
+  const ok = interaction("111111111111111111", "lancer", "1.4.0");
+  await m.handleSelfUpdateInteraction(ok, { spawnFn });
+  assert.equal(calls[0][1].at(-1), "v1.4.0", "la version passe en argument séparé, jamais dans le texte de la commande");
+  assert.doesNotMatch(calls[0][1][1], /1\.4\.0/);
+  writeFileSync(join(dir, "version-installee"), "v1.3.0\n");
+  const etat = interaction("111111111111111111", "etat");
+  await m.handleSelfUpdateInteraction(etat, { spawnFn });
+  assert.match(etat.replies[0].content, /Version installée : \*\*v1\.3\.0\*\*/);
 });

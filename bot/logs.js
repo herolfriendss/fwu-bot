@@ -35,7 +35,7 @@ export function addCentralLogObserver(observer) {
   return () => centralLogObservers.delete(observer);
 }
 
-export async function sendCentralLog(guild, settings, embed, fallbackChannelIds = [], components = [], allowedUserIds = []) {
+export async function sendCentralLog(guild, settings, embed, fallbackChannelIds = [], components = [], allowedUserIds = [], { skipObservers = false } = {}) {
   if (!guild || !embed) return false;
   if (centralLogRelay) {
     try {
@@ -46,7 +46,7 @@ export async function sendCentralLog(guild, settings, embed, fallbackChannelIds 
   }
   // Log texts point to slash commands (the "=" commands were abandoned).
   embed = slashifyEmbedForLog(embed);
-  for (const observer of centralLogObservers) {
+  for (const observer of skipObservers ? [] : centralLogObservers) {
     try { observer(guild, typeof embed?.toJSON === "function" ? embed.toJSON() : embed); } catch { /* never block a log */ }
   }
   let delivered = false;

@@ -4,6 +4,7 @@ import { db } from "../database.js";
 import { parsePndOwnerId } from "../pnd-owner-policy.js";
 import { isSysPlus } from "../systems/sysplus/permissions.js";
 import { parseDuration } from "./community.js";
+import { roleGrantRefusal as protectedGrantRefusal } from "../role-grant-guard.js";
 
 export const SUCKME_COMMANDS = new Set(["roletemp", "annonce", "staff", "pseudo"]);
 const DANGEROUS = [P.Administrator, P.ManageGuild, P.ManageRoles, P.ManageChannels, P.BanMembers, P.KickMembers, P.ManageWebhooks];
@@ -57,7 +58,8 @@ async function roletemp(interaction, settings) {
   const role = interaction.options.getRole("role", true);
   const member = await guild.members.fetch({ user: user.id }).catch(() => null);
   if (!member) return "❌ Ce membre n'est pas sur le serveur.";
-  const refusal = roleGrantRefusal({ role, actorPosition: actor.roles.highest.position, botPosition: me.roles.highest.position, actorFull, guildId: guild.id });
+  const refusal = roleGrantRefusal({ role, actorPosition: actor.roles.highest.position, botPosition: me.roles.highest.position, actorFull, guildId: guild.id })
+    ?? await protectedGrantRefusal(guild, role, { actorId: actor.id, settings, removal: sub !== "donner" });
   if (refusal) return `❌ ${refusal}`;
   if (sub === "donner") {
     const ms = parseDuration(interaction.options.getString("duree", true));
@@ -176,7 +178,10 @@ async function staff(interaction, settings) {
   if (sub === "echelle") {
     const roles = [1, 2, 3, 4, 5, 6].map((n) => interaction.options.getRole(`role${n}`)).filter(Boolean);
     for (const role of roles) {
-      const refusal = roleGrantRefusal({ role, actorPosition: actor.roles.highest.position, botPosition: me.roles.highest.position, actorFull: true, guildId: guild.id });
+      // L'échelle ne contient que des rôles que l'auteur pourrait lui-même donner : sinon un SYS+
+      // y mettrait un rôle ADMIN+, de palier ou à permissions, puis se « promouvrait ».
+      const refusal = roleGrantRefusal({ role, actorPosition: actor.roles.highest.position, botPosition: me.roles.highest.position, actorFull, guildId: guild.id })
+        ?? await protectedGrantRefusal(guild, role, { actorId: actor.id, settings });
       if (refusal) return `❌ ${role.name} : ${refusal}`;
     }
     const sorted = [...new Set(roles.map((r) => r.id))].sort((a, b) => guild.roles.cache.get(a).position - guild.roles.cache.get(b).position);
@@ -186,10 +191,13 @@ async function staff(interaction, settings) {
   const user = interaction.options.getUser("membre", true);
   const member = await guild.members.fetch({ user: user.id }).catch(() => null);
   if (!member) return "❌ Ce membre n'est pas sur le serveur.";
+  if (sub === "promouvoir" && member.id === actor.id && !actorFull) return "⛔ Tu ne peux pas te promouvoir toi-même.";
   const step = ladderStep(ladderOf(guild.id), [...member.roles.cache.keys()], sub === "promouvoir" ? 1 : -1);
   if (step.error) return `❌ ${step.error}`;
   if (step.add) {
-    const refusal = roleGrantRefusal({ role: guild.roles.cache.get(step.add), actorPosition: actor.roles.highest.position, botPosition: me.roles.highest.position, actorFull, guildId: guild.id });
+    const role = guild.roles.cache.get(step.add);
+    const refusal = roleGrantRefusal({ role, actorPosition: actor.roles.highest.position, botPosition: me.roles.highest.position, actorFull, guildId: guild.id })
+      ?? await protectedGrantRefusal(guild, role, { actorId: actor.id, settings });
     if (refusal) return `❌ ${refusal}`;
     await member.roles.add(step.add, `${sub === "promouvoir" ? "Promotion" : "Rétrogradation"} par ${interaction.user.id}`);
   }

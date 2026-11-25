@@ -37,6 +37,8 @@ export type TempVoiceSettings = {
   categoryId: string | null;
   defaultLimit: number;
   nameTemplate: string;
+  /** Grace period before an empty temporary channel is deleted (0–300 s). */
+  emptyDeleteSeconds: number;
 };
 export type AutomationSettings = {
   autoRoleIds: string[];
@@ -79,6 +81,8 @@ export type BotSettings = {
   tempVoice: TempVoiceSettings;
   automation: AutomationSettings;
   liveAlerts: LiveAlertsSettings;
+  /** Public showcase page of the server on the website. Off by default; the leaderboard shows member names, so it is a separate opt-in. */
+  publicPage: { enabled: boolean; showLeaderboard: boolean };
   dog?: DogSettings;
   wakeup?: WakeupSettings;
 };
@@ -124,9 +128,11 @@ export const DEFAULT_SETTINGS: BotSettings = {
     categoryId: null,
     defaultLimit: 0,
     nameTemplate: "Salon de {user}",
+    emptyDeleteSeconds: 0,
   },
   automation: { autoRoleIds: [], welcomeDm: false, welcomeDmMessage: "Bienvenue sur **{server}** !" },
   liveAlerts: { enabled: false, channelId: null, animated: true, mentionRoleId: null, creators: [] },
+  publicPage: { enabled: false, showLeaderboard: false },
 };
 
 const str = (v: unknown, max: number) => String(v ?? "").trim().slice(0, max);
@@ -221,6 +227,7 @@ function sanitizeCoreSettings(raw: unknown): BotSettings {
       categoryId: snowflakeId(r.tempVoice?.categoryId),
       defaultLimit: int(r.tempVoice?.defaultLimit, 0, 99, d.tempVoice.defaultLimit),
       nameTemplate: str(r.tempVoice?.nameTemplate, 80) || d.tempVoice.nameTemplate,
+      emptyDeleteSeconds: int(r.tempVoice?.emptyDeleteSeconds, 0, 300, d.tempVoice.emptyDeleteSeconds),
     },
     automation: {
       autoRoleIds: snowflakeList(r.automation?.autoRoleIds, 10),
@@ -243,6 +250,7 @@ function sanitizeCoreSettings(raw: unknown): BotSettings {
         return [{ id: str(c?.id, 40) || `creator-${index}`, platform, displayName, feedUrl }];
       }),
     },
+    publicPage: { enabled: bool(r.publicPage?.enabled, false), showLeaderboard: bool(r.publicPage?.showLeaderboard, false) },
   };
 }
 
@@ -306,3 +314,87 @@ export function containsBannedWord(words: string[], content: string): boolean {
 }
 
 const escape = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+/**
+ * Sections the dashboard edits. A dashboard save sends only the sections that changed,
+ * so a module switched from Discord (/setup, bot-sync) in the meantime is never undone
+ * by a tab that stayed open. voiceAccess and prefixCommands have their own functions; SYS+,
+ * WHITELIST and ADMIN+ roles are changed only from Discord (owner commands, audited), so they
+ * are deliberately absent.
+ */
+export const DASHBOARD_SECTION_KEYS = [
+  "logs", "keywords", "filter", "spam", "welcome", "ai",
+  "guildGuard", "moderation", "verification", "tickets", "tempVoice", "automation", "liveAlerts", "dog", "wakeup", "publicPage",
+] as const;
+export type DashboardSectionKey = (typeof DASHBOARD_SECTION_KEYS)[number];
+export type DashboardSectionPatch = Partial<Pick<BotSettings, DashboardSectionKey>>;
+
+const sameValue = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
+
+/** Sections of `edited` that differ from the settings the page loaded. */
+export function changedSections(edited: BotSettings, loaded: BotSettings, keys: readonly DashboardSectionKey[] = DASHBOARD_SECTION_KEYS): DashboardSectionPatch {
+  const patch: Record<string, unknown> = {};
+  for (const key of keys) if (!sameValue(edited[key], loaded[key])) patch[key] = edited[key];
+  return patch as DashboardSectionPatch;
+}
+
+/** Applies only the dashboard sections present in `patch` on top of the latest stored settings. */
+export function applySectionPatch(latest: BotSettings, patch: unknown): BotSettings {
+  const source = (patch && typeof patch === "object" ? patch : {}) as Record<string, unknown>;
+  const next: Record<string, unknown> = { ...latest };
+  for (const key of DASHBOARD_SECTION_KEYS) if (Object.hasOwn(source, key)) next[key] = source[key];
+  return sanitizeSettings(next);
+}
+
+/**
+ * Optimistic check: a section may be written only if its stored value still equals the value
+ * the editor started from (`base`). Returns the conflicting section keys (empty = safe to write).
+ */
+export function sectionConflicts(latest: BotSettings, patch: unknown, base: unknown): DashboardSectionKey[] {
+  const changes = (patch && typeof patch === "object" ? patch : {}) as Record<string, unknown>;
+  const origin = (base && typeof base === "object" ? base : {}) as Record<string, unknown>;
+  return DASHBOARD_SECTION_KEYS.filter((key) => {
+    if (!Object.hasOwn(changes, key)) return false;
+    if (!Object.hasOwn(origin, key)) return true;
+    const startedFrom = sanitizeSettings({ ...latest, [key]: origin[key] })[key];
+    return !sameValue(startedFrom, latest[key]);
+  });
+}
+
+export const SECTION_LABELS: Record<DashboardSectionKey, string> = {
+  logs: "Journal centralisé",
+  keywords: "Mots-clés",
+  filter: "Filtre anti-insultes",
+  spam: "Anti-spam et mentions",
+  welcome: "Message de bienvenue",
+  ai: "Assistant IA",
+  guildGuard: "Sécurité anti-raid",
+  moderation: "Modération",
+  verification: "Vérification des membres",
+  tickets: "Tickets communautaires",
+  tempVoice: "Salons vocaux temporaires",
+  automation: "Automatisations de bienvenue",
+  liveAlerts: "Alertes de démarrage LIVE",
+  dog: "DOG — laisses par SYS+",
+  wakeup: "WAKEUP",
+  publicPage: "Page publique",
+};
+
+export type BotModuleKey = (typeof BOT_MODULE_SETTINGS_KEYS)[number];
+
+/**
+ * Field-level write of one module (used by /setup through bot-sync). Applies only `changes` on
+ * top of the stored module and reports the fields whose stored value no longer equals `expected`
+ * (the value the editor started from). Nothing must be written when conflicts is non-empty.
+ */
+export function applyModuleChanges(current: BotSettings, module: BotModuleKey, changes: unknown, expected: unknown): { conflicts: string[]; next: BotSettings } {
+  const own = (v: unknown) => Object.fromEntries(
+    Object.entries(v && typeof v === "object" && !Array.isArray(v) ? v as Record<string, unknown> : {})
+      .filter(([key]) => key !== "__proto__" && key !== "constructor" && key !== "prototype"),
+  );
+  const stored = own(current[module]);
+  const wanted = own(expected);
+  const conflicts = Object.keys(wanted).filter((key) => !sameValue(stored[key], wanted[key]));
+  const next = sanitizeSettings({ ...current, [module]: { ...stored, ...own(changes) } });
+  return { conflicts, next };
+}

@@ -1,5 +1,7 @@
 // Bot Discord 24h/24 — à lancer sur ton VPS. Les réglages viennent du site (onglet « Bot 24h/24 »).
 import { Client, GatewayIntentBits, Partials, PermissionFlagsBits, REST } from "discord.js";
+import { startPresence } from "./presence.js";
+import { buildActivitySnapshot } from "./activity-snapshot.js";
 import { existsSync } from "node:fs";
 // The dashboard and the Oracle bot share one command definition file. In the
 // repository it lives in ../src/lib; the public source archive ships a copy at
@@ -50,6 +52,9 @@ import { handleCasinoMessage } from "./casino.js";
 import { handleCasinoInteraction } from "./casino/commands.js";
 import { runCascade, startCascade } from "./cascade.js";
 import { handleConfessionInteraction } from "./features/confessions-commands.js";
+import { handleInvestPlusChannelDelete, handleInvestPlusInteraction, handleInvestPlusMessage, runInvestPlusJobs } from "./features/investplus-commands.js";
+import { handleAnimationInteraction, handleCountingDelete, handleCountingMessage, handleStarboardReaction } from "./features/animation-commands.js";
+import { runQotd } from "./features/qotd.js";
 import { handleOverviewInteraction } from "./features/overview.js";
 import { handleClanInteraction } from "./features/clans-commands.js";
 import { handleQuestInteraction } from "./features/quests-commands.js";
@@ -62,14 +67,21 @@ import { handlePndIntelligenceMessage, handlePndIntelligenceInteraction, expireP
 import { handleOrganizationMessage } from "./organization-commands.js";
 import { startOrganizationMaintenance } from "./organization-maintenance.js";
 import { recordAnalyticsMetric, flushAnalyticsMetrics } from "./analytics-buffer.js";
+import { installProcessGuard } from "./process-guard.js";
+import { autoIncidentNotice, recordGuardIncident } from "./systems/sysplus/auto-incidents.js";
+import { setSysPlusAuditObserver } from "./systems/sysplus/audit.js";
+import { freezeRefusal, startFreezeRefresh } from "./staff-freeze-gate.js";
+import { startFreezeExpiry } from "./systems/sysplus/freeze-commands.js";
+import { startStaffAbuseAlerts } from "./systems/sysplus/abuse-alerts.js";
+import { startNotesRetention } from "./systems/sysplus/staff-notes.js";
 import { recoverInterruptedAutomationRuns } from "./automation-rules.js";
 import { handleAutomationRulesMessage } from "./automation-rules-commands.js";
 import { previewGuildAutomationRules, previewScheduledAutomationRules, buildAutomationEventFromMember } from "./automation-rules-runtime.js";
 import { handleVoicePresenceMessage, reconcileActiveVoiceSessions, trackVoiceStateUpdate } from "./voice-audit.js";
 import { handleStaffMemberHistoryMessage } from "./staff-audit.js";
-import { captureGuildInviteSnapshot, resolveMemberInvite, recordInviteLifecycle } from "./invite-attribution.js";
+import { captureGuildInviteSnapshot, resolveMemberInvite, recordMemberInvite, recordInviteLifecycle } from "./invite-attribution.js";
 import { addCentralLogObserver, setCentralLogRelay, systemLogEmbed, sendCentralLog } from "./logs.js";
-import { BOT_PROFILES, LEASE_RENEW_MS, createDomainGate, enqueueRelayedLog, loadBotPrefixes, parsePrefixedMessage, resolveBotRuntime, slashCommandOwner, slashRegistrationPlan, takeRelayedLogs } from "./bot-runtime.js";
+import { BOT_PROFILES, LEASE_RENEW_MS, createDomainGate, enqueueRelayedLog, loadBotPrefixes, parsePrefixedMessage, resolveBotRuntime, slashCommandOwner, slashRegistrationPlan, takeRelayedLogs, requeueRelayedLog, countLostRelayedLogs } from "./bot-runtime.js";
 import { handleLiveInteraction, handleLiveMessage } from "./live-commands.js";
 import { prefixifyPayload, slashifyPayload } from "./prefix-to-slash.js";
 import { enforceBlacklistOnJoin, handleBlacklistInteraction, handleBlacklistMessage, isBlacklisted } from "./blacklist.js";
@@ -79,7 +91,8 @@ import { handleStaffModerationInteraction, STAFF_COMMANDS } from "./staff-modera
 import { handleGuardPrefixCommand } from "./guard-commands.js";
 import { handleVoiceMoveCommand } from "./voice-move.js";
 import { handleEmbedInteraction, EMBED_COMMANDS } from "./embeds.js";
-import { startSharedLayer } from "./shared/index.js";
+import { SHARED_DB_ALERTS, startSharedLayer } from "./shared/index.js";
+import { startUsageRetention } from "./shared/retention.js";
 import { logCommandUsage } from "./shared/audit.js";
 import { getVoiceConnections } from "@discordjs/voice";
 import { hasAiMemoryConsent, setAiMemoryConsent } from "./ai-memory-preferences.js";
@@ -97,12 +110,16 @@ import { runAutoconfig } from "./autoconfig.js";
 import { handleGuardInteraction } from "./guard/commands.js";
 import { communityAutoconfig, handleCommunityInteraction, handleLevelMessage, runBirthdays, runReminders, tickVoiceXp } from "./features/community.js";
 import { handleFiscInteraction, runLoanCollection, runWealthTax } from "./features/fisc.js";
+import { handleModmailDm, handleToolsInteraction, onStickyChannelMessage } from "./features/tools-commands.js";
+import { handleVersusInteraction, runVersusExpiry } from "./features/versus.js";
 import { announceUpdateResult, handleSelfUpdateInteraction } from "./features/self-update.js";
 import { handleSuckmeInteraction, ladderOf, runAnnouncements, runTempRoles, saveLadder } from "./features/suckme.js";
 import { armSlowCommandWatchdog } from "./interaction-watchdog.js";
 import { STAFF_ONLY_MESSAGE, isServerStaff } from "./server-staff.js";
 import { installOwnerShield, runAsActor } from "./owner-shield.js";
 import { assertOwnerConfig } from "./owner-config.js";
+import { db } from "./database.js";
+import { clearConnectedMarker, clearGatewayFailures, createGatewayWatchdog, recordGatewayFailure, writeConnectedMarker } from "./gateway-watchdog.js";
 import { LOGS_HUB_GUILD_ID, ACTIVE_SOURCE_GUILD_IDS, allowedRuntimeGuild, filterInactiveSourceGuilds, isLogsHub, provisionLogsHub } from "./logs-hub.js";
 
 const { SITE_URL, BOT_SYNC_SECRET } = process.env;
@@ -172,6 +189,7 @@ const API = `${SITE_URL.replace(/\/$/, "")}/api/public/bot-sync`;
 const AUTH = { Authorization: `Bearer ${BOT_SYNC_SECRET}` };
 const STATUS_API = `${SITE_URL.replace(/\/$/, "")}/api/public/bot-status`;
 const ECONOMY_API = `${SITE_URL.replace(/\/$/, "")}/api/public/economy-snapshot`;
+const ACTIVITY_API = `${SITE_URL.replace(/\/$/, "")}/api/public/activity-snapshot`;
 // Optional isolation allowlist. Empty = accept every guild, but each guild's
 // data remains isolated by guild_id in SQLite and in bot_settings.
 const CONFIGURED_GUILDS = filterInactiveSourceGuilds(
@@ -190,6 +208,14 @@ function record(code) {
   console.log(`[bot] ${code}`);
 }
 registerHealthProvider(() => ({ events: [...events], lastSync, startedAt }));
+// S1 : les actions SYS+ qui changent des droits partent aussi au Logs Hub (le bot qui agit publie).
+setSysPlusAuditObserver(({ guildId, actorId, action, targetId }) => {
+  const guild = client.guilds.cache.get(guildId);
+  if (!guild) return;
+  auditLog(guild, settings[guildId], "🧾 Journal SYS+", `Action : \`${action}\`\nPar : <@${actorId}> (\`${actorId}\`)${targetId ? `\nCible : ${/^\d{17,20}$/.test(String(targetId)) ? `<@${targetId}> (\`${targetId}\`)` : `\`${String(targetId).slice(0, 60)}\``}` : ""}\nHistorique : \`/sysp audit\``, 0x8b5cf6);
+});
+// Promesses oubliées : comptées et visibles, redémarrage au-delà de 10 en 10 min (process-guard.js).
+installProcessGuard({ record });
 const lastHealthStatus = new Map();
 function checkHealthAlerts() {
   for (const guild of client.guilds.cache.values()) {
@@ -304,9 +330,38 @@ installOwnerShield({ report: () => record("owner_shield_blocked") });
 const guardReport = (guild, { title, description, color }) => sendCentralLog(guild, settings[guild.id], systemLogEmbed({ title, description, color }));
 const automod = createAutomod({ report: guardReport, record: (code) => record(code) });
 const client = new Client({
-  intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildVoiceStates, GatewayIntentBits.GuildMessages, GatewayIntentBits.GuildMessageReactions, GatewayIntentBits.GuildInvites, GatewayIntentBits.MessageContent, GatewayIntentBits.GuildMembers, GatewayIntentBits.GuildModeration, GatewayIntentBits.GuildWebhooks],
+  intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildVoiceStates, GatewayIntentBits.GuildMessages, GatewayIntentBits.GuildMessageReactions, GatewayIntentBits.GuildInvites, GatewayIntentBits.MessageContent, GatewayIntentBits.GuildMembers, GatewayIntentBits.GuildModeration, GatewayIntentBits.GuildWebhooks, GatewayIntentBits.DirectMessages],
   partials: [Partials.Channel, Partials.Message, Partials.Reaction],
 });
+
+let activityReporting = false;
+let activitySnapshotReported = false;
+/** Classement XP et activité pour le site : un instantané borné par serveur (format du 25/11/2026). */
+async function reportActivity() {
+  if (activityReporting || !client.isReady()) return;
+  activityReporting = true;
+  try {
+    const snapshots = client.guilds.cache
+      .filter((guild) => guildAllowed(guild.id, ALLOWED_GUILDS) && !isLogsHub(guild.id))
+      .map((guild) => buildActivitySnapshot(guild.id, guild));
+    if (!snapshots.length) return;
+    const res = await fetch(ACTIVITY_API, {
+      method: "POST",
+      headers: { ...AUTH, "Content-Type": "application/json" },
+      signal: AbortSignal.timeout(15_000),
+      body: JSON.stringify({ snapshots }),
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    if (!activitySnapshotReported) {
+      activitySnapshotReported = true;
+      record("activity_snapshot_ok");
+    }
+  } catch {
+    record("activity_snapshot_error");
+  } finally {
+    activityReporting = false;
+  }
+}
 
 let economyReporting = false;
 let economySnapshotReported = false;
@@ -427,7 +482,15 @@ function prefixifyMessageReplies(msg, prefix) {
 }
 
 // GUARD anti-nuke: destructive actions in bulk are reverted and their author neutralised.
-const antiNuke = createAntiNuke({ client, report: guardReport, record: (code) => record(code) });
+const antiNuke = createAntiNuke({
+  client, report: guardReport, record: (code) => record(code),
+  // S5 : chaque attaque bloquée ouvre (ou complète) un incident SYS+.
+  onTriggered: async (guild, { executorId, action, outcome }) => {
+    const result = recordGuardIncident({ guildId: guild.id, botId: client.user.id, kind: "nuke", detail: `${action} par ${executorId}, mesure : ${outcome}` });
+    const notice = autoIncidentNotice(result);
+    if (notice) await guardReport(guild, { title: "📋 Incident SYS+", description: notice, color: 0xf59e0b });
+  },
+});
 const guardWatch = (guild) => guild && serves("guard") && guildAllowed(guild.id, ALLOWED_GUILDS) && !isLogsHub(guild.id);
 client.on("channelDelete", (channel) => { if (guardWatch(channel.guild)) void antiNuke.channelDelete(channel).catch(() => record("antinuke_error")); });
 client.on("roleDelete", (role) => { if (guardWatch(role.guild)) void antiNuke.roleDelete(role).catch(() => record("antinuke_error")); });
@@ -435,7 +498,20 @@ client.on("guildBanAdd", (ban) => { if (guardWatch(ban.guild)) void antiNuke.ban
 client.on("guildMemberRemove", (member) => { if (guardWatch(member.guild)) void antiNuke.memberRemove(member).catch(() => record("antinuke_error")); });
 client.on("webhooksUpdate", (channel) => { if (guardWatch(channel.guild)) void antiNuke.webhooksUpdate(channel).catch(() => record("antinuke_error")); });
 
-client.on("messageCreate", async (msg) => {
+// A prefix command runs on behalf of its author, like a slash command: the OWNER shield's
+// rank rule (owner-shield.js) then applies to "+ban", "=rank"… exactly as to their slash form.
+client.on("messageCreate", (msg) => (
+  !msg.author?.bot && msg.guild && parsePrefixedMessage(msg.content, BOT_PREFIXES)
+    ? runAsActor(msg.author.id, () => handleMessageCreate(msg))
+    : handleMessageCreate(msg)
+));
+
+async function handleMessageCreate(msg) {
+  // Modmail: a private message to SUCK ME (or to FWU when it runs alone) goes to the staff.
+  if (!msg.guild && !msg.author.bot && (RUNTIME.profile === "suckme" || (IS_FWU && serves("suckme")))) {
+    void handleModmailDm(msg, { client, guildAllowed: (id) => guildAllowed(id, ALLOWED_GUILDS) && !isLogsHub(id) }).catch(() => record("modmail_error"));
+    return;
+  }
   if (msg.author.bot || !msg.guild) return;
   // Defense in depth: a guild outside the allowlist is ignored even while the
   // leave request is still in flight.
@@ -452,6 +528,10 @@ client.on("messageCreate", async (msg) => {
     prefixifyMessageReplies(msg, OWN_PREFIX);
   }
   const runCmd = (...domains) => ownCommand && domains.includes(RUNTIME.profile);
+  if (ownCommand) {
+    const refusal = await freezeRefusal({ guildId: msg.guild.id, member: msg.member, prefixed: true, settings });
+    if (refusal) { await msg.reply({ content: refusal, allowedMentions: { parse: [] } }).catch(() => {}); return; }
+  }
   if (serves("fwu")) recordAnalyticsMetric(msg.guild.id, "messages");
   // GUARD trap channel: anyone writing there is handled and the message is gone.
   if (serves("guard")) {
@@ -485,6 +565,12 @@ client.on("messageCreate", async (msg) => {
   }
   }
   if (runCmd("guard") && await handleGuardianReviewMessage(msg)) return;
+  // SUCK ME: keep the staff's sticky message at the bottom of its channel.
+  if (serves("suckme")) onStickyChannelMessage(msg, { botUserId: client.user?.id, onError: () => record("sticky_error") });
+  // SUCK ME animation: a number in the counting channel is handled here and stops.
+  if (serves("suckme")) {
+    try { if (await handleCountingMessage(msg)) return; } catch { record("counting_error"); }
+  }
   if (runCmd("suckme") && await handleStaffMemberHistoryMessage(msg, { settings, ownerIds: getPndPrivilegedIds(process.env.PND_OWNER_DISCORD_ID, process.env.PND_COFOUNDER_DISCORD_IDS) })) { auditPrefixUsage(msg, "Historique staff"); return; }
   if (serves("suckme")) void previewGuildAutomationRules(msg.guild, "message_created", msg.id, {
     memberId: msg.author.id,
@@ -544,6 +630,7 @@ client.on("messageCreate", async (msg) => {
     if (runCmd("fisc") && await handleCardsMessage(msg)) { auditPrefixUsage(msg, "Cartes"); return; }
     if (runCmd("suckme", "fisc") && await handleGamesMessage(msg, record)) { auditPrefixUsage(msg, "Jeux"); return; }
     if (runCmd("fisc") && await handleCasinoMessage(msg)) { auditPrefixUsage(msg, "PND Casino"); return; }
+    if (runCmd("investplus") && await handleInvestPlusMessage(msg)) { auditPrefixUsage(msg, "Invest +"); return; }
     if (runCmd("suckme") && await handleVoicePresenceMessage(msg)) { auditPrefixUsage(msg, "Historique vocal"); return; }
     if (runCmd("suckme") && await handleAutomationMessage(msg, s, { apiUrl: API, secret: BOT_SYNC_SECRET, record })) { auditPrefixUsage(msg, "Automatisation"); return; }
   } catch { record("voice_error"); return; }
@@ -659,10 +746,13 @@ client.on("messageCreate", async (msg) => {
   } catch {
     record("message_error");
   }
-});
+}
 
 client.on("messageDelete", (message) => {
   const guild = message.guild;
+  if (serves("suckme") && guild && guildAllowed(guild.id, ALLOWED_GUILDS) && !isLogsHub(guild.id)) {
+    void handleCountingDelete(message).catch(() => record("counting_error"));
+  }
   if (!serves("fwu") || !guild || !guildAllowed(guild.id, ALLOWED_GUILDS) || message.author?.bot) return;
   auditLog(guild, settings[guild.id], "🗑️ Message supprimé", `Auteur : ${message.author ? `<@${message.author.id}>` : "inconnu"}\nSalon : <#${message.channelId}>\nContenu non enregistré pour préserver la confidentialité.` , 0xef4444);
 });
@@ -677,11 +767,17 @@ client.on("messageReactionAdd", async (reaction, user) => {
   try {
     const guildId = reaction.message.guildId ?? reaction.message.guild?.id;
     if (guildId && (!guildAllowed(guildId, ALLOWED_GUILDS) || isLogsHub(guildId))) return;
+    if (guildId && serves("suckme")) void handleStarboardReaction(reaction, user).catch(() => record("starboard_error"));
     if (!serves("guard")) return;
     await handleReactionVerificationReaction(reaction, user);
   } catch {
     record("verification_reaction_error");
   }
+});
+client.on("messageReactionRemove", (reaction, user) => {
+  const guildId = reaction.message?.guildId ?? reaction.message?.guild?.id;
+  if (!guildId || !guildAllowed(guildId, ALLOWED_GUILDS) || isLogsHub(guildId) || !serves("suckme")) return;
+  void handleStarboardReaction(reaction, user).catch(() => record("starboard_error"));
 });
 
 client.on("inviteCreate", (invite) => {
@@ -723,6 +819,7 @@ client.on("guildMemberAdd", async (member) => {
   }
   if (serves("fwu")) {
     const invite = await resolveMemberInvite(member.guild);
+    try { recordMemberInvite(member.guild.id, member.id, invite); } catch { /* la fiche membre affichera « inconnu » */ }
     const inviteLabel = invite.source === "invite" ? `\nInvitation : ${invite.code} · créée par ${invite.inviterId ? `<@${invite.inviterId}>` : "créateur inconnu"}` : invite.source === "vanity" ? "\nInvitation : URL personnalisée du serveur" : "\nInvitation : attribution inconnue";
     auditLog(member.guild, s, "👋 Arrivée d’un membre", `Membre : <@${member.id}>\nID : \`${member.id}\`${inviteLabel}`, 0x22c55e);
   }
@@ -818,7 +915,7 @@ client.on("voiceStateUpdate", (oldState, newState) => {
     record(code);
     const guild = newState.guild ?? oldState.guild;
     if (!guild || !guildSettings?.logs?.channelId) return;
-    const labels = { temp_voice_created: "Salon vocal temporaire créé", temp_voice_deleted: "Salon vocal temporaire supprimé", temp_voice_error: "Erreur Join-to-Create" };
+    const labels = { temp_voice_created: "Salon vocal temporaire créé", temp_voice_deleted: "Salon vocal temporaire supprimé", temp_voice_transferred: "Propriété transférée (propriétaire parti)", temp_voice_error: "Erreur Join-to-Create" };
     void sendCentralLog(guild, guildSettings, systemLogEmbed({
       title: `🎙️ Join-to-Create — ${labels[code] ?? code}`,
       description: `Événement : \`${code}\`\nMembre : <@${newState.id}>`,
@@ -857,6 +954,7 @@ client.on("channelDelete", (channel) => {
   forgetTempVoice(channel.id);
   forgetVoicePanels(channel.id);
   if (serves("fwu")) handleTicketChannelDelete(channel, record);
+  if (channel.guild && serves("investplus")) { try { handleInvestPlusChannelDelete(channel); } catch { record("investplus_job_error"); } }
 });
 client.on("roleCreate", (role) => {
   if (serves("fwu") && guildAllowed(role.guild.id, ALLOWED_GUILDS)) auditLog(role.guild, settings[role.guild.id], "🎭 Rôle créé", `Rôle : **${role.name}**\nID : \`${role.id}\``);
@@ -938,11 +1036,15 @@ async function reconcileDogLeashes() {
 }
 
 client.once("clientReady", () => {
+  writeConnectedMarker();
+  try { clearGatewayFailures(db, RUNTIME.profile); } catch { /* diagnostic only */ }
   if (!IS_FWU) tickDomainLease();
   // Every FWU bot records its Discord id so GUARD's anti-nuke never targets its siblings.
   try { registerBotIdentity(RUNTIME.profile, client.user.id); } catch { record("bot_identity_error"); }
   // FWU community jobs: voice XP (1 min), reminders (30 s), birthdays (5 min).
   const communityGuilds = () => [...client.guilds.cache.values()].filter((g) => guildAllowed(g.id, ALLOWED_GUILDS) && !isLogsHub(g.id));
+  // Statut riche : chaque bot affiche sa propre rotation (réglable dans bots.json).
+  startPresence(client, { profile: RUNTIME.profile, label: BOT_LABEL, prefix: OWN_PREFIX, guilds: communityGuilds, onError: () => record("presence_error") });
   // One-time automatic configuration (channels, roles, staff ladder) once leases are settled.
   setTimeout(() => {
     void runAutoconfig(communityGuilds(), (domain) => serves(domain) && (IS_FWU ? domain === "fwu" : domain !== "fwu"), { ...communityAutoconfig, ladder: ladderOf, saveLadder }, (guild, line) => {
@@ -955,17 +1057,27 @@ client.once("clientReady", () => {
   setInterval(() => { if (serves("fwu")) void runBirthdays(communityGuilds()).catch(() => record("birthdays_error")); }, 5 * 60_000).unref?.();
   // SUCK ME: tell the OWNER how the last /maj ended (checked every 2 minutes).
   setInterval(() => { if (serves("suckme")) void announceUpdateResult(client).catch(() => {}); }, 2 * 60_000).unref?.();
+  // SUCK ME animation: question of the day, checked every 5 minutes (Paris time).
+  setInterval(() => { if (serves("suckme")) void runQotd(communityGuilds()).catch(() => record("qotd_error")); }, 5 * 60_000).unref?.();
   // SUCK ME jobs: expired temporary roles and scheduled announcements (every minute).
   setInterval(() => {
     if (!serves("suckme")) return;
     void runTempRoles(client).catch(() => record("suckme_job_error"));
     void runAnnouncements(client).catch(() => record("suckme_job_error"));
   }, 60_000).unref?.();
+  // LE FISC: /jeu invitations (2 min), idle players (3 min) and idle hangman games (10 min).
+  setInterval(() => { if (serves("fisc")) void runVersusExpiry(client).catch(() => record("versus_error")); }, 60_000).unref?.();
   // LE FISC jobs: weekly wealth tax and overdue loans (hourly checks).
   setInterval(() => {
     if (!serves("fisc")) return;
     try { runWealthTax(communityGuilds().map((g) => g.id)); runLoanCollection(); } catch { record("fisc_job_error"); }
   }, 60 * 60_000).unref?.();
+  // Invest + jobs: reminders before the due date, then expirations (every 5 minutes).
+  setInterval(() => {
+    if (!serves("investplus")) return;
+    void runInvestPlusJobs(client, { isAllowedGuild: (gid) => guildAllowed(gid, ALLOWED_GUILDS) && !isLogsHub(gid), settingsFor: (gid) => settings[gid] ?? null })
+      .catch(() => record("investplus_job_error"));
+  }, 5 * 60_000).unref?.();
   // Creator Studio scheduler: publishes due drafts only on allowlisted guilds (MZ stays excluded).
   const studioSender = createClientStudioSender(client, { isAllowedGuild: (gid) => guildAllowed(gid, ALLOWED_GUILDS) && !isLogsHub(gid) });
   // Each scheduled job checks its domain at every tick: exactly one process runs it.
@@ -1019,7 +1131,7 @@ client.once("clientReady", () => {
   }
   const logsGuild = client.guilds.cache.get(LOGS_HUB_GUILD_ID);
   if (logsGuild && IS_FWU) void provisionLogsHub(logsGuild, record).catch(() => record("logs_hub_provision_error"));
-  if (serves("fdpdlavoc")) void reconcileTempVoices(client, record).catch(() => record("temp_voice_reconcile_error"));
+  if (serves("fdpdlavoc")) void reconcileTempVoices(client, record, settings).catch(() => record("temp_voice_reconcile_error"));
   startOrganizationMaintenance(client, ALLOWED_GUILDS.filter((guildId) => !isLogsHub(guildId)), record, () => serves("fwu"));
   startInvestmentMaintenance(client, ALLOWED_GUILDS.filter((guildId) => !isLogsHub(guildId)), record, () => serves("fisc"));
   void enforceGuildAllowlist(client, ALLOWED_GUILDS, record);
@@ -1032,8 +1144,10 @@ client.once("clientReady", () => {
       void (async () => {
         for (const item of takeRelayedLogs(25)) {
           const guild = client.guilds.cache.get(item.guildId);
-          if (!guild) continue;
-          await sendCentralLog(guild, settings[guild.id], item.embed, item.fallbackChannelIds, item.components, item.allowedUserIds).catch(() => record("central_log_error"));
+          if (!guild) { countLostRelayedLogs("serveur_absent"); continue; }
+          // Un nouvel essai ne repasse pas par RESUME : il l'a déjà enregistré au premier.
+          const delivered = await sendCentralLog(guild, settings[guild.id], item.embed, item.fallbackChannelIds, item.components, item.allowedUserIds, { skipObservers: item.attempts > 0 }).catch(() => false);
+          if (!delivered) { record("central_log_error"); requeueRelayedLog(item); }
         }
       })().catch(() => record("log_relay_error")).finally(() => { relaying = false; });
     }, 2_000);
@@ -1098,6 +1212,9 @@ client.once("clientReady", () => {
   liveAlertsTimer.unref?.();
   const economyTimer = setInterval(() => { if (serves("fisc")) void reportEconomy(); }, 5 * 60_000);
   economyTimer.unref?.();
+  if (serves("fwu")) void reportActivity();
+  const activityTimer = setInterval(() => { if (serves("fwu")) void reportActivity(); }, 15 * 60_000);
+  activityTimer.unref?.();
   const auctionSettlementTimer = setInterval(() => {
     if (!client.isReady() || !serves("fisc")) return;
     void settleExpiredEconomyAuctions(Date.now(), async (transfer) => {
@@ -1421,6 +1538,12 @@ client.on("interactionCreate", (interaction) => {
       || (isLogsHub(interaction.guildId) && !interaction.customId?.startsWith("moderation:appeal-review:")))) return;
     // A slash command is handled only by the bot that owns its domain. Buttons
     // and menus always come back to the bot that posted them: no filter needed.
+    // Gel d'urgence du staff : commandes du staff refusées (sauf owner), sur les 5 bots.
+    if (interaction.isChatInputCommand?.() && interaction.guildId) {
+      const definition = SLASH_COMMANDS.find((c) => c.name === interaction.commandName);
+      const refusal = await freezeRefusal({ guildId: interaction.guildId, member: interaction.member, commandName: interaction.commandName, category: definition?.category ?? "", settings });
+      if (refusal) { await interaction.reply({ content: refusal, ephemeral: true }).catch(() => {}); return; }
+    }
     if (interaction.isChatInputCommand?.() || interaction.isAutocomplete?.()) {
       const owner = slashCommandOwner(interaction.commandName);
       if (owner && owner !== RUNTIME.profile) {
@@ -1443,13 +1566,15 @@ client.on("interactionCreate", (interaction) => {
       await interaction.reply({ content: hierarchyRefusal, ephemeral: true, allowedMentions: { parse: [] } }).catch(() => {});
       return;
     }
+    if (await handleToolsInteraction(interaction, { client, guildAllowed: (id) => guildAllowed(id, ALLOWED_GUILDS) && !isLogsHub(id) })) { auditSlashUsage(interaction, "Outils staff"); return; }
     if (await handleResumeInteraction(interaction, settings[interaction.guildId])) { auditSlashUsage(interaction, "RESUME"); return; }
     if (await handleDmAllInteraction(interaction, settings[interaction.guildId])) return;
     if (await handleUndogAllInteraction(interaction, settings[interaction.guildId])) return;
     if (await handleBlacklistInteraction(interaction, settings[interaction.guildId])) return;
-    if (await handleGuardInteraction(interaction, settings[interaction.guildId])) { auditSlashUsage(interaction, "GUARD"); return; }
+    if (await handleGuardInteraction(interaction, settings[interaction.guildId], { report: guardReport })) { auditSlashUsage(interaction, "GUARD"); return; }
     if (await handleCommunityInteraction(interaction, settings[interaction.guildId])) { auditSlashUsage(interaction, "Communauté"); return; }
     if (await handleFiscInteraction(interaction)) { auditSlashUsage(interaction, "LE FISC"); return; }
+    if (await handleVersusInteraction(interaction)) { auditSlashUsage(interaction, "Jeux entre membres"); return; }
     if (await handleSelfUpdateInteraction(interaction)) { auditSlashUsage(interaction, "SUCK ME"); return; }
     if (await handleSuckmeInteraction(interaction, settings[interaction.guildId])) { auditSlashUsage(interaction, "SUCK ME"); return; }
     if (await handleMusicExtrasInteraction(interaction)) { auditSlashUsage(interaction, "Musique & radio"); return; }
@@ -1467,14 +1592,15 @@ client.on("interactionCreate", (interaction) => {
     if (await handlePndIntelligenceInteraction(interaction, { settings, ownerIds: getPndPrivilegedIds(process.env.PND_OWNER_DISCORD_ID, process.env.PND_COFOUNDER_DISCORD_IDS) })) { auditSlashUsage(interaction, "PND Intelligence"); return; }
     if (await handlePackInteraction(interaction, { configuredOwners: process.env.PND_OWNER_DISCORD_ID })) return;
     if (await handleMarketInteraction(interaction, { roleId: settings[interaction.guildId]?.sysPlus?.roleId ?? null, configuredOwners: process.env.PND_OWNER_DISCORD_ID })) return;
-    if (await handleWhitelistInteraction(interaction, settings, { audit: auditLog })) return;
+    if (await handleWhitelistInteraction(interaction, settings, { audit: (guild, title, description) => auditLog(guild, settings[guild?.id], title, description) })) return;
     if (await handleLocknameInteraction(interaction, settings[interaction.guildId])) { auditSlashUsage(interaction, "LOCKNAME"); return; }
     if (await handleWaoufInteraction(interaction, settings[interaction.guildId], record)) { auditSlashUsage(interaction, "WAOUF"); return; }
     if (await handleSysPlusInteraction(interaction, settings, {
       apiUrl: API,
       secret: BOT_SYNC_SECRET,
       record,
-      audit: auditLog,
+      // Les handlers SYS+ appellent audit(guild, titre, description) : on ajoute les réglages du serveur.
+      audit: (guild, title, description) => auditLog(guild, settings[guild?.id], title, description),
     })) return;
     if (await handleCustomRolesInteraction(interaction, settings[interaction.guildId])) return;
     if (await handleRoleInteraction(interaction, settings[interaction.guildId])) return;
@@ -1501,7 +1627,7 @@ client.on("interactionCreate", (interaction) => {
     if (await handleStaffModerationInteraction(interaction, settings[interaction.guildId], { bot: RUNTIME.profile })) { auditSlashUsage(interaction, "Modération staff"); return; }
     if (await handleEmbedInteraction(interaction, settings[interaction.guildId], { bot: RUNTIME.profile, audit: auditLog })) return;
     if (await handleModerationInteraction(interaction, settings[interaction.guildId], { apiUrl: API, secret: BOT_SYNC_SECRET, bot: RUNTIME.profile })) return;
-    if (await handleVoiceV2Interaction(interaction, settings[interaction.guildId])) { auditSlashUsage(interaction, "Vocal temporaire"); return; }
+    if (await handleVoiceV2Interaction(interaction, settings[interaction.guildId], record)) { auditSlashUsage(interaction, "Vocal temporaire"); return; }
     // Commandes et boutons : une commande slash n'arrive qu'à son bot propriétaire (filtre en tête),
     // un bouton revient toujours au bot qui l'a publié. Aucune condition de domaine ici.
     if (await handleShieldInteraction(interaction)) { auditSlashUsage(interaction, "Bouclier"); return; }
@@ -1509,6 +1635,8 @@ client.on("interactionCreate", (interaction) => {
     if (await handleClanInteraction(interaction)) { auditSlashUsage(interaction, "Clans & saisons"); return; }
     if (await handleOverviewInteraction(interaction)) { auditSlashUsage(interaction, "Profil FWU"); return; }
     if (await handleConfessionInteraction(interaction)) { auditSlashUsage(interaction, "Confessions"); return; }
+    if (await handleInvestPlusInteraction(interaction, settings[interaction.guildId])) { auditSlashUsage(interaction, "Invest +"); return; }
+    if (await handleAnimationInteraction(interaction)) { auditSlashUsage(interaction, "Animation"); return; }
     if (await handleCasinoInteraction(interaction)) { auditSlashUsage(interaction, "PND Casino"); return; }
     if (await handlePerkInteraction(interaction)) { auditSlashUsage(interaction, "Avantages"); return; }
     if (await handleGamesInteraction(interaction, settings[interaction.guildId], record)) { auditSlashUsage(interaction, "Jeux & événements"); return; }
@@ -1548,10 +1676,53 @@ client.on("interactionCreate", (interaction) => {
 });
 
 // Base centrale (quotas, sanctions, journaux) : jamais bloquante au démarrage.
-await startSharedLayer({ record });
+// Seul FWU prévient (Logs Hub de chaque serveur source + MP à l'owner), pour éviter 5 alertes identiques.
+async function notifySharedDb(kind) {
+  const alert = SHARED_DB_ALERTS[kind];
+  if (!alert) return;
+  if (!client.isReady()) await new Promise((resolve) => client.once("clientReady", resolve)); // l'alerte peut précéder la connexion
+  for (const guild of client.guilds.cache.values()) {
+    if (isLogsHub(guild.id) || !guildAllowed(guild.id, ALLOWED_GUILDS)) continue;
+    auditLog(guild, settings[guild.id], alert.title, alert.description, alert.color);
+  }
+  const ownerId = String(process.env.PND_OWNER_DISCORD_ID ?? "").trim();
+  if (/^\d{17,20}$/.test(ownerId)) {
+    const owner = await client.users.fetch(ownerId).catch(() => null);
+    await owner?.send(`${alert.title}\n${alert.description}`).catch(() => {});
+  }
+}
+await startSharedLayer({ record, notify: IS_FWU ? notifySharedDb : null });
+if (IS_FWU) startUsageRetention({ record });
+startFreezeRefresh(() => ALLOWED_GUILDS.filter((guildId) => !isLogsHub(guildId)));
+if (IS_FWU) startFreezeExpiry({ client, bot: RUNTIME.profile, record, audit: (guild, title, description) => auditLog(guild, settings[guild.id], title, description, 0x38bdf8) });
+if (IS_FWU) startNotesRetention({ record });
+startStaffAbuseAlerts({ client, bot: RUNTIME.profile, getSettings: (guildId) => settings[guildId], record, audit: (guild, title, description) => auditLog(guild, settings[guild.id], title, description, 0xef4444) });
 await sync();
 setInterval(sync, 60_000);
 setInterval(reportStatus, 20_000);
 startGamesScheduler(client, record, () => serves("fwu"));
 startAutomationScheduler(client, record, () => serves("suckme"));
-client.login(DISCORD_TOKEN).catch(() => { record("gateway_error"); process.exitCode = 1; });
+// Silent-crash guard: a failed login or a long disconnection stops the process with an
+// error, so PM2 restarts it and counts it instead of showing a dead bot as "online".
+// Each failure waits longer before restarting (30 s → 8 min); after 6 failures in a row the
+// bot stops for good (exit code ignored by PM2) and the diagnostic shows it in red.
+let stoppingOffline = false;
+function stopOffline(reason) {
+  if (stoppingOffline) return;
+  stoppingOffline = true;
+  let plan = { failures: 1, stop: false, delayMs: 30_000, exitCode: 1 };
+  try { plan = recordGatewayFailure(db, RUNTIME.profile, reason); } catch { /* keep the default pause */ }
+  console.error(`❌ ${BOT_LABEL} : pas de connexion à Discord (${reason}, échec ${plan.failures}). Vérifie le token et les intents « Server Members » et « Message Content ».`);
+  console.error(plan.stop
+    ? `⛔ ${BOT_LABEL} s'arrête définitivement après ${plan.failures} échecs. Corrige puis relance : pm2 restart ${process.env.name ?? "<processus>"}`
+    : `↻ Nouvel essai dans ${Math.round(plan.delayMs / 1000)} s.`);
+  record("gateway_error");
+  clearConnectedMarker();
+  try { gate.release(); } catch { /* the lease expires on its own */ }
+  try { client.destroy(); } catch { /* already closed */ }
+  setTimeout(() => process.exit(plan.exitCode), Math.max(1_000, plan.delayMs));
+}
+clearConnectedMarker();
+const gatewayWatchdog = createGatewayWatchdog({ isReady: () => client.isReady(), exit: stopOffline });
+setInterval(() => gatewayWatchdog.check(), 15_000).unref?.();
+client.login(DISCORD_TOKEN).catch((error) => stopOffline(error?.code ?? error?.name ?? "login_failed"));

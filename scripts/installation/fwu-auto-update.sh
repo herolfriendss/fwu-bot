@@ -3,6 +3,13 @@
 # Télécharge la dernière version du dépôt GitHub privé avec le jeton en lecture seule
 # rangé dans /home/opc/fwu-data/.github-token (chmod 600), puis met à jour FWU, le site et les 4 bots.
 # Journal : /home/opc/fwu-data/maj.log · état : /home/opc/fwu-data/maj-status.json
+#
+# Quelle version ? Des versions numérotées (v1.2.0), publiées sur GitHub depuis main :
+#   • sans argument : la dernière version publiée (« Latest release ») ;
+#   • avec un argument « v1.1.0 » : cette version précise (pour revenir en arrière) ;
+#   • tant qu'aucune version n'est publiée : la branche main.
+# Jamais de branche choisie par une variable : seul ce qui est fusionné dans main est installé.
+# La version installée est notée dans /home/opc/fwu-data/version-installee.
 set -uo pipefail
 H="${FWU_HOME:-/home/opc}"
 DATA="$H/fwu-data"
@@ -33,6 +40,12 @@ echo "Node utilisé : $(command -v node || echo introuvable) $(node -v 2>/dev/nu
 # neutral environment instead of the bot's own.
 unset NODE_ENV
 
+WANTED="${1:-}"
+if [[ -n "$WANTED" && ! "$WANTED" =~ ^v[0-9]{1,4}\.[0-9]{1,4}\.[0-9]{1,4}$ ]]; then
+  echo "Version invalide : $WANTED (format attendu : v1.2.0)."; exit 2
+fi
+INSTALLED_FILE="$DATA/version-installee"
+
 status() { printf '{"state":"%s","step":"%s","at":%s}\n' "$1" "$2" "$(date +%s)" > "$STATUS.tmp" && mv "$STATUS.tmp" "$STATUS"; }
 
 exec 9>"$DATA/maj.lock"
@@ -46,11 +59,36 @@ fail() { echo "❌ $1"; status failed "$1"; exit 1; }
 WORK="$(mktemp -d)"
 trap 'rm -rf "$WORK"' EXIT
 
-status running "Téléchargement depuis GitHub"
-echo "==> Téléchargement"
 # The token goes through curl's stdin config, never on the command line.
-printf 'header = "Authorization: Bearer %s"\n' "$(tr -d '\r\n' < "$TOKEN_FILE")" \
-  | curl -fsSL -K - -H "Accept: application/vnd.github+json" -o "$WORK/src.zip" "https://api.github.com/repos/$REPO_SLUG/zipball/main" \
+gh_api() { printf 'header = "Authorization: Bearer %s"\n' "$(tr -d '\r\n' < "$TOKEN_FILE")" | curl -fsSL -K - -H "Accept: application/vnd.github+json" "$@"; }
+
+status running "Recherche de la dernière version"
+echo "==> Version"
+if [[ -n "$WANTED" ]]; then
+  REF="$WANTED"
+  gh_api -o /dev/null "https://api.github.com/repos/$REPO_SLUG/git/ref/tags/$REF" || fail "Version $REF introuvable sur GitHub."
+else
+  latest_json="$(gh_api "https://api.github.com/repos/$REPO_SLUG/releases/latest" 2>/dev/null || true)"
+  REF="$(printf '%s' "$latest_json" | python3 -I -c 'import json,sys,re
+try: t=json.load(sys.stdin).get("tag_name","")
+except Exception: t=""
+print(t if re.fullmatch(r"v\d{1,4}\.\d{1,4}\.\d{1,4}", t or "") else "")')"
+  if [[ -z "$REF" ]]; then
+    REF="main"
+    echo "Aucune version numérotée publiée : installation de main."
+  fi
+fi
+INSTALLED="$(tr -d '[:space:]' < "$INSTALLED_FILE" 2>/dev/null || true)"
+echo "Installée : ${INSTALLED:-inconnue} · visée : $REF"
+if [[ -z "$WANTED" && "$REF" != "main" && "$REF" == "$INSTALLED" ]]; then
+  echo "✅ Déjà à jour ($REF)."
+  status done "Déjà à jour ($REF)"
+  exit 0
+fi
+
+status running "Téléchargement de $REF depuis GitHub"
+echo "==> Téléchargement"
+gh_api -o "$WORK/src.zip" "https://api.github.com/repos/$REPO_SLUG/zipball/$REF" \
   || fail "Téléchargement impossible (jeton expiré ou réseau)."
 mkdir "$WORK/src" && unzip -q "$WORK/src.zip" -d "$WORK/src" || fail "Archive GitHub illisible."
 REPO="$(find "$WORK/src" -mindepth 1 -maxdepth 1 -type d | head -n 1)"
@@ -79,6 +117,10 @@ cp "$WORK/FWU-maj.zip" "$REPO/scripts/update-1942.sh" "$H/FWU-installation/"
 cp "$WORK"/bots/FWU-*.zip "$H/FWU-installation/"
 # Keep this updater itself current for the next run.
 install -m 700 "$REPO/scripts/installation/fwu-auto-update.sh" "$H/fwu-auto-update.sh.new" && mv "$H/fwu-auto-update.sh.new" "$H/fwu-auto-update.sh"
+# Sauvegarde et surveillance : fichiers posés à jour ; ils ne tournent que si Ryan a ajouté leur ligne cron (docs/SAUVEGARDES.md, docs/SURVEILLANCE.md).
+for extra in fwu-sauvegarde.sh fwu-surveillance.mjs; do
+  [[ -f "$REPO/scripts/installation/$extra" ]] && install -m 700 "$REPO/scripts/installation/$extra" "$H/$extra.new" && mv "$H/$extra.new" "$H/$extra"
+done
 
 if [[ "${FWU_UPDATE_DRY_RUN:-}" == "1" ]]; then echo "Essai à blanc : paquets prêts."; status done "Essai à blanc"; exit 0; fi
 
@@ -100,24 +142,33 @@ if [[ -f "$FWU_ENV_FILE" ]] && ! grep -qE '^SHARED_DATABASE_URL=postgres' "$FWU_
     echo "⚠️ Base centrale non installée (sudo ou dnf indisponible) : relance sudo bash $H/her-v5-production/deploy/oracle/install-shared-db.sh"
   fi
 fi
-# Préfixes : un seul fichier pour les 5 bots, créé une fois, jamais écrasé.
+# Préfixes : un seul fichier pour les 6 bots, créé une fois, jamais écrasé.
 SHARED_DIR="$(grep -E '^PND_DATA_DIR=' "$FWU_ENV_FILE" 2>/dev/null | tail -n 1 | cut -d= -f2- | tr -d '"'"'"'[:space:]' || true)"
 if [[ -n "$SHARED_DIR" && -d "$SHARED_DIR" && ! -f "$SHARED_DIR/bots.json" && -f "$H/her-v5-production/bot/config/bots.example.json" ]]; then
   install -m 600 "$H/her-v5-production/bot/config/bots.example.json" "$SHARED_DIR/bots.json"
-  echo "Préfixes : GUARD +, FDPDLAVOC ;, SUCK ME =, LE FISC - ($SHARED_DIR/bots.json)"
+  echo "Préfixes : GUARD +, FDPDLAVOC ;, SUCK ME =, LE FISC -, Invest + $ ($SHARED_DIR/bots.json)"
 fi
 
-status running "Mise à jour des 4 bots"
+status running "Mise à jour des 5 bots"
 echo "==> Bots"
 cd "$H/fwu-bots" || fail "Dossier des bots introuvable."
-for z in GUARD FDPDLAVOC SUCK-ME LE-FISC; do unzip -oq "$H/FWU-installation/FWU-$z.zip" || fail "Paquet $z illisible."; done
-broken=""
-for b in guard fdpdlavoc suckme fisc; do
+broken=""; rolled=""
+# Chaque bot : copie de l'ancienne version, mise à jour, et retour arrière si son installateur échoue.
+for pair in GUARD:guard FDPDLAVOC:fdpdlavoc SUCK-ME:suckme LE-FISC:fisc INVEST-PLUS:investplus; do
+  z="${pair%%:*}"; b="${pair##*:}"
   echo "--- $b"
-  bash "$H/fwu-bots/fwu-$b/installer.sh" </dev/null || broken="$broken $b"
+  bash "$REPO/scripts/installation/fwu-maj-un-bot.sh" "$H/FWU-installation/FWU-$z.zip" "$H/fwu-bots" "$b"
+  case $? in
+    0) ;;
+    2) [[ "$b" == investplus ]] && echo "Invest + passé (pas de token, facultatif)." || broken="$broken $b(sans token)" ;;
+    4) rolled="$rolled $b" ;;
+    *) broken="$broken $b" ;;
+  esac
 done
 pm2 save >/dev/null 2>&1 || true
 pm2 ls --no-color || true
+[[ -z "$rolled" ]] || fail "Ancienne version remise pour :$rolled${broken:+ · en erreur :$broken} (détails : /maj etat)"
 [[ -z "$broken" ]] || fail "Bots en erreur :$broken"
+printf '%s\n' "$REF" > "$INSTALLED_FILE"
 echo "✅ Mise à jour terminée."
-status done "Terminée ($(basename "$REPO"))"
+status done "Terminée ($REF · $(basename "$REPO"))"

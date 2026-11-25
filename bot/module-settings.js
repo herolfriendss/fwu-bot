@@ -3,13 +3,26 @@
 // Le bot ne parle jamais directement à Supabase : l’endpoint bot-sync valide et
 // fusionne les réglages, puis renvoie l’objet complet assaini. Les réglages des
 // autres modules, du vocal et des commandes préfixées sont préservés.
-export async function updateModuleSettings({ apiUrl, secret, guildId, module, value, actorId }) {
+//
+// `changes` (champs modifiés) et `expected` (leur valeur juste avant) permettent
+// au serveur d’appliquer seulement ces champs et de refuser un conflit ;
+// `settings` reste envoyé pour les versions du serveur qui ne les lisent pas.
+export async function updateModuleSettings({ apiUrl, secret, guildId, module, value, changes, expected, actorId }) {
   const response = await fetch(apiUrl, {
     method: "POST",
     headers: { Authorization: `Bearer ${secret}`, "Content-Type": "application/json" },
     signal: AbortSignal.timeout(10_000),
-    body: JSON.stringify({ action: "module-settings", guildId, module, settings: value, actorId }),
+    body: JSON.stringify({ action: "module-settings", guildId, module, settings: value, changes, expected, actorId }),
   });
+  if (response.status === 409) {
+    // Le serveur renvoie { error: "conflict", conflicts: [clés], settings }.
+    const body = await response.json().catch(() => null);
+    const error = new Error("Conflit de réglages.");
+    error.conflict = true;
+    error.conflicts = Array.isArray(body?.conflicts) ? body.conflicts : [];
+    error.settings = body?.settings && typeof body.settings === "object" ? body.settings : null;
+    throw error;
+  }
   if (!response.ok) throw new Error(`HTTP ${response.status}`);
   const data = await response.json();
   if (!data?.settings) throw new Error("Réglages absents de la réponse.");

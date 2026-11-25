@@ -16,6 +16,10 @@ import {
   slashCommandOwner,
   slashRegistrationPlan,
   takeRelayedLogs,
+  requeueRelayedLog,
+  relayedLogLosses,
+  formatRelayLossLine,
+  pendingRelayedLogs,
 } from "./bot-runtime.js";
 import { db } from "./database.js";
 
@@ -197,9 +201,34 @@ test("relayed logs are delivered once, in order, and bounded in age", () => {
   assert.deepEqual(first[0].embed, { title: "⛔ Membre banni", description: "Membre : <@1>", color: 0xef4444 });
   assert.equal(takeRelayedLogs(10)[0].embed.title, "💰 Achat");
   assert.deepEqual(takeRelayedLogs(10), []);
+  db.exec("DELETE FROM bot_log_relay_losses");
   enqueueRelayedLog({ guildId: "g", sourceProfile: "guard", embed }, 0);
-  enqueueRelayedLog({ guildId: "g", sourceProfile: "guard", embed }, 2 * 60 * 60_000);
-  assert.equal(takeRelayedLogs(10).length, 1, "les logs de plus d'une heure sont abandonnés");
+  enqueueRelayedLog({ guildId: "g", sourceProfile: "guard", embed }, 25 * 60 * 60_000);
+  assert.equal(takeRelayedLogs(10, 25 * 60 * 60_000).length, 1, "les logs de plus de 24 h sont abandonnés");
+  assert.deepEqual(relayedLogLosses().map((r) => [r.reason, r.count]), [["trop_vieux", 1]], "et comptés comme perdus");
+});
+
+test("un log relayé non publié est remis en file, avec délai, puis compté perdu au 3e échec", () => {
+  db.exec("DELETE FROM bot_log_outbox; DELETE FROM bot_log_relay_losses;");
+  const embed = { title: "⛔ Membre banni" };
+  enqueueRelayedLog({ guildId: "g", sourceProfile: "guard", embed }, 1_000);
+  const [first] = takeRelayedLogs(10, 1_000);
+  assert.equal(first.attempts, 0);
+  assert.equal(requeueRelayedLog(first, 2_000), true);
+  assert.deepEqual(takeRelayedLogs(10, 2_000), [], "pas de nouvel essai immédiat");
+  const [second] = takeRelayedLogs(10, 2_000 + 30_000);
+  assert.equal(second.attempts, 1);
+  assert.equal(second.embed.title, "⛔ Membre banni");
+  assert.equal(second.createdAt, 1_000, "l'heure d'origine est gardée");
+  assert.equal(requeueRelayedLog(second, 40_000), true);
+  assert.deepEqual(takeRelayedLogs(10, 40_000 + 59_000), []);
+  const [third] = takeRelayedLogs(10, 40_000 + 60_000);
+  assert.equal(third.attempts, 2);
+  assert.equal(requeueRelayedLog(third, 200_000), false);
+  assert.equal(pendingRelayedLogs(), 0);
+  assert.match(formatRelayLossLine(), /Logs relayés perdus : 1 \(1 non publiés après 3 essais\)/);
+  db.exec("DELETE FROM bot_log_relay_losses");
+  assert.match(formatRelayLossLine(), /perdus : 0/);
 });
 
 test("bots diagnostic shows who handles each domain", () => {
@@ -211,4 +240,15 @@ test("bots diagnostic shows who handles each domain", () => {
   assert.match(text, /Logs relayés en attente : 0/);
   assert.match(formatBotsDiagnostic(2_000_000), /⚪ \*\*GUARD\*\*.*dernier signe/);
   db.exec("DELETE FROM bot_domain_leases");
+});
+
+test("bots diagnostic shows connection failures and definitive stops", async () => {
+  const { recordGatewayFailure, clearGatewayFailures } = await import("./gateway-watchdog.js");
+  for (let i = 0; i < 6; i++) recordGatewayFailure(db, "guard", "TokenInvalid", 1_000_000);
+  recordGatewayFailure(db, "fisc", "startup_timeout", 1_000_000);
+  const text = formatBotsDiagnostic(1_010_000);
+  assert.match(text, /🔴 \*\*GUARD\*\* — arrêté après 6 échecs de connexion à Discord \(TokenInvalid\)/);
+  assert.match(text, /🟠 \*\*LE FISC\*\* — 1 échec\(s\) de connexion/);
+  clearGatewayFailures(db, "guard"); clearGatewayFailures(db, "fisc");
+  assert.doesNotMatch(formatBotsDiagnostic(1_010_000), /échec/);
 });

@@ -1,9 +1,10 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, useBlocker } from "@tanstack/react-router";
+import { SiteNav } from "@/components/SiteNav";
 import { queryOptions, useQuery, useQueryClient, useSuspenseQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import { toast } from "sonner";
-import { ArrowLeft, ArrowUpRight, Bot, Hash, Megaphone, Shield, Users, Trash2, Plus, Volume2, Folder, Save, BarChart3, Command, UserRoundCheck, Server, Activity, FileKey, Coins, SlidersHorizontal } from "lucide-react";
+import { Bot, Hash, Megaphone, Shield, Users, Trash2, Plus, Volume2, Folder, Save, BarChart3, Command, UserRoundCheck, Server, SlidersHorizontal, KeyRound, Activity } from "lucide-react";
 import { getOverview } from "@/lib/discord.functions";
 import { cn } from "@/lib/utils";
 import {
@@ -11,21 +12,27 @@ import {
   setMemberRole, moderateMember, getBans, purgeMessages, getAuditLog, sendAnnouncement,
 } from "@/lib/discord-admin.functions";
 import { IncidentAdvisor } from "@/components/IncidentAdvisor";
+import { AccessPanel } from "@/components/AccessPanel";
+import { ActivityPanel } from "@/components/ActivityPanel";
+import { useConfirm } from "@/components/useConfirm";
 import { ServerAnalytics } from "@/components/ServerAnalytics";
 import { CommandManager } from "@/components/CommandManager";
 import { MembershipRequests } from "@/components/MembershipRequests";
 import { BotSettingsPanel } from "@/components/BotSettingsPanel";
 import { V4ModulesPanel } from "@/components/V4ModulesPanel";
 import { Button } from "@/components/ui/button";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 const overviewQuery = queryOptions({ queryKey: ["discord", "overview"], queryFn: () => getOverview(), staleTime: 60_000 });
 
 export const Route = createFileRoute("/configuration")({
   head: () => ({
     meta: [
-      { title: "Configuration — 1942" },
-      { name: "description", content: "Analyses du serveur, profil, salons, rôles, membres, modération et annonces de votre bot Discord 1942." },
-      { property: "og:title", content: "Configuration — 1942" },
+      { title: "Configuration — FWU" },
+      { name: "description", content: "Analyses du serveur, profil, salons, rôles, membres, modération et annonces de vos bots Discord FWU." },
+      { property: "og:title", content: "Configuration — FWU" },
       { property: "og:description", content: "Configuration et statistiques des serveurs de votre bot Discord." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
@@ -45,12 +52,14 @@ const errMsg = (e: unknown) => (e instanceof Error ? e.message : "Erreur");
 const TABS = [
   { id: "profil", label: "Profil", icon: Bot },
   { id: "analyses", label: "Analyses", icon: BarChart3 },
+  { id: "activite", label: "Activité et XP", icon: Activity },
   { id: "salons", label: "Salons", icon: Hash },
   { id: "membres", label: "Rôles & membres", icon: Users },
   { id: "moderation", label: "Modération", icon: Shield },
   { id: "annonces", label: "Annonces", icon: Megaphone },
-  { id: "bot", label: "Bot 24h/24", icon: Server },
-  { id: "modules", label: "Modules V4", icon: SlidersHorizontal },
+  { id: "bot", label: "Réponses et filtres", icon: Server },
+  { id: "modules", label: "Modules", icon: SlidersHorizontal },
+  { id: "acces", label: "Rôles et accès", icon: KeyRound },
   { id: "commandes", label: "Commandes", icon: Command },
   { id: "adhesions", label: "Adhésions", icon: UserRoundCheck },
 ] as const;
@@ -80,13 +89,21 @@ function useAction() {
 
 function Config() {
   const { data } = useSuspenseQuery(overviewQuery);
-  const [tab, setTab] = useState<Tab>("profil");
-  const [guildId, setGuildId] = useState(data.guilds[0]?.id ?? "");
+  const [tab, setTabNow] = useState<Tab>("profil");
+  const [guildId, setGuildIdNow] = useState(data.guilds[0]?.id ?? "");
+  // Unsaved edits in the settings tabs: ask before switching tab, server or page.
+  const [dirty, setDirty] = useState(false);
+  const onDirtyChange = useCallback((value: boolean) => setDirty(value), []);
+  const [pending, setPending] = useState<(() => void) | null>(null);
+  const guarded = (fn: () => void) => (dirty ? setPending(() => fn) : fn());
+  const setTab = (next: Tab) => { if (next !== tab) guarded(() => { setDirty(false); setTabNow(next); }); };
+  const setGuildId = (next: string) => { if (next !== guildId) guarded(() => { setDirty(false); setGuildIdNow(next); }); };
+  const blocker = useBlocker({ shouldBlockFn: () => dirty, enableBeforeUnload: () => dirty, withResolver: true });
   const fetchAdmin = useServerFn(getGuildAdmin);
   const admin = useQuery({
     queryKey: ["discord", "admin", guildId],
     queryFn: () => fetchAdmin({ data: { guildId } }),
-    enabled: !!guildId && tab !== "analyses" && tab !== "commandes" && tab !== "adhesions",
+    enabled: !!guildId && tab !== "analyses" && tab !== "activite" && tab !== "commandes" && tab !== "adhesions",
   });
 
   return (
@@ -102,9 +119,9 @@ function Config() {
           </select>
         </div>
       </header>
+      <SiteNav />
       <div className="console-layout">
         <nav aria-label="Configuration du bot" className="console-nav">
-          <Button asChild variant="ghost" className="mb-6 hidden w-full justify-start gap-3 text-muted-foreground md:flex"><Link to="/"><ArrowLeft className="h-4 w-4" /> Tableau de bord</Link></Button>
           <p className="mb-4 hidden px-3 font-mono text-[10px] uppercase tracking-widest text-muted-foreground md:block">Configuration</p>
           <div className="console-nav-items space-y-1 max-md:space-y-0">
           {TABS.map((t) => (
@@ -113,11 +130,6 @@ function Config() {
               <t.icon className="h-4 w-4" /> {t.label}
             </Button>
           ))}
-          <Button asChild variant="ghost" className="console-nav-item px-3 text-sm"><Link to="/admin"><Shield className="h-4 w-4" /> Admin <ArrowUpRight className="ml-auto h-3 w-3" /></Link></Button>
-          <Button asChild variant="ghost" className="console-nav-item px-3 text-sm"><Link to="/installation"><FileKey className="h-4 w-4" /> Installation Oracle</Link></Button>
-          <Button asChild variant="ghost" className="console-nav-item px-3 text-sm"><Link to="/statut"><Activity className="h-4 w-4" /> Statut du bot</Link></Button>
-          <Button asChild variant="ghost" className="console-nav-item px-3 text-sm"><Link to="/economie"><Coins className="h-4 w-4" /> Économie PND</Link></Button>
-          <Button asChild variant="ghost" className="console-nav-item px-3 md:hidden"><Link to="/"><ArrowLeft className="h-4 w-4" /> Tableau de bord</Link></Button>
           </div>
           <div className="mt-10 hidden border-t border-border px-3 pt-5 md:block"><p className="flex items-center gap-2 text-xs text-muted-foreground"><Shield className="h-3.5 w-3.5 text-primary" /> Accès propriétaire</p></div>
         </nav>
@@ -127,19 +139,33 @@ function Config() {
           {tab === "profil" && <Profile name={data.bot.username} guildId={guildId} />}
           {tab !== "profil" && !guildId && <p className="text-muted-foreground">Le bot n'est sur aucun serveur.</p>}
           {tab === "analyses" && guildId && <ServerAnalytics key={guildId} guildId={guildId} />}
-          {tab !== "profil" && tab !== "analyses" && tab !== "commandes" && tab !== "adhesions" && guildId && admin.isLoading && <p className="text-muted-foreground">Chargement…</p>}
-          {tab !== "profil" && tab !== "analyses" && tab !== "commandes" && tab !== "adhesions" && admin.error && <p className="text-destructive">{errMsg(admin.error)}</p>}
+          {tab === "activite" && guildId && <ActivityPanel key={guildId} guildId={guildId} />}
+          {tab !== "profil" && tab !== "analyses" && tab !== "activite" && tab !== "commandes" && tab !== "adhesions" && guildId && admin.isLoading && <p className="text-muted-foreground">Chargement…</p>}
+          {tab !== "profil" && tab !== "analyses" && tab !== "activite" && tab !== "commandes" && tab !== "adhesions" && admin.error && <p className="text-destructive">{errMsg(admin.error)}</p>}
           {admin.data && tab === "salons" && <Channels guildId={guildId} channels={admin.data.channels} />}
           {admin.data && tab === "membres" && <Members guildId={guildId} admin={admin.data} />}
           {admin.data && tab === "moderation" && <Moderation guildId={guildId} admin={admin.data} />}
           {admin.data && tab === "annonces" && <Announce channels={admin.data.channels} />}
-          {admin.data && tab === "bot" && <BotSettingsPanel key={guildId} guildId={guildId} channels={admin.data.channels.filter((c) => c.type === 0 || c.type === 5)} />}
-          {admin.data && tab === "modules" && <V4ModulesPanel key={guildId} guildId={guildId} channels={admin.data.channels} roles={admin.data.roles} />}
+          {admin.data && tab === "bot" && <BotSettingsPanel key={guildId} guildId={guildId} channels={admin.data.channels.filter((c) => c.type === 0 || c.type === 5)} onDirtyChange={onDirtyChange} />}
+          {admin.data && tab === "acces" && <AccessPanel key={guildId} guildId={guildId} channels={admin.data.channels} roles={admin.data.roles} onDirtyChange={onDirtyChange} />}
+          {admin.data && tab === "modules" && <V4ModulesPanel key={guildId} guildId={guildId} channels={admin.data.channels} roles={admin.data.roles} onDirtyChange={onDirtyChange} />}
           {tab === "commandes" && <CommandManager guildId={guildId} />}
           {tab === "adhesions" && guildId && <MembershipRequests guildId={guildId} />}
           </div>
         </main>
       </div>
+      <AlertDialog open={pending !== null || blocker.status === "blocked"} onOpenChange={(open) => { if (!open) { setPending(null); blocker.reset?.(); } }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Modifications non enregistrées</AlertDialogTitle>
+            <AlertDialogDescription>Si tu quittes maintenant, les changements faits sur cette page seront perdus.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Rester sur la page</AlertDialogCancel>
+            <AlertDialogAction onClick={() => { const next = pending; setPending(null); setDirty(false); if (next) next(); else blocker.proceed?.(); }}>Quitter sans enregistrer</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
@@ -199,6 +225,7 @@ function Channels({ guildId, channels }: { guildId: string; channels: Admin["cha
   const [parentId, setParentId] = useState("");
   const [editing, setEditing] = useState<{ id: string; name: string; topic: string } | null>(null);
   const cats = channels.filter((c) => c.type === 4);
+  const { ask, dialog } = useConfirm();
 
   return (
     <>
@@ -238,12 +265,13 @@ function Channels({ guildId, channels }: { guildId: string; channels: Admin["cha
                 <I className="h-4 w-4 text-muted-foreground" />
                 <span className={`flex-1 truncate ${c.type === 4 ? "text-xs font-semibold uppercase tracking-wider" : ""}`}>{c.name}</span>
                 <button className={ghost} onClick={() => setEditing({ id: c.id, name: c.name, topic: c.topic })}>Modifier</button>
-                <button className={danger} disabled={busy} onClick={() => confirm(`Supprimer « ${c.name} » ?`) && run(() => del({ data: { channelId: c.id } }), "Salon supprimé")}><Trash2 className="h-3 w-3" /></button>
+                <button className={danger} disabled={busy} aria-label={`Supprimer ${c.name}`} onClick={async () => { if (await ask({ title: `Supprimer « ${c.name} » ?`, description: "Le salon et tous ses messages seront supprimés définitivement.", confirm: "Supprimer", danger: true })) await run(() => del({ data: { channelId: c.id } }), "Salon supprimé"); }}><Trash2 className="h-3 w-3" /></button>
               </li>
             );
           })}
         </ul>
       </section>
+      {dialog}
     </>
   );
 }
@@ -261,6 +289,7 @@ function Members({ guildId, admin }: { guildId: string; admin: Admin }) {
   const roleById = new Map(admin.roles.map((r) => [r.id, r]));
   const assignable = admin.roles.filter((r) => !r.managed);
   const members = admin.members.filter((m) => (m.name + m.username).toLowerCase().includes(q.toLowerCase()));
+  const { ask, dialog } = useConfirm();
 
   return (
     <>
@@ -276,7 +305,7 @@ function Members({ guildId, admin }: { guildId: string; admin: Admin }) {
             <span key={r.id} className="inline-flex items-center gap-2 rounded-full border border-border px-3 py-1 text-sm">
               <span className="h-2.5 w-2.5 rounded-full bg-muted-foreground" style={hex(r.color) ? { background: hex(r.color) } : undefined} />
               {r.name}
-              {!r.managed && <button aria-label="Supprimer" className="text-muted-foreground hover:text-destructive" onClick={() => confirm(`Supprimer le rôle « ${r.name} » ?`) && run(() => rmRole({ data: { guildId, roleId: r.id } }), "Rôle supprimé")}><Trash2 className="h-3 w-3" /></button>}
+              {!r.managed && <button aria-label="Supprimer" className="text-muted-foreground hover:text-destructive" onClick={async () => { if (await ask({ title: `Supprimer le rôle « ${r.name} » ?`, description: "Les membres qui l’ont le perdront. Cette action est définitive.", confirm: "Supprimer", danger: true })) await run(() => rmRole({ data: { guildId, roleId: r.id } }), "Rôle supprimé"); }}><Trash2 className="h-3 w-3" /></button>}
             </span>
           ))}
         </div>
@@ -305,6 +334,7 @@ function Members({ guildId, admin }: { guildId: string; admin: Admin }) {
           ))}
         </ul>
       </section>
+      {dialog}
     </>
   );
 }
@@ -323,10 +353,16 @@ function Moderation({ guildId, admin }: { guildId: string; admin: Admin }) {
   const [chan, setChan] = useState("");
   const [count, setCount] = useState(10);
   const texts = admin.channels.filter((c) => c.type === 0 || c.type === 5);
-  const act = (action: string, label: string) => {
-    if (!userId) { toast.error("Choisissez un membre"); return; }
-    if ((action === "ban" || action === "kick") && !confirm("Confirmer ?")) return;
-    run(() => mod({ data: { guildId, userId, action, minutes, reason } }), label);
+  const { ask, dialog } = useConfirm();
+  const act = async (action: string, label: string) => {
+    if (!userId) { toast.error("Choisis un membre"); return; }
+    const who = admin.members.find((m) => m.id === userId)?.name ?? "ce membre";
+    if ((action === "ban" || action === "kick") && !(await ask({
+      title: action === "ban" ? `Bannir ${who} ?` : `Expulser ${who} ?`,
+      description: action === "ban" ? "La personne ne pourra plus revenir tant qu’elle n’est pas débannie." : "La personne pourra revenir avec une nouvelle invitation.",
+      confirm: action === "ban" ? "Bannir" : "Expulser", danger: true,
+    }))) return;
+    await run(() => mod({ data: { guildId, userId, action, minutes, reason } }), label);
   };
 
   return (
@@ -359,10 +395,10 @@ function Moderation({ guildId, admin }: { guildId: string; admin: Admin }) {
           </select>
           <input type="number" min={2} max={100} className={cn(input, "w-24")} value={count} onChange={(e) => setCount(Number(e.target.value))} />
           <button className="rounded-lg bg-destructive px-4 py-2 text-sm font-semibold text-destructive-foreground" disabled={busy || !chan}
-            onClick={() => confirm(`Supprimer les ${count} derniers messages ?`) && run(async () => {
+            onClick={async () => { if (await ask({ title: `Supprimer les ${count} derniers messages ?`, description: "Les messages supprimés ne peuvent pas être récupérés.", confirm: "Supprimer", danger: true })) await run(async () => {
               const r = await purge({ data: { channelId: chan, count } });
               if (r.skipped) toast.info(`${r.skipped} message(s) de plus de 14 jours ignoré(s)`);
-            }, "Messages supprimés")}>Supprimer</button>
+            }, "Messages supprimés"); }}>Supprimer</button>
         </div>
       </section>
       <section className={card}>
@@ -391,6 +427,7 @@ function Moderation({ guildId, admin }: { guildId: string; admin: Admin }) {
           ))}
         </ul>
       </section>
+      {dialog}
     </>
   );
 }

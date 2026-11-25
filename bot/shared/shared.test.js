@@ -13,10 +13,11 @@ import pg from "pg";
 
 import { closeSharedDb, initSharedDb, sharedDbAvailable, sharedQuery } from "./db.js";
 import { runSharedMigrations } from "./migrate.js";
-import { consumeQuota, formatDurationFr, formatQuotaRefusal, refundQuota, setQuota, resetQuota, addExemption, removeExemption, addWhitelistedBot, removeWhitelistedBot, listQuotas } from "./quotas.js";
-import { resolveTier, tierFromRoleName, setRoleTier, loadRoleTiers, canUseModeration } from "./tiers.js";
+import { quotaStatusForUser, formatQuotaStatus, consumeQuota, formatDurationFr, formatQuotaRefusal, refundQuota, setQuota, resetQuota, addExemption, removeExemption, addWhitelistedBot, removeWhitelistedBot, listQuotas } from "./quotas.js";
+import { resolveTier, setRoleTier, loadRoleTiers, canUseModeration } from "./tiers.js";
 import { listSanctionTypes, addSanctionType, updateSanctionType, deleteSanctionType, listMemberSanctions, parseDurationToSeconds } from "./sanctions.js";
 import { flushOutbox, logCommandUsage, pendingOutboxEntries, recordSanction, setOutboxPathForTests } from "./audit.js";
+import { SHARED_DB_ALERTS, createSharedDbAlerter, formatSharedDbLine } from "./index.js";
 
 const TEST_URL = process.env.SHARED_DATABASE_URL_TEST;
 const pgTest = TEST_URL ? test : test.skip;
@@ -47,22 +48,17 @@ after(async () => {
 
 // ── Tests purs ─────────────────────────────────────────────────────────────
 
-test("le palier se lit dans le nom des rôles", () => {
-  assert.equal(tierFromRoleName("10%"), 10);
-  assert.equal(tierFromRoleName("10 %"), 10);
-  assert.equal(tierFromRoleName("1% All Access"), 1);
-  assert.equal(tierFromRoleName("50% · Modérateur test"), 50);
-  assert.equal(tierFromRoleName("Top 100%"), 100);
-  assert.equal(tierFromRoleName("15%"), null);
-  assert.equal(tierFromRoleName("0%"), null, "le palier owner ne se déduit jamais d'un nom de rôle");
-  assert.equal(tierFromRoleName("0 % Owner"), null);
-  assert.equal(tierFromRoleName("Modérateur"), null);
+test("le nom d'un rôle ne donne jamais de palier (faille SYS+ « Moi 1 % »)", () => {
+  const roles = [{ id: "a", name: "Moi 1 %" }, { id: "b", name: "10% Modérateur" }, { id: "c", name: "0%" }];
+  assert.equal(resolveTier({ userId: "u", roles }), null);
+  assert.equal(resolveTier({ userId: "u", roles, explicit: new Map([["b", 50]]) }), 50, "seule l'association /quota palier compte");
 });
 
 test("le membre prend le palier le plus fort ; l'owner est toujours au palier 0", () => {
-  const roles = [{ id: "a", name: "100%" }, { id: "b", name: "10% Modérateur" }, { id: "c", name: "50%" }];
-  assert.equal(resolveTier({ userId: "u", roles }), 10);
-  assert.equal(resolveTier({ userId: "u", roles, explicit: new Map([["c", 1]]) }), 1);
+  const roles = [{ id: "a", name: "A" }, { id: "b", name: "B" }, { id: "c", name: "C" }];
+  const explicit = new Map([["a", 100], ["b", 10], ["c", 50]]);
+  assert.equal(resolveTier({ userId: "u", roles, explicit }), 10);
+  assert.equal(resolveTier({ userId: "u", roles, explicit: new Map([...explicit, ["c", 1]]) }), 1);
   assert.equal(resolveTier({ userId: OWNER, roles: [], owner: OWNER }), 0);
   assert.equal(resolveTier({ userId: "u", roles: [{ id: "x", name: "Membre" }] }), null);
   assert.equal(canUseModeration(50), true);
@@ -94,7 +90,7 @@ test("le message de refus indique le temps restant", () => {
 pgTest("les migrations s'appliquent une seule fois", async () => {
   assert.deepEqual(await runSharedMigrations(), []);
   const { rows } = await sharedQuery("SELECT count(*)::int AS n FROM schema_migrations");
-  assert.equal(rows[0].n, 2);
+  assert.equal(rows[0].n, 5);
 });
 
 pgTest("quotas par défaut : Modérateur test = 2 tempmute / 30 min, puis refus avec délai", async () => {
@@ -259,8 +255,11 @@ pgTest("porte de modération : palier lu sur les rôles, refus clair, remboursem
   const { openModerationGate } = await import("./moderation-gate.js");
   const fakeMember = (id, roleName) => ({
     id, user: { id, bot: false }, guild: { id: "200000000000000009" },
-    roles: { cache: new Map([["r", { id: "r", name: roleName }]]) },
+    roles: { cache: new Map([[roleName, { id: roleName, name: roleName }]]) },
   });
+  // Le palier vient seulement de /quota palier, jamais du nom.
+  await setRoleTier({ guildId: "200000000000000009", roleId: "50% Modérateur test", tier: 50, actorId: OWNER, bot: "fwu" });
+  await setRoleTier({ guildId: "200000000000000009", roleId: "100%", tier: 100, actorId: OWNER, bot: "fwu" });
   const mod = fakeMember("500000000000000001", "50% Modérateur test");
   const first = await openModerationGate({ member: mod, command: "kick", bot: "guard", env: {} });
   assert.equal(first.ok, true);
@@ -275,4 +274,135 @@ pgTest("porte de modération : palier lu sur les rôles, refus clair, remboursem
   assert.match((await openModerationGate({ member: member100, command: "warn", bot: "fwu", env: {} })).message, /n'a pas accès/);
   const { rows } = await sharedQuery("SELECT outcome FROM command_usage WHERE guild_id = '200000000000000009' ORDER BY id");
   assert.deepEqual(rows.map((r) => r.outcome), ["error", "ok", "quota", "denied"]);
+});
+
+test("base centrale : alerte après 2 min de coupure seulement, puis « revenue » une fois", () => {
+  const sent = [];
+  const timers = [];
+  const alerter = createSharedDbAlerter({ notify: (k) => sent.push(k), setTimer: (fn) => { timers.push(fn); return timers.length; }, clearTimer: (id) => { timers[id - 1] = null; } });
+  alerter.change(false);
+  alerter.change(false);
+  assert.equal(timers.length, 1, "une seule attente même si plusieurs signaux");
+  alerter.change(true);
+  assert.deepEqual(sent, [], "coupure courte : personne n'est dérangé");
+  alerter.change(false);
+  timers.at(-1)();
+  assert.deepEqual(sent, ["down"]);
+  alerter.change(false);
+  alerter.change(true);
+  alerter.change(true);
+  assert.deepEqual(sent, ["down", "up"]);
+  alerter.notConfigured();
+  assert.deepEqual(sent, ["down", "up", "not_configured"]);
+});
+
+test("base centrale : ligne du diagnostic", () => {
+  assert.match(formatSharedDbLine({ configured: false, available: false }), /non installée.*tempmute/);
+  assert.match(formatSharedDbLine({ configured: true, available: true }), /🟢 Base centrale : joignable/);
+  assert.match(formatSharedDbLine({ configured: true, available: false }, 1_700_000_000_000), /injoignable\*\* depuis <t:1700000000:R>/);
+  assert.match(SHARED_DB_ALERTS.not_configured.description, /install-shared-db\.sh/);
+});
+
+pgTest("purge : usages de plus de 31 jours et commandes de plus de 90 jours, le reste est gardé", async () => {
+  const { purgeOldUsage } = await import("./retention.js");
+  await sharedQuery("DELETE FROM quota_usage WHERE guild_id = 'purge'");
+  await sharedQuery("DELETE FROM command_usage WHERE guild_id = 'purge'");
+  for (const days of [1, 29, 32]) await sharedQuery("INSERT INTO quota_usage(guild_id, user_id, command, bot, used_at) VALUES ('purge', 'u', 'ban', 'fwu', now() - make_interval(days => $1))", [days]);
+  for (const days of [1, 89, 91]) await sharedQuery("INSERT INTO command_usage(guild_id, user_id, bot, command, outcome, created_at) VALUES ('purge', 'u', 'fwu', 'ban', 'ok', now() - make_interval(days => $1))", [days]);
+  const removed = await purgeOldUsage();
+  assert.ok(removed.quota_usage >= 1 && removed.command_usage >= 1);
+  assert.equal(Number((await sharedQuery("SELECT COUNT(*) n FROM quota_usage WHERE guild_id = 'purge'")).rows[0].n), 2);
+  assert.equal(Number((await sharedQuery("SELECT COUNT(*) n FROM command_usage WHERE guild_id = 'purge'")).rows[0].n), 2);
+});
+
+pgTest("/quota moi : restant par commande, délai quand c'est plein, rien n'est consommé", async () => {
+  const guildId = "quota-moi";
+  const user = "300000000000000077";
+  await consumeQuota({ guildId, userId: user, command: "tempmute", tier: 50, bot: "fwu" });
+  await consumeQuota({ guildId, userId: user, command: "tempmute", tier: 50, bot: "fwu" });
+  const status = await quotaStatusForUser({ guildId, userId: user, tier: 50 });
+  const tempmute = status.rows.find((r) => r.command === "tempmute");
+  assert.equal(tempmute.used, 2);
+  assert.equal(tempmute.maxUses, 2);
+  assert.ok(tempmute.retryAfterSeconds > 0 && tempmute.retryAfterSeconds <= 1800);
+  assert.equal(status.rows.find((r) => r.command === "ban").maxUses, 0);
+  const again = await quotaStatusForUser({ guildId, userId: user, tier: 50 });
+  assert.equal(again.rows.find((r) => r.command === "tempmute").used, 2, "lire ne consomme pas");
+  const text = formatQuotaStatus(status, "50 %");
+  assert.match(text, /`tempmute` : ⏳ \*\*0\*\* restant \(2\/2 \/ 30 min\), prochain dans/);
+  assert.match(text, /`ban` : ⛔ non autorisée/);
+  assert.match(text, /`kick` : ✅ \*\*1\*\* restant/);
+  assert.deepEqual(await quotaStatusForUser({ guildId, userId: user, tier: 0 }), { exempt: "owner" });
+  assert.match(formatQuotaStatus(await quotaStatusForUser({ guildId, userId: user, tier: 70 })), /pas de palier de modération/);
+});
+
+pgTest("gel d'urgence : quotas à 0 pour le staff, owner et exemptés servis, dégel journalisé", async () => {
+  const { setStaffFreeze, liftStaffFreeze, getStaffFreeze, expiredStaffFreezes } = await import("./freeze.js");
+  const guildId = "gel-test";
+  const mod = "300000000000000088";
+  assert.equal((await consumeQuota({ guildId, userId: mod, command: "warn", tier: 10, bot: "fwu" })).allowed, true);
+  await assert.rejects(() => setStaffFreeze({ guildId, seconds: 10, actorId: OWNER, bot: "fwu" }), /entre 1 min et 7 jours/);
+  const freeze = await setStaffFreeze({ guildId, seconds: 3600, reason: "compte piraté", actorId: OWNER, bot: "fwu", removedAdminPlus: ["1"] });
+  assert.ok(freeze.until > Date.now());
+  const refused = await consumeQuota({ guildId, userId: mod, command: "warn", tier: 10, bot: "suckme" });
+  assert.equal(refused.reason, "frozen");
+  assert.match(formatQuotaRefusal(refused, "warn"), /gelé/);
+  assert.equal((await consumeQuota({ guildId, userId: OWNER, command: "ban", tier: 0, bot: "guard" })).allowed, true, "l'owner n'est jamais gelé");
+  // Un 2e gel garde la liste des ADMIN+ à rendre.
+  const again = await setStaffFreeze({ guildId, seconds: 7200, actorId: OWNER, bot: "fwu", removedAdminPlus: ["2"] });
+  assert.deepEqual(again.removedAdminPlus.sort(), ["1", "2"]);
+  assert.deepEqual(await expiredStaffFreezes().then((ids) => ids.includes(guildId)), false);
+  const lifted = await liftStaffFreeze({ guildId, actorId: OWNER, bot: "fwu" });
+  assert.deepEqual(lifted.removedAdminPlus.sort(), ["1", "2"]);
+  assert.equal(await getStaffFreeze(guildId), null);
+  assert.equal((await consumeQuota({ guildId, userId: mod, command: "warn", tier: 10, bot: "fwu" })).allowed, true);
+  const { rows } = await sharedQuery("SELECT entity_key FROM config_changes WHERE guild_id = $1 AND entity = 'staff_freeze' ORDER BY id", [guildId]);
+  assert.deepEqual(rows.map((r) => r.entity_key), ["gel", "gel", "degel"]);
+});
+
+pgTest("alerte d'abus du staff : rafale et cible répétée, une seule alerte, seuils owner journalisés", async () => {
+  const { checkStaffAbuse, setAbuseThresholds, getAbuseThresholds, formatAbuseAlert } = await import("./staff-abuse.js");
+  const { setSanctionObserver } = await import("./audit.js");
+  const guildId = "abus-test";
+  const mod = "300000000000000077";
+  assert.deepEqual(await getAbuseThresholds(guildId), { burstCount: 5, burstMinutes: 10, repeatCount: 3, repeatHours: 24, enabled: true });
+  await assert.rejects(() => setAbuseThresholds({ guildId, changes: { burstCount: 1 }, actorId: OWNER, bot: "fwu" }), /hors limites/);
+  await setAbuseThresholds({ guildId, changes: { burstCount: 4, repeatCount: 2 }, actorId: OWNER, bot: "fwu" });
+  const seen = [];
+  setSanctionObserver((entry) => { seen.push(entry.targetId); });
+  try {
+    for (const target of ["a1", "a2", "a3"]) await recordSanction({ guildId, targetId: target, moderatorId: mod, action: "warn", reason: "x", bot: "fwu" });
+    await new Promise((resolve) => setImmediate(resolve));
+    assert.deepEqual(seen, ["a1", "a2", "a3"], "l'observateur voit chaque sanction écrite");
+  } finally { setSanctionObserver(null); }
+  assert.deepEqual(await checkStaffAbuse({ guildId, moderatorId: mod, targetId: "a3", action: "warn", bot: "fwu" }), [], "3 sanctions < seuil 4");
+  // Les levées ne comptent pas.
+  await recordSanction({ guildId, targetId: "a3", moderatorId: mod, action: "unmute", reason: "", bot: "fwu" });
+  assert.deepEqual(await checkStaffAbuse({ guildId, moderatorId: mod, targetId: "a3", action: "unmute", bot: "fwu" }), []);
+  await recordSanction({ guildId, targetId: "a3", moderatorId: mod, action: "tempmute", reason: "", bot: "suckme" });
+  const alerts = await checkStaffAbuse({ guildId, moderatorId: mod, targetId: "a3", action: "tempmute", bot: "suckme" });
+  assert.deepEqual(alerts.map((a) => a.kind).sort(), ["burst", "repeat"]);
+  assert.equal(alerts.find((a) => a.kind === "burst").count, 4);
+  assert.match(formatAbuseAlert(alerts.find((a) => a.kind === "repeat"), "PND"), /<@a3> \*\*2 fois en 24 h\*\*/);
+  // Un 2e bot qui vérifie juste après ne renvoie rien (une seule alerte par 30 min).
+  assert.deepEqual(await checkStaffAbuse({ guildId, moderatorId: mod, targetId: "a3", action: "warn", bot: "guard" }), []);
+  // L'owner n'est jamais signalé ; alertes coupées = rien.
+  assert.deepEqual(await checkStaffAbuse({ guildId, moderatorId: OWNER, targetId: "a3", action: "ban", bot: "fwu", ownerId: OWNER }), []);
+  await setAbuseThresholds({ guildId, changes: { enabled: false }, actorId: OWNER, bot: "fwu" });
+  assert.deepEqual(await checkStaffAbuse({ guildId, moderatorId: "300000000000000066", targetId: "a3", action: "warn", bot: "fwu" }), []);
+  const { rows } = await sharedQuery("SELECT count(*)::int AS n FROM config_changes WHERE guild_id = $1 AND entity = 'staff_abuse'", [guildId]);
+  assert.equal(rows[0].n, 2);
+});
+
+pgTest("stats du staff : sanctions, commandes et refus de quota regroupés par membre sur la période", async () => {
+  const { loadCentralStaffActivity } = await import("./staff-stats.js");
+  const guildId = "stats-test";
+  await recordSanction({ guildId, targetId: "t1", moderatorId: "m1", action: "warn", reason: "", bot: "fwu" });
+  await recordSanction({ guildId, targetId: "t2", moderatorId: "m1", action: "warn", reason: "", bot: "guard" });
+  await recordSanction({ guildId, targetId: "t2", moderatorId: "m1", action: "kick", reason: "", bot: "fwu", at: new Date(Date.now() - 40 * 86_400_000).toISOString() });
+  await logCommandUsage({ guildId, userId: "m1", bot: "fwu", command: "warn", outcome: "ok" });
+  const data = await loadCentralStaffActivity(guildId, 30);
+  assert.deepEqual(data.sanctions.map((s) => [s.userId, s.action, s.count]), [["m1", "warn", 2]], "la sanction de plus de 30 jours est exclue");
+  assert.equal(data.usage[0].count, 1);
+  assert.deepEqual(data.violations, []);
 });

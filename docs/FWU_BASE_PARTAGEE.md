@@ -9,6 +9,7 @@
 | **FDPDLAVOC** | `;` | musique et radio, `;pv`, `;access`, `;unaccess`, `;voc`, `;demandevocal`, **`;mv`**, **`;accessall`** |
 | **SUCK ME** | `=` | SYS+, rôles, DOG, MENOTTE, WAKEUP, LOCKNAME, Anti-Move, automatisations, webhooks, dmall ; **venues de FWU** : tickets, candidatures, sondage, IA, live, AFK, social (profil, bio, rep…), giveaways, événements ; commandes personnalisées du site |
 | **LE FISC** | `-` | économie, casino ; **venus de FWU** : dice, coinflip, trivia, cartes (card, cards, pack, trade) |
+| **Invest +** | `$` | abonnements des membres : `/abonnement`, `/investadmin`, `$abonnement`/`$abo` (voir `docs/INVEST_PLUS.md`) |
 
 - La carte exacte est dans `src/lib/bot-profiles.ts` (un test refuse qu'une commande appartienne à deux bots).
 - **Une commande n'existe que sur son bot.** Chaque bot retire de son application Discord les commandes des autres ; `=ban` ou `+play` ne font rien. L'ancienne reprise des commandes par FWU quand un bot est arrêté est supprimée (la reprise des **événements** — logs, anti-spam, blacklist à l'arrivée — reste).
@@ -29,10 +30,10 @@
 | `sanction_types` | sanctions prédéfinies de `/tempmute` (nom, durée), par serveur |
 | `sanctions` | historique complet : modérateur, cible, action, sanction, motif, durée, bot, date |
 | `quotas` | commande × palier → nombre max (NULL = illimité, 0 = interdit) et fenêtre ; `guild_id = '*'` = valeur par défaut |
-| `quota_usage` | un enregistrement par usage (fenêtre glissante) ; `refunded` si l'action Discord a échoué |
+| `quota_usage` | un enregistrement par usage (fenêtre glissante) ; `refunded` si l'action Discord a échoué ; gardé 31 jours (purge quotidienne par FWU) |
 | `quota_exemptions` | exemptions par ID utilisateur |
 | `bot_whitelist` | bots qui outrepassent les quotas |
-| `command_usage` | journal des commandes (ok, refusée, quota, erreur, base injoignable) |
+| `command_usage` | journal des commandes (ok, refusée, quota, erreur, base injoignable), gardé 90 jours |
 | `quota_violations` | dépassements de quota |
 | `config_changes` | toute modification de configuration : qui, quoi, avant, après |
 | `embeds`, `rules_drafts` | embeds gérés par FWU ; brouillons de règlement (brouillon → validé → publié) |
@@ -41,8 +42,16 @@
 
 ## 3. Paliers et quotas
 
-- Palier d'un membre : l'owner (`PND_OWNER_DISCORD_ID`) est toujours **0 %** ; sinon le plus fort de ses rôles, d'après `/quota palier` ou, à défaut, le nom du rôle (« 10% », « 10 % Modérateur »…).
+- Palier d'un membre : l'owner (`PND_OWNER_DISCORD_ID`) est toujours **0 %** ; sinon le plus fort de ses rôles associés avec `/quota palier`. **Le nom d'un rôle ne donne jamais de palier** (un SYS+ pourrait se créer un rôle perso « Moi 1 % ») ; le symbole « % » est refusé dans les noms de rôles perso. `/quota paliers` liste les rôles avec « % » encore sans association.
 - 70 %, 80 %, 100 % et membres sans palier : aucune commande de modération.
+- **Gel d'urgence** (`/sysp urgence gel durée [raison] [retirer_admin_plus]`, owner seulement) : jusqu'à 7 jours, tout le staff (SYS+, ADMIN+, WHITELIST, paliers de modération, permissions Administrateur / Gérer le serveur / Gérer les rôles) perd ses commandes de staff et à préfixe sur les 5 bots, et les quotas passent à 0. L'owner et les exemptés gardent tout. Option : ADMIN+ retiré puis rendu exactement aux mêmes membres au dégel (`/sysp urgence degel` ou fin de la durée), au nom de l'owner via `role-grant-guard`.
+- **Alerte d'abus du staff** (`/sysp urgence alerte-abus`) : après chaque sanction écrite en base (5 bots), MP à l'owner et aux SYS+ si un même membre du staff pose N sanctions en W minutes (rafale, défaut 5 en 10 min) ou sanctionne la même personne K fois en H heures (cible répétée, défaut 3 en 24 h). Les levées (unmute, unban) ne comptent pas, l'owner n'est jamais signalé, le membre signalé ne reçoit pas l'alerte, une même alerte n'est renvoyée qu'après 30 min (tables `staff_abuse_thresholds` et `staff_abuse_alerts`). Les SYS+ voient les seuils ; seul l'owner les modifie ou coupe l'alerte (journalisé).
+- **Casier** : `/casier supprimer` est réservé à l'owner et aux SYS+, demande un motif, et archive l'affaire (`moderation_cases_removed`) au lieu de l'effacer ; `/casier voir` montre aussi les affaires retirées.
+- **Historique unifié** (`bot/member-history.js`) : `/casier voir`, `/sanction` et la fiche lisent une seule liste, base centrale (5 bots) + casier local (numéros d'affaire, retraits). Une sanction écrite des deux côtés (même modérateur, même action, à 15 s près) n'apparaît qu'une fois. Si la base centrale est injoignable, le casier local s'affiche seul, avec un avertissement.
+- **Fiche membre** (`/sysp suivi fiche membre`, SYS+ et owner) : arrivée et invitation (table `member_invite_attribution`, remplie à chaque arrivée), rôles, confiance, restrictions et quarantaine, sanctions des 5 bots, niveau, argent, tickets, dernières actions SYS+ le concernant. Lecture seule ; chaque consultation est notée dans l'audit SYS+ (`fiche.consultation`).
+- **Stats du staff** (`/sysp suivi stats [7j|30j]`, SYS+ et owner) : par membre du staff, sanctions par type, tickets pris en charge, temps en vocal, commandes, refus de quota, dernière action ; les inactifs de la période sont listés à part. Un non-staff qui a sanctionné apparaît marqué « hors staff ». Lecture seule, notée dans l'audit SYS+.
+- **Notes du staff** (`/sysp suivi notes|note-ajouter|note-retirer`) : notes privées sur un membre, visibles par le staff seulement (même définition que le gel), 500 caractères, 50 par membre, supprimées au bout d'un an. Chaque lecture (y compris dans la fiche) et chaque retrait est noté dans l'audit SYS+. Retrait : l'auteur, un SYS+ ou l'owner.
+- `/quota moi` (réponse visible seulement par toi) : ce qu'il te reste pour chaque commande et quand la suivante se libère. Ne consomme rien.
 - Commandes à quota (tous bots) : `tempmute`, `unmute`, `warn`, `kick`, `ban`, `unban`, `blacklist`, `mv`.
 
 | Palier | tempmute | kick | ban | warn | unmute | unban | blacklist | mv |
@@ -88,7 +97,7 @@ Discord applique un clic droit tout de suite : aucun bot ne peut l'empêcher, SU
 | Déplacé de force | ramené (Anti-Move forcé, même désactivé) |
 | Expulsé, déconnecté | journalisé (impossible à annuler) |
 
-- Protégés : l'owner, les rôles nommés « 0% » / « 0 % » et les rôles associés au palier 0 par `/quota palier`. Le nom « 0% » donne la protection, jamais les pouvoirs de l'owner.
+- Protégés : l'owner et les rôles associés au palier 0 par `/quota palier`. Le nom d'un rôle (« 0% ») ne protège plus : **avant de déployer, associe le rôle 0 % avec `/quota palier`**.
 - Anti-acharnement : 8 annulations par minute et par type, puis alerte « intervention humaine » dans le Logs Hub.
 - Permissions de SUCK ME : Rendre muet, Mettre en sourdine, Exclure temporairement, Bannir, Gérer les pseudos, Gérer les rôles, Déplacer, Voir les logs. Pour un membre 0 % autre que l'owner, le rôle de SUCK ME doit être **au-dessus du rôle 0 %** (lever une exclusion, remettre un pseudo ou un rôle en dépend ; micro, casque et débannissement non).
 - Désactivation : `PND_TIER0_PROTECTION=off` dans `bot/.env`.
@@ -101,7 +110,7 @@ Discord applique un clic droit tout de suite : aucun bot ne peut l'empêcher, SU
 ## 6. Validation sur Discord (serveur et bots de test, jamais les tokens de production)
 
 1. `install-shared-db.sh`, redémarrer FWU, vérifier `shared_db_up` dans le statut du site.
-2. Rôles « 50% », « 10% »… sur des comptes de test ; `/quota paliers`.
+2. Rôles de test associés avec `/quota palier` (50 %, 10 %…) ; `/quota paliers`. Un rôle nommé « 10% » sans association ne donne rien.
 3. `/tempmute` ×3 avec un 50 % : 2 succès, 3e refusé avec délai ; `/sanction` affiche les deux.
 4. `+kick` avec un 50 % depuis GUARD puis `/tempmute` depuis FWU : compteurs indépendants par commande, partagés entre bots (`+kick` ×2 → refus).
 5. `/quota definir tempmute 50 1 10m` : effet immédiat ; `/quota journal` montre avant/après.

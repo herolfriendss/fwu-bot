@@ -2,16 +2,17 @@
 // Tout passe par la base centrale (shared/) : types de sanctions, historique,
 // quotas partagés avec les 4 autres bots, exemptions et whitelist.
 import { EmbedBuilder } from "discord.js";
+import { formatHistoryEntry, loadMemberHistory } from "./member-history.js";
 import { sendCentralLog, systemLogEmbed } from "./logs.js";
 import { ModerationRefusal, runModerationAction } from "./moderation-actions.js";
 import { appealButton, recordModerationCase } from "./moderation.js";
 import { SharedDbUnavailableError, isConnectionError } from "./shared/db.js";
 import {
   QUOTA_COMMANDS, addExemption, addWhitelistedBot, formatDurationFr, listExemptions, listQuotas, listWhitelistedBots,
-  recentConfigChanges, removeExemption, removeWhitelistedBot, resetQuota, setQuota,
+  recentConfigChanges, removeExemption, removeWhitelistedBot, resetQuota, setQuota, quotaStatusForUser, formatQuotaStatus,
 } from "./shared/quotas.js";
 import {
-  addSanctionType, deleteSanctionType, getSanctionType, listMemberSanctions, listSanctionTypes, parseDurationToSeconds, updateSanctionType,
+  addSanctionType, deleteSanctionType, getSanctionType, listSanctionTypes, parseDurationToSeconds, updateSanctionType,
 } from "./shared/sanctions.js";
 import { TIER_LABELS, canUseModeration, listRoleTiers, memberTier, ownerId, setRoleTier } from "./shared/tiers.js";
 
@@ -116,11 +117,14 @@ async function handleSanctionHistory(interaction, tier) {
   await interaction.deferReply({ ephemeral: true });
   const user = interaction.options.getUser("membre", true);
   const page = interaction.options.getInteger("page") ?? 1;
-  const { total, items } = await listMemberSanctions(interaction.guildId, user.id, { limit: 10, offset: (page - 1) * 10 });
+  // Historique unifié : base centrale (5 bots) + casier local (numéros d'affaire, retraits).
+  const { entries, centralAvailable } = await loadMemberHistory({ guildId: interaction.guildId, userId: user.id, limit: 100 });
+  const total = entries.length;
   const pages = Math.max(1, Math.ceil(total / 10));
+  const items = entries.slice((page - 1) * 10, page * 10);
   const embed = new EmbedBuilder().setColor(0x6d28d9)
     .setTitle(`📁 Sanctions de ${user.tag ?? user.username ?? user.id}`)
-    .setDescription(items.length ? items.map(formatSanctionLine).join("\n").slice(0, 4000) : total ? "Page vide." : "✅ Aucune sanction enregistrée.")
+    .setDescription(`${items.length ? items.map(formatHistoryEntry).join("\n").slice(0, 3800) : total ? "Page vide." : "✅ Aucune sanction enregistrée."}${centralAvailable ? "" : "\n\n⚠️ Base centrale injoignable : seules les affaires de ce bot sont affichées."}`)
     .setFooter({ text: `${total} sanction(s) au total · page ${Math.min(page, pages)}/${pages} · tous bots confondus` });
   return interaction.editReply({ embeds: [embed], allowedMentions: { parse: [] } });
 }
@@ -188,6 +192,15 @@ async function handleQuota(interaction, settings, tier, bot) {
   const actorId = interaction.user.id;
   const owner = ownerId();
 
+  if (!group && sub === "moi") {
+    try {
+      const status = await quotaStatusForUser({ guildId: guild.id, userId: actorId, tier });
+      return reply(interaction, formatQuotaStatus(status, TIER_LABELS[tier] ?? "").slice(0, 2000));
+    } catch (error) {
+      if (error instanceof SharedDbUnavailableError || isConnectionError(error)) return reply(interaction, "⚠️ Base centrale injoignable : impossible de lire tes quotas pour l'instant.");
+      throw error;
+    }
+  }
   if (!group && sub === "voir") {
     if (!canUseModeration(tier)) return reply(interaction, "⛔ Réservé au staff (palier 50 % minimum).");
     const quotas = await listQuotas(guild.id);
@@ -222,13 +235,13 @@ async function handleQuota(interaction, settings, tier, bot) {
     const chosen = interaction.options.getInteger("palier", true);
     const result = await setRoleTier({ guildId: guild.id, roleId: role.id, tier: chosen === -1 ? null : chosen, actorId, bot });
     await auditConfig(guild, settings, actorId, `Palier du rôle ${role.name}`, result.before == null ? null : { palier: result.before }, result.after == null ? null : { palier: result.after });
-    return reply(interaction, chosen === -1 ? `✅ Association retirée pour <@&${role.id}> (le nom du rôle reste utilisé s'il contient un pourcentage).` : `✅ <@&${role.id}> → **${TIER_LABELS[chosen]}**.`);
+    return reply(interaction, chosen === -1 ? `✅ Association retirée pour <@&${role.id}> : ce rôle ne donne plus de palier.` : `✅ <@&${role.id}> → **${TIER_LABELS[chosen]}**.`);
   }
   if (!group && sub === "paliers") {
     const rows = await listRoleTiers(guild.id);
-    const detected = [...(guild.roles?.cache?.values?.() ?? [])]
+    const unmapped = [...(guild.roles?.cache?.values?.() ?? [])]
       .filter((role) => !rows.some((row) => row.roleId === role.id) && /\d\s?%/.test(role.name)).map((role) => `<@&${role.id}>`);
-    return reply(interaction, `🎚️ **Paliers**\n${rows.length ? rows.map((row) => `• <@&${row.roleId}> → ${TIER_LABELS[row.tier]}`).join("\n") : "Aucune association explicite."}${detected.length ? `\nReconnus par leur nom : ${detected.join(", ")}` : ""}\nL'owner (\`PND_OWNER_DISCORD_ID\`) est toujours au palier 0 %.`);
+    return reply(interaction, `🎚️ **Paliers**\n${rows.length ? rows.map((row) => `• <@&${row.roleId}> → ${TIER_LABELS[row.tier]}`).join("\n") : "Aucune association explicite."}${unmapped.length ? `\n⚠️ Sans palier (le nom ne suffit plus, utilise \`/quota palier\`) : ${unmapped.join(", ")}` : ""}\nL'owner (\`PND_OWNER_DISCORD_ID\`) est toujours au palier 0 %.`);
   }
   if (!group && sub === "journal") {
     const rows = await recentConfigChanges(guild.id, 10);

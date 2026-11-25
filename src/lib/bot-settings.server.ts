@@ -1,5 +1,5 @@
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
-import { mergeSettingsForWrite, sanitizeSettings, type BotSettings } from "./bot-settings";
+import { applySectionPatch, mergeSettingsForWrite, sanitizeSettings, sectionConflicts, SECTION_LABELS, type BotSettings } from "./bot-settings";
 import { timingSafeEqual } from "node:crypto";
 
 // Call only after requireOwner() or the BOT_SYNC_SECRET check.
@@ -37,6 +37,26 @@ export async function writeBotSettings(guildId: string, settings: BotSettings, u
     if (purgeError) throw new Error("Les réglages sont enregistrés, mais la purge de la mémoire IA a échoué. Réessaie ou vérifie la table bot_ai_memory.");
   }
   return next;
+}
+
+/**
+ * Shared write rule for every editor (dashboard, /setup, bot-sync): write only the sections that
+ * changed, and refuse when one of them was modified elsewhere since the editor loaded it.
+ * Call only after requireOwner() or the BOT_SYNC_SECRET check.
+ */
+export async function writeSettingsSections(guildId: string, patch: unknown, base: unknown) {
+  const latest = await readBotSettings(guildId);
+  const conflicts = sectionConflicts(latest, patch, base);
+  if (conflicts.length) {
+    const names = conflicts.map((key) => `« ${SECTION_LABELS[key]} »`).join(", ");
+    throw new Error(`Modifié entre-temps depuis Discord ou un autre onglet : ${names}. Recharge la page pour voir la version actuelle, puis refais ta modification.`);
+  }
+  const saved = await writeBotSettings(guildId, applySectionPatch(latest, patch));
+  if (patch && typeof patch === "object" && Object.hasOwn(patch, "publicPage")) {
+    const { forgetPublicPage } = await import("./public-page.server");
+    forgetPublicPage(guildId);
+  }
+  return saved;
 }
 
 export function checkBotSecret(request: Request): boolean {

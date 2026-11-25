@@ -1,53 +1,33 @@
 import { useEffect, useState } from "react";
 import { Link } from "@tanstack/react-router";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 import { Copy, Plus, Save, Server, Trash2 } from "lucide-react";
-import { getBotConnection, getBotSettings, saveBotSettings } from "@/lib/bot-settings.functions";
-import { DEFAULT_SETTINGS, type BotSettings } from "@/lib/bot-settings";
+import { getBotConnection } from "@/lib/bot-settings.functions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
+import { useSectionSettings } from "@/components/useSectionSettings";
 
 type Chan = { id: string; name: string };
 
-export function BotSettingsPanel({ guildId, channels }: { guildId: string; channels: Chan[] }) {
-  const qc = useQueryClient();
-  const fetchSettings = useServerFn(getBotSettings);
-  const save = useServerFn(saveBotSettings);
+// The AI assistant is edited only in the Modules tab, so it is not duplicated here.
+const SECTIONS = ["keywords", "filter", "spam", "welcome"] as const;
+const parseWords = (text: string) => text.split(/[,\n]/).map((w) => w.trim().toLowerCase()).filter(Boolean);
+
+export function BotSettingsPanel({ guildId, channels, onDirtyChange }: { guildId: string; channels: Chan[]; onDirtyChange?: (dirty: boolean) => void }) {
   const fetchConn = useServerFn(getBotConnection);
-  const q = useQuery({ queryKey: ["bot-settings", guildId], queryFn: () => fetchSettings({ data: { guildId } }), enabled: !!guildId });
+  const { q, s, set, dirty, saving, save } = useSectionSettings(guildId, SECTIONS, onDirtyChange);
   const conn = useQuery({ queryKey: ["bot-connection"], queryFn: () => fetchConn() });
-  const [s, setS] = useState<BotSettings>(DEFAULT_SETTINGS);
   const [words, setWords] = useState("");
-  const [saving, setSaving] = useState(false);
 
-  useEffect(() => {
-    if (q.data) {
-      setS(q.data);
-      setWords(q.data.filter.words.join(", "));
-    }
-  }, [q.data]);
+  useEffect(() => { if (q.data) setWords(q.data.filter.words.join(", ")); }, [q.data]);
 
-  const set = <K extends keyof BotSettings>(k: K, v: Partial<BotSettings[K]>) => setS((p) => ({ ...p, [k]: Array.isArray(v) ? v : { ...(p[k] as object), ...v } }));
   const siteUrl = typeof window !== "undefined" ? window.location.origin : "";
-
-  async function onSave() {
-    setSaving(true);
-    try {
-      const filterWords = words.split(/[,\n]/).map((w) => w.trim()).filter(Boolean);
-      const saved = await save({ data: { guildId, settings: { ...s, filter: { ...s.filter, words: filterWords } } } });
-      qc.setQueryData(["bot-settings", guildId], saved);
-      toast.success("Réglages enregistrés : le bot les applique d’ici 1 minute.");
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Échec de l’enregistrement");
-    } finally {
-      setSaving(false);
-    }
-  }
+  const onSave = () => save();
 
   const copy = (t: string) => navigator.clipboard.writeText(t).then(() => toast.success("Copié"));
 
@@ -87,7 +67,7 @@ export function BotSettingsPanel({ guildId, channels }: { guildId: string; chann
       <div className="console-theme-panel p-4 space-y-3">
         <div className="flex items-center gap-3"><Switch checked={s.filter.enabled} onCheckedChange={(v) => set("filter", { enabled: v })} /><h3 className="font-semibold">Filtre anti-insultes</h3></div>
         <Label>Mots interdits (séparés par des virgules)</Label>
-        <Textarea value={words} onChange={(e) => setWords(e.target.value)} rows={3} />
+        <Textarea value={words} onChange={(e) => { setWords(e.target.value); set("filter", { words: parseWords(e.target.value) }); }} rows={3} />
         <label className="flex items-center gap-2 text-sm"><Switch checked={s.filter.deleteMessage} onCheckedChange={(v) => set("filter", { deleteMessage: v })} /> Supprimer le message</label>
         <Label>Avertissement ({"{user}"} = la personne)</Label>
         <Input value={s.filter.warn} onChange={(e) => set("filter", { warn: e.target.value })} />
@@ -116,13 +96,9 @@ export function BotSettingsPanel({ guildId, channels }: { guildId: string; chann
         <Textarea value={s.welcome.message} onChange={(e) => set("welcome", { message: e.target.value })} rows={2} />
       </div>
 
-      <div className="console-theme-panel p-4 space-y-3">
-        <div className="flex items-center gap-3"><Switch checked={s.ai.enabled} onCheckedChange={(v) => set("ai", { enabled: v })} /><h3 className="font-semibold">Réponses par l’IA (quand on mentionne le bot)</h3></div>
-        <Label>Personnalité du bot</Label>
-        <Textarea value={s.ai.instructions} onChange={(e) => set("ai", { instructions: e.target.value })} rows={3} />
-      </div>
+      <p className="text-xs text-muted-foreground">Les réponses de l’assistant IA se règlent dans l’onglet « Modules ».</p>
 
-      <Button onClick={onSave} disabled={saving}><Save className="h-4 w-4" /> {saving ? "Enregistrement…" : "Enregistrer"}</Button>
+      <div className="console-save-bar flex flex-wrap items-center gap-3"><Button onClick={onSave} disabled={saving || !dirty}><Save className="h-4 w-4" /> {saving ? "Enregistrement…" : "Enregistrer"}</Button><p className="text-xs text-muted-foreground">{dirty ? "Modifications non enregistrées." : "Tout est enregistré."}</p></div>
     </section>
   );
 }

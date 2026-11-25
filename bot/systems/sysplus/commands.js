@@ -27,9 +27,19 @@ import { reconcileEconomyGuild } from "../../economy-integrity.js";
 import { listReconciliationReviews } from "../../economy.js";
 import { describeSignal, listFraudSignals } from "../../economy-antifraud.js";
 import { respondInPlaceSafe } from "../../interaction-reply.js";
-import { formatBotsDiagnostic } from "../../bot-runtime.js";
+import { formatBotsDiagnostic, formatRelayLossLine } from "../../bot-runtime.js";
+import { formatSharedDbLine } from "../../shared/index.js";
+import { formatBackupLine, readBackupStatus } from "../../backup-status.js";
+import { buildInstallationReport } from "../../install-check.js";
+import { handleFreezeCommand } from "./freeze-commands.js";
+import { handleAbuseAlertCommand } from "./abuse-alerts.js";
+import { handleMemberCardCommand } from "./member-card.js";
+import { handleStaffStatsCommand } from "./staff-stats.js";
+import { handleStaffNotesCommand } from "./staff-notes.js";
+import { isStaffForFreeze } from "../../staff-freeze-gate.js";
+import { parsePndOwnerId } from "../../pnd-owner-policy.js";
 
-const DIAGNOSTIC_ACTIONS = new Set(["acl", "sante", "santé", "logs-couverture", "matrice", "economie", "économie", "bots"]);
+const DIAGNOSTIC_ACTIONS = new Set(["acl", "sante", "santé", "logs-couverture", "matrice", "economie", "économie", "bots", "installation"]);
 
 /** Read-only diagnostics shared by =sysp and /sysp diagnostic. Throws user-facing errors. */
 export async function runSysPlusDiagnostic(guild, member, roleId, action, record = () => {}, whitelistRoleId = null) {
@@ -48,7 +58,11 @@ export async function runSysPlusDiagnostic(guild, member, roleId, action, record
     return text;
   }
   if (action === "logs-couverture") return formatCoverageSummary();
-  if (action === "bots") return formatBotsDiagnostic();
+  if (action === "installation") {
+    recordSysPlusAudit(guild.id, member.id, "diagnostic.installation", null, {});
+    return buildInstallationReport(guild, { ownerId: parsePndOwnerId(process.env.PND_OWNER_DISCORD_ID), extraLines: [formatSharedDbLine(), formatBackupLine(readBackupStatus())] });
+  }
+  if (action === "bots") return `${formatBotsDiagnostic()}\n${formatRelayLossLine()}\n${formatSharedDbLine()}\n${formatBackupLine(readBackupStatus())}`;
   if (action === "matrice") {
     const scopes = Object.fromEntries(Object.keys(ADMIN_PLUS_SCOPES).map((scope) => [scope, getAdminPlusScope(guild.id, scope)]));
     return formatPermissionMatrix(buildPermissionMatrix({
@@ -394,7 +408,11 @@ export async function handleSysPlusMessage(message, settings, { apiUrl, secret, 
   }
 
   if (args[0]?.toLowerCase() === "audit") {
-    const rows = listSysPlusAudit(message.guild.id, 10);
+    // =sysp audit [@membre|ID] [début d'action]
+    const memberArg = args.slice(1).map((a) => /^<@!?(\d{17,20})>$|^(\d{17,20})$/.exec(a)).find(Boolean);
+    const memberId = memberArg ? memberArg[1] ?? memberArg[2] : null;
+    const actionArg = args.slice(1).find((a) => !/^<@!?\d{17,20}>$|^\d{17,20}$/.test(a)) ?? null;
+    const rows = listSysPlusAudit(message.guild.id, memberId || actionArg ? 25 : 10, { memberId, action: actionArg });
     const lines = rows.map((row) => `• <t:${Math.floor(row.createdAt / 1000)}:R> — \`${row.action}\` par <@${row.actorId}>${row.targetId ? ` → ${row.targetId}` : ""}`);
     await message.reply({
       embeds: [new EmbedBuilder()
@@ -443,6 +461,29 @@ export async function handleSysPlusInteraction(interaction, settings, { apiUrl, 
   }
   const roleId = settings?.[guild.id]?.sysPlus?.roleId ?? null;
 
+  if (subcommand === "gel" || subcommand === "degel") {
+    return handleFreezeCommand(interaction, { bot: process.env.PND_BOT_PROFILE || "fwu", audit });
+  }
+  if (subcommand === "fiche") {
+    const ownerOfBot = parsePndOwnerId(process.env.PND_OWNER_DISCORD_ID);
+    return handleMemberCardCommand(interaction, { member, roleId, isSysPlus, isOwner: Boolean(ownerOfBot) && interaction.user.id === ownerOfBot });
+  }
+  if (subcommand === "notes" || subcommand === "note-ajouter" || subcommand === "note-retirer") {
+    const ownerOfBot = parsePndOwnerId(process.env.PND_OWNER_DISCORD_ID);
+    const isOwnerActor = Boolean(ownerOfBot) && interaction.user.id === ownerOfBot;
+    return handleStaffNotesCommand(interaction, {
+      subcommand, member,
+      isStaff: async (m) => isOwnerActor || isSysPlus(m, roleId) || isStaffForFreeze(m, settings),
+      isSysPlusOrOwner: isOwnerActor || isSysPlus(member, roleId),
+    });
+  }
+  if (subcommand === "stats") {
+    const ownerOfBot = parsePndOwnerId(process.env.PND_OWNER_DISCORD_ID);
+    return handleStaffStatsCommand(interaction, { member, roleId, isSysPlus, isOwner: Boolean(ownerOfBot) && interaction.user.id === ownerOfBot, settings });
+  }
+  if (subcommand === "alerte-abus") {
+    return handleAbuseAlertCommand(interaction, { bot: process.env.PND_BOT_PROFILE || "fwu", member, roleId, isSysPlus, audit });
+  }
   if (subcommand === "clone") {
     try {
       const text = await runServerCloneAction({
@@ -988,14 +1029,17 @@ ${reason}`, ephemeral: true });
       await interaction.reply({ content: "⛔ Accès réservé au rôle Perm SYS+.", ephemeral: true });
       return true;
     }
-    const rows = listSysPlusAudit(guild.id, 10);
+    const memberFilter = interaction.options.getUser?.("membre")?.id ?? null;
+    const actionFilter = interaction.options.getString?.("action")?.trim() || null;
+    const rows = listSysPlusAudit(guild.id, memberFilter || actionFilter ? 25 : 10, { memberId: memberFilter, action: actionFilter });
     const lines = rows.map((row) => `• <t:${Math.floor(row.createdAt / 1000)}:R> — \`${row.action}\` par <@${row.actorId}>${row.targetId ? ` → ${row.targetId}` : ""}`);
+    const filters = [memberFilter ? `membre <@${memberFilter}>` : null, actionFilter ? `action « ${actionFilter.slice(0, 40)} »` : null].filter(Boolean).join(", ");
     await interaction.reply({
       embeds: [new EmbedBuilder()
         .setColor(0xe21d2f)
-        .setTitle("🧾 Audit SYS+")
-        .setDescription(lines.length ? lines.join("\n") : "Aucune action enregistrée.")
-        .setFooter({ text: "Journal local du serveur, limité aux dix dernières actions." })],
+        .setTitle(`🧾 Audit SYS+${filters ? ` · ${filters.replace(/<@\d+>/, "filtré")}` : ""}`.slice(0, 250))
+        .setDescription((filters ? `Filtre : ${filters}\n` : "") + (lines.length ? lines.join("\n") : "Aucune action enregistrée.").slice(0, 3900))
+        .setFooter({ text: filters ? "Journal local du serveur, 25 dernières actions correspondantes." : "Journal local du serveur, dix dernières actions. Filtre possible : membre, action." })],
       ephemeral: true,
       allowedMentions: { parse: [] },
     });

@@ -7,7 +7,10 @@ FWU itself (bot + dashboard) is the main project archive.
 
     python3 scripts/package-fwu-bots.py [output_dir]
 """
-from pathlib import Path
+from pathlib import Path, PurePosixPath
+import json
+import posixpath
+import re
 import stat
 import sys
 import zipfile
@@ -26,6 +29,7 @@ BOTS = {
     "fdpdlavoc": ("FDPDLAVOC", "PND_FDPDLAVOC_TOKEN", "Musique, radio, vocaux temporaires, ;pv, ;access, ;voc, ;mv, ;accessall (préfixe ;)."),
     "suckme": ("SUCK ME", "PND_SUCKME_TOKEN", "SYS+, rôles, DOG, MENOTTE, WAKEUP, LOCKNAME, Anti-Move, automatisations, tickets, social, giveaways, AFK, IA (préfixe =)."),
     "fisc": ("LE FISC", "PND_FISC_TOKEN", "Économie, casino, jeux et cartes (préfixe -)."),
+    "investplus": ("Invest +", "PND_INVESTPLUS_TOKEN", "Abonnements des membres, espace privé par membre, administration des formules : /abonnement, /investadmin (préfixe $)."),
 }
 
 ENV_TEMPLATE = """# FWU — {label} : fichier de configuration (secrets). Ne jamais le partager.
@@ -52,6 +56,8 @@ module.exports = {{
       restart_delay: 5000,
       min_uptime: "15s",
       max_restarts: 10,
+      // Exit code 78 = the bot gave up after repeated Discord connection failures (bot/gateway-watchdog.js).
+      stop_exit_codes: [78],
       kill_timeout: 5000,
       time: true,
     }},
@@ -142,10 +148,13 @@ node --check index.js
 info "Démarrage de fwu-{profile}"
 # PM2's restart counter is cumulative across updates: reset it so the check below only counts crashes of this start.
 pm2 reset fwu-{profile} >/dev/null 2>&1 || true
+# The bot writes .connected once Discord accepts it: "online" in PM2 alone is not enough.
+rm -f "$HERE/.connected"
 pm2 startOrReload ecosystem.config.cjs --update-env >/dev/null
 ok=0
-for attempt in $(seq 1 12); do
+for attempt in $(seq 1 24); do
   sleep 5
+  [[ -f "$HERE/.connected" ]] || {{ ok=0; continue; }}
   if pm2 jlist | node --input-type=module -e '
     let raw = ""; process.stdin.on("data", (c) => raw += c).on("end", () => {{
       const row = JSON.parse(raw).find((p) => p.name === "fwu-{profile}");
@@ -218,7 +227,7 @@ def bot_files():
         if any(part in EXCLUDED_DIRS for part in rel.parts):
             continue
         name = path.name
-        if name == ".env" or name.startswith(".env."):
+        if name == ".env" or name.startswith(".env.") or name == ".connected":
             continue
         if rel.as_posix() not in ALWAYS_INCLUDE and (
             path.suffix.lower() in EXCLUDED_SUFFIXES or name.endswith((".pem", ".key", ".p12", ".pfx"))
@@ -232,6 +241,34 @@ def bot_files():
     return files
 
 
+# Static imports only: `from "x"`, `import "x"` and `import("x")` with a literal.
+# Fallback lookups built with new URL(...) + existsSync are deliberately ignored.
+IMPORT_RE = re.compile(r"""(?:^|[\s;}])(?:import|export)\s[^'"`;]*?from\s*['"]([^'"]+)['"]|(?:^|[\s;])import\s*['"]([^'"]+)['"]|\bimport\(\s*['"]([^'"]+)['"]\s*\)""", re.M)
+COMMENT_RE = re.compile(r"/\*.*?\*/|(?<![:\\])//[^\n]*", re.S)
+
+
+def unresolved_imports(sources):
+    """Return (file, specifier) pairs that would fail with ERR_MODULE_NOT_FOUND once packaged."""
+    shipped = {name for _, name in sources}
+    deps = set(json.loads((BOT / "package.json").read_text())["dependencies"])
+    problems = []
+    for source, name in sources:
+        if not name.endswith((".js", ".mjs", ".ts")):
+            continue
+        text = COMMENT_RE.sub("", source.read_text(encoding="utf-8"))
+        for match in IMPORT_RE.finditer(text):
+            spec = next(g for g in match.groups() if g)
+            if spec.startswith("."):
+                target = posixpath.normpath(posixpath.join(str(PurePosixPath(name).parent), spec))
+                if target.startswith("..") or target not in shipped:
+                    problems.append((name, spec))
+            elif not spec.startswith("node:"):
+                package = "/".join(spec.split("/")[:2]) if spec.startswith("@") else spec.split("/")[0]
+                if package not in deps:
+                    problems.append((name, spec))
+    return problems
+
+
 def write_text(archive, name, text, executable=False):
     info = zipfile.ZipInfo(name)
     info.compress_type = zipfile.ZIP_DEFLATED
@@ -242,9 +279,15 @@ def write_text(archive, name, text, executable=False):
 def main():
     OUT.mkdir(parents=True, exist_ok=True)
     sources = bot_files()
+    missing = unresolved_imports(sources)
+    if missing:
+        lines = "\n".join(f"  {name} → {spec}" for name, spec in missing[:20])
+        raise SystemExit(f"Imports introuvables dans un bot empaqueté (le bot planterait au démarrage) :\n{lines}")
     for profile, (label, token_env, summary) in BOTS.items():
-        zipname = label.replace(" ", "-")
-        token_name = label.replace(" ", "_")
+        # "LE FISC" → LE-FISC, "Invest +" → INVEST-PLUS (pas de « + » dans un nom de fichier).
+        plain = re.sub(r"[^A-Za-z0-9]+", " ", label.replace("+", " PLUS ")).split()
+        zipname = "-".join(plain).upper()
+        token_name = "_".join(plain).upper()
         top = f"fwu-{profile}"
         target = OUT / f"FWU-{zipname}.zip"
         values = dict(profile=profile, label=label, token_env=token_env, token_name=token_name, summary=summary, zipname=zipname, memory=MEMORY.get(profile, "160M"))

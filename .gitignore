@@ -53,3 +53,4 @@ public/downloads/
 
 # Archives de livraison générées (scripts/package-fwu-*.py)
 livraison/
+bot/.connected

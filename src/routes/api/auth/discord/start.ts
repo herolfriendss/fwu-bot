@@ -10,8 +10,8 @@ export const Route = createFileRoute("/api/auth/discord/start")({
     GET: async () => {
       const clientId = process.env["DISCORD_CLIENT_ID"];
       const redirectUri = process.env["DISCORD_OAUTH_REDIRECT_URI"];
-      if (!clientId || !redirectUri || configuredPndOwners().length !== 2) {
-        return Response.json({ error: "Discord OAuth or the two PND owners are not configured." }, { status: 503, headers: noStore });
+      if (!clientId || !redirectUri || configuredPndOwners().length === 0) {
+        return Response.json({ error: "Discord OAuth or the PND owner (PND_OWNER_DISCORD_ID) is not configured." }, { status: 503, headers: noStore });
       }
       let callback: URL;
       try { callback = new URL(redirectUri); } catch {

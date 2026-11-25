@@ -1,4 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { SiteNav } from "@/components/SiteNav";
 import { queryOptions, useQuery, useSuspenseQuery } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { Activity, ArrowLeft, RefreshCw } from "lucide-react";
@@ -12,8 +13,8 @@ const botsQuery = queryOptions({ queryKey: ["fwu-dedicated-bots"], queryFn: () =
 export const Route = createFileRoute("/statut")({
   ssr: false,
   head: () => ({ meta: [
-    { title: "Statut du bot — FWU" }, { name: "description", content: "Connexion Discord, dernière synchronisation et journal du bot hébergé sur Oracle." },
-    { property: "og:title", content: "Statut du bot — FWU" }, { property: "og:description", content: "Suivi privé de la connexion et des événements du bot Discord." },
+    { title: "Statut des bots — FWU" }, { name: "description", content: "Connexion Discord, dernière synchronisation et journal du bot hébergé sur Oracle." },
+    { property: "og:title", content: "Statut des bots — FWU" }, { property: "og:description", content: "Suivi privé de la connexion et des événements du bot Discord." },
     { property: "og:type", content: "website" }, { name: "twitter:card", content: "summary" },
   ] }),
   loader: ({ context }) => context.queryClient.ensureQueryData(statusQuery), component: StatusPage,
@@ -29,9 +30,10 @@ function StatusPage() {
   return <div className="console-shell bg-background">
     <header className="console-header border-b border-border p-4 md:p-8"><div className="mx-auto flex max-w-6xl items-center gap-4">
       <Button asChild variant="ghost" size="icon"><Link to="/configuration" aria-label="Retour à la configuration"><ArrowLeft className="h-5 w-5" /></Link></Button>
-      <h1 className="flex flex-1 items-center gap-2 text-xl font-semibold"><Activity className="h-5 w-5 text-primary" /> Statut du bot</h1>
+      <h1 className="flex flex-1 items-center gap-2 text-xl font-semibold"><Activity className="h-5 w-5 text-primary" /> Statut des bots</h1>
       <Button variant="outline" size="icon" aria-label="Actualiser" title="Actualiser" disabled={q.isFetching} onClick={() => q.refetch()}><RefreshCw className="h-4 w-4" /></Button>
     </div></header>
+    <SiteNav />
     <main className="console-content mx-auto max-w-6xl space-y-8 p-4 md:p-8">
       {q.isRefetchError && <p role="alert" className="text-destructive">Actualisation impossible : les dernières données reçues sont affichées.</p>}
       <section className="border-b border-border pb-8">
@@ -45,14 +47,14 @@ function StatusPage() {
         {state === "offline" && <p className="mt-6 text-sm text-muted-foreground">Le bot signale une déconnexion ou n’a plus transmis de signal depuis plus de 70 secondes.</p>}
       </section>
       <section className="border-b border-border pb-8">
-        <h2 className="mb-4 text-lg font-semibold">Bots FWU</h2>
+        <h2 className="mb-4 text-lg font-semibold">Les autres bots</h2>
         <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          {(["guard", "fdpdlavoc", "suckme", "fisc"] as const).map((id) => {
+          {(["guard", "fdpdlavoc", "suckme", "fisc", "investplus"] as const).map((id) => {
             const bot = bots.data?.[id] ?? null;
             const botState = !now || !bot ? "unknown" : bot.connected && now - Date.parse(bot.lastSeen) <= 70_000 ? "online" : "offline";
             return <li key={id} className="rounded-md border border-border p-3">
               <p className="flex items-center gap-2 font-medium"><span className={`h-2.5 w-2.5 shrink-0 rounded-full ${botState === "online" ? "bg-signal" : botState === "offline" ? "bg-destructive" : "bg-muted-foreground"}`} />{BOT_PROFILES[id].label}</p>
-              <p className="mt-1 text-xs text-muted-foreground">{botState === "online" ? "En ligne" : bot ? `Hors ligne depuis ${date(bot.lastSeen)} : FWU fait son travail` : "Pas encore créé : FWU fait son travail"}</p>
+              <p className="mt-1 text-xs text-muted-foreground">{botState === "online" ? "En ligne" : bot ? `Hors ligne depuis le ${date(bot.lastSeen)}` : "Jamais connecté : aucun signal reçu pour l’instant"}</p>
               <p className="mt-2 text-xs text-muted-foreground">{BOT_PROFILES[id].summary}</p>
             </li>;
           })}

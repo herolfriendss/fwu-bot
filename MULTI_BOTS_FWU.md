@@ -11,6 +11,7 @@
 | **FDPDLAVOC** | `fwu-fdpdlavoc` | `;` | Musique, radio, vocaux temporaires, `;pv`, `;access`, `;voc`, `;mv`, `;accessall` | `PND_FDPDLAVOC_TOKEN` |
 | **SUCK ME** | `fwu-suckme` | `=` | SYS+, rôles, DOG, MENOTTE, WAKEUP, LOCKNAME, Anti-Move, automatisations, webhooks, dmall ; tickets, candidatures, sondage, IA, live, AFK, social, giveaways, événements, commandes personnalisées du site | `PND_SUCKME_TOKEN` |
 | **LE FISC** | `fwu-fisc` | `-` | Économie, casino, jeux (dice, coinflip, trivia) et cartes | `PND_FISC_TOKEN` |
+| **Invest +** | `fwu-investplus` | `$` | Abonnements des membres, salon privé par membre, administration des formules (`/abonnement`, `/investadmin`). Guide : `docs/INVEST_PLUS.md` | `PND_INVESTPLUS_TOKEN` |
 
 Les quotas de modération sont communs aux 5 bots (base centrale PostgreSQL, `SHARED_DATABASE_URL`).
 
@@ -54,9 +55,14 @@ L'installateur de chaque bot lance `scripts/fwu-synchroniser.sh` : FWU retire de
 ## Retour arrière
 - **Immédiat** : `pm2 stop fwu-guard`. FWU reprend en moins d'une minute les **événements** du domaine (tâches, filtre anti-spam, blacklist à l'arrivée). Les **commandes** de GUARD restent indisponibles tant que GUARD est arrêté : une commande n'existe que sur son bot (décision du 24/11).
 
+## Bot qui n'arrive pas à se connecter
+- Un bot qui ne se connecte pas à Discord (token faux, intents non activés) ne reste plus « online » pour rien : il réessaie après 30 s, 1 min, 2 min, 4 min puis 8 min, et s'arrête définitivement au 6e échec (PM2 ne le relance plus).
+- `/sysp diagnostic bots` l'affiche en 🟠 (essais en cours) ou 🔴 (arrêté). Après correction : `pm2 restart fwu-<bot>` (ou `her-v5-bot` pour FWU).
+- Les installateurs et la mise à jour de FWU attendent la vraie connexion à Discord, pas seulement « online » dans PM2.
+
 ## Mises à jour
 - FWU : `scripts/update-1942.sh`, comme avant. Les 4 autres bots continuent de tourner pendant la mise à jour de FWU.
-- Chaque bot : dézipper la nouvelle version dans `/home/opc/fwu-bots` (`unzip -o`), puis relancer son `installer.sh`. Son `.env` est conservé.
+- Chaque bot : `/maj lancer` s'en occupe. Avant de dézipper, il garde une copie de l'ancienne version de chaque bot ; si l'installateur d'un bot échoue, cette ancienne version est remise et redémarrée (`/maj etat` le dit). À la main : dézipper la nouvelle version dans `/home/opc/fwu-bots` (`unzip -o`), puis relancer son `installer.sh`. Son `.env` est conservé.
 
 ## RESUME (sur SUCK ME : `/afk` ou `=afk`)
 - `/afk on [raison]` : début de l'absence.
@@ -86,3 +92,10 @@ L'installateur de chaque bot lance `scripts/fwu-synchroniser.sh` : FWU retire de
 - Un seul fichier pour les 5 bots : `PND_DATA_DIR/bots.json` (modèle `bot/config/bots.example.json`), jamais écrasé par une mise à jour.
 - Une commande tapée avec le préfixe d'un autre bot n'existe pas (`=ban` ne fait rien : c'est `+ban`).
 - `PND_PREFIX_COMMANDS` n'est plus utilisé.
+
+## Statut riche (25/11)
+- Chaque bot affiche un statut qui tourne toutes les minutes, avec des compteurs à jour : `{membres}`, `{serveurs}`, `{vocal}`, `{prefixe}`, `{bot}`.
+- Pour le changer, ajouter une section `presence` dans `PND_DATA_DIR/bots.json`, puis relancer le bot :
+  `"presence": { "guard": { "status": "dnd", "interval": 90, "activities": [{ "type": "watching", "text": "{membres} membres" }, { "type": "custom", "text": "🔒 Anti-nuke actif" }] } }`
+- Types : `playing`, `watching`, `listening`, `competing`, `custom`. Statut : `online`, `idle`, `dnd`. Intervalle : 30 s minimum. 10 activités maximum.
+- Un réglage invalide ne bloque jamais le bot : il est signalé dans ses logs et les statuts par défaut s'appliquent.

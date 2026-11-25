@@ -1,6 +1,7 @@
 export const SETUP_MODULES = Object.freeze({
   spam: {
     label: "Anti-spam et mentions",
+    description: "Supprime les rafales de messages et les mentions de masse, puis met l’auteur en sourdine.",
     fields: [
       { key: "enabled", label: "Protection activée (oui/non)", kind: "boolean" },
       { key: "maxMessages", label: "Messages maximum dans la fenêtre", kind: "integer", min: 2, max: 30 },
@@ -11,6 +12,7 @@ export const SETUP_MODULES = Object.freeze({
   },
   guildGuard: {
     label: "Sécurité anti-raid",
+    description: "Surveille les nouveaux comptes et protège le serveur contre les raids.",
     fields: [
       {
         key: "enabled",
@@ -30,7 +32,9 @@ export const SETUP_MODULES = Object.freeze({
         label: "Action compte récent",
         kind: "enum",
         values: ["log", "kick", "quarantine"],
-        placeholder: "log, kick ou quarantine",
+        choices: { log: "Noter dans le journal", kick: "Expulser", quarantine: "Mettre en quarantaine" },
+        aliases: { journal: "log", noter: "log", expulser: "kick", exclure: "kick", quarantaine: "quarantine" },
+        placeholder: "journal, expulser ou quarantaine",
       },
       { key: "quarantineRoleId", label: "Rôle de quarantaine (ID)", kind: "role", required: false },
       {
@@ -43,6 +47,7 @@ export const SETUP_MODULES = Object.freeze({
   },
   moderation: {
     label: "Modération",
+    description: "Journal des sanctions et durée de vie des avertissements.",
     fields: [
       {
         key: "logChannelId",
@@ -62,6 +67,7 @@ export const SETUP_MODULES = Object.freeze({
   },
   verification: {
     label: "Vérification des membres",
+    description: "Les nouveaux membres doivent valider un panneau pour obtenir l’accès.",
     fields: [
       { key: "enabled", label: "Module activé (oui/non)", kind: "boolean" },
       { key: "roleId", label: "Rôle validé (ID)", kind: "role", required: false },
@@ -89,6 +95,7 @@ export const SETUP_MODULES = Object.freeze({
   },
   tickets: {
     label: "Tickets communautaires",
+    description: "Les membres ouvrent un ticket privé pour contacter l’équipe.",
     fields: [
       { key: "enabled", label: "Module activé (oui/non)", kind: "boolean" },
       { key: "categoryId", label: "Catégorie des tickets (ID)", kind: "category", required: false },
@@ -110,6 +117,7 @@ export const SETUP_MODULES = Object.freeze({
   },
   tempVoice: {
     label: "Salons vocaux temporaires",
+    description: "Rejoindre le vocal de création ouvre un salon vocal personnel.",
     fields: [
       { key: "enabled", label: "Module activé (oui/non)", kind: "boolean" },
       {
@@ -133,10 +141,20 @@ export const SETUP_MODULES = Object.freeze({
         max: 80,
         placeholder: "Salon de {user}",
       },
+      {
+        key: "emptyDeleteSeconds",
+        label: "Délai avant suppression si vide (s)",
+        kind: "integer",
+        min: 0,
+        max: 300,
+        default: 0,
+        placeholder: "0 = tout de suite, jusqu’à 300",
+      },
     ],
   },
   automation: {
     label: "Automatisations de bienvenue",
+    description: "Rôles donnés automatiquement et message privé de bienvenue.",
     fields: [
       {
         key: "autoRoleIds",
@@ -157,6 +175,7 @@ export const SETUP_MODULES = Object.freeze({
   },
   dog: {
     label: "DOG — laisses par SYS+",
+    description: "Nombre de laisses qu’un SYS+ peut poser en même temps.",
     fields: [
       {
         key: "maxActiveLeashes",
@@ -170,6 +189,7 @@ export const SETUP_MODULES = Object.freeze({
   },
   liveAlerts: {
     label: "Alertes de démarrage LIVE",
+    description: "Annonce dans un salon quand un créateur lance un live.",
     fields: [
       { key: "enabled", label: "Alertes activées (oui/non)", kind: "boolean" },
       { key: "channelId", label: "Salon de publication (ID ou mention)", kind: "textChannel", required: false },
@@ -206,11 +226,39 @@ export function parseSetupBoolean(value) {
   throw new Error("Entre oui ou non pour ce réglage.");
 }
 
+export function setupHasToggle(module) {
+  return Boolean(SETUP_MODULES[module]?.fields.some((field) => field.key === "enabled"));
+}
+
+/** Champs affichés dans le formulaire : l’activation passe par un bouton dédié. */
+export function setupFormFields(module) {
+  return (SETUP_MODULES[module]?.fields ?? []).filter((field) => field.key !== "enabled");
+}
+
+/** Vérifie qu’un module activé possède les salons/rôles indispensables. */
+export function setupRequirementError(module, next) {
+  if (module === "verification" && next.enabled && (!next.roleId || !next.channelId)) {
+    return "La vérification active demande un rôle validé et un salon configurés.";
+  }
+  if (module === "tempVoice" && next.enabled && (!next.hubChannelId || !next.categoryId)) {
+    return "Les salons vocaux temporaires actifs demandent un vocal de création et une catégorie.";
+  }
+  if (module === "liveAlerts" && next.enabled && (!next.channelId || !next.creators?.length)) {
+    return "Les alertes LIVE activées demandent un salon et au moins un flux de créateur.";
+  }
+  return null;
+}
+
+/**
+ * Lit les valeurs saisies. Un champ absent de `rawValues` (par exemple
+ * `enabled`, géré par le bouton Activer/Désactiver) garde sa valeur actuelle.
+ */
 export function parseSetupModule(module, rawValues, current = {}) {
   const definition = SETUP_MODULES[module];
   if (!definition) throw new Error("Ce module n’est pas configurable avec `/setup`.");
   const next = { ...current };
   for (const field of definition.fields) {
+    if (!Object.hasOwn(rawValues, field.key)) continue;
     const raw = String(rawValues[field.key] ?? "").trim();
     if (field.kind === "boolean") next[field.key] = parseSetupBoolean(raw);
     else if (field.kind === "integer") {
@@ -220,9 +268,11 @@ export function parseSetupModule(module, rawValues, current = {}) {
         throw new Error(`${field.label} doit être compris entre ${field.min} et ${field.max}.`);
       next[field.key] = number;
     } else if (field.kind === "enum") {
-      if (!field.values.includes(raw))
-        throw new Error(`${field.label} doit valoir : ${field.values.join(", ")}.`);
-      next[field.key] = raw;
+      const value = field.values.includes(raw) ? raw : field.aliases?.[raw.toLowerCase()];
+      if (!value) {
+        throw new Error(`${field.label} doit valoir : ${field.placeholder ?? field.values.join(", ")}.`);
+      }
+      next[field.key] = value;
     } else if (
       field.kind === "role" ||
       field.kind === "textChannel" ||
@@ -265,17 +315,8 @@ export function parseSetupModule(module, rawValues, current = {}) {
       next[field.key] = raw;
     }
   }
-  if (module === "verification" && next.enabled && (!next.roleId || !next.channelId)) {
-    throw new Error("La vérification active demande un rôle validé et un salon configurés.");
-  }
-  if (module === "tempVoice" && next.enabled && (!next.hubChannelId || !next.categoryId)) {
-    throw new Error(
-      "Les salons vocaux temporaires actifs demandent un vocal de création et une catégorie.",
-    );
-  }
-  if (module === "liveAlerts" && next.enabled && (!next.channelId || !next.creators?.length)) {
-    throw new Error("Les alertes LIVE activées demandent un salon et au moins un flux de créateur.");
-  }
+  const requirement = setupRequirementError(module, next);
+  if (requirement) throw new Error(requirement);
   return next;
 }
 

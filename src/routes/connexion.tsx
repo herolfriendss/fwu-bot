@@ -4,9 +4,9 @@ import { LockKeyhole } from "lucide-react";
 export const Route = createFileRoute("/connexion")({
   head: () => ({
     meta: [
-      { title: "Connexion — 1942" },
+      { title: "Connexion — FWU" },
       { name: "description", content: "Connexion sécurisée des propriétaires PND." },
-      { property: "og:title", content: "Connexion — 1942" },
+      { property: "og:title", content: "Connexion — FWU" },
       { property: "og:description", content: "Espace réservé aux deux propriétaires PND." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },

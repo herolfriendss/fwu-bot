@@ -23,7 +23,7 @@ test("message XP: once per minute, level-up announced with role rewards", async 
   const added = [];
   db.prepare("INSERT INTO community_level_config(guild_id,enabled,channel_id,rewards_json) VALUES('g2',1,NULL,'{\"1\":\"r1\"}')").run();
   const member = { id: "m", roles: { cache: new Map(), add: async (roles) => added.push(...roles) } };
-  const message = { guild: { id: "g2", roles: { cache: new Map([["r1", {}]]) } }, author: { id: "m", bot: false }, member, channel: { isTextBased: () => true, send: async (p) => sent.push(p.content) } };
+  const message = { guild: { id: "g2", roles: { cache: new Map([["r1", { id: "r1", permissions: 0n }]]) } }, author: { id: "m", bot: false }, member, channel: { isTextBased: () => true, send: async (p) => sent.push(p.content) } };
   c.addXp("g2", "m", 90);
   const first = await c.handleLevelMessage(message, { random: () => 0.99, now: 1_000_000 });
   assert.equal(first.after, 1);
@@ -62,7 +62,7 @@ test("birthdays: wished once at 9:00 Paris, role given then removed the next day
   const sent = [];
   const roles = [];
   const member = { roles: { cache: new Map([["br", {}]]), add: async (r) => roles.push(["add", r]), remove: async (r) => roles.push(["remove", r]) } };
-  const guild = { id: "gb", members: { fetch: async () => member }, channels: { fetch: async () => ({ isTextBased: () => true, send: async (p) => sent.push(p.content) }) } };
+  const guild = { id: "gb", roles: { cache: new Map([["br", { id: "br", permissions: 0n }]]) }, members: { fetch: async () => member }, channels: { fetch: async () => ({ isTextBased: () => true, send: async (p) => sent.push(p.content) }) } };
   const nineAm = Date.parse("2026-11-24T08:30:00Z");
   assert.equal(await c.runBirthdays([guild], Date.parse("2026-11-24T06:00:00Z")), 0, "before 9:00");
   assert.equal(await c.runBirthdays([guild], nineAm), 1);
@@ -82,4 +82,19 @@ test("suggestion votes toggle and close", async () => {
   await c.handleSuggestionVote(click("down", "u3"));
   const votes = updates.at(-1).embeds[0].data.fields.find((f) => f.name === "Votes").value;
   assert.equal(votes, "👍 1 · 👎 1");
+});
+
+test("sécurité : un rôle à permissions sensibles n'est jamais donné en récompense de niveau", async () => {
+  db.prepare("INSERT INTO community_level_config(guild_id,enabled,channel_id,rewards_json) VALUES('g-sec',1,NULL,'{\"1\":\"r-admin\"}')").run();
+  const added = [];
+  const member = { id: "m-sec", roles: { cache: new Map(), add: async (roles) => added.push(...roles) } };
+  const roles = new Map([
+    ["r-admin", { id: "r-admin", permissions: 1n << 3n }],
+    ["r-ok", { id: "r-ok", permissions: 0n }],
+  ]);
+  const message = { guild: { id: "g-sec", roles: { cache: roles } }, author: { id: "m-sec", bot: false }, member, channel: { isTextBased: () => true, send: async () => {} } };
+  c.addXp("g-sec", "m-sec", 90);
+  const result = await c.handleLevelMessage(message, { random: () => 0.99, now: 5_000_000 });
+  assert.equal(result.after, 1, "le niveau est bien atteint");
+  assert.deepEqual(added, [], "rôle Administrateur refusé");
 });

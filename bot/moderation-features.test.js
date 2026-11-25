@@ -21,6 +21,7 @@ const { parseQuotaValue, parseUserReference, formatQuotaTable, formatSanctionLin
 const { describeDiscordError } = await import("./moderation-actions.js");
 const { closeSharedDb, initSharedDb, sharedQuery } = await import("./shared/db.js");
 const { runSharedMigrations } = await import("./shared/migrate.js");
+const { setRoleTiersForTests } = await import("./shared/tiers.js");
 
 const TEST_URL = process.env.SHARED_DATABASE_URL_TEST;
 const pgTest = TEST_URL ? test : test.skip;
@@ -157,11 +158,18 @@ test("embeds : limites Discord, couleurs, URL HTTPS, import et screening", () =>
 
 // ── Discord simulé ─────────────────────────────────────────────────────────
 
+// Le nom d'un rôle ne donne plus de palier : chaque rôle « N% » du test est associé via le cache.
+const TEST_GUILD_ID = "200000000000000777";
+const TEST_ROLE_TIERS = { "10% Modérateur": 10, "10%": 10, "50% Modérateur test": 50, "50%": 50, "100%": 100, "1%": 1, "5%": 5, "5% Administrateur": 5 };
 function roleCache(names) {
-  return new Map(names.map((name, index) => [`role${index}`, { id: `role${index}`, name }]));
+  return new Map(names.map((name) => [`role:${name}`, { id: `role:${name}`, name }]));
+}
+function primeTestRoleTiers() {
+  setRoleTiersForTests(TEST_GUILD_ID, Object.entries(TEST_ROLE_TIERS).map(([name, tier]) => [`role:${name}`, tier]));
 }
 
 function fakeVoiceWorld({ authorRoles = ["10% Modérateur"], authorPerms = [P.ViewChannel, P.Connect, P.MoveMembers], botPerms = [P.ViewChannel, P.Connect, P.MoveMembers, P.ManageRoles] } = {}) {
+  primeTestRoleTiers();
   const replies = [];
   const moves = [];
   const channels = new Map();
@@ -346,7 +354,7 @@ pgTest("/tempmute : la sanction choisie fixe la durée, tout est enregistré et 
   assert.match(replies.at(-1).content, /exclu temporairement \*\*30 min\*\* pour \*\*Insultes graves\*\*/);
   await handleStaffModerationInteraction(base("sanction", {}), null, { bot: "fwu" });
   const history = replies.at(-1).embeds[0].toJSON();
-  assert.match(history.description, /tempmute\*\* · Insultes graves · 30 min · par <@author> \(fwu\) — message 123/);
+  assert.match(history.description, /\*\*#\d+ · Exclusion \(Insultes graves\) · 30 min\*\* · <t:\d+:d> · par <@author> · fwu\n↳ message 123/, "historique unifié : une seule ligne, avec le numéro d'affaire");
   assert.match(history.footer.text, /1 sanction/);
   // Un membre 100 % ne peut ni sanctionner ni consulter.
   const member100 = world.makeMember("400000000000000010", null, ["100%"], 1);

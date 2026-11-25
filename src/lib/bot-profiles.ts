@@ -3,7 +3,7 @@
 // token, and four specialised applications take over one domain each.
 // Plain, erasable TypeScript only: the Oracle bot imports this file directly.
 
-export type BotProfileId = "fwu" | "guard" | "fdpdlavoc" | "suckme" | "fisc";
+export type BotProfileId = "fwu" | "guard" | "fdpdlavoc" | "suckme" | "fisc" | "investplus";
 
 export type BotProfile = {
   id: BotProfileId;
@@ -51,6 +51,14 @@ export const BOT_PROFILES: Record<BotProfileId, BotProfile> = {
     guildAllowlistEnv: "PND_FISC_GUILD_IDS",
     summary: "Économie, casino, jeux et cartes",
   },
+  // Ajouté le 25/11/2026 : abonnements des membres, espace privé par membre, administration.
+  investplus: {
+    id: "investplus",
+    label: "Invest +",
+    tokenEnv: "PND_INVESTPLUS_TOKEN",
+    guildAllowlistEnv: "PND_INVESTPLUS_GUILD_IDS",
+    summary: "Abonnements des membres, espace privé par membre, administration des formules",
+  },
 };
 
 export const BOT_PROFILE_IDS = Object.keys(BOT_PROFILES) as BotProfileId[];
@@ -88,6 +96,10 @@ export const SLASH_COMMAND_OWNERS: Record<BotProfileId, readonly string[]> = {
     "ia", "ticket", "candidature", "sondage", "profil", "bio", "rep", "toprep", "color",
     "academy", "award", "story", "radar", "wrapped", "giveaway", "event", "pndevent", "afk", "live",
     "niveau", "suggestion", "anniversaire", "rappel", "stats", "confession", "moi", "fwu", "clan", "saison", "quete",
+    // animation (25/11) : une seule commande racine, /anim comptage|vedette|qdj
+    "anim",
+    // outils staff (25/11) : /outils sticky|modmail
+    "outils",
   ],
   fisc: [
     "balance", "daily", "work", "job", "bank", "history", "rob", "lottery", "pay", "leaderboard",
@@ -95,7 +107,10 @@ export const SLASH_COMMAND_OWNERS: Record<BotProfileId, readonly string[]> = {
     "impots", "pret", "duel", "pari", "avantage",
     // venues de FWU
     "dice", "coinflip", "trivia", "cards", "card", "pack", "trade",
+    // jeux entre membres (25/11) : une seule commande racine, /jeu morpion|puissance4|pendu
+    "jeu",
   ],
+  investplus: ["abonnement", "investadmin"],
 };
 
 /**
@@ -132,6 +147,7 @@ export const PREFIX_COMMAND_OWNERS: Record<BotProfileId, readonly string[]> = {
     // venues de FWU
     "dice", "coinflip", "trivia", "card", "cards", "pack", "trade", "trades",
   ],
+  investplus: ["abonnement", "abo"],
 };
 
 /** Default prefixes (overridable in bot/config/bots.json). null = slash only. */
@@ -141,6 +157,7 @@ export const DEFAULT_PREFIXES: Record<BotProfileId, string | null> = {
   fdpdlavoc: ";",
   suckme: "=",
   fisc: "-",
+  investplus: "$",
 };
 
 function invert(map: Record<BotProfileId, readonly string[]>): Map<string, BotProfileId> {

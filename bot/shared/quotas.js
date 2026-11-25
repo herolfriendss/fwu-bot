@@ -12,6 +12,7 @@
 import { isConnectionError, SharedDbUnavailableError, sharedDbAvailable, sharedQuery, sharedTransaction } from "./db.js";
 import { logQuotaViolation } from "./audit.js";
 import { MODERATION_TIERS, TIER_LABELS, canUseModeration } from "./tiers.js";
+import { getStaffFreeze } from "./freeze.js";
 
 /** Commandes soumises aux quotas, quel que soit le bot. */
 export const QUOTA_COMMANDS = Object.freeze(["tempmute", "unmute", "warn", "kick", "ban", "unban", "blacklist", "mv"]);
@@ -48,6 +49,8 @@ export function formatQuotaRefusal(decision, command) {
       return `⛔ Aucun quota n'est configuré pour ${name} et ton rôle : commande refusée par sécurité.`;
     case "bot_not_whitelisted":
       return "⛔ Ce bot n'est pas dans la whitelist des quotas.";
+    case "frozen":
+      return `🧊 Le staff est **gelé** par l'owner jusqu'à <t:${Math.floor(Number(decision.until) / 1000)}:t> (<t:${Math.floor(Number(decision.until) / 1000)}:R>) : commandes de modération suspendues sur les 5 bots.`;
     case "unavailable":
       return "🛑 La base centrale des quotas est injoignable : commande refusée par sécurité. Réessaie dans un instant.";
     default:
@@ -95,6 +98,9 @@ export async function consumeQuota({ guildId, userId, command, tier, bot, isBot 
     }
     if (await isExempt(guildId, userId)) return { allowed: true, exempt: "user_exemption" };
     if (!canUseModeration(tier)) return { allowed: false, reason: "no_access", tier };
+    // Gel d'urgence : tout le staff (hors owner et exemptés) à 0, sur les 5 bots.
+    const freeze = await getStaffFreeze(guildId);
+    if (freeze) return { allowed: false, reason: "frozen", tier, until: freeze.until };
 
     const decision = await sharedTransaction(async (client) => {
       await client.query("SELECT pg_advisory_xact_lock(hashtext($1))", [`quota:${guildId}:${userId}:${command}`]);
@@ -136,6 +142,54 @@ export async function consumeQuota({ guildId, userId, command, tier, bot, isBot 
     if (isConnectionError(error)) return { allowed: false, reason: "unavailable" };
     throw error;
   }
+}
+
+/**
+ * Lecture seule pour /quota moi : ce qu'il reste à un membre, commande par commande.
+ * Ne consomme rien. Renvoie { exempt } ou { tier, rows: [{ command, maxUses, windowSeconds, used, retryAfterSeconds }] }.
+ */
+export async function quotaStatusForUser({ guildId, userId, tier }) {
+  if (tier === 0) return { exempt: "owner" };
+  if (!sharedDbAvailable()) throw new SharedDbUnavailableError();
+  if (await isExempt(guildId, userId)) return { exempt: "user_exemption" };
+  if (!canUseModeration(tier)) return { tier, rows: [] };
+  const rows = [];
+  for (const command of QUOTA_COMMANDS) {
+    const row = await quotaRow({ query: sharedQuery }, guildId, command, tier);
+    if (!row) { rows.push({ command, maxUses: 0, windowSeconds: null, used: 0, retryAfterSeconds: null }); continue; }
+    const windowSeconds = Number(row.window_seconds);
+    const maxUses = row.max_uses == null ? null : Number(row.max_uses);
+    const { rows: uses } = await sharedQuery(
+      `SELECT EXTRACT(EPOCH FROM (used_at + make_interval(secs => $4) - now())) AS remaining
+       FROM quota_usage
+       WHERE guild_id = $1 AND user_id = $2 AND command = $3 AND refunded = false
+         AND used_at > now() - make_interval(secs => $4)
+       ORDER BY used_at DESC`,
+      [guildId, userId, command, windowSeconds],
+    );
+    const used = uses.length;
+    // Comme consumeQuota : la place se libère quand le plus ancien usage encore compté sort de la fenêtre.
+    const retryAfterSeconds = maxUses != null && maxUses > 0 && used >= maxUses ? Math.max(1, Math.ceil(Number(uses[maxUses - 1].remaining))) : null;
+    rows.push({ command, maxUses, windowSeconds, used, retryAfterSeconds });
+  }
+  return { tier, rows };
+}
+
+/** Pur : texte de /quota moi. */
+export function formatQuotaStatus(status, tierLabel = "") {
+  if (status.exempt === "owner") return "♾️ Tu es l'owner : aucune limite.";
+  if (status.exempt) return "♾️ Tu as une exemption de quota sur ce serveur : aucune limite.";
+  if (!status.rows.length) return "⛔ Tu n'as pas de palier de modération : aucune commande à quota.";
+  const lines = status.rows.map(({ command, maxUses, windowSeconds, used, retryAfterSeconds }) => {
+    if (maxUses === 0) return `• \`${command}\` : ⛔ non autorisée à ton palier`;
+    if (maxUses == null) return `• \`${command}\` : illimitée`;
+    const left = Math.max(0, maxUses - used);
+    const per = `/ ${formatDurationFr(windowSeconds)}`;
+    return left > 0
+      ? `• \`${command}\` : ✅ **${left}** restant${left > 1 ? "s" : ""} (${used}/${maxUses} ${per})`
+      : `• \`${command}\` : ⏳ **0** restant (${used}/${maxUses} ${per}), prochain dans **${formatDurationFr(retryAfterSeconds)}**`;
+  });
+  return `🎚️ **Tes quotas** ${tierLabel ? `(palier ${tierLabel})` : ""}, partagés entre les 5 bots\n${lines.join("\n")}`;
 }
 
 /** Give back a use when the Discord action failed after consumption. */

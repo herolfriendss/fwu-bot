@@ -1,6 +1,8 @@
 // FWU GUARD — slash commands: /antinuke, /automod, /casier, /quarantaine.
 import { EmbedBuilder, PermissionFlagsBits as P } from "discord.js";
-import { db } from "../database.js";
+import { formatHistoryEntry, loadMemberHistory } from "../member-history.js";
+import { roleGrantRefusal } from "../role-grant-guard.js";
+import { db, transaction } from "../database.js";
 import { parsePndOwnerId } from "../pnd-owner-policy.js";
 import { isSysPlus } from "../systems/sysplus/permissions.js";
 import { getAntiNukeConfig, saveAntiNukeConfig } from "./anti-nuke.js";
@@ -13,6 +15,38 @@ db.exec(`CREATE TABLE IF NOT EXISTS guard_quarantine (
   guild_id TEXT NOT NULL, user_id TEXT NOT NULL, saved_roles_json TEXT NOT NULL,
   reason TEXT, moderator_id TEXT NOT NULL, created_at INTEGER NOT NULL, PRIMARY KEY (guild_id, user_id)
 );`);
+
+// Affaires retirées du casier : archivées, jamais effacées (idée SYS+ n°3).
+db.exec(`CREATE TABLE IF NOT EXISTS moderation_cases_removed (
+  id INTEGER PRIMARY KEY, guild_id TEXT NOT NULL, user_id TEXT NOT NULL, moderator_id TEXT NOT NULL,
+  action TEXT NOT NULL, reason TEXT NOT NULL, details_json TEXT, created_at INTEGER NOT NULL,
+  removed_by TEXT NOT NULL, removal_reason TEXT NOT NULL, removed_at INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS moderation_cases_removed_member_idx ON moderation_cases_removed(guild_id, user_id, id DESC);`);
+
+/**
+ * Retire une affaire du casier : seulement un SYS+ ou l'owner, jamais sa propre affaire
+ * (sauf l'owner). L'affaire est déplacée dans les archives avec qui, quand et pourquoi.
+ * Renvoie l'affaire archivée, ou un message d'erreur (string).
+ */
+export function removeModerationCase({ guildId, caseId, actorId, reason, ownerId = null }) {
+  const motif = String(reason ?? "").trim();
+  if (motif.length < 3) return "❌ Indique un motif (3 caractères minimum).";
+  const row = db.prepare("SELECT * FROM moderation_cases WHERE id=? AND guild_id=?").get(caseId, guildId);
+  if (!row) return "❌ Affaire introuvable sur ce serveur.";
+  if (row.moderator_id === actorId && actorId !== ownerId) return "⛔ Tu ne peux pas retirer une affaire que tu as toi-même ouverte : demande à un autre SYS+ ou à l'owner.";
+  const now = Date.now();
+  transaction(() => {
+    db.prepare(`INSERT INTO moderation_cases_removed(id,guild_id,user_id,moderator_id,action,reason,details_json,created_at,removed_by,removal_reason,removed_at)
+      VALUES(?,?,?,?,?,?,?,?,?,?,?)`).run(row.id, row.guild_id, row.user_id, row.moderator_id, row.action, row.reason, row.details_json, row.created_at, actorId, motif.slice(0, 300), now);
+    db.prepare("DELETE FROM moderation_cases WHERE id=? AND guild_id=?").run(caseId, guildId);
+  });
+  return { ...row, removedBy: actorId, removalReason: motif.slice(0, 300), removedAt: now };
+}
+
+export function listRemovedCases(guildId, userId, limit = 10) {
+  return db.prepare("SELECT * FROM moderation_cases_removed WHERE guild_id=? AND user_id=? ORDER BY removed_at DESC LIMIT ?").all(guildId, userId, limit);
+}
 
 const quarantineRoleOf = (guildId, settings) => settings?.guildGuard?.quarantineRoleId ?? autoconfigValue(guildId, "guard:quarantine_role");
 const isOwner = (member) => member?.id === parsePndOwnerId(process.env.PND_OWNER_DISCORD_ID) || member?.id === member?.guild?.ownerId;
@@ -86,24 +120,37 @@ async function handleAutomod(interaction, settings) {
 
 const CASE_LABELS = { warn: "Avertissement", mute: "Exclusion", unmute: "Fin d'exclusion", kick: "Expulsion", ban: "Bannissement", unban: "Débannissement", quarantine: "Quarantaine", unquarantine: "Fin de quarantaine" };
 
-async function handleCasier(interaction, settings) {
+async function handleCasier(interaction, settings, { report = async () => {} } = {}) {
   if (!isStaff(interaction.member, settings, P.ModerateMembers)) return "⛔ Réservé au staff.";
   const sub = interaction.options.getSubcommand();
   const guild = interaction.guild;
   if (sub === "supprimer") {
-    if (!isStaff(interaction.member, settings)) return "⛔ Supprimer une affaire demande la permission Gérer le serveur.";
+    const owner = parsePndOwnerId(process.env.PND_OWNER_DISCORD_ID);
+    // « Gérer le serveur » ne suffit plus : un modo ne doit pas pouvoir effacer ses propres abus.
+    if (interaction.user.id !== owner && !isSysPlus(interaction.member, settings?.sysPlus?.roleId ?? null)) return "⛔ Retirer une affaire est réservé aux SYS+ et à l'owner.";
     const id = interaction.options.getInteger("affaire", true);
-    const result = db.prepare("DELETE FROM moderation_cases WHERE id=? AND guild_id=?").run(id, guild.id);
-    return Number(result.changes) ? `🗑️ Affaire **#${id}** supprimée du casier.` : "❌ Affaire introuvable sur ce serveur.";
+    const removed = removeModerationCase({ guildId: guild.id, caseId: id, actorId: interaction.user.id, reason: interaction.options.getString("motif") ?? "", ownerId: owner });
+    if (typeof removed === "string") return removed;
+    await report(guild, {
+      title: "🗂️ Affaire retirée du casier",
+      description: `Affaire **#${removed.id}** · ${CASE_LABELS[removed.action] ?? removed.action} · membre <@${removed.user_id}>\nOuverte par <@${removed.moderator_id}> le <t:${Math.floor(removed.created_at / 1000)}:d>\nRetirée par <@${removed.removedBy}>\nMotif : ${removed.removalReason}\nL'affaire reste dans les archives (\`/casier voir\`).`,
+      color: 0xf59e0b,
+    }).catch(() => {});
+    return `🗂️ Affaire **#${id}** retirée du casier et archivée (motif enregistré, log envoyé).`;
   }
   const user = interaction.options.getUser("membre", true);
-  const cases = db.prepare("SELECT id, action, reason, moderator_id, created_at FROM moderation_cases WHERE guild_id=? AND user_id=? ORDER BY id DESC LIMIT 15").all(guild.id, user.id);
   const warnings = db.prepare("SELECT COUNT(*) AS n FROM moderation_warnings WHERE guild_id=? AND user_id=? AND (expires_at IS NULL OR expires_at > ?)").get(guild.id, user.id, Date.now()).n;
-  const total = db.prepare("SELECT COUNT(*) AS n FROM moderation_cases WHERE guild_id=? AND user_id=?").get(guild.id, user.id).n;
-  const lines = cases.map((c) => `**#${c.id}** · ${CASE_LABELS[c.action] ?? c.action.replace(/_/g, " ")} · <t:${Math.floor(c.created_at / 1000)}:d> · par <@${c.moderator_id}>\n↳ ${String(c.reason).slice(0, 150)}`);
+  // Historique unifié : casier de ce bot + sanctions des 5 bots (base centrale), sans doublon.
+  const history = await loadMemberHistory({ guildId: guild.id, userId: user.id, limit: 50 });
+  const active = history.entries.filter((e) => !e.removed);
+  const removedEntries = history.entries.filter((e) => e.removed);
+  const total = active.length;
+  const lines = active.slice(0, 15).map(formatHistoryEntry);
+  if (removedEntries.length) lines.push("", "**Affaires retirées** (archives)", ...removedEntries.slice(0, 5).map(formatHistoryEntry));
+  if (!history.centralAvailable) lines.push("", "⚠️ Base centrale injoignable : seules les affaires de ce bot sont affichées.");
   return { embeds: [new EmbedBuilder().setColor(0xe21d2f).setTitle(`📁 Casier de ${user.username}`)
-    .setDescription(`Affaires : **${total}** · Avertissements actifs : **${warnings}**\n\n${lines.join("\n") || "Casier vierge."}`.slice(0, 4000))
-    .setFooter({ text: "FWU • GUARD · /casier supprimer pour retirer une affaire" })] };
+    .setDescription(`Sanctions : **${total}** · Avertissements actifs : **${warnings}**\n\n${lines.join("\n") || "Casier vierge."}`.slice(0, 4000))
+    .setFooter({ text: "Tous bots confondus · /casier supprimer (SYS+) pour retirer une affaire, avec un motif" })] };
 }
 
 async function handleQuarantaine(interaction, settings) {
@@ -119,6 +166,8 @@ async function handleQuarantaine(interaction, settings) {
     const role = roleId ? await guild.roles.fetch(roleId).catch(() => null) : null;
     if (!role) return "❌ Aucun rôle de quarantaine : il sera créé automatiquement au prochain démarrage de GUARD (ou `/guildguard quarantine role:@Quarantaine`).";
     if (role.position >= me.roles.highest.position) return "❌ Le rôle de quarantaine doit être sous mon rôle.";
+    const protectedReason = await roleGrantRefusal(guild, role, { automatic: true, settings });
+    if (protectedReason) return `❌ Rôle de quarantaine refusé : ${protectedReason}`;
     if (db.prepare("SELECT 1 FROM guard_quarantine WHERE guild_id=? AND user_id=?").get(guild.id, user.id)) return "ℹ️ Ce membre est déjà en quarantaine.";
     const removable = [...member.roles.cache.values()].filter((r) => r.id !== guild.id && !r.managed && r.id !== role.id && r.position < me.roles.highest.position);
     const reason = interaction.options.getString("raison") ?? "Quarantaine manuelle";
@@ -146,7 +195,7 @@ async function handleQuarantaine(interaction, settings) {
   return `🔓 Quarantaine levée pour <@${user.id}> : ${saved.length} rôle(s) rendu(s).`;
 }
 
-export async function handleGuardInteraction(interaction, settings = {}) {
+export async function handleGuardInteraction(interaction, settings = {}, context = {}) {
   if (!interaction.isChatInputCommand?.() || !GUARD_COMMANDS.has(interaction.commandName)) return false;
   if (!interaction.guild) {
     await interaction.reply({ content: "Cette commande s'utilise sur un serveur.", ephemeral: true });
@@ -155,7 +204,7 @@ export async function handleGuardInteraction(interaction, settings = {}) {
   await interaction.deferReply({ ephemeral: true });
   try {
     const run = { antinuke: handleAntiNuke, automod: handleAutomod, casier: handleCasier, quarantaine: handleQuarantaine }[interaction.commandName];
-    const result = await run(interaction, settings);
+    const result = await run(interaction, settings, context);
     await interaction.editReply(typeof result === "string" ? { content: result, allowedMentions: { parse: [] } } : { ...result, allowedMentions: { parse: [] } });
   } catch (error) {
     await interaction.editReply({ content: `❌ ${error instanceof Error ? error.message : "Action impossible."}`, allowedMentions: { parse: [] } }).catch(() => {});
