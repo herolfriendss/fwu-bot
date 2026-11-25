@@ -41,3 +41,24 @@ export function buildWelcomePayload(member, settings, now = Date.now()) {
     .setTimestamp(new Date(now));
   return { embeds: [embed], allowedMentions: { parse: [], users: [member.id] } };
 }
+
+
+/** Build a departure embed only; reuses an explicitly configured existing channel. */
+export function buildDeparturePayload(member, settings, now = Date.now()) {
+  if (!member?.guild || !member?.user || settings?.leaveEnabled !== true) return null;
+  const channelId = settings.leaveChannelId || settings.channelId;
+  if (!channelId) return null;
+  const guild = member.guild;
+  const createdAt = Number(member.user.createdTimestamp) || null;
+  const joinedAt = Number(member.joinedTimestamp) || null;
+  const description = renderWelcomeMessage(settings.leaveMessage || "{user} a quitté **{server}**.", {
+    user: `<@${member.id}>`, server: guild.name, memberCount: guild.memberCount, accountCreatedAt: createdAt,
+  });
+  const embed = new EmbedBuilder().setColor(0x6b7280).setTitle("Départ d’un membre").setDescription(description)
+    .setThumbnail(member.user.displayAvatarURL?.({ size: 256 }) ?? null)
+    .addFields(
+      { name: "Membre", value: `#${Math.max(0, Number(guild.memberCount) || 0)}`, inline: true },
+      { name: "A rejoint", value: joinedAt ? `<t:${Math.floor(joinedAt / 1000)}:R>` : "Date indisponible", inline: true },
+    ).setFooter({ text: "FWU • Départ" }).setTimestamp(new Date(now));
+  return { channelId, payload: { embeds: [embed], allowedMentions: { parse: [], users: [member.id] } } };
+}
