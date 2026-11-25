@@ -1,4 +1,4 @@
-# FWU — 5 bots, préfixes, quotas partagés (24/11/2026)
+# FWU — 5 bots principaux + Invest + facultatif, préfixes et quotas partagés (25/11/2026)
 
 ## 1. Qui fait quoi
 
