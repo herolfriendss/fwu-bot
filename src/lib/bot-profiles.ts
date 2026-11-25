@@ -105,6 +105,8 @@ export const SLASH_COMMAND_OWNERS: Record<BotProfileId, readonly string[]> = {
     "impots", "pret", "duel", "pari", "avantage",
     // venues de FWU
     "dice", "coinflip", "trivia", "cards", "card", "pack", "trade",
+    // jeux entre membres (25/11) : une seule commande racine, /jeu morpion|puissance4|pendu
+    "jeu",
   ],
   investplus: ["abonnement", "investadmin"],
 };

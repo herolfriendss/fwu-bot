@@ -68,6 +68,7 @@ export const SYSP_LAYOUT: SubcommandLayoutEntry[] = [
   { group: "whitelist", description: "Exemption WHITELIST (propriétaire)", members: ["whitelist-add", "whitelist-remove", "whitelist-list"] },
   { group: "outils", description: "Ghost, composer, recherche, blueprints, clone, studio, packs", members: ["ghost", "composer", "search", "blueprint", "clone", "studio", "pack"] },
   { group: "diagnostic", description: "Audit ACL, santé du bot et couverture des logs (lecture seule)", members: ["acl", "sante", "logs-couverture", "matrice", "economie", "bots", "installation"] },
+  { group: "urgence", description: "Gel d'urgence du staff et alertes d'abus du staff", members: ["gel", "degel", "alerte-abus"] },
   { group: "market", description: "Marketplace d'extensions (désactivé par défaut)", members: ["catalog", "installed", "publish", "withdraw", "submit", "validate", "reject", "install", "uninstall", "rollback"] },
 ];
 
@@ -515,6 +516,19 @@ export const SLASH_COMMANDS: SlashCommandDef[] = [
       sub("economie", "Intégrité du grand livre PND et signaux de fraude"),
       sub("bots", "Bots FWU : quel bot traite chaque domaine en ce moment"),
       sub("installation", "Bilan : permissions et place du rôle de chaque bot, base centrale, sauvegarde"),
+      sub("gel", "Owner : suspend toutes les commandes du staff sur les 5 bots, pour une durée", [
+        opt(3, "duree", "Durée : 30m, 2h, 1j (7 jours maximum)", { required: true, max_length: 20 }),
+        opt(3, "raison", "Raison (visible dans le Logs Hub)", { max_length: 300 }),
+        opt(5, "retirer_admin_plus", "Retire aussi le rôle ADMIN+ (rendu au dégel)"),
+      ]),
+      sub("degel", "Owner : lève le gel du staff tout de suite"),
+      sub("alerte-abus", "Alertes MP aux SYS+ si un membre du staff sanctionne en rafale ou s'acharne (owner pour modifier)", [
+        opt(5, "active", "Active ou coupe les alertes"),
+        opt(4, "rafale", "Nombre de sanctions qui déclenche l'alerte rafale (2 à 100)", { min_value: 2, max_value: 100 }),
+        opt(4, "rafale_minutes", "En combien de minutes (1 à 1440)", { min_value: 1, max_value: 1440 }),
+        opt(4, "cible", "Nombre de sanctions sur la même personne (2 à 50)", { min_value: 2, max_value: 50 }),
+        opt(4, "cible_heures", "En combien d'heures (1 à 720)", { min_value: 1, max_value: 720 }),
+      ]),
       sub("add", "Attribue le rôle SYS+ à un membre (propriétaire)", [opt(6, "membre", "Membre concerné", { required: true })]),
       sub("remove", "Retire le rôle SYS+ à un membre (propriétaire)", [opt(6, "membre", "Membre concerné", { required: true })]),
       sub("permissions", "Consulte les scopes ADMIN+"),
@@ -1526,12 +1540,12 @@ export const SLASH_COMMANDS: SlashCommandDef[] = [
   {
     name: "voc",
     description: "Gère ton salon vocal temporaire",
-    usage: "/voc panel | vocal-panel | demander | demander-id | limit | name | claim | expulser | inviter | transferer | lock | unlock | delete",
+    usage: "/voc panel | vocal-panel | demander | demander-id | limit | name | claim | expulser | inviter | transferer | lock | unlock | delete | confiance | bloquer | retirer | listes",
     category: "Vocal & DOG",
     dmPermission: false,
     requiresBotProcess: true,
     options: [
-      sub("panel", "Affiche les informations du salon temporaire"),
+      sub("panel", "Affiche le panneau de contrôle du salon temporaire"),
       sub("vocal-panel", "Ouvre le panneau de contrôle d’accès vocal classique"),
       sub("demander", "Demande l’accès à une vocale privée", [opt(7, "salon", "Vocale privée à rejoindre", { required: true, channel_types: [2] })]),
       sub("demander-id", "Demande l’accès à une vocale cachée via son ID", [opt(3, "id", "ID de la vocale privée", { required: true, min_length: 5, max_length: 25 })]),
@@ -1549,6 +1563,10 @@ export const SLASH_COMMANDS: SlashCommandDef[] = [
       sub("lock", "Empêche les autres membres de rejoindre"),
       sub("unlock", "Autorise à nouveau les membres à rejoindre"),
       sub("delete", "Supprime ton salon temporaire"),
+      sub("confiance", "Ajoute un membre de confiance : il entre toujours dans tes salons", [opt(6, "membre", "Membre", { required: true })]),
+      sub("bloquer", "Bloque un membre : il ne peut plus entrer dans tes salons", [opt(6, "membre", "Membre", { required: true })]),
+      sub("retirer", "Retire un membre de ta liste de confiance ou de blocage", [opt(6, "membre", "Membre", { required: true })]),
+      sub("listes", "Affiche tes membres de confiance et tes membres bloqués"),
     ],
   },
 
@@ -1713,6 +1731,29 @@ export const EXTRA_SLASH_COMMANDS: SlashCommandDef[] = [
     ],
   },
   {
+    name: "jeu",
+    description: "Jeux entre membres : morpion et puissance 4 (mise en PND possible), pendu en groupe",
+    usage: "/jeu morpion @adversaire [mise] · /jeu puissance4 @adversaire [mise] · /jeu pendu · /jeu stats [membre] · /jeu classement jeu",
+    category: "Jeux & événements",
+    dmPermission: false,
+    requiresBotProcess: true,
+    options: [
+      sub("morpion", "Défie un membre au morpion", [
+        opt(6, "adversaire", "Le membre que tu défies", { required: true }),
+        opt(4, "mise", "Mise en PND de chaque joueur (0 = amical)", { min_value: 0, max_value: 100000 }),
+      ]),
+      sub("puissance4", "Défie un membre au puissance 4", [
+        opt(6, "adversaire", "Le membre que tu défies", { required: true }),
+        opt(4, "mise", "Mise en PND de chaque joueur (0 = amical)", { min_value: 0, max_value: 100000 }),
+      ]),
+      sub("pendu", "Lance un pendu dans ce salon : tout le monde peut jouer"),
+      sub("stats", "Victoires, défaites et nuls d'un membre", [opt(6, "membre", "Membre (toi par défaut)")]),
+      sub("classement", "Les meilleurs joueurs du serveur", [
+        opt(3, "jeu", "Jeu", { required: true, choices: [{ name: "Morpion", value: "morpion" }, { name: "Puissance 4", value: "puissance4" }, { name: "Pendu", value: "pendu" }] }),
+      ]),
+    ],
+  },
+  {
     name: "afk",
     description: "RESUME : signale ton absence et retrouve ce qui s’est passé pendant ce temps",
     usage: "/afk on [raison] · /afk off · /afk resume [heures]",
@@ -1831,13 +1872,13 @@ export const EXTRA_SLASH_COMMANDS: SlashCommandDef[] = [
   {
     name: "casier",
     description: "GUARD : historique des sanctions d'un membre",
-    usage: "/casier voir membre · /casier supprimer affaire",
+    usage: "/casier voir membre · /casier supprimer affaire motif",
     category: "Modération",
     dmPermission: false,
     requiresBotProcess: true,
     options: [
       sub("voir", "Affiche le casier d'un membre", [opt(6, "membre", "Membre", { required: true })]),
-      sub("supprimer", "Supprime une affaire du casier", [opt(4, "affaire", "Numéro de l'affaire", { required: true, min_value: 1 })]),
+      sub("supprimer", "SYS+ : retire une affaire du casier (archivée, avec un motif)", [opt(4, "affaire", "Numéro de l'affaire", { required: true, min_value: 1 }), opt(3, "motif", "Pourquoi l'affaire est retirée", { required: true, max_length: 300 })]),
     ],
   },
   {

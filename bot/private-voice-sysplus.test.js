@@ -20,7 +20,7 @@ test("both private-voice entry points pass the SYS+ role", () => {
   const v2 = readFileSync(new URL("./voice-v2.js", import.meta.url), "utf8");
   assert.match(commands, /lock\(channel, member, bot, settings\.sysPlus\?\.roleId \?\? null\)/);
   assert.match(commands, /lock\(channel, member, bot, sysPlusRoleId\)/);
-  assert.match(v2, /lockPrivateVoiceChannel\(channel, member, guild\.members\.me \?\? interaction\.client, guildSettings\?\.sysPlus\?\.roleId \?\? null\)/);
+  assert.match(v2, /lockPrivateVoiceChannel\(channel, member, channel\.guild\.members\.me \?\? channel\.client, guildSettings\?\.sysPlus\?\.roleId \?\? null\)/);
 });
 
 test("/sondage is staff only", () => {
