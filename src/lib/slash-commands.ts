@@ -1731,6 +1731,29 @@ export const EXTRA_SLASH_COMMANDS: SlashCommandDef[] = [
     ],
   },
   {
+    name: "jeu",
+    description: "Jeux entre membres : morpion et puissance 4 (mise en PND possible), pendu en groupe",
+    usage: "/jeu morpion @adversaire [mise] · /jeu puissance4 @adversaire [mise] · /jeu pendu · /jeu stats [membre] · /jeu classement jeu",
+    category: "Jeux & événements",
+    dmPermission: false,
+    requiresBotProcess: true,
+    options: [
+      sub("morpion", "Défie un membre au morpion", [
+        opt(6, "adversaire", "Le membre que tu défies", { required: true }),
+        opt(4, "mise", "Mise en PND de chaque joueur (0 = amical)", { min_value: 0, max_value: 100000 }),
+      ]),
+      sub("puissance4", "Défie un membre au puissance 4", [
+        opt(6, "adversaire", "Le membre que tu défies", { required: true }),
+        opt(4, "mise", "Mise en PND de chaque joueur (0 = amical)", { min_value: 0, max_value: 100000 }),
+      ]),
+      sub("pendu", "Lance un pendu dans ce salon : tout le monde peut jouer"),
+      sub("stats", "Victoires, défaites et nuls d'un membre", [opt(6, "membre", "Membre (toi par défaut)")]),
+      sub("classement", "Les meilleurs joueurs du serveur", [
+        opt(3, "jeu", "Jeu", { required: true, choices: [{ name: "Morpion", value: "morpion" }, { name: "Puissance 4", value: "puissance4" }, { name: "Pendu", value: "pendu" }] }),
+      ]),
+    ],
+  },
+  {
     name: "afk",
     description: "RESUME : signale ton absence et retrouve ce qui s’est passé pendant ce temps",
     usage: "/afk on [raison] · /afk off · /afk resume [heures]",
