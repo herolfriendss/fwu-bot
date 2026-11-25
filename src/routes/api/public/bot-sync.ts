@@ -48,7 +48,11 @@ export const Route = createFileRoute("/api/public/bot-sync")({
           return json({ error: "request body too large" }, 413);
         }
         try {
-          body = JSON.parse(rawBody);
+          const parsed: unknown = JSON.parse(rawBody);
+          if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+            return json({ error: "invalid json" }, 400);
+          }
+          body = parsed as typeof body;
         } catch {
           return json({ error: "invalid json" }, 400);
         }
