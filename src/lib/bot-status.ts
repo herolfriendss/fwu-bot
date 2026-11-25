@@ -2,7 +2,7 @@ import { z } from "zod";
 
 export const runtimeEventCodes = [
   "started", "connected", "disconnected", "reconnecting", "sync_ok", "sync_error", "gateway_error",
-  "message_error", "voice_error", "interaction_error", "welcome_error", "dog_enforcement_error",
+  "message_error", "voice_error", "interaction_error", "welcome_error", "welcome_channel_unavailable", "departure_channel_unavailable", "departure_message_error", "dog_enforcement_error",
   "dog_nickname_restored", "dog_leashes_restored", "dog_reconcile_error", "dog_voice_returned", "dog_voice_error",
   "lockname_restored", "lockname_reconcile_error", "lockname_restore_error",
   "menotte_expired", "menotte_expiration_error",
