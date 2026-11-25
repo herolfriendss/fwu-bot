@@ -81,6 +81,7 @@ import { handleGuardPrefixCommand } from "./guard-commands.js";
 import { handleVoiceMoveCommand } from "./voice-move.js";
 import { handleEmbedInteraction, EMBED_COMMANDS } from "./embeds.js";
 import { SHARED_DB_ALERTS, startSharedLayer } from "./shared/index.js";
+import { startUsageRetention } from "./shared/retention.js";
 import { logCommandUsage } from "./shared/audit.js";
 import { getVoiceConnections } from "@discordjs/voice";
 import { hasAiMemoryConsent, setAiMemoryConsent } from "./ai-memory-preferences.js";
@@ -1573,6 +1574,7 @@ async function notifySharedDb(kind) {
   }
 }
 await startSharedLayer({ record, notify: IS_FWU ? notifySharedDb : null });
+if (IS_FWU) startUsageRetention({ record });
 await sync();
 setInterval(sync, 60_000);
 setInterval(reportStatus, 20_000);

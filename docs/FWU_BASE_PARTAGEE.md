@@ -29,10 +29,10 @@
 | `sanction_types` | sanctions prédéfinies de `/tempmute` (nom, durée), par serveur |
 | `sanctions` | historique complet : modérateur, cible, action, sanction, motif, durée, bot, date |
 | `quotas` | commande × palier → nombre max (NULL = illimité, 0 = interdit) et fenêtre ; `guild_id = '*'` = valeur par défaut |
-| `quota_usage` | un enregistrement par usage (fenêtre glissante) ; `refunded` si l'action Discord a échoué |
+| `quota_usage` | un enregistrement par usage (fenêtre glissante) ; `refunded` si l'action Discord a échoué ; gardé 31 jours (purge quotidienne par FWU) |
 | `quota_exemptions` | exemptions par ID utilisateur |
 | `bot_whitelist` | bots qui outrepassent les quotas |
-| `command_usage` | journal des commandes (ok, refusée, quota, erreur, base injoignable) |
+| `command_usage` | journal des commandes (ok, refusée, quota, erreur, base injoignable), gardé 90 jours |
 | `quota_violations` | dépassements de quota |
 | `config_changes` | toute modification de configuration : qui, quoi, avant, après |
 | `embeds`, `rules_drafts` | embeds gérés par FWU ; brouillons de règlement (brouillon → validé → publié) |

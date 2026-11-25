@@ -95,7 +95,7 @@ test("le message de refus indique le temps restant", () => {
 pgTest("les migrations s'appliquent une seule fois", async () => {
   assert.deepEqual(await runSharedMigrations(), []);
   const { rows } = await sharedQuery("SELECT count(*)::int AS n FROM schema_migrations");
-  assert.equal(rows[0].n, 2);
+  assert.equal(rows[0].n, 3);
 });
 
 pgTest("quotas par défaut : Modérateur test = 2 tempmute / 30 min, puis refus avec délai", async () => {
@@ -303,4 +303,16 @@ test("base centrale : ligne du diagnostic", () => {
   assert.match(formatSharedDbLine({ configured: true, available: true }), /🟢 Base centrale : joignable/);
   assert.match(formatSharedDbLine({ configured: true, available: false }, 1_700_000_000_000), /injoignable\*\* depuis <t:1700000000:R>/);
   assert.match(SHARED_DB_ALERTS.not_configured.description, /install-shared-db\.sh/);
+});
+
+pgTest("purge : usages de plus de 31 jours et commandes de plus de 90 jours, le reste est gardé", async () => {
+  const { purgeOldUsage } = await import("./retention.js");
+  await sharedQuery("DELETE FROM quota_usage WHERE guild_id = 'purge'");
+  await sharedQuery("DELETE FROM command_usage WHERE guild_id = 'purge'");
+  for (const days of [1, 29, 32]) await sharedQuery("INSERT INTO quota_usage(guild_id, user_id, command, bot, used_at) VALUES ('purge', 'u', 'ban', 'fwu', now() - make_interval(days => $1))", [days]);
+  for (const days of [1, 89, 91]) await sharedQuery("INSERT INTO command_usage(guild_id, user_id, bot, command, outcome, created_at) VALUES ('purge', 'u', 'fwu', 'ban', 'ok', now() - make_interval(days => $1))", [days]);
+  const removed = await purgeOldUsage();
+  assert.ok(removed.quota_usage >= 1 && removed.command_usage >= 1);
+  assert.equal(Number((await sharedQuery("SELECT COUNT(*) n FROM quota_usage WHERE guild_id = 'purge'")).rows[0].n), 2);
+  assert.equal(Number((await sharedQuery("SELECT COUNT(*) n FROM command_usage WHERE guild_id = 'purge'")).rows[0].n), 2);
 });
