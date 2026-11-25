@@ -193,6 +193,7 @@ export function inspectLogsHub(guild) {
   if (!guild || guild.id !== LOGS_HUB_GUILD_ID)
     throw new Error("Serveur central de logs incorrect.");
 
+  // Reserved source servers are intentionally excluded until explicitly activated.
   const activeSources = new Set(ACTIVE_SOURCE_GUILD_IDS.map(logSourceForGuild).filter(Boolean));
   const requiredChannels = ALL_LOG_CHANNELS.filter((spec) => activeSources.has(spec.source));
   const channels = new Map();
