@@ -16,6 +16,12 @@ const allOnline = (restarts = 0) =>
   );
 const MIN = 60_000;
 
+type OptionalProcessState = { monitored?: boolean };
+type ProcessStates = Record<string, OptionalProcessState>;
+function processStates(state: Record<string, unknown>): ProcessStates {
+  return state["processes"] as ProcessStates;
+}
+
 describe("surveillance FWU", () => {
   it("prévient après 2 min d'arrêt seulement, une fois, puis au retour", () => {
     let r = evaluate(
@@ -89,7 +95,7 @@ describe("surveillance FWU", () => {
       0,
     );
     expect(r.messages).toEqual([]);
-    expect(r.state["processes"]["fwu-investplus"]?.monitored).toBe(false);
+    expect(processStates(r.state)["fwu-investplus"]?.monitored).toBe(false);
 
     r = evaluate(
       r.state,
