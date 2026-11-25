@@ -29,6 +29,7 @@ BOTS = {
     "fdpdlavoc": ("FDPDLAVOC", "PND_FDPDLAVOC_TOKEN", "Musique, radio, vocaux temporaires, ;pv, ;access, ;voc, ;mv, ;accessall (préfixe ;)."),
     "suckme": ("SUCK ME", "PND_SUCKME_TOKEN", "SYS+, rôles, DOG, MENOTTE, WAKEUP, LOCKNAME, Anti-Move, automatisations, tickets, social, giveaways, AFK, IA (préfixe =)."),
     "fisc": ("LE FISC", "PND_FISC_TOKEN", "Économie, casino, jeux et cartes (préfixe -)."),
+    "investplus": ("Invest +", "PND_INVESTPLUS_TOKEN", "Abonnements des membres, espace privé par membre, administration des formules : /abonnement, /investadmin (préfixe $)."),
 }
 
 ENV_TEMPLATE = """# FWU — {label} : fichier de configuration (secrets). Ne jamais le partager.
@@ -283,8 +284,10 @@ def main():
         lines = "\n".join(f"  {name} → {spec}" for name, spec in missing[:20])
         raise SystemExit(f"Imports introuvables dans un bot empaqueté (le bot planterait au démarrage) :\n{lines}")
     for profile, (label, token_env, summary) in BOTS.items():
-        zipname = label.replace(" ", "-")
-        token_name = label.replace(" ", "_")
+        # "LE FISC" → LE-FISC, "Invest +" → INVEST-PLUS (pas de « + » dans un nom de fichier).
+        plain = re.sub(r"[^A-Za-z0-9]+", " ", label.replace("+", " PLUS ")).split()
+        zipname = "-".join(plain).upper()
+        token_name = "_".join(plain).upper()
         top = f"fwu-{profile}"
         target = OUT / f"FWU-{zipname}.zip"
         values = dict(profile=profile, label=label, token_env=token_env, token_name=token_name, summary=summary, zipname=zipname, memory=MEMORY.get(profile, "160M"))

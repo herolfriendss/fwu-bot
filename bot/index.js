@@ -52,6 +52,7 @@ import { handleCasinoMessage } from "./casino.js";
 import { handleCasinoInteraction } from "./casino/commands.js";
 import { runCascade, startCascade } from "./cascade.js";
 import { handleConfessionInteraction } from "./features/confessions-commands.js";
+import { handleInvestPlusChannelDelete, handleInvestPlusInteraction, handleInvestPlusMessage, runInvestPlusJobs } from "./features/investplus-commands.js";
 import { handleAnimationInteraction, handleCountingDelete, handleCountingMessage, handleStarboardReaction } from "./features/animation-commands.js";
 import { runQotd } from "./features/qotd.js";
 import { handleOverviewInteraction } from "./features/overview.js";
@@ -108,6 +109,7 @@ import { runAutoconfig } from "./autoconfig.js";
 import { handleGuardInteraction } from "./guard/commands.js";
 import { communityAutoconfig, handleCommunityInteraction, handleLevelMessage, runBirthdays, runReminders, tickVoiceXp } from "./features/community.js";
 import { handleFiscInteraction, runLoanCollection, runWealthTax } from "./features/fisc.js";
+import { handleVersusInteraction, runVersusExpiry } from "./features/versus.js";
 import { announceUpdateResult, handleSelfUpdateInteraction } from "./features/self-update.js";
 import { handleSuckmeInteraction, ladderOf, runAnnouncements, runTempRoles, saveLadder } from "./features/suckme.js";
 import { armSlowCommandWatchdog } from "./interaction-watchdog.js";
@@ -619,6 +621,7 @@ async function handleMessageCreate(msg) {
     if (runCmd("fisc") && await handleCardsMessage(msg)) { auditPrefixUsage(msg, "Cartes"); return; }
     if (runCmd("suckme", "fisc") && await handleGamesMessage(msg, record)) { auditPrefixUsage(msg, "Jeux"); return; }
     if (runCmd("fisc") && await handleCasinoMessage(msg)) { auditPrefixUsage(msg, "PND Casino"); return; }
+    if (runCmd("investplus") && await handleInvestPlusMessage(msg)) { auditPrefixUsage(msg, "Invest +"); return; }
     if (runCmd("suckme") && await handleVoicePresenceMessage(msg)) { auditPrefixUsage(msg, "Historique vocal"); return; }
     if (runCmd("suckme") && await handleAutomationMessage(msg, s, { apiUrl: API, secret: BOT_SYNC_SECRET, record })) { auditPrefixUsage(msg, "Automatisation"); return; }
   } catch { record("voice_error"); return; }
@@ -902,7 +905,7 @@ client.on("voiceStateUpdate", (oldState, newState) => {
     record(code);
     const guild = newState.guild ?? oldState.guild;
     if (!guild || !guildSettings?.logs?.channelId) return;
-    const labels = { temp_voice_created: "Salon vocal temporaire créé", temp_voice_deleted: "Salon vocal temporaire supprimé", temp_voice_error: "Erreur Join-to-Create" };
+    const labels = { temp_voice_created: "Salon vocal temporaire créé", temp_voice_deleted: "Salon vocal temporaire supprimé", temp_voice_transferred: "Propriété transférée (propriétaire parti)", temp_voice_error: "Erreur Join-to-Create" };
     void sendCentralLog(guild, guildSettings, systemLogEmbed({
       title: `🎙️ Join-to-Create — ${labels[code] ?? code}`,
       description: `Événement : \`${code}\`\nMembre : <@${newState.id}>`,
@@ -941,6 +944,7 @@ client.on("channelDelete", (channel) => {
   forgetTempVoice(channel.id);
   forgetVoicePanels(channel.id);
   if (serves("fwu")) handleTicketChannelDelete(channel, record);
+  if (channel.guild && serves("investplus")) { try { handleInvestPlusChannelDelete(channel); } catch { record("investplus_job_error"); } }
 });
 client.on("roleCreate", (role) => {
   if (serves("fwu") && guildAllowed(role.guild.id, ALLOWED_GUILDS)) auditLog(role.guild, settings[role.guild.id], "🎭 Rôle créé", `Rôle : **${role.name}**\nID : \`${role.id}\``);
@@ -1051,11 +1055,19 @@ client.once("clientReady", () => {
     void runTempRoles(client).catch(() => record("suckme_job_error"));
     void runAnnouncements(client).catch(() => record("suckme_job_error"));
   }, 60_000).unref?.();
+  // LE FISC: /jeu invitations (2 min), idle players (3 min) and idle hangman games (10 min).
+  setInterval(() => { if (serves("fisc")) void runVersusExpiry(client).catch(() => record("versus_error")); }, 60_000).unref?.();
   // LE FISC jobs: weekly wealth tax and overdue loans (hourly checks).
   setInterval(() => {
     if (!serves("fisc")) return;
     try { runWealthTax(communityGuilds().map((g) => g.id)); runLoanCollection(); } catch { record("fisc_job_error"); }
   }, 60 * 60_000).unref?.();
+  // Invest + jobs: reminders before the due date, then expirations (every 5 minutes).
+  setInterval(() => {
+    if (!serves("investplus")) return;
+    void runInvestPlusJobs(client, { isAllowedGuild: (gid) => guildAllowed(gid, ALLOWED_GUILDS) && !isLogsHub(gid), settingsFor: (gid) => settings[gid] ?? null })
+      .catch(() => record("investplus_job_error"));
+  }, 5 * 60_000).unref?.();
   // Creator Studio scheduler: publishes due drafts only on allowlisted guilds (MZ stays excluded).
   const studioSender = createClientStudioSender(client, { isAllowedGuild: (gid) => guildAllowed(gid, ALLOWED_GUILDS) && !isLogsHub(gid) });
   // Each scheduled job checks its domain at every tick: exactly one process runs it.
@@ -1109,7 +1121,7 @@ client.once("clientReady", () => {
   }
   const logsGuild = client.guilds.cache.get(LOGS_HUB_GUILD_ID);
   if (logsGuild && IS_FWU) void provisionLogsHub(logsGuild, record).catch(() => record("logs_hub_provision_error"));
-  if (serves("fdpdlavoc")) void reconcileTempVoices(client, record).catch(() => record("temp_voice_reconcile_error"));
+  if (serves("fdpdlavoc")) void reconcileTempVoices(client, record, settings).catch(() => record("temp_voice_reconcile_error"));
   startOrganizationMaintenance(client, ALLOWED_GUILDS.filter((guildId) => !isLogsHub(guildId)), record, () => serves("fwu"));
   startInvestmentMaintenance(client, ALLOWED_GUILDS.filter((guildId) => !isLogsHub(guildId)), record, () => serves("fisc"));
   void enforceGuildAllowlist(client, ALLOWED_GUILDS, record);
@@ -1551,6 +1563,7 @@ client.on("interactionCreate", (interaction) => {
     if (await handleGuardInteraction(interaction, settings[interaction.guildId], { report: guardReport })) { auditSlashUsage(interaction, "GUARD"); return; }
     if (await handleCommunityInteraction(interaction, settings[interaction.guildId])) { auditSlashUsage(interaction, "Communauté"); return; }
     if (await handleFiscInteraction(interaction)) { auditSlashUsage(interaction, "LE FISC"); return; }
+    if (await handleVersusInteraction(interaction)) { auditSlashUsage(interaction, "Jeux entre membres"); return; }
     if (await handleSelfUpdateInteraction(interaction)) { auditSlashUsage(interaction, "SUCK ME"); return; }
     if (await handleSuckmeInteraction(interaction, settings[interaction.guildId])) { auditSlashUsage(interaction, "SUCK ME"); return; }
     if (await handleMusicExtrasInteraction(interaction)) { auditSlashUsage(interaction, "Musique & radio"); return; }
@@ -1603,7 +1616,7 @@ client.on("interactionCreate", (interaction) => {
     if (await handleStaffModerationInteraction(interaction, settings[interaction.guildId], { bot: RUNTIME.profile })) { auditSlashUsage(interaction, "Modération staff"); return; }
     if (await handleEmbedInteraction(interaction, settings[interaction.guildId], { bot: RUNTIME.profile, audit: auditLog })) return;
     if (await handleModerationInteraction(interaction, settings[interaction.guildId], { apiUrl: API, secret: BOT_SYNC_SECRET, bot: RUNTIME.profile })) return;
-    if (await handleVoiceV2Interaction(interaction, settings[interaction.guildId])) { auditSlashUsage(interaction, "Vocal temporaire"); return; }
+    if (await handleVoiceV2Interaction(interaction, settings[interaction.guildId], record)) { auditSlashUsage(interaction, "Vocal temporaire"); return; }
     // Commandes et boutons : une commande slash n'arrive qu'à son bot propriétaire (filtre en tête),
     // un bouton revient toujours au bot qui l'a publié. Aucune condition de domaine ici.
     if (await handleShieldInteraction(interaction)) { auditSlashUsage(interaction, "Bouclier"); return; }
@@ -1611,6 +1624,7 @@ client.on("interactionCreate", (interaction) => {
     if (await handleClanInteraction(interaction)) { auditSlashUsage(interaction, "Clans & saisons"); return; }
     if (await handleOverviewInteraction(interaction)) { auditSlashUsage(interaction, "Profil FWU"); return; }
     if (await handleConfessionInteraction(interaction)) { auditSlashUsage(interaction, "Confessions"); return; }
+    if (await handleInvestPlusInteraction(interaction, settings[interaction.guildId])) { auditSlashUsage(interaction, "Invest +"); return; }
     if (await handleAnimationInteraction(interaction)) { auditSlashUsage(interaction, "Animation"); return; }
     if (await handleCasinoInteraction(interaction)) { auditSlashUsage(interaction, "PND Casino"); return; }
     if (await handlePerkInteraction(interaction)) { auditSlashUsage(interaction, "Avantages"); return; }

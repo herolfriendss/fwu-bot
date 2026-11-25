@@ -31,7 +31,7 @@ describe("public server page", () => {
     expect(page.economy?.leaderboard).toEqual([{ rank: 1, name: "Alice", balance: 4000 }, { rank: 2, name: "Membre", balance: 1000 }]);
     expect(page.bots.find((b) => b.id === "guard")?.online).toBe(true);
     expect(page.bots.find((b) => b.id === "fisc")?.online).toBe(false);
-    expect(page.bots).toHaveLength(5);
+    expect(page.bots).toHaveLength(6); // FWU, GUARD, FDPDLAVOC, SUCK ME, LE FISC, Invest +
   });
 
   it("lists only commands any member can run", () => {
