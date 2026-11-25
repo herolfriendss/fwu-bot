@@ -6,6 +6,7 @@
 // permissions, so running it on a healthy server is a no-op rather than a
 // disaster.
 import { ChannelType, PermissionFlagsBits as P } from "discord.js";
+import { filterGrantableRoleIds } from "../role-grant-guard.js";
 import { db, transaction } from "../database.js";
 import { publishEventSafe } from "../event-bus.js";
 
@@ -79,7 +80,9 @@ export async function springHoneypot(message, { isStaff = false, isOwner = false
   let applied = "signalé";
 
   if (member && verdict.action === "quarantaine" && quarantineRoleId) {
-    const ok = await member.roles.add(quarantineRoleId, reason).then(() => true).catch(() => false);
+    // N'importe qui peut écrire dans le piège : le rôle de quarantaine ne doit rien donner.
+    const grantable = (await filterGrantableRoleIds(guild, [quarantineRoleId])).length > 0;
+    const ok = grantable && await member.roles.add(quarantineRoleId, reason).then(() => true).catch(() => false);
     applied = ok ? "mis en quarantaine" : "signalé (quarantaine impossible)";
   } else if (member && verdict.action === "expulser" && member.kickable) {
     applied = await member.kick(reason).then(() => "expulsé").catch(() => "signalé (expulsion impossible)");

@@ -14,7 +14,7 @@ import pg from "pg";
 import { closeSharedDb, initSharedDb, sharedDbAvailable, sharedQuery } from "./db.js";
 import { runSharedMigrations } from "./migrate.js";
 import { quotaStatusForUser, formatQuotaStatus, consumeQuota, formatDurationFr, formatQuotaRefusal, refundQuota, setQuota, resetQuota, addExemption, removeExemption, addWhitelistedBot, removeWhitelistedBot, listQuotas } from "./quotas.js";
-import { resolveTier, tierFromRoleName, setRoleTier, loadRoleTiers, canUseModeration } from "./tiers.js";
+import { resolveTier, setRoleTier, loadRoleTiers, canUseModeration } from "./tiers.js";
 import { listSanctionTypes, addSanctionType, updateSanctionType, deleteSanctionType, listMemberSanctions, parseDurationToSeconds } from "./sanctions.js";
 import { flushOutbox, logCommandUsage, pendingOutboxEntries, recordSanction, setOutboxPathForTests } from "./audit.js";
 import { SHARED_DB_ALERTS, createSharedDbAlerter, formatSharedDbLine } from "./index.js";
@@ -48,22 +48,17 @@ after(async () => {
 
 // ── Tests purs ─────────────────────────────────────────────────────────────
 
-test("le palier se lit dans le nom des rôles", () => {
-  assert.equal(tierFromRoleName("10%"), 10);
-  assert.equal(tierFromRoleName("10 %"), 10);
-  assert.equal(tierFromRoleName("1% All Access"), 1);
-  assert.equal(tierFromRoleName("50% · Modérateur test"), 50);
-  assert.equal(tierFromRoleName("Top 100%"), 100);
-  assert.equal(tierFromRoleName("15%"), null);
-  assert.equal(tierFromRoleName("0%"), null, "le palier owner ne se déduit jamais d'un nom de rôle");
-  assert.equal(tierFromRoleName("0 % Owner"), null);
-  assert.equal(tierFromRoleName("Modérateur"), null);
+test("le nom d'un rôle ne donne jamais de palier (faille SYS+ « Moi 1 % »)", () => {
+  const roles = [{ id: "a", name: "Moi 1 %" }, { id: "b", name: "10% Modérateur" }, { id: "c", name: "0%" }];
+  assert.equal(resolveTier({ userId: "u", roles }), null);
+  assert.equal(resolveTier({ userId: "u", roles, explicit: new Map([["b", 50]]) }), 50, "seule l'association /quota palier compte");
 });
 
 test("le membre prend le palier le plus fort ; l'owner est toujours au palier 0", () => {
-  const roles = [{ id: "a", name: "100%" }, { id: "b", name: "10% Modérateur" }, { id: "c", name: "50%" }];
-  assert.equal(resolveTier({ userId: "u", roles }), 10);
-  assert.equal(resolveTier({ userId: "u", roles, explicit: new Map([["c", 1]]) }), 1);
+  const roles = [{ id: "a", name: "A" }, { id: "b", name: "B" }, { id: "c", name: "C" }];
+  const explicit = new Map([["a", 100], ["b", 10], ["c", 50]]);
+  assert.equal(resolveTier({ userId: "u", roles, explicit }), 10);
+  assert.equal(resolveTier({ userId: "u", roles, explicit: new Map([...explicit, ["c", 1]]) }), 1);
   assert.equal(resolveTier({ userId: OWNER, roles: [], owner: OWNER }), 0);
   assert.equal(resolveTier({ userId: "u", roles: [{ id: "x", name: "Membre" }] }), null);
   assert.equal(canUseModeration(50), true);
@@ -260,8 +255,11 @@ pgTest("porte de modération : palier lu sur les rôles, refus clair, remboursem
   const { openModerationGate } = await import("./moderation-gate.js");
   const fakeMember = (id, roleName) => ({
     id, user: { id, bot: false }, guild: { id: "200000000000000009" },
-    roles: { cache: new Map([["r", { id: "r", name: roleName }]]) },
+    roles: { cache: new Map([[roleName, { id: roleName, name: roleName }]]) },
   });
+  // Le palier vient seulement de /quota palier, jamais du nom.
+  await setRoleTier({ guildId: "200000000000000009", roleId: "50% Modérateur test", tier: 50, actorId: OWNER, bot: "fwu" });
+  await setRoleTier({ guildId: "200000000000000009", roleId: "100%", tier: 100, actorId: OWNER, bot: "fwu" });
   const mod = fakeMember("500000000000000001", "50% Modérateur test");
   const first = await openModerationGate({ member: mod, command: "kick", bot: "guard", env: {} });
   assert.equal(first.ok, true);

@@ -1,4 +1,5 @@
 import { changeTreasury, transferTax } from "./features/fisc-config.js";
+import { assertRoleGrantable } from "./role-grant-guard.js";
 import { dailyStreakReward, nextDailyStreak } from "./features/daily-streak.js";
 import { runAsActor } from "./owner-shield.js";
 import { randomInt, randomUUID } from "node:crypto";
@@ -372,6 +373,7 @@ export async function transferEconomyRole(guild, { sellerId, buyerId, roleId, re
     guild.members.fetchMe(),
   ]);
   if (!roleIsAssignable(role, bot)) throw new Error("Rôle devenu intransférable.");
+  if (!reverse) await assertRoleGrantable(guild, role, { automatic: true });
   const from = reverse ? buyer : seller;
   const to = reverse ? seller : buyer;
   if (!from.roles.cache.has(roleId) || to.roles.cache.has(roleId)) throw new Error("État de possession du rôle incohérent.");
@@ -835,6 +837,8 @@ export async function handleEconomyMessage(message, guildSettings = null) {
         const role = getMentionedRole(message, parts[2]);
         const bot = await message.guild.members.fetchMe();
         if (!roleIsAssignable(role, bot)) throw new Error("Mentionne un rôle achetable situé sous le rôle du bot.");
+        // Un rôle vendu peut être acheté par n'importe qui : jamais de rôle d'accès, de palier ou à permissions.
+        if (parts[1].toLowerCase() !== "remove") await assertRoleGrantable(message.guild, role, { automatic: true, settings: guildSettings });
         if (parts[1].toLowerCase() === "remove") {
           db.prepare("DELETE FROM shop_items WHERE guild_id=? AND role_id=?").run(gid, role.id);
           await safeReply(message, `🗑️ **${role.name}** retiré de la boutique.`);
@@ -859,6 +863,8 @@ export async function handleEconomyMessage(message, guildSettings = null) {
       if (!role) throw new Error("Utilisation : `=buy @Rôle`.");
       const bot = await message.guild.members.fetchMe();
       if (!roleIsAssignable(role, bot)) throw new Error("Ce rôle ne peut pas être distribué par le bot.");
+      // Revérifié à chaque achat : le rôle a pu recevoir des permissions ou un palier depuis sa mise en vente.
+      await assertRoleGrantable(message.guild, role, { automatic: true, settings: guildSettings });
       const purchaseKey = `${gid}:${uid}:${role.id}`;
       if (purchaseLocks.has(purchaseKey)) throw new Error("Cet achat est déjà en cours.");
       purchaseLocks.add(purchaseKey);

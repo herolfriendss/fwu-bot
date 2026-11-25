@@ -6,6 +6,8 @@ export function normalizeCustomRoleName(value) {
     throw new Error(`Le nom doit contenir entre ${CUSTOM_ROLE_LIMITS.minNameLength} et ${CUSTOM_ROLE_LIMITS.maxNameLength} caractères.`);
   }
   if (/@everyone|@here/i.test(name)) throw new Error("Les mentions @everyone et @here sont interdites dans un nom de rôle.");
+  // « % » est réservé aux paliers (0 % intouchable, 1 %, 10 %…) : un rôle perso ne doit pas s'y faire passer.
+  if (/[%％﹪٪]/u.test(name)) throw new Error("Le symbole % est réservé aux rôles de palier.");
   return name;
 }
 

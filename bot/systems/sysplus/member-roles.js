@@ -1,7 +1,8 @@
 // FWU — SYS+ : rôle perso d'un membre, depuis le panneau /rolepanel panel.
 //
 // Un SYS+ choisit un membre, tape un nom et une couleur : le bot crée un rôle SANS aucune
-// permission Discord, le place juste sous le rôle le plus haut autorisé, et le donne au membre.
+// permission Discord, le place au niveau du rôle le plus haut du membre (jamais au-dessus de
+// l'auteur ni du bot : le membre ne gagne aucun rang), et le donne au membre.
 // Un seul rôle perso par membre ; renommer, recolorer ou retirer se fait au même endroit.
 // Hiérarchie : le membre doit être strictement sous le SYS+ (sauf lui-même) ; l'OWNER et le
 // propriétaire du serveur ont l'accès total.
@@ -43,10 +44,17 @@ export function memberRoleTargetDecision({ actorId, targetId, targetIsBot, actor
   return null;
 }
 
-/** Pure: where to place the new role (just under the highest role the bot and the actor can manage). */
-export function memberRolePosition({ actorPosition, botPosition, actorFull }) {
-  const ceiling = actorFull ? Number(botPosition) : Math.min(Number(actorPosition), Number(botPosition));
-  return Math.max(1, ceiling - 1);
+/**
+ * Pure: where to place the new role. With `targetPosition`, the role goes right where the
+ * member's highest role is (that role slides one step down), so the member keeps the same
+ * rank: a personal role placed just under the SYS+ would otherwise lift the member above
+ * every staff member in between (the bots compare highest-role positions).
+ * Always under the highest role the bot and the actor can manage.
+ */
+export function memberRolePosition({ actorPosition, botPosition, actorFull, targetPosition = null }) {
+  const ceiling = Math.max(1, (actorFull ? Number(botPosition) : Math.min(Number(actorPosition), Number(botPosition))) - 1);
+  if (targetPosition == null || !Number.isFinite(Number(targetPosition))) return ceiling;
+  return Math.max(1, Math.min(ceiling, Number(targetPosition)));
 }
 
 async function loadTarget(guild, actor, memberId) {
@@ -114,7 +122,7 @@ export async function createMemberRole({ guild, actor, botMember, target, name, 
     reason: `Rôle perso de ${target.id} créé par ${actor.id}`,
   });
   try {
-    await role.setPosition(memberRolePosition({ actorPosition: actor.roles.highest.position, botPosition: botMember.roles.highest.position, actorFull: fullAccess(actor, guild) })).catch(() => {});
+    await role.setPosition(memberRolePosition({ actorPosition: actor.roles.highest.position, botPosition: botMember.roles.highest.position, actorFull: fullAccess(actor, guild), targetPosition: target.roles?.highest?.position ?? null })).catch(() => {});
     await target.roles.add(role, `Rôle perso donné par ${actor.id}`);
     insertRow.run(guild.id, target.id, role.id, actor.id, Date.now(), Date.now());
   } catch (error) {

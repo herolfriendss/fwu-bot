@@ -5,6 +5,7 @@
 // quarantaine ou journalisation). Aucune donnée d’un serveur n’est lue par un
 // autre : les réglages et les compteurs sont indexés par identifiant de serveur.
 import { parsePndOwnerId } from "./pnd-owner-policy.js";
+import { roleGrantRefusal } from "./role-grant-guard.js";
 import { EmbedBuilder, PermissionFlagsBits } from "discord.js";
 import { sendCentralLog } from "./logs.js";
 import {
@@ -107,6 +108,7 @@ export async function handleGuildGuardJoin(member, guard, record = () => {}) {
       ) {
         throw new Error("quarantine_role_unavailable");
       }
+      if (await roleGrantRefusal(guild, role, { automatic: true })) throw new Error("quarantine_role_protected");
       await member.roles.add(role, "GuildGuard : quarantaine");
       appliedAction = "quarantine";
       record("guild_guard_quarantine");
