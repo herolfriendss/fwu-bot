@@ -1,5 +1,5 @@
 // Bot Discord 24h/24 — à lancer sur ton VPS. Les réglages viennent du site (onglet « Bot 24h/24 »).
-import { Client, GatewayIntentBits, Partials, PermissionFlagsBits, REST } from "discord.js";
+import { Client, EmbedBuilder, GatewayIntentBits, Partials, PermissionFlagsBits, REST } from "discord.js";
 import { startPresence } from "./presence.js";
 import { buildActivitySnapshot } from "./activity-snapshot.js";
 import { existsSync } from "node:fs";
@@ -43,6 +43,7 @@ import { handleGuardianReviewMessage, recordGuardianMessageRisk, pruneGuardianRi
 import { handleVoiceV2Interaction, handleVoiceV2State, forgetGuildTempVoices, forgetTempVoice, reconcileTempVoices } from "./voice-v2.js";
 import { handleGamesInteraction, handleGamesMessage, startGamesScheduler } from "./games.js";
 import { handleTicketChannelDelete, handleTicketsInteraction, handleTicketsMessage } from "./tickets.js";
+import { buildWelcomePayload } from "./welcome.js";
 import { purgeExpiredTranscripts } from "./ticket-records.js";
 import { handleKnowledgeInteraction, handleKnowledgeMessage } from "./pnd-knowledge.js";
 import { handleAutomationInteraction, handleAutomationJoin, handleAutomationMessage, startAutomationScheduler } from "./automation.js";
@@ -832,9 +833,12 @@ client.on("guildMemberAdd", async (member) => {
   const w = s?.welcome;
   if (!w?.enabled || !w.channelId) return;
   const channel = await member.guild.channels.fetch(w.channelId).catch(() => null);
-  if (channel?.isTextBased()) {
-    await channel.send({ content: fill(w.message, { user: `<@${member.id}>`, server: member.guild.name }), allowedMentions: noMentions }).catch(() => record("welcome_error"));
+  if (!channel?.isTextBased()) {
+    record("welcome_channel_unavailable");
+    return;
   }
+  const payload = buildWelcomePayload(member, w);
+  if (payload) await channel.send(payload).catch(() => record("welcome_error"));
 });
 
 client.on("guildMemberRemove", (member) => {
