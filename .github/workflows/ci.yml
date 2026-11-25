@@ -113,6 +113,22 @@ jobs:
     name: Build and verify installable FWU packages
     runs-on: ubuntu-latest
     needs: [bot-tests, dashboard-quality, shell-and-packaging]
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: fwu_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d fwu_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      SHARED_DATABASE_URL_TEST: postgres://postgres:postgres@localhost:5432/fwu_test
     steps:
       - name: Checkout
         uses: actions/checkout@v7
