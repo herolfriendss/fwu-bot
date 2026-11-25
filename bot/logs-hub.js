@@ -232,7 +232,9 @@ export async function sendToLogsHub(client, sourceGuild, embed, title = "", comp
   if (!spec) return false;
   const hub = client.guilds.cache.get(LOGS_HUB_GUILD_ID);
   if (!hub) return false;
-  const channel = hub.channels.cache.find((c) => c.name === spec.name && c.isTextBased());
+  const channel = hub.channels.cache.find(
+    (c) => c.name === spec.name && c.isTextBased() && c.parent?.name === spec.category,
+  );
   if (
     !channel?.parent ||
     channel.parent.name !== spec.category ||
