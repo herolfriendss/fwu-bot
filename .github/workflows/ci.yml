@@ -109,6 +109,71 @@ jobs:
       - name: Production build
         run: npm run build
 
+  delivery-packages:
+    name: Build and verify installable FWU packages
+    runs-on: ubuntu-latest
+    needs: [bot-tests, dashboard-quality, shell-and-packaging]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up Node.js 24
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            bot/package-lock.json
+
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+
+      - name: Install dashboard dependencies
+        run: npm ci
+
+      - name: Install bot dependencies
+        run: npm ci --prefix bot
+
+      - name: Build verified FWU source archive
+        run: python3 scripts/package-fwu-archive.py
+
+      - name: Build independent bot packages
+        run: python3 scripts/package-fwu-bots.py
+
+      - name: Build complete installer bundle
+        run: python3 scripts/package-fwu-installation.py
+
+      - name: Verify delivery contents
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import zipfile
+          root = Path("livraison")
+          dated = sorted(root.glob("FWU_2*.zip"))
+          assert dated, "FWU source archive missing"
+          required = ["GUARD", "FDPDLAVOC", "SUCK-ME", "LE-FISC", "INVEST-PLUS"]
+          for name in required:
+              path = root / "bots" / f"FWU-{name}.zip"
+              assert path.is_file() and zipfile.ZipFile(path).testzip() is None, f"Invalid bot archive: {path}"
+          bundle = zipfile.ZipFile(root / "FWU_INSTALLATION_COMPLETE.zip")
+          assert bundle.testzip() is None, "Installer bundle is corrupt"
+          names = set(bundle.namelist())
+          for name in required:
+              assert f"FWU-installation/FWU-{name}.zip" in names, f"Missing {name} in full installer"
+          print("All five bot packages and the complete FWU installer are valid.")
+          PY
+
+      - name: Upload ready-to-install archives
+        uses: actions/upload-artifact@v4
+        with:
+          name: FWU-INSTALLATION-${{ github.sha }}
+          path: livraison/
+          if-no-files-found: error
+          retention-days: 14
+
   shell-and-packaging:
     name: Shell and packaging checks
     runs-on: ubuntu-latest
