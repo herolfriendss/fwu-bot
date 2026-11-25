@@ -15,6 +15,7 @@ import { respondToInteraction } from "./interaction-response.js";
 import { recordSysPlusAudit } from "./systems/sysplus/audit.js";
 import { canUseAdminPlusScope, getAdminPlusScope } from "./systems/sysplus/admin-plus-scopes.js";
 import { getAdminPlusRoleId } from "./systems/sysplus/role-config.js";
+import { parsePndOwnerId } from "./pnd-owner-policy.js";
 import {
   canActOnTicket, sanitizeTicketSubject, ticketChannelName, ticketDuration, ticketOpenAllowed, ticketStatusLabel, parseTicketPrefixCommand,
 } from "./tickets-policy.js";
@@ -28,7 +29,7 @@ function mention(id) { return `<@${id}>`; }
 
 function isTicketStaff(member, settings) {
   if (!member?.guild) return false;
-  if (member.id === member.guild.ownerId) return true;
+  if (member.id === member.guild.ownerId || member.id === parsePndOwnerId(process.env.PND_OWNER_DISCORD_ID)) return true;
   if (member.permissions.has(P.Administrator) || member.permissions.has(P.ManageChannels)) return true;
   if (settings?.tickets?.supportRoleId && member.roles.cache.has(settings.tickets.supportRoleId)) return true;
   const adminRoleId = settings?.adminPlus?.roleId ?? getAdminPlusRoleId(member.guild.id);
