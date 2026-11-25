@@ -1540,12 +1540,12 @@ export const SLASH_COMMANDS: SlashCommandDef[] = [
   {
     name: "voc",
     description: "Gère ton salon vocal temporaire",
-    usage: "/voc panel | vocal-panel | demander | demander-id | limit | name | claim | expulser | inviter | transferer | lock | unlock | delete",
+    usage: "/voc panel | vocal-panel | demander | demander-id | limit | name | claim | expulser | inviter | transferer | lock | unlock | delete | confiance | bloquer | retirer | listes",
     category: "Vocal & DOG",
     dmPermission: false,
     requiresBotProcess: true,
     options: [
-      sub("panel", "Affiche les informations du salon temporaire"),
+      sub("panel", "Affiche le panneau de contrôle du salon temporaire"),
       sub("vocal-panel", "Ouvre le panneau de contrôle d’accès vocal classique"),
       sub("demander", "Demande l’accès à une vocale privée", [opt(7, "salon", "Vocale privée à rejoindre", { required: true, channel_types: [2] })]),
       sub("demander-id", "Demande l’accès à une vocale cachée via son ID", [opt(3, "id", "ID de la vocale privée", { required: true, min_length: 5, max_length: 25 })]),
@@ -1563,6 +1563,10 @@ export const SLASH_COMMANDS: SlashCommandDef[] = [
       sub("lock", "Empêche les autres membres de rejoindre"),
       sub("unlock", "Autorise à nouveau les membres à rejoindre"),
       sub("delete", "Supprime ton salon temporaire"),
+      sub("confiance", "Ajoute un membre de confiance : il entre toujours dans tes salons", [opt(6, "membre", "Membre", { required: true })]),
+      sub("bloquer", "Bloque un membre : il ne peut plus entrer dans tes salons", [opt(6, "membre", "Membre", { required: true })]),
+      sub("retirer", "Retire un membre de ta liste de confiance ou de blocage", [opt(6, "membre", "Membre", { required: true })]),
+      sub("listes", "Affiche tes membres de confiance et tes membres bloqués"),
     ],
   },
 
