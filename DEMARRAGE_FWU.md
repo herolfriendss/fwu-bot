@@ -20,7 +20,7 @@
    Il te demande l'adresse IP du VPS et ta clé SSH Oracle, envoie tout, puis lance `TOUT-INSTALLER.sh` sur le VPS, qui :
    - met FWU à jour (retour arrière automatique en cas d'échec) ;
    - crée le dossier de données partagé ;
-   - installe les 4 bots : pour chacun, **colle le token et appuie sur Entrée** (rien ne s'affiche, c'est normal ; Entrée seule = passer ce bot) ;
+   - installe GUARD, FDPDLAVOC, SUCK ME et LE FISC ; Invest + est proposé en option. Pour chaque application, **colle le token et appuie sur Entrée** (rien ne s'affiche, c'est normal ; Entrée seule = passer ce bot) ;
    - affiche le résultat.
 
 Déjà connecté au VPS ? Après avoir envoyé le dossier : `bash /home/opc/FWU-installation/TOUT-INSTALLER.sh`. Relançable sans risque (réponds `n` à la mise à jour de FWU si elle est déjà faite).
@@ -38,9 +38,9 @@ cd ~ && Z=$(ls -t ~/*main*.zip | head -n 1) && unzip -oq "$Z" && P=$(dirname "$(
 
 ## Mettre à jour sans ordinateur : /maj sur Discord
 
-Après une mise à jour depuis le Chromebook (où le jeton GitHub en lecture seule est demandé une fois) :
+Lors de l'installation complète, `TOUT-INSTALLER.sh` installe aussi le script de mise à jour autonome et te propose d'enregistrer un jeton GitHub en lecture seule. Si tu l'as passé, relance le script après avoir créé ce jeton. Ensuite :
 
-- `/maj lancer` : le VPS télécharge la dernière version sur GitHub et met à jour FWU, le site et les 4 bots (10 à 30 min).
+- `/maj lancer` : le VPS télécharge la dernière version sur GitHub et met à jour FWU, le site et les 4 bots principaux (Invest + est mis à jour s'il est installé ; 10 à 30 min).
 - `/maj etat` : avancement et journal. Le résultat arrive aussi en message privé.
 - Réservé à l'OWNER. Le jeton reste dans `/home/opc/fwu-data/.github-token` (fichier privé) ; s'il expire, refais une mise à jour depuis un ordinateur.
 
