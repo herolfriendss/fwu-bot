@@ -88,6 +88,25 @@ NODE_OPTIONS=--max-old-space-size=2048 PND_SUPABASE_MIGRATIONS_APPLIED=YES \
   bash "$H/FWU-installation/update-1942.sh" "$H/FWU-installation/FWU-maj.zip" </dev/null \
   || fail "Mise à jour de FWU échouée (l'ancienne version a été remise)."
 
+# Base centrale (quotas, sanctions, journaux) : installée une seule fois, sans question.
+# Jamais bloquante : sans elle, seules les commandes de modération à quota sont refusées.
+FWU_ENV_FILE="$H/her-v5-production/bot/.env"
+if [[ -f "$FWU_ENV_FILE" ]] && ! grep -qE '^SHARED_DATABASE_URL=postgres' "$FWU_ENV_FILE"; then
+  status running "Installation de la base centrale (une seule fois)"
+  echo "==> Base centrale"
+  if sudo -n true 2>/dev/null && sudo -n bash "$H/her-v5-production/deploy/oracle/install-shared-db.sh" "$FWU_ENV_FILE" </dev/null; then
+    pm2 restart her-v5-bot --update-env >/dev/null 2>&1 || true
+  else
+    echo "⚠️ Base centrale non installée (sudo ou dnf indisponible) : relance sudo bash $H/her-v5-production/deploy/oracle/install-shared-db.sh"
+  fi
+fi
+# Préfixes : un seul fichier pour les 5 bots, créé une fois, jamais écrasé.
+SHARED_DIR="$(grep -E '^PND_DATA_DIR=' "$FWU_ENV_FILE" 2>/dev/null | tail -n 1 | cut -d= -f2- | tr -d '"'"'"'[:space:]' || true)"
+if [[ -n "$SHARED_DIR" && -d "$SHARED_DIR" && ! -f "$SHARED_DIR/bots.json" && -f "$H/her-v5-production/bot/config/bots.example.json" ]]; then
+  install -m 600 "$H/her-v5-production/bot/config/bots.example.json" "$SHARED_DIR/bots.json"
+  echo "Préfixes : GUARD +, FDPDLAVOC ;, SUCK ME =, LE FISC - ($SHARED_DIR/bots.json)"
+fi
+
 status running "Mise à jour des 4 bots"
 echo "==> Bots"
 cd "$H/fwu-bots" || fail "Dossier des bots introuvable."
