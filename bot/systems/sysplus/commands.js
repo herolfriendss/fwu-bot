@@ -60,7 +60,12 @@ export async function runSysPlusDiagnostic(guild, member, roleId, action, record
   if (action === "logs-couverture") return formatCoverageSummary();
   if (action === "installation") {
     recordSysPlusAudit(guild.id, member.id, "diagnostic.installation", null, {});
-    return buildInstallationReport(guild, { ownerId: parsePndOwnerId(process.env.PND_OWNER_DISCORD_ID), extraLines: [formatSharedDbLine(), formatBackupLine(readBackupStatus())] });
+    return buildInstallationReport(guild, {
+      ownerId: parsePndOwnerId(process.env.PND_OWNER_DISCORD_ID),
+      currentProfile: String(process.env.PND_BOT_PROFILE || "fwu").trim().toLowerCase(),
+      currentBotId: guild.client?.user?.id ?? null,
+      extraLines: [formatSharedDbLine(), formatBackupLine(readBackupStatus())],
+    });
   }
   if (action === "bots") return `${formatBotsDiagnostic()}\n${formatRelayLossLine()}\n${formatSharedDbLine()}\n${formatBackupLine(readBackupStatus())}`;
   if (action === "matrice") {
