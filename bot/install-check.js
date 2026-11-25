@@ -23,6 +23,25 @@ export function suckMePlacementIssues({ botTop, roles, tier0RoleIds, ownerTop })
   return issues;
 }
 
+/** Each bot role must sit below the PND OWNER and above every human-managed role it may administer. */
+export function botPlacementIssues({ botTop, roles, ownerTop, ownerRoleIds = new Set() }) {
+  const issues = [];
+  if (!Number.isFinite(botTop)) return ["position du rôle du bot impossible à vérifier"];
+  if (!Number.isFinite(ownerTop)) {
+    issues.push("rôle OWNER introuvable : impossible de garantir que le bot reste sous l'OWNER");
+  } else if (botTop >= ownerTop) {
+    issues.push("le rôle du bot doit rester strictement sous le rôle OWNER");
+  }
+  const above = roles.filter((role) =>
+    !role.managed && !ownerRoleIds.has(role.id) && role.position >= botTop
+  );
+  if (above.length) {
+    const names = above.slice(0, 4).map((role) => role.name).join(", ");
+    issues.push(`le rôle du bot doit passer au-dessus des rôles qu'il doit gérer : ${names}${above.length > 4 ? ", …" : ""}`);
+  }
+  return issues;
+}
+
 /** Pur : texte final. bots = [{ label, present, missing: [], placement: [] }]. */
 export function formatInstallationReport({ bots, extraLines = [] }) {
   const lines = ["**Bilan de l'installation** (lecture seule)"];
@@ -90,9 +109,21 @@ export async function buildInstallationReport(guild, {
     const perms = member.permissions;
     const admin = perms?.has?.(P.Administrator);
     const missing = admin ? [] : REQUIRED_PERMISSIONS[profile].filter((name) => !perms?.has?.(P[name])).map((name) => PERMISSION_LABELS[name] ?? name);
-    const placement = profile === "suckme"
-      ? suckMePlacementIssues({ botTop: member.roles.highest.position, roles, tier0RoleIds, ownerTop: owner?.roles?.highest?.position ?? null })
-      : [];
+    const ownerRoleIds = new Set(owner?.roles?.cache?.keys?.() ?? []);
+    const placement = botPlacementIssues({
+      botTop: member.roles.highest.position,
+      roles,
+      ownerTop: owner?.roles?.highest?.position ?? null,
+      ownerRoleIds,
+    });
+    if (profile === "suckme") {
+      placement.push(...suckMePlacementIssues({
+        botTop: member.roles.highest.position,
+        roles,
+        tier0RoleIds,
+        ownerTop: owner?.roles?.highest?.position ?? null,
+      }).filter((issue) => !placement.some((existing) => existing === issue)));
+    }
     bots.push({ profile, label, optional, present: true, missing, placement });
   }
   const leases = listDomainLeases(now);
