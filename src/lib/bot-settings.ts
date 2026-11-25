@@ -171,7 +171,7 @@ function sanitizeCoreSettings(raw: unknown): BotSettings {
     })
     .filter((k: KeywordRule) => k.trigger && k.response)
     .slice(0, 100);
-  const words = (Array.isArray(filter.words) ? r.filter.words : [])
+  const words = (Array.isArray(filter.words) ? filter.words : [])
     .map((w: unknown) => str(w, 60).toLowerCase())
     .filter(Boolean)
     .slice(0, 300);
@@ -261,7 +261,7 @@ function sanitizeCoreSettings(raw: unknown): BotSettings {
       channelId: snowflakeId(liveAlerts.channelId),
       animated: bool(liveAlerts.animated, true),
       mentionRoleId: snowflakeId(liveAlerts.mentionRoleId),
-      creators: (Array.isArray(liveAlerts.creators) ? r.liveAlerts.creators : []).slice(0, 30).flatMap((value: unknown, index: number) => {
+      creators: (Array.isArray(liveAlerts.creators) ? liveAlerts.creators : []).slice(0, 30).flatMap((value: unknown, index: number) => {
         const creator = asRecord(value);
         const platform = ["youtube", "tiktok", "twitch", "other"].includes(str(creator.platform, 20)) ? str(creator.platform, 20) as LiveAlertCreator["platform"] : null;
         const displayName = str(creator.displayName, 80);
