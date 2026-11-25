@@ -67,7 +67,18 @@ async function write(table, entry) {
 export function logCommandUsage(entry) { return write("command_usage", entry).catch(() => ({ stored: "lost" })); }
 export function logQuotaViolation(entry) { return write("quota_violations", entry).catch(() => ({ stored: "lost" })); }
 /** Sanction history row. Throws on a non-connection SQL error (bad data must be visible). */
-export function recordSanction(entry) { return write("sanctions", entry); }
+export async function recordSanction(entry) {
+  const result = await write("sanctions", entry);
+  // Alerte d'abus du staff (SYS+ n°2) : seulement si la ligne est vraiment en base.
+  if (result.stored === "db" && sanctionObserver) {
+    Promise.resolve().then(() => sanctionObserver(entry)).catch(() => {});
+  }
+  return result;
+}
+
+let sanctionObserver = null;
+/** Appelé après chaque sanction écrite en base (ne bloque jamais la commande). */
+export function setSanctionObserver(fn) { sanctionObserver = typeof fn === "function" ? fn : null; }
 
 /** Re-send buffered entries. Entries that still fail stay in the file. */
 export async function flushOutbox() {

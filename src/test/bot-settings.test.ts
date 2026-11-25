@@ -68,7 +68,7 @@ describe("bot settings", () => {
     expect(s.moderation).toMatchObject({ dmOnWarn: true, warnExpiryDays: 90, logChannelId: null });
     expect(s.verification).toMatchObject({ enabled: false, roleId: null, channelId: null, minAccountAgeDays: 7 });
     expect(s.tickets).toMatchObject({ enabled: false, maxOpenPerUser: 1 });
-    expect(s.tempVoice).toMatchObject({ enabled: false, defaultLimit: 0, nameTemplate: "Salon de {user}" });
+    expect(s.tempVoice).toMatchObject({ enabled: false, defaultLimit: 0, nameTemplate: "Salon de {user}", emptyDeleteSeconds: 0 });
     expect(s.automation).toMatchObject({ autoRoleIds: [], welcomeDm: false });
   });
 
@@ -78,7 +78,7 @@ describe("bot settings", () => {
       moderation: { warnExpiryDays: 9_999, dmOnWarn: "yes", logChannelId: "123" },
       verification: { minAccountAgeDays: 9_999, roleId: "not-an-id" },
       tickets: { maxOpenPerUser: 99 },
-      tempVoice: { defaultLimit: 500, nameTemplate: "x".repeat(200), hubChannelId: "abc" },
+      tempVoice: { defaultLimit: 500, nameTemplate: "x".repeat(200), hubChannelId: "abc", emptyDeleteSeconds: 9000 },
       automation: { autoRoleIds: ["111111111111111111", "111111111111111111", "bad"], welcomeDm: true },
     });
     expect(s.guildGuard).toMatchObject({ enabled: true, minAccountAgeDays: 0, raidJoinThreshold: 100, raidWindowSeconds: 10, youngAccountAction: "log", quarantineRoleId: null });
@@ -88,6 +88,7 @@ describe("bot settings", () => {
     expect(s.tempVoice.defaultLimit).toBe(99);
     expect(s.tempVoice.nameTemplate).toHaveLength(80);
     expect(s.tempVoice.hubChannelId).toBeNull();
+    expect(s.tempVoice.emptyDeleteSeconds).toBe(300);
     expect(s.automation).toMatchObject({ welcomeDm: true });
     expect(s.automation.autoRoleIds).toEqual(["111111111111111111"]);
   });
