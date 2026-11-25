@@ -288,6 +288,42 @@ test("a stop request interrupts the run and keeps it undoable", async () => {
   );
 });
 
+test("rankall stops before further assignments if the role becomes privileged mid-run", async () => {
+  const targets = [
+    makeMember("400000000000000020", 1),
+    makeMember("400000000000000021", 1),
+  ];
+  const guild = makeGuild({ members: targets });
+  guild.roles.cache = new Map([[roleId, guild.role]]);
+  const job = runner.createRankAllPreview({
+    guildId,
+    actorId: ownerId,
+    roleId,
+    eligibleCount: 2,
+    skippedCount: 0,
+  });
+  const claim = runner.claimRankAllJob(job.id, ownerId);
+  let steps = 0;
+  const result = await runner.executeRankAllJob({
+    job: claim.job,
+    guild,
+    role: guild.role,
+    actor: guild.map.get(ownerId),
+    botMember: guild.map.get(botId),
+    members: targets,
+    stepDelayMs: 1,
+    sleep: async () => {
+      steps += 1;
+      guild.role.permissions = { bitfield: 1n << 3n };
+    },
+  });
+  assert.equal(steps, 1);
+  assert.equal(result.status, "stopped");
+  assert.equal(result.assigned, 1);
+  assert.equal(targets[0].has(roleId), true);
+  assert.equal(targets[1].has(roleId), false, "second member must not receive a now-privileged role");
+});
+
 test("a second preview is refused while a run is in progress; restart marks it interrupted", () => {
   const job = runner.createRankAllPreview({
     guildId,
