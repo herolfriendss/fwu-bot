@@ -13,7 +13,7 @@ import pg from "pg";
 
 import { closeSharedDb, initSharedDb, sharedDbAvailable, sharedQuery } from "./db.js";
 import { runSharedMigrations } from "./migrate.js";
-import { consumeQuota, formatDurationFr, formatQuotaRefusal, refundQuota, setQuota, resetQuota, addExemption, removeExemption, addWhitelistedBot, removeWhitelistedBot, listQuotas } from "./quotas.js";
+import { quotaStatusForUser, formatQuotaStatus, consumeQuota, formatDurationFr, formatQuotaRefusal, refundQuota, setQuota, resetQuota, addExemption, removeExemption, addWhitelistedBot, removeWhitelistedBot, listQuotas } from "./quotas.js";
 import { resolveTier, tierFromRoleName, setRoleTier, loadRoleTiers, canUseModeration } from "./tiers.js";
 import { listSanctionTypes, addSanctionType, updateSanctionType, deleteSanctionType, listMemberSanctions, parseDurationToSeconds } from "./sanctions.js";
 import { flushOutbox, logCommandUsage, pendingOutboxEntries, recordSanction, setOutboxPathForTests } from "./audit.js";
@@ -315,4 +315,25 @@ pgTest("purge : usages de plus de 31 jours et commandes de plus de 90 jours, le 
   assert.ok(removed.quota_usage >= 1 && removed.command_usage >= 1);
   assert.equal(Number((await sharedQuery("SELECT COUNT(*) n FROM quota_usage WHERE guild_id = 'purge'")).rows[0].n), 2);
   assert.equal(Number((await sharedQuery("SELECT COUNT(*) n FROM command_usage WHERE guild_id = 'purge'")).rows[0].n), 2);
+});
+
+pgTest("/quota moi : restant par commande, délai quand c'est plein, rien n'est consommé", async () => {
+  const guildId = "quota-moi";
+  const user = "300000000000000077";
+  await consumeQuota({ guildId, userId: user, command: "tempmute", tier: 50, bot: "fwu" });
+  await consumeQuota({ guildId, userId: user, command: "tempmute", tier: 50, bot: "fwu" });
+  const status = await quotaStatusForUser({ guildId, userId: user, tier: 50 });
+  const tempmute = status.rows.find((r) => r.command === "tempmute");
+  assert.equal(tempmute.used, 2);
+  assert.equal(tempmute.maxUses, 2);
+  assert.ok(tempmute.retryAfterSeconds > 0 && tempmute.retryAfterSeconds <= 1800);
+  assert.equal(status.rows.find((r) => r.command === "ban").maxUses, 0);
+  const again = await quotaStatusForUser({ guildId, userId: user, tier: 50 });
+  assert.equal(again.rows.find((r) => r.command === "tempmute").used, 2, "lire ne consomme pas");
+  const text = formatQuotaStatus(status, "50 %");
+  assert.match(text, /`tempmute` : ⏳ \*\*0\*\* restant \(2\/2 \/ 30 min\), prochain dans/);
+  assert.match(text, /`ban` : ⛔ non autorisée/);
+  assert.match(text, /`kick` : ✅ \*\*1\*\* restant/);
+  assert.deepEqual(await quotaStatusForUser({ guildId, userId: user, tier: 0 }), { exempt: "owner" });
+  assert.match(formatQuotaStatus(await quotaStatusForUser({ guildId, userId: user, tier: 70 })), /pas de palier de modération/);
 });

@@ -43,6 +43,7 @@
 
 - Palier d'un membre : l'owner (`PND_OWNER_DISCORD_ID`) est toujours **0 %** ; sinon le plus fort de ses rôles, d'après `/quota palier` ou, à défaut, le nom du rôle (« 10% », « 10 % Modérateur »…).
 - 70 %, 80 %, 100 % et membres sans palier : aucune commande de modération.
+- `/quota moi` (réponse visible seulement par toi) : ce qu'il te reste pour chaque commande et quand la suivante se libère. Ne consomme rien.
 - Commandes à quota (tous bots) : `tempmute`, `unmute`, `warn`, `kick`, `ban`, `unban`, `blacklist`, `mv`.
 
 | Palier | tempmute | kick | ban | warn | unmute | unban | blacklist | mv |

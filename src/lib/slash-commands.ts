@@ -2229,11 +2229,12 @@ export const EXTRA_SLASH_COMMANDS: SlashCommandDef[] = [
   {
     name: "quota",
     description: "Owner : quotas de modération partagés entre les 5 bots",
-    usage: "/quota voir · definir · reinitialiser · palier · paliers · exemption … · bot … · journal",
+    usage: "/quota moi · voir · definir · reinitialiser · palier · paliers · exemption … · bot … · journal",
     category: "Modération",
     dmPermission: false,
     requiresBotProcess: true,
     options: [
+      sub("moi", "Ce qu'il te reste pour chaque commande, et quand la suivante se libère"),
       sub("voir", "Affiche les quotas en vigueur (et ton palier)", [
         opt(3, "commande", "Limiter à une commande", { choices: QUOTA_COMMAND_CHOICES }),
       ]),
