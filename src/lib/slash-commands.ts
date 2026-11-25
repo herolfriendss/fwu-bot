@@ -1467,39 +1467,27 @@ export const SLASH_COMMANDS: SlashCommandDef[] = [
     options: [opt(6, "membre", "Membre à consulter", { required: true })],
   },
 
-  // ── Vocal ──────────────────────────────────────────────────────────────────
+  // ── Accès et confidentialité vocale — racine regroupée ─────────────────────
   {
-    name: "access",
-    description: "Autorise un membre à rejoindre ton salon vocal",
-    usage: "/access membre",
+    name: "voice",
+    description: "Gère les accès et la confidentialité des salons vocaux",
+    usage: "/voice access grant|revoke · /voice private activer|liste|retirer",
     category: "Vocal & DOG",
     dmPermission: false,
     requiresBotProcess: true,
-    options: [opt(6, "membre", "Membre à autoriser", { required: true })],
-  },
-  {
-    name: "unaccess",
-    description: "Retire l’accès d’un membre à ton salon vocal",
-    usage: "/unaccess membre",
-    category: "Vocal & DOG",
-    dmPermission: false,
-    requiresBotProcess: true,
-    options: [opt(6, "membre", "Membre à retirer de la liste d’accès", { required: true })],
-  },
-  {
-    name: "pv",
-    description: "Salon vocal privé : activer, lister ou rétablir",
-    usage: "/pv activer | liste | retirer",
-    category: "Vocal & DOG",
-    dmPermission: false,
-    requiresBotProcess: true,
-    options: [
+    options: groupSubcommands([
+      sub("grant", "Autorise un membre à rejoindre ton salon vocal", [opt(6, "membre", "Membre à autoriser", { required: true })]),
+      sub("revoke", "Retire l’accès d’un membre à ton salon vocal", [opt(6, "membre", "Membre à retirer de la liste d’accès", { required: true })]),
       sub("activer", "Rend ton salon vocal actuel privé"),
       sub("liste", "Liste les salons privatisés du serveur"),
       sub("retirer", "Rétablit les permissions d’origine de ton salon vocal"),
-    ],
+    ], [
+      { group: "access", description: "Gère les autorisations d’accès", members: ["grant", "revoke"] },
+      { group: "private", description: "Gère les salons vocaux privés", members: ["activer", "liste", "retirer"] },
+    ]),
   },
-  {
+
+    {
     name: "panel",
     description: "Ouvre le centre de contrôle FWU",
     usage: "/panel",

@@ -86,8 +86,7 @@ export const SLASH_COMMAND_OWNERS: Record<BotProfileId, readonly string[]> = {
     "antinuke", "automod", "casier", "quarantaine", "bouclier",
   ],
   fdpdlavoc: [
-    "access", "unaccess", "pv", "voc",
-    "music", "radio", "effet", "playlist", "dj",
+    "voice", "voc", "music", "radio", "effet", "playlist", "dj",
   ],
   suckme: [
     "sysp", "panel", "setup", "knowledge", "rank", "rankall", "removerole", "rolepanel",

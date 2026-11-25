@@ -61,11 +61,19 @@ const userPlan = (content, user, extra = {}) => ({
 });
 
 export function resolveLegacyCommandName(interaction) {
-  if (interaction.commandName !== "music") return interaction.commandName;
-  const group = interaction.options?.getSubcommandGroup?.(false);
-  if (group !== "player") return interaction.commandName;
-  const subcommand = interaction.options.getSubcommand(false);
-  return subcommand === "panel" ? "musicpanel" : subcommand;
+  if (interaction.commandName === "music") {
+    const group = interaction.options?.getSubcommandGroup?.(false);
+    if (group !== "player") return interaction.commandName;
+    const subcommand = interaction.options.getSubcommand(false);
+    return subcommand === "panel" ? "musicpanel" : subcommand;
+  }
+  if (interaction.commandName === "voice") {
+    const group = interaction.options?.getSubcommandGroup?.(false);
+    const subcommand = interaction.options.getSubcommand(false);
+    if (group === "access") return subcommand === "grant" ? "access" : subcommand === "revoke" ? "unaccess" : "voice";
+    if (group === "private") return "pv";
+  }
+  return interaction.commandName;
 }
 
 function buildPlan(interaction) {

@@ -40,6 +40,7 @@ export const RETIRED_SLASH_COMMANDS = Object.freeze([
   "mute", "vocal-panel",
   "play", "pause", "resume", "skip", "stop", "queue", "nowplaying", "volume", "loop",
   "shuffle", "clearqueue", "remove", "join", "leave", "musicpanel",
+  "access", "unaccess", "pv",
 ]);
 
 const LOCAL_BOTS_CONFIG = fileURLToPath(new URL("./config/bots.json", import.meta.url));
