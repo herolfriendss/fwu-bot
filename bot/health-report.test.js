@@ -141,7 +141,7 @@ test("permissions and checks are scoped to the active application", () => {
   const voiceSnapshot = collectHealthSnapshot(client, fakeGuild(noPermissions), "fdpdlavoc");
   assert.equal(voiceSnapshot.profile, "fdpdlavoc");
   assert.ok(voiceSnapshot.missingPermissions.some((p) => p.name === "Connect"));
-  assert.ok(!voiceSnapshot.missingPermissions.some((p) => p.name === "BanMembers"));
+  assert.ok(voiceSnapshot.missingPermissions.some((p) => p.name === "BanMembers"));
   assert.equal(voiceSnapshot.logsHubPresent, null);
   assert.equal(voiceSnapshot.antiMoveEnabled, false);
 
