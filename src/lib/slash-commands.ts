@@ -68,6 +68,7 @@ export const SYSP_LAYOUT: SubcommandLayoutEntry[] = [
   { group: "whitelist", description: "Exemption WHITELIST (propriétaire)", members: ["whitelist-add", "whitelist-remove", "whitelist-list"] },
   { group: "outils", description: "Ghost, composer, recherche, blueprints, clone, studio, packs", members: ["ghost", "composer", "search", "blueprint", "clone", "studio", "pack"] },
   { group: "diagnostic", description: "Audit ACL, santé du bot et couverture des logs (lecture seule)", members: ["acl", "sante", "logs-couverture", "matrice", "economie", "bots", "installation"] },
+  { group: "suivi", description: "Fiche d'un membre, notes du staff et activité du staff", members: ["fiche", "stats", "notes", "note-ajouter", "note-retirer"] },
   { group: "urgence", description: "Gel d'urgence du staff et alertes d'abus du staff", members: ["gel", "degel", "alerte-abus"] },
   { group: "market", description: "Marketplace d'extensions (désactivé par défaut)", members: ["catalog", "installed", "publish", "withdraw", "submit", "validate", "reject", "install", "uninstall", "rollback"] },
 ];
@@ -522,6 +523,16 @@ export const SLASH_COMMANDS: SlashCommandDef[] = [
         opt(5, "retirer_admin_plus", "Retire aussi le rôle ADMIN+ (rendu au dégel)"),
       ]),
       sub("degel", "Owner : lève le gel du staff tout de suite"),
+      sub("fiche", "Fiche complète d'un membre : arrivée, rôles, sanctions des 5 bots, activité", [opt(6, "membre", "Membre concerné", { required: true })]),
+      sub("stats", "Activité du staff : sanctions, tickets, vocal, refus de quota, inactifs", [
+        opt(3, "periode", "Période (7 jours par défaut)", { choices: [{ name: "7 jours", value: "7j" }, { name: "30 jours", value: "30j" }] }),
+      ]),
+      sub("notes", "Notes privées du staff sur un membre (chaque lecture est journalisée)", [opt(6, "membre", "Membre concerné", { required: true })]),
+      sub("note-ajouter", "Ajoute une note privée du staff sur un membre (gardée 1 an, pas de données sensibles)", [
+        opt(6, "membre", "Membre concerné", { required: true }),
+        opt(3, "texte", "La note (500 caractères maximum)", { required: true, max_length: 500 }),
+      ]),
+      sub("note-retirer", "Retire une note (son auteur, un SYS+ ou l'owner)", [opt(4, "note", "Numéro de la note", { required: true, min_value: 1 })]),
       sub("alerte-abus", "Alertes MP aux SYS+ si un membre du staff sanctionne en rafale ou s'acharne (owner pour modifier)", [
         opt(5, "active", "Active ou coupe les alertes"),
         opt(4, "rafale", "Nombre de sanctions qui déclenche l'alerte rafale (2 à 100)", { min_value: 2, max_value: 100 }),
@@ -1680,6 +1691,45 @@ const ALL_TIER_CHOICES: SlashOptionChoice[] = [
 ];
 
 export const EXTRA_SLASH_COMMANDS: SlashCommandDef[] = [
+  {
+    name: "outils",
+    description: "Outils staff : message collé en bas d'un salon et modmail (MP au staff)",
+    usage: "/outils sticky definir|retirer|liste · /outils modmail config|etat|repondre|fermer|bloquer|debloquer|desactiver",
+    category: "Administration & sécurité",
+    dmPermission: false,
+    requiresBotProcess: true,
+    options: [
+      {
+        type: 2, name: "sticky", description: "Message toujours affiché en bas d'un salon",
+        options: [
+          sub("definir", "Colle un message en bas d'un salon (remplace l'ancien)", [
+            opt(7, "salon", "Salon", { required: true, channel_types: [0, 5] }),
+            opt(3, "texte", "Texte du message (\\n pour aller à la ligne)", { required: true, max_length: 1500 }),
+          ]),
+          sub("retirer", "Retire le message collé d'un salon", [opt(7, "salon", "Salon", { required: true, channel_types: [0, 5] })]),
+          sub("liste", "Les messages collés du serveur"),
+        ],
+      },
+      {
+        type: 2, name: "modmail", description: "Les membres écrivent en MP au bot, le staff répond dans un fil",
+        options: [
+          sub("repondre", "Dans un fil modmail : envoie une réponse en MP au membre", [
+            opt(3, "message", "Ta réponse", { required: true, max_length: 1800 }),
+            opt(5, "anonyme", "Signer « Staff du serveur » au lieu de ton nom (réglage du serveur par défaut)"),
+          ]),
+          sub("fermer", "Dans un fil modmail : ferme la conversation", [opt(3, "raison", "Raison montrée au membre", { max_length: 300 })]),
+          sub("config", "Staff : salon privé où arrivent les conversations", [
+            opt(7, "salon", "Salon réservé au staff", { required: true, channel_types: [0] }),
+            opt(5, "anonyme", "Réponses signées « Staff du serveur » (oui par défaut)"),
+          ]),
+          sub("etat", "Le modmail est-il activé ?"),
+          sub("bloquer", "Staff : empêche un membre d'écrire au staff", [opt(6, "membre", "Membre", { required: true })]),
+          sub("debloquer", "Staff : autorise de nouveau un membre", [opt(6, "membre", "Membre", { required: true })]),
+          sub("desactiver", "Staff : arrête le modmail"),
+        ],
+      },
+    ],
+  },
   {
     name: "anim",
     description: "Animation du serveur : salon de comptage, mur des célébrités, question du jour",

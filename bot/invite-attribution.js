@@ -87,3 +87,21 @@ export function recordInviteLifecycle(invite, action, now = Date.now()) {
     .run(guildId, invite.code, uses, inviterId, now);
   return true;
 }
+
+// Fiche membre (SYS+ n°7) : on garde qui a invité chaque membre, au moment de son arrivée.
+db.exec(`CREATE TABLE IF NOT EXISTS member_invite_attribution (
+  guild_id TEXT NOT NULL, user_id TEXT NOT NULL, source TEXT NOT NULL, inviter_id TEXT, code TEXT,
+  joined_at INTEGER NOT NULL, PRIMARY KEY(guild_id, user_id)
+)`);
+
+export function recordMemberInvite(guildId, userId, invite, now = Date.now()) {
+  if (!guildId || !userId || !invite) return;
+  db.prepare(`INSERT INTO member_invite_attribution(guild_id,user_id,source,inviter_id,code,joined_at) VALUES(?,?,?,?,?,?)
+    ON CONFLICT(guild_id,user_id) DO UPDATE SET source=excluded.source, inviter_id=excluded.inviter_id, code=excluded.code, joined_at=excluded.joined_at`)
+    .run(guildId, userId, String(invite.source ?? "unknown"), invite.inviterId ?? null, invite.code ?? null, now);
+}
+
+export function getMemberInvite(guildId, userId) {
+  const row = db.prepare("SELECT source, inviter_id, code, joined_at FROM member_invite_attribution WHERE guild_id=? AND user_id=?").get(guildId, userId);
+  return row ? { source: row.source, inviterId: row.inviter_id, code: row.code, joinedAt: Number(row.joined_at) } : null;
+}

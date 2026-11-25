@@ -1,5 +1,6 @@
 // FWU GUARD — slash commands: /antinuke, /automod, /casier, /quarantaine.
 import { EmbedBuilder, PermissionFlagsBits as P } from "discord.js";
+import { formatHistoryEntry, loadMemberHistory } from "../member-history.js";
 import { roleGrantRefusal } from "../role-grant-guard.js";
 import { db, transaction } from "../database.js";
 import { parsePndOwnerId } from "../pnd-owner-policy.js";
@@ -138,15 +139,18 @@ async function handleCasier(interaction, settings, { report = async () => {} } =
     return `🗂️ Affaire **#${id}** retirée du casier et archivée (motif enregistré, log envoyé).`;
   }
   const user = interaction.options.getUser("membre", true);
-  const cases = db.prepare("SELECT id, action, reason, moderator_id, created_at FROM moderation_cases WHERE guild_id=? AND user_id=? ORDER BY id DESC LIMIT 15").all(guild.id, user.id);
   const warnings = db.prepare("SELECT COUNT(*) AS n FROM moderation_warnings WHERE guild_id=? AND user_id=? AND (expires_at IS NULL OR expires_at > ?)").get(guild.id, user.id, Date.now()).n;
-  const total = db.prepare("SELECT COUNT(*) AS n FROM moderation_cases WHERE guild_id=? AND user_id=?").get(guild.id, user.id).n;
-  const lines = cases.map((c) => `**#${c.id}** · ${CASE_LABELS[c.action] ?? c.action.replace(/_/g, " ")} · <t:${Math.floor(c.created_at / 1000)}:d> · par <@${c.moderator_id}>\n↳ ${String(c.reason).slice(0, 150)}`);
-  const removedCases = listRemovedCases(guild.id, user.id, 5);
-  if (removedCases.length) lines.push("", "**Affaires retirées** (archives)", ...removedCases.map((c) => `~~#${c.id} · ${CASE_LABELS[c.action] ?? c.action}~~ · retirée par <@${c.removed_by}> <t:${Math.floor(c.removed_at / 1000)}:R> · ${String(c.removal_reason).slice(0, 100)}`));
+  // Historique unifié : casier de ce bot + sanctions des 5 bots (base centrale), sans doublon.
+  const history = await loadMemberHistory({ guildId: guild.id, userId: user.id, limit: 50 });
+  const active = history.entries.filter((e) => !e.removed);
+  const removedEntries = history.entries.filter((e) => e.removed);
+  const total = active.length;
+  const lines = active.slice(0, 15).map(formatHistoryEntry);
+  if (removedEntries.length) lines.push("", "**Affaires retirées** (archives)", ...removedEntries.slice(0, 5).map(formatHistoryEntry));
+  if (!history.centralAvailable) lines.push("", "⚠️ Base centrale injoignable : seules les affaires de ce bot sont affichées.");
   return { embeds: [new EmbedBuilder().setColor(0xe21d2f).setTitle(`📁 Casier de ${user.username}`)
-    .setDescription(`Affaires : **${total}** · Avertissements actifs : **${warnings}**\n\n${lines.join("\n") || "Casier vierge."}`.slice(0, 4000))
-    .setFooter({ text: "FWU • GUARD · /casier supprimer (SYS+) pour retirer une affaire, avec un motif" })] };
+    .setDescription(`Sanctions : **${total}** · Avertissements actifs : **${warnings}**\n\n${lines.join("\n") || "Casier vierge."}`.slice(0, 4000))
+    .setFooter({ text: "Tous bots confondus · /casier supprimer (SYS+) pour retirer une affaire, avec un motif" })] };
 }
 
 async function handleQuarantaine(interaction, settings) {
