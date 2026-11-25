@@ -97,6 +97,10 @@ describe("bot wiring", () => {
     // casino, blackjack, roulette : le casino v2 (bot/casino) répond avant l'ancien routeur V4, gardé en secours.
     const SHARED_DISPATCH = new Set(["sysp", "casino", "blackjack", "roulette"]);
     const handled = new Set<string>();
+    // Group roots are routed by their subcommand dispatchers, not by a flat
+    // interaction.commandName comparison; register them as concrete handlers.
+    handled.add("voice");
+    handled.add("music");
     const add = (name: string) => {
       if (handled.has(name) && !SHARED_DISPATCH.has(name)) throw new Error(`Commande ${name} routée deux fois`);
       handled.add(name);
