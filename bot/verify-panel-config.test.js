@@ -23,6 +23,14 @@ function interaction({ role = null, sent = [], replies = [] }) {
   };
 }
 
+test("the test runner never inherits the production PostgreSQL URL", () => {
+  assert.equal(
+    process.env.SHARED_DATABASE_URL,
+    undefined,
+    "test-db-isolation must remove the production PostgreSQL URL inherited from PM2",
+  );
+});
+
 test("/verify panel role:@Vérifié configures verification from Discord, then publishes", async () => {
   const calls = [];
   globalThis.fetch = async (url, init) => {
