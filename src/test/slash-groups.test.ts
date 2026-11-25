@@ -27,7 +27,7 @@ const EXISTING_SYSP_LEAVES = [
   "whitelist-list", "clone", "pack", "studio",
 ];
 const DIAGNOSTIC_LEAVES = ["acl", "sante", "logs-couverture", "matrice", "economie", "bots", "installation"];
-const URGENCE_LEAVES = ["gel", "degel"];
+const URGENCE_LEAVES = ["gel", "degel", "alerte-abus"];
 const MARKET_LEAVES = ["catalog", "installed", "publish", "withdraw", "submit", "validate", "reject", "install", "uninstall", "rollback"];
 
 describe("subcommand groups preserve every existing /sysp command", () => {

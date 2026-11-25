@@ -32,6 +32,7 @@ import { formatSharedDbLine } from "../../shared/index.js";
 import { formatBackupLine, readBackupStatus } from "../../backup-status.js";
 import { buildInstallationReport } from "../../install-check.js";
 import { handleFreezeCommand } from "./freeze-commands.js";
+import { handleAbuseAlertCommand } from "./abuse-alerts.js";
 import { parsePndOwnerId } from "../../pnd-owner-policy.js";
 
 const DIAGNOSTIC_ACTIONS = new Set(["acl", "sante", "santé", "logs-couverture", "matrice", "economie", "économie", "bots", "installation"]);
@@ -458,6 +459,9 @@ export async function handleSysPlusInteraction(interaction, settings, { apiUrl, 
 
   if (subcommand === "gel" || subcommand === "degel") {
     return handleFreezeCommand(interaction, { bot: process.env.PND_BOT_PROFILE || "fwu", audit });
+  }
+  if (subcommand === "alerte-abus") {
+    return handleAbuseAlertCommand(interaction, { bot: process.env.PND_BOT_PROFILE || "fwu", member, roleId, isSysPlus, audit });
   }
   if (subcommand === "clone") {
     try {
