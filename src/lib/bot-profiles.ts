@@ -98,6 +98,8 @@ export const SLASH_COMMAND_OWNERS: Record<BotProfileId, readonly string[]> = {
     "niveau", "suggestion", "anniversaire", "rappel", "stats", "confession", "moi", "fwu", "clan", "saison", "quete",
     // animation (25/11) : une seule commande racine, /anim comptage|vedette|qdj
     "anim",
+    // outils staff (25/11) : /outils sticky|modmail
+    "outils",
   ],
   fisc: [
     "balance", "daily", "work", "job", "bank", "history", "rob", "lottery", "pay", "leaderboard",
