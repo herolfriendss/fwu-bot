@@ -222,6 +222,7 @@ export async function handleTicketsInteraction(interaction, guildSettings = {}, 
       if (!Number(assigned.changes)) throw new Error("Ce ticket vient d’être fermé.");
       recordSysPlusAudit(guild.id, interaction.user.id, "ticket.assign", assignee.id, { ticketId: row.id });
       recordTicketEvent({ guildId: guild.id, ticketId: row.id, action: "assigned", actorId: interaction.user.id, targetId: assignee.id });
+      await sendTicketLog(guild, settings, ticketLogEmbed(guild, interaction, "assigned", row, [{ name: "Assigné", value: mention(assignee.id), inline: true }]));
       await interaction.reply({ content: `👤 Ticket assigné à ${mention(assignee.id)}.`, allowedMentions: { users: [assignee.id] } });
       record("ticket_assigned");
       return true;
@@ -251,12 +252,14 @@ export async function handleTicketsInteraction(interaction, guildSettings = {}, 
         await interaction.reply({ content: `✅ ${mention(user.id)} a été ajouté au ticket.`, ephemeral: true, allowedMentions: { parse: [] } });
         recordSysPlusAudit(guild.id, interaction.user.id, "ticket.add", user.id, { ticketId: row.id });
         recordTicketEvent({ guildId: guild.id, ticketId: row.id, action: "member_added", actorId: interaction.user.id, targetId: user.id });
+        await sendTicketLog(guild, settings, ticketLogEmbed(guild, interaction, "member_added", row, [{ name: "Membre ajouté", value: mention(user.id), inline: true }]));
         record("ticket_member_added");
       } else {
         await channel.permissionOverwrites.delete(user.id, `Ticket #${row.id} : retrait par ${interaction.user.tag}`).catch(() => {});
         await interaction.reply({ content: `✅ ${mention(user.id)} a été retiré du ticket.`, ephemeral: true, allowedMentions: { parse: [] } });
         recordSysPlusAudit(guild.id, interaction.user.id, "ticket.remove", user.id, { ticketId: row.id });
         recordTicketEvent({ guildId: guild.id, ticketId: row.id, action: "member_removed", actorId: interaction.user.id, targetId: user.id });
+        await sendTicketLog(guild, settings, ticketLogEmbed(guild, interaction, "member_removed", row, [{ name: "Membre retiré", value: mention(user.id), inline: true }]));
         record("ticket_member_removed");
       }
       return true;
@@ -414,6 +417,7 @@ async function openTicket(interaction, guildSettings = {}, record = () => {}) {
       });
       recordSysPlusAudit(guild.id, member.id, "ticket.open", channel.id, { ticketId });
       recordTicketEvent({ guildId: guild.id, ticketId, action: "opened", actorId: member.id });
+      await sendTicketLog(guild, settings, ticketLogEmbed(guild, interaction, "opened", ticket));
     } catch (creationError) {
       if (ticketId) db.prepare("UPDATE tickets SET status='failed', closed_at=? WHERE id=? AND guild_id=? AND status='open'").run(Date.now(), ticketId, guild.id);
       await channel.delete("Nettoyage : création du ticket incomplète").catch(() => {});
@@ -458,6 +462,7 @@ async function ticketButton(interaction, guildSettings = {}, record = () => {}) 
       if (!Number(claimed.changes)) throw new Error("Ce ticket vient d’être fermé ou modifié. Actualise le salon.");
       recordSysPlusAudit(guild.id, interaction.user.id, "ticket.claim", row.channel_id, { ticketId: row.id });
       recordTicketEvent({ guildId: guild.id, ticketId: row.id, action: "claimed", actorId: interaction.user.id });
+      await sendTicketLog(guild, settings, ticketLogEmbed(guild, interaction, "claimed", row));
       await interaction.editReply({ content: "🙋 Tu prends en charge ce ticket." });
       record("ticket_claimed");
       return true;
