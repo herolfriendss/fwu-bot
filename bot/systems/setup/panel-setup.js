@@ -610,7 +610,10 @@ async function saveModule(interaction, module, patch, base, { apiUrl, secret, se
   } catch (error) {
     record("discord_setup_apply_error");
     if (error?.conflict) {
-      return { error: "Ces réglages viennent d’être modifiés ailleurs. Rien n’a été écrasé : relance `/setup` pour voir les valeurs actuelles." };
+      if (error.settings) settings[guildId] = error.settings;
+      const labels = error.conflicts.map((key) => SETUP_MODULES[module].fields.find((field) => field.key === key)?.label ?? key);
+      const which = labels.length ? ` (${labels.map((label) => `« ${label} »`).join(", ")})` : "";
+      return { error: `Modifié ailleurs entre-temps${which}. Rien n’a été écrasé : voici les valeurs actuelles, recommence si besoin.` };
     }
     return { error: "L’enregistrement a échoué. Rien n’a été modifié, réessaie dans un instant." };
   }

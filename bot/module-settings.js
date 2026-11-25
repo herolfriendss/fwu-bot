@@ -15,8 +15,12 @@ export async function updateModuleSettings({ apiUrl, secret, guildId, module, va
     body: JSON.stringify({ action: "module-settings", guildId, module, settings: value, changes, expected, actorId }),
   });
   if (response.status === 409) {
+    // Le serveur renvoie { error: "conflict", conflicts: [clés], settings }.
+    const body = await response.json().catch(() => null);
     const error = new Error("Conflit de réglages.");
     error.conflict = true;
+    error.conflicts = Array.isArray(body?.conflicts) ? body.conflicts : [];
+    error.settings = body?.settings && typeof body.settings === "object" ? body.settings : null;
     throw error;
   }
   if (!response.ok) throw new Error(`HTTP ${response.status}`);

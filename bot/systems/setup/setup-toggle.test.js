@@ -276,9 +276,12 @@ test("a field changed both in the form and elsewhere is not overwritten", async 
 test("a server-side conflict (409) is reported without overwriting", async (t) => {
   t.mock.method(globalThis, "fetch", async (_url, init = {}) =>
     init.method === "POST"
-      ? new Response("{}", { status: 409 })
+      ? new Response(JSON.stringify({ error: "conflict", conflicts: ["enabled"], settings: { spam: { enabled: true } } }), { status: 409 })
       : new Response(JSON.stringify({ guilds: { [GUILD]: { spam: { enabled: false } } } })));
   const toggle = interaction({ customId: `pndsetup:toggle:spam:on:${OWNER}` });
   await handlePanelSetupInteraction(toggle, { [GUILD]: {} }, options());
-  assert.match(toggle.calls.at(-1)[1].content, /modifiés ailleurs.*Rien n’a été écrasé/);
+  const payload = toggle.calls.at(-1)[1];
+  assert.match(payload.content, /Modifié ailleurs entre-temps \(« Protection activée \(oui\/non\) »\).*Rien n’a été écrasé/);
+  // La fiche reprend les réglages actuels renvoyés par le serveur.
+  assert.match(payload.embeds[0].data.description, /Statut :\*\* Activé/);
 });
