@@ -86,6 +86,27 @@ export type Database = {
         }
         Relationships: []
       }
+      bot_activity_snapshots: {
+        Row: {
+          captured_at: string
+          guild_id: string
+          snapshot: Json
+          updated_at: string
+        }
+        Insert: {
+          captured_at: string
+          guild_id: string
+          snapshot: Json
+          updated_at?: string
+        }
+        Update: {
+          captured_at?: string
+          guild_id?: string
+          snapshot?: Json
+          updated_at?: string
+        }
+        Relationships: []
+      }
       bot_runtime_status: {
         Row: {
           connected: boolean
