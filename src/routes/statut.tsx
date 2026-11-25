@@ -50,12 +50,20 @@ function StatusPage() {
         <h2 className="mb-4 text-lg font-semibold">Les autres bots</h2>
         <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           {(["guard", "fdpdlavoc", "suckme", "fisc", "investplus"] as const).map((id) => {
+            const profile = BOT_PROFILES[id];
             const bot = bots.data?.[id] ?? null;
             const botState = !now || !bot ? "unknown" : bot.connected && now - Date.parse(bot.lastSeen) <= 70_000 ? "online" : "offline";
+            const statusLabel = botState === "online"
+              ? "En ligne"
+              : bot
+                ? `Hors ligne depuis le ${date(bot.lastSeen)}`
+                : profile.optional
+                  ? "Facultatif · aucun signal reçu"
+                  : "Jamais connecté : aucun signal reçu pour l’instant";
             return <li key={id} className="rounded-md border border-border p-3">
-              <p className="flex items-center gap-2 font-medium"><span className={`h-2.5 w-2.5 shrink-0 rounded-full ${botState === "online" ? "bg-signal" : botState === "offline" ? "bg-destructive" : "bg-muted-foreground"}`} />{BOT_PROFILES[id].label}</p>
-              <p className="mt-1 text-xs text-muted-foreground">{botState === "online" ? "En ligne" : bot ? `Hors ligne depuis le ${date(bot.lastSeen)}` : "Jamais connecté : aucun signal reçu pour l’instant"}</p>
-              <p className="mt-2 text-xs text-muted-foreground">{BOT_PROFILES[id].summary}</p>
+              <p className="flex items-center gap-2 font-medium"><span className={`h-2.5 w-2.5 shrink-0 rounded-full ${botState === "online" ? "bg-signal" : botState === "offline" ? "bg-destructive" : "bg-muted-foreground"}`} />{profile.label}</p>
+              <p className="mt-1 text-xs text-muted-foreground">{statusLabel}</p>
+              <p className="mt-2 text-xs text-muted-foreground">{profile.summary}</p>
             </li>;
           })}
         </ul>
