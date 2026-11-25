@@ -5,7 +5,7 @@ const MAX_BET = 1_000_000_000;
 const MAX_BALANCE = 1_000_000_000_000;
 const CASINO_BET_REASONS = Object.freeze([
   "casino_roulette_bet", "casino_slots_bet", "casino_coinflip_bet", "casino_dice_bet",
-  "blackjack_bet", "roulette_bet", "coinflip_bet",
+  "blackjack_bet", "roulette_bet", "coinflip_bet", "casino_grattage_bet", "casino_course_bet",
 ]);
 const RED_NUMBERS = new Set([1,3,5,7,9,12,14,16,18,19,21,23,25,27,30,32,34,36]);
 const SLOT_SYMBOLS = Object.freeze([

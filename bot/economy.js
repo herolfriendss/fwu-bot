@@ -1,3 +1,5 @@
+import { changeTreasury, transferTax } from "./features/fisc-config.js";
+import { dailyStreakReward, nextDailyStreak } from "./features/daily-streak.js";
 import { runAsActor } from "./owner-shield.js";
 import { randomInt, randomUUID } from "node:crypto";
 import { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder, PermissionFlagsBits } from "discord.js";
@@ -12,6 +14,7 @@ import { DAILY_MISSIONS, advanceMission, missionDate } from "./mission-policy.js
 import { describeSignal, detectTransferSignals, evaluateTransfer, recordTransfer, senderWindow } from "./economy-antifraud.js";
 import { isWhitelistMember } from "./systems/sysplus/whitelist-policy.js";
 import { sendCentralLog, systemLogEmbed } from "./logs.js";
+import { perkActive } from "./features/perks.js";
 
 const purchaseLocks = new Set();
 const marketLocks = new Set();
@@ -459,7 +462,7 @@ function blackjackButtons(gameId, disabled = false) {
 }
 
 function blackjackEmbed(game, reveal = false, result = "À toi de jouer.") {
-  return brandEmbed(new EmbedBuilder().setColor(0x6d28d9).setTitle("🃏 Blackjack · PND")
+  return brandEmbed(new EmbedBuilder().setColor(0xe21d2f).setTitle("🃏 Blackjack · PND")
     .addFields(
       { name: `Ta main (${handValue(game.playerCards)})`, value: handText(game.playerCards), inline: true },
       { name: `Croupier${reveal ? ` (${handValue(game.dealerCards)})` : ""}`, value: handText(game.dealerCards, !reveal), inline: true },
@@ -549,16 +552,19 @@ export async function handleEconomyMessage(message, guildSettings = null) {
       const amount = balance(gid, target.id);
       await safeReply(message, `💰 Solde de ${target.id === uid ? "toi" : mention(target.id)} : **${format(amount)}**.`);
     } else if (command === "=daily") {
-      const reward = 100 + randomInt(151), now = Date.now(), cooldown = 20 * 60 * 60_000;
+      const base = 100 + randomInt(151), now = Date.now(), cooldown = 20 * 60 * 60_000;
       const claim = transaction(() => {
         const previous = db.prepare("SELECT claimed_at FROM daily_claims WHERE guild_id=? AND user_id=?").get(gid, uid);
         if (previous && now - Number(previous.claimed_at) < cooldown) return { remaining: cooldown - (now - Number(previous.claimed_at)) };
         db.prepare("INSERT INTO daily_claims(guild_id,user_id,claimed_at) VALUES(?,?,?) ON CONFLICT(guild_id,user_id) DO UPDATE SET claimed_at=excluded.claimed_at").run(gid, uid, now);
+        // Streak: claimed again within 48 h -> +10 % per day in a row (max +100 %).
+        const streak = nextDailyStreak(gid, uid, previous ? Number(previous.claimed_at) : null, now);
+        const reward = dailyStreakReward(base, streak);
         changeBalance(gid, uid, reward, "daily_reward");
-        return { reward, total: balance(gid, uid) };
+        return { reward, streak, total: balance(gid, uid) };
       });
       if (claim.remaining) await safeReply(message, `⏳ Ton bonus quotidien est déjà récupéré. Réessaie dans **${Math.ceil(claim.remaining / 3_600_000)} h**.`);
-      else await safeReply(message, `🎁 Tu as reçu **${format(claim.reward)}**. Nouveau solde : **${format(claim.total)}**.`);
+      else await safeReply(message, `🎁 Tu as reçu **${format(claim.reward)}**${claim.streak > 1 ? ` (série de **${claim.streak} jours** 🔥, bonus +${Math.min(100, (claim.streak - 1) * 10)} %)` : ""}. Nouveau solde : **${format(claim.total)}**.`);
     } else if (command === "=work") {
       const remaining = cooldownRemaining(gid, uid, "work");
       if (remaining) throw new Error(`⏳ Tu pourras retravailler dans **${Math.ceil(remaining / 60_000)} min**.`);
@@ -699,6 +705,7 @@ export async function handleEconomyMessage(message, guildSettings = null) {
       if (!target || target.bot || target.id === uid) throw new Error("Utilisation : `=rob @membre`.");
       const remaining = cooldownRemaining(gid, uid, "rob");
       if (remaining) throw new Error(`⏳ Tu pourras retenter un vol dans **${Math.ceil(remaining / 60_000)} min**.`);
+      if (perkActive(gid, target.id, "anti_vol")) throw new Error("🛡️ Cette personne a une protection anti-vol active.");
       const victim = wallet(gid, target.id).balance;
       const plan = robPlan({ victimBalance: victim, ownBalance: wallet(gid, uid).balance, roll: randomInt(1_000_000) / 1_000_000 });
       if (!plan.allowed) throw new Error("Cette personne n’a pas assez de PND à voler.");
@@ -772,12 +779,16 @@ export async function handleEconomyMessage(message, guildSettings = null) {
         });
         if (!decision.allowed) throw new Error(decision.reason);
         changeBalance(gid, uid, -amount, "transfer_sent");
-        changeBalance(gid, target.id, amount, "transfer_received");
+        // LE FISC: optional tax on transfers, paid into the server treasury.
+        const tax = transferTax(gid, amount);
+        changeBalance(gid, target.id, amount - tax, "transfer_received");
+        if (tax > 0) changeTreasury(gid, tax);
         recordTransfer({ guildId: gid, senderId: uid, recipientId: target.id, amount, senderJoinedAt: Number.isFinite(joinedAt) ? joinedAt : null });
         recordMissionProgress(gid, uid, "transfer");
         return balance(gid, uid);
       });
-      await safeReply(message, `💸 ${mention(uid)} a envoyé **${format(amount)}** à ${mention(target.id)}. Solde restant : **${format(senderBalance)}**.`);
+      const paidTax = transferTax(gid, amount);
+      await safeReply(message, `💸 ${mention(uid)} a envoyé **${format(amount)}** à ${mention(target.id)}${paidTax ? ` (dont **${format(paidTax)}** d'impôt versé à la caisse du serveur)` : ""}. Solde restant : **${format(senderBalance)}**.`);
       for (const signal of detectTransferSignals({ guildId: gid, senderId: uid, recipientId: target.id })) {
         void sendCentralLog(message.guild, guildSettings, systemLogEmbed({ title: "🚩 Économie PND — transfert suspect", description: `${describeSignal(signal)}\nAucune sanction automatique : vérification humaine (\`/sysp diagnostic economie\`).`, color: 0xf59e0b })).catch(() => {});
       }

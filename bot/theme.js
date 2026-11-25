@@ -6,7 +6,7 @@
 // shared bot/.env let the owner restyle one bot without code.
 const PROFILE_SIGNATURES = Object.freeze({ fwu: "FWU", guard: "FWU • GUARD", fdpdlavoc: "FWU • FDPDLAVOC", suckme: "FWU • SUCK ME", fisc: "FWU • LE FISC" });
 
-export function themeColorFrom(value, fallback = 0x6d28d9) {
+export function themeColorFrom(value, fallback = 0xe21d2f) {
   const match = /^#?([0-9a-f]{6})$/i.exec(String(value ?? "").trim());
   return match ? Number.parseInt(match[1], 16) : fallback;
 }

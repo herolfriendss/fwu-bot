@@ -27,7 +27,7 @@ function cardCount(guildId, userId) {
 
 function profileEmbed(guild, user, member, row, rep, cards) {
   const wallet = pndBalance(guild.id, user.id);
-  const color = colorToInt(row?.color) ?? 0x6d28d9;
+  const color = colorToInt(row?.color) ?? 0xe21d2f;
   return brandEmbed(new EmbedBuilder()
     .setColor(color)
     .setTitle(`Profil de ${member?.displayName ?? user.username}`)

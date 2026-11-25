@@ -145,7 +145,7 @@ function customRolesEmbed(guild, selectedRole = null) {
   const body = selectedRole
     ? `**${selectedRole.name}**\nCouleur : #${selectedRole.color.toString(16).padStart(6, "0").toUpperCase()}\nID : ${selectedRole.id}\n\nSélectionne une action ci-dessous.`
     : `Rôles enregistrés : **${records.length}/25**\nQuota : **1 rôle personnalisé par membre**\n\nCrée et gère ici les rôles personnalisés SYS+. Les rôles créés ont toujours **zéro permission Discord**. Les permissions natives et la hiérarchie restent prioritaires.`;
-  return new EmbedBuilder().setColor(0x6d28d9).setTitle("🌙 SYS+ — Rôles personnalisés").setDescription(body).setFooter({ text: `${guild.name} • Panel SYS+` });
+  return new EmbedBuilder().setColor(0xe21d2f).setTitle("🌙 SYS+ — Rôles personnalisés").setDescription(body).setFooter({ text: `${guild.name} • Panel SYS+` });
 }
 
 function customRoleComponents(guild, selectedRole = null) {
@@ -295,7 +295,7 @@ export async function handleCustomRolesInteraction(interaction, settings = {}) {
     if (interaction.isButton?.()) {
       const [, , action, roleId] = interaction.customId.split(":");
       if (action === "member") {
-        await interaction.update({ content: "", embeds: [new EmbedBuilder().setColor(0x6d28d9).setTitle("🎨 Rôle perso d'un membre").setDescription("Choisis le membre. Tu pourras créer son rôle (nom + couleur), le modifier ou le retirer. Le rôle n'a aucune permission Discord.")], components: memberRolePickerComponents(), allowedMentions: { parse: [] } });
+        await interaction.update({ content: "", embeds: [new EmbedBuilder().setColor(0xe21d2f).setTitle("🎨 Rôle perso d'un membre").setDescription("Choisis le membre. Tu pourras créer son rôle (nom + couleur), le modifier ou le retirer. Le rôle n'a aucune permission Discord.")], components: memberRolePickerComponents(), allowedMentions: { parse: [] } });
         return true;
       }
       if (action === "home") {

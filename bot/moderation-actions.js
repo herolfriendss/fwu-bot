@@ -130,7 +130,7 @@ export async function runModerationAction({
   const supervisorId = (() => { try { return getStaffSupervisorId(guild.id, actor.id); } catch { return null; } })();
   let caseId = null;
   if (recordCase && CASE_ACTION[command]) {
-    try { caseId = recordCase({ guildId: guild.id, userId: targetId, moderatorId: actor.id, action: CASE_ACTION[command], reason: fullReason || "Non précisée", details: { durationSeconds, supervisorId, bot } }); } catch { caseId = null; }
+    try { caseId = recordCase({ guildId: guild.id, userId: targetId, moderatorId: actor.id, action: CASE_ACTION[command], reason: fullReason || "Non précisée", details: { durationSeconds, durationMs: durationSeconds ? durationSeconds * 1000 : undefined, supervisorId, bot } }); } catch { caseId = null; }
   }
   await recordSanction({
     guildId: guild.id, targetId, moderatorId: actor.id, action: command, sanctionTypeId, sanctionLabel,

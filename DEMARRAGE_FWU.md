@@ -27,6 +27,23 @@ Déjà connecté au VPS ? Après avoir envoyé le dossier : `bash /home/opc/FWU-
 
 Ensuite, passe directement à l'étape **4. Dans Discord** plus bas.
 
+## Tout mettre à jour (FWU + site + 4 bots) depuis le Chromebook
+
+1. Télécharge le zip du projet sur GitHub (Code → Download ZIP) et mets-le dans « Fichiers Linux ».
+2. Dans le terminal :
+
+```bash
+cd ~ && Z=$(ls -t ~/*main*.zip | head -n 1) && unzip -oq "$Z" && P=$(dirname "$(dirname "$(ls -td ~/*/scripts/package-fwu-bots.py | head -n 1)")") && bash "$P/scripts/installation/FWU-MAJ-COMPLETE.sh" opc@ADRESSE_DU_VPS
+```
+
+## Mettre à jour sans ordinateur : /maj sur Discord
+
+Après une mise à jour depuis le Chromebook (où le jeton GitHub en lecture seule est demandé une fois) :
+
+- `/maj lancer` : le VPS télécharge la dernière version sur GitHub et met à jour FWU, le site et les 4 bots (10 à 30 min).
+- `/maj etat` : avancement et journal. Le résultat arrive aussi en message privé.
+- Réservé à l'OWNER. Le jeton reste dans `/home/opc/fwu-data/.github-token` (fichier privé) ; s'il expire, refais une mise à jour depuis un ordinateur.
+
 ## Mettre à jour les 4 bots plus tard (FWU non touché)
 
 Depuis le dossier `FWU-installation` sur ton ordinateur :
@@ -104,6 +121,37 @@ Il installe, démarre, vérifie que le bot tient, puis synchronise FWU.
 - Paramètres du serveur → Rôles : place **SUCK ME** juste sous ton rôle, et **GUARD** au-dessus des membres qu'il modère.
 - `/sysp diagnostic bots` : les 5 bots doivent être 🟢.
 - Les commandes slash peuvent mettre jusqu'à 1 h à apparaître partout.
+
+## Les nouvelles commandes
+
+**Pour tout le monde**
+
+| Commande | Ce qu'elle fait |
+| --- | --- |
+| `/moi` | Ton profil complet en image : niveau, argent, casino, confiance, casier. Marche même si les autres bots sont éteints. |
+| `/fwu` | Les cinq bots, ce que chacun fait, et lesquels répondent en ce moment. |
+| `/quete` | Tes trois quêtes du jour et leurs récompenses. Bonus si tu fais les trois. |
+| `/clan` | Fonder ou rejoindre un clan : coffre commun, rangs, classement. |
+| `/saison` | La saison en cours et le palmarès des saisons passées. |
+| `/confession` | Message anonyme, avec image ou note vocale si tu veux. |
+| `/avantage` | Dépenser tes PND : boost d'XP, couleur de pseudo, droit DJ, protection anti-vol. |
+| `/casino` | Blackjack, roulette, machine à sous, mines, crash, plinko, jackpot, rang VIP. |
+
+**Pour toi et le staff**
+
+| Commande | Ce qu'elle fait |
+| --- | --- |
+| `/bouclier piege` | Crée un salon piège : les robots de spam qui y écrivent sont sanctionnés tout seuls. Le staff ne risque rien. |
+| `/bouclier sauvegarder` | Enregistre la structure du serveur. `/bouclier restaurer` recrée ce qui manque après un nuke, sans jamais rien supprimer. |
+| `/bouclier verrouiller` | Ferme tous les salons d'un coup, et `/bouclier deverrouiller` rouvre exactement ceux-là. |
+| `/saison demarrer` | Lance une saison. À la clôture, les podiums sont inscrits au palmarès pour toujours. |
+| `/confession config` | Choisis le salon public et le salon privé où le staff voit les auteurs. |
+
+**À savoir**
+
+- Les cinq bots partagent désormais la même mémoire. Un avertissement de GUARD gèle le casino, un passage de niveau rapporte des PND, une sanction se lève partout en même temps.
+- Chaque membre a un **score de confiance** de 0 à 100 qui décide de ses plafonds de mise et de ses accès. Un compte tout neuf est bridé, et remonte en participant.
+- Pour que les confessions fonctionnent, il faut configurer les deux salons avec `/confession config`.
 
 ## Si un bot pose problème
 

@@ -3,6 +3,7 @@
 // Chaque salon créé est enregistré dans SQLite avec son serveur et son
 // propriétaire. Il est supprimé dès qu’il devient vide, sauf suppression
 // manuelle par le propriétaire ou le staff.
+import { RANK_SHIELD_MESSAGE, rankAllows } from "./owner-shield.js";
 import { ChannelType, EmbedBuilder, PermissionFlagsBits } from "discord.js";
 import { db } from "./database.js";
 import { canManageTempVoice, clampVoiceLimit, renderVoiceName, tempVoiceNameIsValid } from "./voice-v2-policy.js";
@@ -245,6 +246,27 @@ export async function handleVoiceV2Interaction(interaction, guildSettings = {}) 
       if (!tempVoiceNameIsValid(name)) throw new Error("Nom invalide.");
       await channel.setName(name, `Vocal V2 par ${interaction.user.tag}`);
       await interaction.editReply({ content: `✏️ Salon renommé en **${name}**.`, allowedMentions: { parse: [] } });
+    } else if (subcommand === "expulser" || subcommand === "inviter" || subcommand === "transferer") {
+      const target = await guild.members.fetch({ user: interaction.options.getUser("membre", true).id, force: true }).catch(() => null);
+      if (!target || target.user.bot) throw new Error("Choisis un membre (pas un bot).");
+      if (target.id === interaction.user.id) throw new Error("Choisis quelqu'un d'autre que toi.");
+      if (subcommand === "inviter") {
+        await channel.permissionOverwrites.edit(target.id, { ViewChannel: true, Connect: true }, `Vocal V2 : invitation par ${interaction.user.tag}`);
+        await interaction.editReply({ content: `✅ <@${target.id}> peut rejoindre ton salon.`, allowedMentions: { parse: [] } });
+      } else if (subcommand === "expulser") {
+        if (!rankAllows({ actorId: member.id, targetId: target.id, actorPosition: member.roles.highest.position, targetPosition: target.roles.highest.position, guildOwnerId: guild.ownerId })) {
+          throw new Error(RANK_SHIELD_MESSAGE.replace(/^⛔ /, ""));
+        }
+        await channel.permissionOverwrites.edit(target.id, { Connect: false }, `Vocal V2 : expulsion par ${interaction.user.tag}`);
+        if (target.voice?.channelId === channel.id) await target.voice.disconnect(`Vocal V2 : expulsion par ${interaction.user.tag}`);
+        await interaction.editReply({ content: `👢 <@${target.id}> a été sorti du salon et ne peut plus le rejoindre.`, allowedMentions: { parse: [] } });
+      } else {
+        if (target.voice?.channelId !== channel.id) throw new Error("Le nouveau propriétaire doit être dans le salon.");
+        db.prepare("UPDATE temp_voice SET owner_id=? WHERE channel_id=?").run(target.id, channel.id);
+        await channel.permissionOverwrites.edit(row.owner_id, { ManageChannels: null, MoveMembers: null, MuteMembers: null, DeafenMembers: null }).catch(() => {});
+        await channel.permissionOverwrites.edit(target.id, { ManageChannels: true, MoveMembers: true, MuteMembers: true, DeafenMembers: true }).catch(() => {});
+        await interaction.editReply({ content: `👑 <@${target.id}> est maintenant propriétaire du salon.`, allowedMentions: { parse: [] } });
+      }
     } else if (subcommand === "claim") {
       const previous = await guild.members.fetch(row.owner_id).catch(() => null);
       if (previous?.voice?.channelId === channel.id) throw new Error("Le propriétaire est encore dans le salon.");

@@ -72,24 +72,27 @@ export const SLASH_COMMAND_OWNERS: Record<BotProfileId, readonly string[]> = {
   ],
   guard: [
     "guildguard", "kick", "ban", "blacklist", "purge", "nettoyer", "slowmode", "lock", "unlock", "verify",
+    "antinuke", "automod", "casier", "quarantaine", "bouclier",
   ],
   fdpdlavoc: [
     "access", "unaccess", "pv", "voc",
     "play", "pause", "resume", "skip", "stop", "queue", "nowplaying", "volume", "loop",
-    "shuffle", "clearqueue", "remove", "join", "leave", "musicpanel", "radio",
+    "shuffle", "clearqueue", "remove", "join", "leave", "musicpanel", "radio", "effet", "playlist", "dj",
   ],
   suckme: [
     "sysp", "panel", "setup", "knowledge", "rank", "rankall", "removerole", "rolepanel",
     "staffhistory", "vocalpresence", "lockname", "webhook", "automation",
     "anti-moove", "wakeup", "dog", "undog", "doginfo", "wouaf", "menotte", "unmenotte", "menotteinfo",
-    "dmall", "undogall",
+    "dmall", "undogall", "roletemp", "annonce", "staff", "pseudo", "maj",
     // venues de FWU
     "ia", "ticket", "candidature", "sondage", "profil", "bio", "rep", "toprep", "color",
     "academy", "award", "story", "radar", "wrapped", "giveaway", "event", "pndevent", "afk", "live",
+    "niveau", "suggestion", "anniversaire", "rappel", "stats", "confession", "moi", "fwu", "clan", "saison", "quete",
   ],
   fisc: [
     "balance", "daily", "work", "job", "bank", "history", "rob", "lottery", "pay", "leaderboard",
     "inventory", "shop", "buy", "pnd", "roulette", "blackjack", "business", "invest", "casino",
+    "impots", "pret", "duel", "pari", "avantage",
     // venues de FWU
     "dice", "coinflip", "trivia", "cards", "card", "pack", "trade",
   ],

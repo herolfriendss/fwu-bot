@@ -19,9 +19,12 @@ import {
   scheduleConfiguredRadioRetry,
 } from "./music-engine.js";
 import { openAuthorizedAudioStream } from "./audio-source.js";
-import { resolveMusicInput } from "./music-resolver.js";
+import { autoplaySearch, resolveMusicInput } from "./music-resolver.js";
 import { normalizeAudioHost, validateAudioUrl } from "./audio-source-policy.js";
 import { brandEmbed } from "../theme.js";
+import { AUDIO_FILTERS, DJ_COMMANDS, FILTER_LABELS, createVoteSkip, deletePlaylist, djRoleId, isDj, listPlaylists, loadPlaylist, savePlaylist, setDjRole } from "./music-extras.js";
+
+const voteSkip = createVoteSkip();
 
 const queues = new Map();
 const commandActivity = new Map();
@@ -42,13 +45,15 @@ function enforceMusicCooldown(guildId, userId) {
   }
 }
 
+const LOOP_LABELS = { off: "Désactivée", track: "Titre", queue: "File", auto: "Auto (titres proches)" };
+
 function stateFor(guildId) {
   if (!queues.has(guildId)) {
     const player = createAudioPlayer({ behaviors: { noSubscriber: NoSubscriberBehavior.Pause } });
     const state = {
       guildId, player, connection: null, queue: [], current: null,
       textChannel: null, volume: 0.5, loop: "off", panelMessage: null,
-      advancing: false,
+      advancing: false, filterKey: "aucun",
     };
     player.on(AudioPlayerStatus.Idle, () => { void advance(state); });
     player.on("error", (error) => {
@@ -107,7 +112,7 @@ function resolveInput(input, allowedHosts = []) {
 function buildPanel(state) {
   const track = state.current;
   const embed = brandEmbed(new EmbedBuilder()
-    .setColor(0x6d28d9)
+    .setColor(0xe21d2f)
     .setTitle("🎵 FWU — Musique")
     .setDescription(track
       ? `**${track.title}**\n${track.artist ? `Artiste : ${track.artist}\n` : ""}Durée : ${formatDuration(track.duration)}\nDemandé par : ${track.requesterId === "radio" ? "Radio PND" : `<@${track.requesterId}>`}`
@@ -115,7 +120,7 @@ function buildPanel(state) {
     .addFields(
       { name: "File d'attente", value: `${state.queue.length} titre(s)`, inline: true },
       { name: "Volume", value: `${Math.round(state.volume * 100)} %`, inline: true },
-      { name: "Répétition", value: state.loop === "track" ? "Titre" : state.loop === "queue" ? "File" : "Désactivée", inline: true },
+      { name: "Répétition", value: LOOP_LABELS[state.loop] ?? "Désactivée", inline: true },
     ));
   if (track?.thumbnail) embed.setThumbnail(track.thumbnail);
   const row = new ActionRowBuilder().addComponents(
@@ -196,7 +201,7 @@ async function connectMember(member, textChannel) {
 
 async function playTrack(state, track) {
   const hosts = track.allowedMediaHost ? [track.allowedMediaHost] : await allowedAudioHosts(state.guildId);
-  const stream = await openAuthorizedAudioStream(track.url, hosts);
+  const stream = await openAuthorizedAudioStream(track.url, hosts, { audioFilter: AUDIO_FILTERS[state.filterKey] ?? null });
   const resource = createAudioResource(stream.stream, {
     inputType: StreamType.OggOpus,
     inlineVolume: true,
@@ -226,6 +231,7 @@ async function advance(state) {
       }
     },
     updatePanel: () => updatePanel(state),
+    autoplay: state.loop === "auto" ? (previous) => autoplayNext(state, previous) : null,
     log: (event) => console.error(`[music] ${event}`),
     scheduleAdvance: () => queueMicrotask(() => void advance(state)),
     scheduleRadioRetry: () => {
@@ -413,6 +419,7 @@ export async function handleMusicMessage(message) {
     const input = message.content.trim().slice(parts[0].length).trim();
     let state = stateFor(message.guild.id);
     if (state.radio) throw new Error("La radio 24/7 est active sur ce serveur. Un administrateur doit utiliser `=radio stop` avant les commandes musicales.");
+    if (DJ_COMMANDS.has(command) && !isDj(message.member)) throw new Error("Cette commande est réservée au rôle DJ (ou au staff).");
 
     if (command === "=play" || command === "=p") {
       if (!input) throw new Error("Utilisation : `=play <lien YouTube/SoundCloud ou titre>`.");
@@ -462,12 +469,17 @@ export async function handleMusicMessage(message) {
       await message.reply("▶️ Lecture reprise.");
     } else if (command === "=skip") {
       if (!state.current) throw new Error("Aucune musique en cours.");
+      const vote = skipVote(state, message.member);
+      if (!vote.skip) {
+        await message.reply(`🗳️ Vote pour passer : **${vote.votes}/${vote.needed}**. Il faut la majorité des auditeurs (ou un DJ).`);
+        return true;
+      }
       state.player.stop(true);
       await message.reply("⏭️ Musique passée.");
     } else if (command === "=queue") {
       const lines = state.queue.slice(0, 15).map((t, i) => `**${i + 1}.** ${t.title} — ${formatDuration(t.duration)}`);
       await message.reply({
-        embeds: [brandEmbed(new EmbedBuilder().setColor(0x6d28d9).setTitle("📜 File d'attente")
+        embeds: [brandEmbed(new EmbedBuilder().setColor(0xe21d2f).setTitle("📜 File d'attente")
           .setDescription(lines.length ? lines.join("\n") : "La file d'attente est vide.")
           .setFooter({ text: `${state.queue.length} titre(s) en attente` }))],
       });
@@ -481,16 +493,16 @@ export async function handleMusicMessage(message) {
       await updatePanel(state);
       await message.reply(`🔊 Volume réglé à **${Math.round(state.volume * 100)} %**.`);
     } else if (command === "=loop") {
-      const modes = ["off", "track", "queue"];
+      const modes = ["off", "track", "queue", "auto"];
       const requested = input.toLowerCase();
       if (requested) {
-        if (!modes.includes(requested)) throw new Error("Utilisation : `=loop off`, `=loop track` ou `=loop queue`.");
+        if (!modes.includes(requested)) throw new Error("Utilisation : `/loop` avec Désactivée, Titre, File ou Auto.");
         state.loop = requested;
       } else {
         state.loop = modes[(modes.indexOf(state.loop) + 1) % modes.length];
       }
       await updatePanel(state);
-      await message.reply(`🔁 Répétition : **${state.loop}**.`);
+      await message.reply(state.loop === "auto" ? "🔁 Lecture automatique : quand la file est vide, je lance un titre proche du dernier." : `🔁 Répétition : **${LOOP_LABELS[state.loop]}**.`);
     } else if (command === "=shuffle") {
       for (let i = state.queue.length - 1; i > 0; i--) {
         const j = Math.floor(Math.random() * (i + 1));
@@ -536,7 +548,14 @@ export async function handleMusicInteraction(interaction) {
       } else if (!state.player.pause()) throw new Error("Aucune musique en cours.");
     } else if (action === "skip") {
       if (!state.current) throw new Error("Aucune musique en cours.");
+      const vote = skipVote(state, member);
+      if (!vote.skip) {
+        await interaction.editReply(`🗳️ Vote pour passer : **${vote.votes}/${vote.needed}**.`);
+        return true;
+      }
       state.player.stop(true);
+    } else if (["stop", "loop", "shuffle"].includes(action) && !isDj(member)) {
+      throw new Error("Ce bouton est réservé au rôle DJ (ou au staff).");
     } else if (action === "stop") {
       state.queue = [];
       state.current = null;
@@ -544,7 +563,7 @@ export async function handleMusicInteraction(interaction) {
       state.connection?.destroy();
       state.connection = null;
     } else if (action === "loop") {
-      state.loop = state.loop === "off" ? "track" : state.loop === "track" ? "queue" : "off";
+      state.loop = { off: "track", track: "queue", queue: "auto" }[state.loop] ?? "off";
     } else if (action === "shuffle") {
       for (let i = state.queue.length - 1; i > 0; i--) {
         const j = Math.floor(Math.random() * (i + 1));
@@ -555,6 +574,87 @@ export async function handleMusicInteraction(interaction) {
     await interaction.editReply("✅ Commande exécutée.");
   } catch (error) {
     await interaction.editReply(`❌ ${error.message}`).catch(() => {});
+  }
+  return true;
+}
+
+/**
+ * Without a DJ role everyone skips at once (historical behaviour). With a DJ role:
+ * DJs, staff and the person who asked for the track skip at once; the others vote
+ * (majority of the humans listening).
+ */
+/** Loop mode "auto": a similar track (never one of the last 25 played). */
+async function autoplayNext(state, previous) {
+  const query = autoplaySearch(previous);
+  if (!query || !state.connection) return null;
+  state.autoplayHistory = [...(state.autoplayHistory ?? []), previous.webpageUrl, String(previous.title ?? "").toLowerCase()].filter(Boolean).slice(-50);
+  const track = await resolveMusicInput(query, { rawSearch: true, exclude: new Set(state.autoplayHistory), timeoutMs: 45_000 });
+  return { ...track, requesterId: "autoplay" };
+}
+
+function skipVote(state, member) {
+  const now = { skip: true, votes: 1, needed: 1 };
+  if (!djRoleId(state.guildId) || isDj(member) || state.current?.requesterId === member?.id) return now;
+  const channel = member?.guild?.members?.me?.voice?.channel ?? member?.voice?.channel;
+  const listeners = [...(channel?.members?.values?.() ?? [])].filter((m) => !m.user?.bot).map((m) => m.id);
+  if (listeners.length <= 2) return now;
+  return voteSkip.vote(state.guildId, state.current?.url ?? "current", member.id, listeners);
+}
+
+export const MUSIC_EXTRA_COMMANDS = new Set(["effet", "playlist", "dj"]);
+
+/** /effet, /playlist, /dj (slash only). */
+export async function handleMusicExtrasInteraction(interaction) {
+  if (!interaction.isChatInputCommand?.() || !MUSIC_EXTRA_COMMANDS.has(interaction.commandName)) return false;
+  await interaction.deferReply({ ephemeral: true });
+  try {
+    const guild = interaction.guild;
+    if (!guild) throw new Error("Cette commande s'utilise sur un serveur.");
+    const member = await guild.members.fetch(interaction.user.id);
+    const state = stateFor(guild.id);
+    let text;
+    if (interaction.commandName === "dj") {
+      const staff = member.id === guild.ownerId || member.permissions.has(PermissionFlagsBits.ManageGuild) || member.permissions.has(PermissionFlagsBits.Administrator);
+      if (!staff) throw new Error("Réservé au staff (Gérer le serveur).");
+      const role = interaction.options.getRole("role");
+      setDjRole(guild.id, role?.id ?? null);
+      text = role ? `🎧 Rôle DJ : <@&${role.id}>. Les autres membres votent pour passer un titre et ne peuvent pas arrêter la musique.` : "🎧 Rôle DJ retiré : tout le monde contrôle la musique.";
+    } else if (interaction.commandName === "effet") {
+      if (state.radio) throw new Error("Pas d'effet pendant la radio 24/7.");
+      if (!isDj(member)) throw new Error("Les effets sont réservés au rôle DJ (ou au staff).");
+      const key = interaction.options.getString("type", true);
+      if (!(key in AUDIO_FILTERS)) throw new Error("Effet inconnu.");
+      state.filterKey = key;
+      if (state.current && state.connection) {
+        ensureSameVoice({ member }, state);
+        await playTrack(state, state.current);
+        text = `🎛️ Effet **${FILTER_LABELS[key]}** appliqué (le titre reprend au début).`;
+      } else text = `🎛️ Effet **${FILTER_LABELS[key]}** activé pour les prochains titres.`;
+    } else {
+      const sub = interaction.options.getSubcommand();
+      if (sub === "liste") {
+        const lists = listPlaylists(guild.id, member.id);
+        text = `🎶 **Tes playlists**\n${lists.map((l) => `• **${l.name}** — ${l.count} titre(s)`).join("\n") || "Aucune. Enregistre la musique en cours avec `/playlist sauver`."}`;
+      } else if (sub === "supprimer") {
+        text = deletePlaylist(guild.id, member.id, interaction.options.getString("nom", true)) ? "🗑️ Playlist supprimée." : "❌ Playlist introuvable.";
+      } else if (sub === "sauver") {
+        const saved = savePlaylist(guild.id, member.id, interaction.options.getString("nom", true), [state.current, ...state.queue].filter(Boolean));
+        text = `💾 Playlist **${saved.name}** enregistrée (${saved.count} titre(s)).`;
+      } else {
+        if (state.radio) throw new Error("La radio 24/7 est active.");
+        const tracks = loadPlaylist(guild.id, member.id, interaction.options.getString("nom", true));
+        const ready = await connectMember(member, interaction.channel);
+        const room = MAX_TRACKS_PER_GUILD - ready.queue.length - (ready.current ? 1 : 0);
+        const added = tracks.slice(0, Math.max(0, room)).map((t) => ({ ...t, requesterId: member.id }));
+        if (!added.length) throw new Error("La file d'attente est pleine.");
+        ready.queue.push(...added);
+        if (ready.player.state.status !== AudioPlayerStatus.Playing && ready.player.state.status !== AudioPlayerStatus.Paused && !ready.current) await advance(ready);
+        text = `▶️ Playlist chargée : **${added.length}** titre(s) ajouté(s).`;
+      }
+    }
+    await interaction.editReply({ content: text, allowedMentions: { parse: [] } });
+  } catch (error) {
+    await interaction.editReply({ content: `❌ ${error.message}`, allowedMentions: { parse: [] } }).catch(() => {});
   }
   return true;
 }

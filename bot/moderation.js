@@ -14,6 +14,7 @@ import {
 } from "./moderation-policy.js";
 import { respondInPlaceSafe } from "./interaction-reply.js";
 import { runModerationAction } from "./moderation-actions.js";
+import { publishEventSafe } from "./event-bus.js";
 
 const P = PermissionFlagsBits;
 const MAX_CASE_DETAILS = 1_000;
@@ -42,6 +43,13 @@ function decodeCaseDetails(encoded) {
   }
 }
 
+/** Moderation action -> bus event. Actions absent here trigger no cascade. */
+const CASE_EVENT_KIND = Object.freeze({
+  warn: "member.warned", mute: "member.muted", timeout: "member.muted",
+  kick: "member.kicked", ban: "member.banned", unban: "member.unbanned",
+  quarantine: "member.quarantined", unquarantine: "member.unbanned",
+});
+
 export function recordModerationCase({ guildId, userId, moderatorId, action, reason, details = null }) {
   if (!guildId || !userId || !moderatorId || !CASE_ACTIONS.has(action)) {
     throw new Error("Dossier de modération invalide.");
@@ -58,7 +66,17 @@ export function recordModerationCase({ guildId, userId, moderatorId, action, rea
     encodedDetails,
     Date.now(),
   );
-  return Number(result.lastInsertRowid);
+  const caseId = Number(result.lastInsertRowid);
+  // The other bots react to this through the shared bus (casino freeze, trust
+  // recomputation). A publishing failure must never undo a moderation action.
+  const kind = CASE_EVENT_KIND[action];
+  if (kind) {
+    publishEventSafe({
+      guildId, kind, actorId: moderatorId, subjectId: userId, source: "guard",
+      payload: { caseId, action, durationMs: Number(details?.durationMs) || undefined },
+    });
+  }
+  return caseId;
 }
 
 export function listModerationCases(guildId, userId, limit = 10) {
@@ -296,7 +314,7 @@ export async function handleModerationInteraction(interaction, guildSettings = {
           ?? interaction.channel;
         if (!channel?.isTextBased()) throw new Error("Choisis un salon textuel.");
         const embed = new EmbedBuilder()
-          .setColor(0x6d28d9)
+          .setColor(0xe21d2f)
           .setTitle("✅ Vérification")
           .setDescription(settings.verification?.message || "Résous le petit calcul pour confirmer que tu es humain.");
         await channel.send({

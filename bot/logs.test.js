@@ -23,7 +23,7 @@ test("central logger safely declines when no configured or compatible fallback c
 
 test("system log embeds cap Discord fields and avoid accidental mention parsing", () => {
   const embed = systemLogEmbed({ title: "Action", description: "Résumé", fields: Array.from({ length: 30 }, (_, i) => ({ name: `N${i}`, value: "x".repeat(1200) })) });
-  assert.equal(embed.color, 0x6d28d9);
+  assert.equal(embed.color, 0xe21d2f);
   assert.equal(embed.fields.length, 25);
   assert.equal(embed.fields[0].value.length, 1024);
   assert.ok(embed.timestamp);

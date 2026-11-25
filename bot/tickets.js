@@ -50,7 +50,7 @@ async function sendTicketLog(guild, settings, embed) {
 
 function ticketLogEmbed(guild, interaction, action, ticket, extra = []) {
   return new EmbedBuilder()
-    .setColor(action === "closed" ? 0x6b7280 : 0x6d28d9)
+    .setColor(action === "closed" ? 0x6b7280 : 0xe21d2f)
     .setTitle(`🎫 Ticket — ${action}`)
     .addFields(
       { name: "Ticket", value: `#${ticket.id}`, inline: true },
@@ -174,7 +174,7 @@ export async function handleTicketsInteraction(interaction, guildSettings = {}, 
       const rows = db.prepare("SELECT * FROM tickets WHERE guild_id=? ORDER BY created_at DESC LIMIT 15").all(guild.id);
       const lines = rows.map((row) => `• \`#${row.id}\` <#${row.channel_id}> — ${ticketStatusLabel(row.status)} · ${mention(row.user_id)}${row.claimed_by ? ` · pris par ${mention(row.claimed_by)}` : ""} · ${ticketDuration(row.created_at)}`);
       await interaction.reply({
-        embeds: [new EmbedBuilder().setColor(0x6d28d9).setTitle("🎫 Tickets du serveur").setDescription(lines.length ? lines.join("\n") : "Aucun ticket.")],
+        embeds: [new EmbedBuilder().setColor(0xe21d2f).setTitle("🎫 Tickets du serveur").setDescription(lines.length ? lines.join("\n") : "Aucun ticket.")],
         ephemeral: true,
         allowedMentions: { parse: [] },
       });

@@ -84,7 +84,7 @@ export async function sendCentralLog(guild, settings, embed, fallbackChannelIds 
   return true;
 }
 
-export function systemLogEmbed({ title, description, color = 0x6d28d9, fields = [] }) {
+export function systemLogEmbed({ title, description, color = 0xe21d2f, fields = [] }) {
   const normalizedFields = Array.isArray(fields) ? fields.slice(0, 25).map((field) => ({
     name: clean(field?.name || "Détail", 256),
     value: clean(field?.value || "—", MAX_FIELD_VALUE),

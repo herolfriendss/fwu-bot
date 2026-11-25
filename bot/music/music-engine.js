@@ -21,6 +21,7 @@ export async function advancePlayback(state, dependencies) {
   state.advancing = true;
 
   try {
+    const previous = state.current;
     const transition = getNextTrackTransition({
       isRadio: Boolean(state.radio),
       loop: state.loop,
@@ -55,7 +56,12 @@ export async function advancePlayback(state, dependencies) {
       }
     }
 
-    const next = transition.kind === "play" ? transition.track : state.queue.shift();
+    let next = transition.kind === "play" ? transition.track : state.queue.shift();
+    // Autoplay: the queue is empty after a normal track -> fetch a similar one.
+    if (!next && previous && !state.radio && dependencies.autoplay) {
+      next = await dependencies.autoplay(previous).catch(() => null);
+      if (next) state.current = null;
+    }
     if (!next) {
       await dependencies.updatePanel().catch(() => {});
       return true;

@@ -32,7 +32,7 @@ function canManageGuild(guild, member) {
 
 function diceEmbed(result) {
   return brandEmbed(new EmbedBuilder()
-    .setColor(0x6d28d9)
+    .setColor(0xe21d2f)
     .setTitle("🎲 Lancer de dés")
     .setDescription(result.values.map((value) => `**${value}**`).join(" · "))
     .addFields(

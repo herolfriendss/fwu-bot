@@ -36,7 +36,7 @@ async function findVoiceAuditActor(guild, memberId, botId, now = Date.now(), des
   return { actorId: null, action: null };
 }
 
-function publishVoiceLog(client, guild, { title, description, color = 0x6d28d9 }) {
+function publishVoiceLog(client, guild, { title, description, color = 0xe21d2f }) {
   void sendToLogsHub(client, guild, systemLogEmbed({ title, description, color }), title).catch(() => {});
 }
 

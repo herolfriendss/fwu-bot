@@ -23,6 +23,13 @@ function commandNameChecks(source: string): Set<string> {
       .map((entry) => entry[1]!),
   );
 
+  // Modules that declare their commands as `X_COMMANDS = new Set([...])` (GUARD, features, casino).
+  // ECONOMY_V4_COMMANDS (index.js) only labels audit logs: it routes nothing.
+  for (const match of source.matchAll(/\b([A-Z_]*COMMANDS)\s*=\s*new Set\(\[([^\]]+)\]\)/g)) {
+    if (match[1] === "ECONOMY_V4_COMMANDS") continue;
+    for (const entry of match[2]!.matchAll(/"([a-z0-9-]+)"/g)) names.add(entry[1]!);
+  }
+
   const includesPattern =
     /\[([^\]]+)\]\s*\.includes\s*\(\s*interaction\.commandName\s*\)/g;
 
@@ -87,7 +94,8 @@ describe("bot wiring", () => {
     // /sysp is a deliberate shared dispatch: the WHITELIST module handles its
     // whitelist-* subcommands and returns false for everything else, which the SYS+
     // module then handles. Any other double route is still an error.
-    const SHARED_DISPATCH = new Set(["sysp"]);
+    // casino, blackjack, roulette : le casino v2 (bot/casino) répond avant l'ancien routeur V4, gardé en secours.
+    const SHARED_DISPATCH = new Set(["sysp", "casino", "blackjack", "roulette"]);
     const handled = new Set<string>();
     const add = (name: string) => {
       if (handled.has(name) && !SHARED_DISPATCH.has(name)) throw new Error(`Commande ${name} routée deux fois`);
@@ -102,6 +110,19 @@ describe("bot wiring", () => {
       indexSrc,
       read("bot/guild-guard-commands.js"),
       read("bot/staff-moderation.js"),
+      read("bot/guard/commands.js"),
+      read("bot/guard/shield-commands.js"),
+      read("bot/features/community.js"),
+      read("bot/features/suckme.js"),
+      read("bot/features/perks-commands.js"),
+      read("bot/features/clans-commands.js"),
+      read("bot/features/confessions-commands.js"),
+      read("bot/features/fisc.js"),
+      read("bot/features/overview.js"),
+      read("bot/features/self-update.js"),
+      read("bot/features/quests-commands.js"),
+      read("bot/music/music.js"),
+      read("bot/casino/commands.js"),
       read("bot/embeds.js"),
       read("bot/resume.js"),
       read("bot/blacklist.js"),

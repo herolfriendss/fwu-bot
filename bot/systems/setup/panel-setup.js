@@ -253,7 +253,7 @@ function panelPayload(guild, settings, section = "home", commandGroups = []) {
     ),
   };
   const embed = new EmbedBuilder()
-    .setColor(0x6d28d9)
+    .setColor(0xe21d2f)
     .setTitle(`FWU • ${page.label}`)
     .setDescription(`${page.description}\n\n${page.commands}`)
     .addFields({

@@ -17,6 +17,9 @@ BOT = ROOT / "bot"
 OUT = Path(sys.argv[1]) if len(sys.argv) > 1 else ROOT / "livraison" / "bots"
 EXCLUDED_DIRS = {".git", "node_modules", "data", "coverage", ".cache", ".output", "tmp", "temp", "fixtures"}
 EXCLUDED_SUFFIXES = {".sqlite", ".sqlite3", ".db", ".log", ".zip", ".tar", ".gz", ".tmp"}
+# Shipped assets whose extension the filters above would otherwise drop.
+# The glyph atlas is gzipped on purpose: node:zlib unpacks it with no dependency.
+ALWAYS_INCLUDE = {"image/atlas.bin.gz"}
 
 BOTS = {
     "guard": ("GUARD", "PND_GUARD_TOKEN", "Administration lourde en préfixe + : +ban, +unban, +kick, +blacklist, +purge, +lock ; GuildGuard, vérification, anti-spam, Guardian. Quotas partagés."),
@@ -137,6 +140,8 @@ npm ci --omit=dev --no-audit --no-fund >/dev/null
 node --check index.js
 
 info "Démarrage de fwu-{profile}"
+# PM2's restart counter is cumulative across updates: reset it so the check below only counts crashes of this start.
+pm2 reset fwu-{profile} >/dev/null 2>&1 || true
 pm2 startOrReload ecosystem.config.cjs --update-env >/dev/null
 ok=0
 for attempt in $(seq 1 12); do
@@ -215,7 +220,9 @@ def bot_files():
         name = path.name
         if name == ".env" or name.startswith(".env."):
             continue
-        if path.suffix.lower() in EXCLUDED_SUFFIXES or name.endswith((".pem", ".key", ".p12", ".pfx")):
+        if rel.as_posix() not in ALWAYS_INCLUDE and (
+            path.suffix.lower() in EXCLUDED_SUFFIXES or name.endswith((".pem", ".key", ".p12", ".pfx"))
+        ):
             continue
         if name.endswith(".test.js") or rel.parts[0] == "scripts":
             continue

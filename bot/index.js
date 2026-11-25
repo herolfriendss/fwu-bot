@@ -26,7 +26,7 @@ import { handleWhitelistInteraction } from "./systems/sysplus/whitelist-commands
 import { enforceProtectedNickname, handleLocknameInteraction, handleLocknameMessage, reconcileProtectedNicknames } from "./systems/lockname/commands.js";
 import { expireWaoufActions, handleWaoufInteraction, handleWaoufMessage } from "./systems/waouf/commands.js";
 import { enforceLeashNickname, handleDogCommand, handleLeashVoiceState, handleUndogAllInteraction, reconcileLeashedMembers } from "./dog-commands.js";
-import { handleMusicMessage, handleMusicInteraction, handleRadioMessage, startConfiguredRadios } from "./music/music.js";
+import { handleMusicExtrasInteraction, handleMusicMessage, handleMusicInteraction, handleRadioMessage, startConfiguredRadios } from "./music/music.js";
 import { economySnapshot, handleEconomyMessage, handleEconomyInteraction, reconcilePendingEconomy, recoverBlackjackGames, settleExpiredEconomyAuctions, transferEconomyRole } from "./economy.js";
 import { handleV4SlashInteraction, runPrefixFromSlash } from "./v4-commands.js";
 import { handleSocialMessage } from "./social.js";
@@ -47,6 +47,15 @@ import { handleAutomationInteraction, handleAutomationJoin, handleAutomationMess
 import { handleRoleInteraction, handleRoleMessage } from "./role-commands.js";
 import { handleCustomRolesInteraction, handleCustomRolesMessage } from "./systems/sysplus/custom-roles.js";
 import { handleCasinoMessage } from "./casino.js";
+import { handleCasinoInteraction } from "./casino/commands.js";
+import { runCascade, startCascade } from "./cascade.js";
+import { handleConfessionInteraction } from "./features/confessions-commands.js";
+import { handleOverviewInteraction } from "./features/overview.js";
+import { handleClanInteraction } from "./features/clans-commands.js";
+import { handleQuestInteraction } from "./features/quests-commands.js";
+import { handlePerkInteraction } from "./features/perks-commands.js";
+import { removeColourRole } from "./features/perks.js";
+import { pruneEvents } from "./event-bus.js";
 import { handleBusinessInvestmentMessage } from "./business-investments-commands.js";
 import { startInvestmentMaintenance } from "./business-investments-maintenance.js";
 import { handlePndIntelligenceMessage, handlePndIntelligenceInteraction, expirePendingPndIntelligenceActions, recoverInterruptedPndIntelligenceActions } from "./pnd-intelligence.js";
@@ -81,6 +90,15 @@ import { handleWebhookInteraction } from "./webhooks.js";
 import { handlePanelSetupInteraction } from "./systems/setup/panel-setup.js";
 import { getPndPrivilegedIds } from "./pnd-owner-policy.js";
 import { checkInteractionHierarchy } from "./hierarchy-guard.js";
+import { createAntiNuke, registerBotIdentity } from "./guard/anti-nuke.js";
+import { createAutomod } from "./guard/automod.js";
+import { handleShieldInteraction, checkHoneypotMessage } from "./guard/shield-commands.js";
+import { runAutoconfig } from "./autoconfig.js";
+import { handleGuardInteraction } from "./guard/commands.js";
+import { communityAutoconfig, handleCommunityInteraction, handleLevelMessage, runBirthdays, runReminders, tickVoiceXp } from "./features/community.js";
+import { handleFiscInteraction, runLoanCollection, runWealthTax } from "./features/fisc.js";
+import { announceUpdateResult, handleSelfUpdateInteraction } from "./features/self-update.js";
+import { handleSuckmeInteraction, ladderOf, runAnnouncements, runTempRoles, saveLadder } from "./features/suckme.js";
 import { armSlowCommandWatchdog } from "./interaction-watchdog.js";
 import { STAFF_ONLY_MESSAGE, isServerStaff } from "./server-staff.js";
 import { installOwnerShield, runAsActor } from "./owner-shield.js";
@@ -212,9 +230,21 @@ async function reportStatus() {
           })),
       }),
     });
-    if (!res.ok) console.error("Envoi du statut impossible.");
-  } catch { console.error("Envoi du statut impossible."); }
+    noteStatusDelivery(res.ok ? null : `HTTP ${res.status}`);
+  } catch (error) { noteStatusDelivery(error?.name === "TimeoutError" ? "délai dépassé (10 s)" : "site injoignable"); }
   finally { reporting = false; }
+}
+// Log status delivery problems once per outage (with the reason), not on every attempt.
+let statusFailures = 0;
+function noteStatusDelivery(problem) {
+  if (!problem) {
+    if (statusFailures >= 3) console.error(`Statut de nouveau transmis au site (après ${statusFailures} échecs).`);
+    statusFailures = 0;
+    return;
+  }
+  statusFailures += 1;
+  // A single miss happens while the site restarts: only report from the third one in a row.
+  if (statusFailures === 3) console.error(`Envoi du statut impossible : ${problem}. Le bot continue ; le site affichera un état ancien jusqu'au retour.`);
 }
 record("started");
 if (serves("fisc")) recoverBlackjackGames();
@@ -240,7 +270,7 @@ const fill = (tpl, vars) => tpl.replace(/\{(\w+)\}/g, (m, k) => vars[k] ?? m);
 const noMentions = { parse: ["users"] };
 const ECONOMY_V4_COMMANDS = new Set(["pnd", "pnd-add", "pnd-remove", "pnd-history", "pnd-audit", "balance", "daily", "pay", "shop", "buy", "inventory", "leaderboard"]);
 
-function auditLog(guild, settingsForGuild, title, description, color = 0x6d28d9) {
+function auditLog(guild, settingsForGuild, title, description, color = 0xe21d2f) {
   if (!guild || isLogsHub(guild.id)) return;
   const embed = systemLogEmbed({ title, description: `Serveur source : **${guild.name}** (\`${guild.id}\`)\n${description}`, color });
   // sendCentralLog routes to the isolated Logs Hub and, when configured, the
@@ -271,8 +301,10 @@ function auditSlashUsage(interaction, category) {
 
 // Nobody can touch the OWNER, whatever the path (commands, panels, jobs, automatic protections).
 installOwnerShield({ report: () => record("owner_shield_blocked") });
+const guardReport = (guild, { title, description, color }) => sendCentralLog(guild, settings[guild.id], systemLogEmbed({ title, description, color }));
+const automod = createAutomod({ report: guardReport, record: (code) => record(code) });
 const client = new Client({
-  intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildVoiceStates, GatewayIntentBits.GuildMessages, GatewayIntentBits.GuildMessageReactions, GatewayIntentBits.GuildInvites, GatewayIntentBits.MessageContent, GatewayIntentBits.GuildMembers, GatewayIntentBits.GuildModeration],
+  intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildVoiceStates, GatewayIntentBits.GuildMessages, GatewayIntentBits.GuildMessageReactions, GatewayIntentBits.GuildInvites, GatewayIntentBits.MessageContent, GatewayIntentBits.GuildMembers, GatewayIntentBits.GuildModeration, GatewayIntentBits.GuildWebhooks],
   partials: [Partials.Channel, Partials.Message, Partials.Reaction],
 });
 
@@ -394,6 +426,15 @@ function prefixifyMessageReplies(msg, prefix) {
   msg.reply = (payload, ...rest) => original.call(msg, prefixifyPayload(payload, prefix), ...rest);
 }
 
+// GUARD anti-nuke: destructive actions in bulk are reverted and their author neutralised.
+const antiNuke = createAntiNuke({ client, report: guardReport, record: (code) => record(code) });
+const guardWatch = (guild) => guild && serves("guard") && guildAllowed(guild.id, ALLOWED_GUILDS) && !isLogsHub(guild.id);
+client.on("channelDelete", (channel) => { if (guardWatch(channel.guild)) void antiNuke.channelDelete(channel).catch(() => record("antinuke_error")); });
+client.on("roleDelete", (role) => { if (guardWatch(role.guild)) void antiNuke.roleDelete(role).catch(() => record("antinuke_error")); });
+client.on("guildBanAdd", (ban) => { if (guardWatch(ban.guild)) void antiNuke.ban(ban).catch(() => record("antinuke_error")); });
+client.on("guildMemberRemove", (member) => { if (guardWatch(member.guild)) void antiNuke.memberRemove(member).catch(() => record("antinuke_error")); });
+client.on("webhooksUpdate", (channel) => { if (guardWatch(channel.guild)) void antiNuke.webhooksUpdate(channel).catch(() => record("antinuke_error")); });
+
 client.on("messageCreate", async (msg) => {
   if (msg.author.bot || !msg.guild) return;
   // Defense in depth: a guild outside the allowlist is ignored even while the
@@ -412,6 +453,18 @@ client.on("messageCreate", async (msg) => {
   }
   const runCmd = (...domains) => ownCommand && domains.includes(RUNTIME.profile);
   if (serves("fwu")) recordAnalyticsMetric(msg.guild.id, "messages");
+  // GUARD trap channel: anyone writing there is handled and the message is gone.
+  if (serves("guard")) {
+    const caught = await checkHoneypotMessage(msg, s).catch(() => null);
+    if (caught) {
+      void guardReport(msg.guild, { title: "🪤 Salon piège", description: caught }).catch(() => {});
+      record("guild_guard_quarantine");
+      return;
+    }
+  }
+  // GUARD automod: a removed message stops here (no XP, no other processing).
+  if (serves("guard") && await automod(msg, s).catch(() => null)) return;
+  if (serves("fwu")) void handleLevelMessage(msg).catch(() => record("levels_error"));
   if (serves("guard")) {
   const guardianNow = Date.now();
   const mentionCount = (msg.mentions?.users?.size ?? 0) + (msg.mentions?.roles?.size ?? 0) + (msg.mentions?.everyone ? 1 : 0);
@@ -769,7 +822,7 @@ client.on("voiceStateUpdate", (oldState, newState) => {
     void sendCentralLog(guild, guildSettings, systemLogEmbed({
       title: `🎙️ Join-to-Create — ${labels[code] ?? code}`,
       description: `Événement : \`${code}\`\nMembre : <@${newState.id}>`,
-      color: code === "temp_voice_error" ? 0xef4444 : 0x6d28d9,
+      color: code === "temp_voice_error" ? 0xef4444 : 0xe21d2f,
     })).catch(() => {});
   };
   void handleVoiceV2State(oldState, newState, guildSettings, logTempVoice)
@@ -854,7 +907,7 @@ client.on("guildUpdate", (oldGuild, newGuild) => {
   if (oldGuild.ownerId !== newGuild.ownerId) changes.push(`Propriété transférée : <@${oldGuild.ownerId}> → <@${newGuild.ownerId}>`);
   if (oldGuild.icon !== newGuild.icon) changes.push("Icône modifiée");
   if (!changes.length) return;
-  auditLog(newGuild, settings[newGuild.id], "⚙️ Serveur modifié", changes.join("\n"), oldGuild.ownerId !== newGuild.ownerId ? 0xdc2626 : 0x6d28d9);
+  auditLog(newGuild, settings[newGuild.id], "⚙️ Serveur modifié", changes.join("\n"), oldGuild.ownerId !== newGuild.ownerId ? 0xdc2626 : 0xe21d2f);
 });
 client.on("threadCreate", (thread, newlyCreated) => {
   if (!serves("fwu") || !newlyCreated || !thread.guild || !guildAllowed(thread.guild.id, ALLOWED_GUILDS) || isLogsHub(thread.guild.id)) return;
@@ -884,8 +937,35 @@ async function reconcileDogLeashes() {
   }
 }
 
-client.once("ready", () => {
+client.once("clientReady", () => {
   if (!IS_FWU) tickDomainLease();
+  // Every FWU bot records its Discord id so GUARD's anti-nuke never targets its siblings.
+  try { registerBotIdentity(RUNTIME.profile, client.user.id); } catch { record("bot_identity_error"); }
+  // FWU community jobs: voice XP (1 min), reminders (30 s), birthdays (5 min).
+  const communityGuilds = () => [...client.guilds.cache.values()].filter((g) => guildAllowed(g.id, ALLOWED_GUILDS) && !isLogsHub(g.id));
+  // One-time automatic configuration (channels, roles, staff ladder) once leases are settled.
+  setTimeout(() => {
+    void runAutoconfig(communityGuilds(), (domain) => serves(domain) && (IS_FWU ? domain === "fwu" : domain !== "fwu"), { ...communityAutoconfig, ladder: ladderOf, saveLadder }, (guild, line) => {
+      console.log(`[autoconfig] ${guild.name} : ${line}`);
+      auditLog(guild, settings[guild.id], "⚙️ Configuration automatique", line, 0xe21d2f);
+    }).catch(() => record("autoconfig_error"));
+  }, 45_000).unref?.();
+  setInterval(() => { if (serves("fwu")) void tickVoiceXp(communityGuilds()).catch(() => record("levels_error")); }, 60_000).unref?.();
+  setInterval(() => { if (serves("fwu")) void runReminders(client).catch(() => record("reminders_error")); }, 30_000).unref?.();
+  setInterval(() => { if (serves("fwu")) void runBirthdays(communityGuilds()).catch(() => record("birthdays_error")); }, 5 * 60_000).unref?.();
+  // SUCK ME: tell the OWNER how the last /maj ended (checked every 2 minutes).
+  setInterval(() => { if (serves("suckme")) void announceUpdateResult(client).catch(() => {}); }, 2 * 60_000).unref?.();
+  // SUCK ME jobs: expired temporary roles and scheduled announcements (every minute).
+  setInterval(() => {
+    if (!serves("suckme")) return;
+    void runTempRoles(client).catch(() => record("suckme_job_error"));
+    void runAnnouncements(client).catch(() => record("suckme_job_error"));
+  }, 60_000).unref?.();
+  // LE FISC jobs: weekly wealth tax and overdue loans (hourly checks).
+  setInterval(() => {
+    if (!serves("fisc")) return;
+    try { runWealthTax(communityGuilds().map((g) => g.id)); runLoanCollection(); } catch { record("fisc_job_error"); }
+  }, 60 * 60_000).unref?.();
   // Creator Studio scheduler: publishes due drafts only on allowlisted guilds (MZ stays excluded).
   const studioSender = createClientStudioSender(client, { isAllowedGuild: (gid) => guildAllowed(gid, ALLOWED_GUILDS) && !isLogsHub(gid) });
   // Each scheduled job checks its domain at every tick: exactly one process runs it.
@@ -1052,6 +1132,26 @@ client.once("ready", () => {
   if (serves("fisc")) void runEconomyReconciliation(gate.servesAll() ? 0 : 10 * 60_000);
   const economyReconcileTimer = setInterval(() => { if (serves("fisc")) void runEconomyReconciliation(10 * 60_000); }, 10 * 60_000);
   economyReconcileTimer.unref?.();
+
+  // Inter-bot reactions: one process drains the shared bus so a bonus is never
+  // paid twice. The bot serving "fwu" owns it; if it is down the events wait.
+  if (serves("fwu")) {
+    startCascade();
+    const drain = () => void runCascade({
+      guildIds: ALLOWED_GUILDS,
+      onEffect: (event, line) => console.log(`[cascade] ${event.kind} → ${line}`),
+      onPerkExpired: async ({ guildId, userId, kind }) => {
+        if (kind !== "couleur") return;
+        const guild = client.guilds.cache.get(guildId);
+        if (guild) await removeColourRole(guild, userId).catch(() => {});
+      },
+    }).catch(() => record("cascade_error"));
+    drain();
+    const cascadeTimer = setInterval(drain, 20_000);
+    cascadeTimer.unref?.();
+    const pruneTimer = setInterval(() => { try { pruneEvents(); } catch { record("event_prune_error"); } }, 6 * 60 * 60_000);
+    pruneTimer.unref?.();
+  }
   if (serves("suckme")) {
     void reconcileDogLeashes();
     void expireVoiceMenottes(client, settings).then((count) => { if (count) record("menotte_expired"); }).catch(() => record("menotte_expiration_error"));
@@ -1347,6 +1447,12 @@ client.on("interactionCreate", (interaction) => {
     if (await handleDmAllInteraction(interaction, settings[interaction.guildId])) return;
     if (await handleUndogAllInteraction(interaction, settings[interaction.guildId])) return;
     if (await handleBlacklistInteraction(interaction, settings[interaction.guildId])) return;
+    if (await handleGuardInteraction(interaction, settings[interaction.guildId])) { auditSlashUsage(interaction, "GUARD"); return; }
+    if (await handleCommunityInteraction(interaction, settings[interaction.guildId])) { auditSlashUsage(interaction, "Communauté"); return; }
+    if (await handleFiscInteraction(interaction)) { auditSlashUsage(interaction, "LE FISC"); return; }
+    if (await handleSelfUpdateInteraction(interaction)) { auditSlashUsage(interaction, "SUCK ME"); return; }
+    if (await handleSuckmeInteraction(interaction, settings[interaction.guildId])) { auditSlashUsage(interaction, "SUCK ME"); return; }
+    if (await handleMusicExtrasInteraction(interaction)) { auditSlashUsage(interaction, "Musique & radio"); return; }
     if (await handleLiveInteraction(interaction, settings, { apiUrl: API, secret: BOT_SYNC_SECRET })) { auditSlashUsage(interaction, "Alertes LIVE"); return; }
     if (interaction.isChatInputCommand?.() && interaction.commandName === "ia" && ["demande", "historique"].includes(interaction.options.getSubcommand(false))) {
       // PND Intelligence (former =pndia): same engine, preview then confirmation button.
@@ -1396,6 +1502,15 @@ client.on("interactionCreate", (interaction) => {
     if (await handleEmbedInteraction(interaction, settings[interaction.guildId], { bot: RUNTIME.profile, audit: auditLog })) return;
     if (await handleModerationInteraction(interaction, settings[interaction.guildId], { apiUrl: API, secret: BOT_SYNC_SECRET, bot: RUNTIME.profile })) return;
     if (await handleVoiceV2Interaction(interaction, settings[interaction.guildId])) { auditSlashUsage(interaction, "Vocal temporaire"); return; }
+    // Commandes et boutons : une commande slash n'arrive qu'à son bot propriétaire (filtre en tête),
+    // un bouton revient toujours au bot qui l'a publié. Aucune condition de domaine ici.
+    if (await handleShieldInteraction(interaction)) { auditSlashUsage(interaction, "Bouclier"); return; }
+    if (await handleQuestInteraction(interaction)) { auditSlashUsage(interaction, "Quêtes"); return; }
+    if (await handleClanInteraction(interaction)) { auditSlashUsage(interaction, "Clans & saisons"); return; }
+    if (await handleOverviewInteraction(interaction)) { auditSlashUsage(interaction, "Profil FWU"); return; }
+    if (await handleConfessionInteraction(interaction)) { auditSlashUsage(interaction, "Confessions"); return; }
+    if (await handleCasinoInteraction(interaction)) { auditSlashUsage(interaction, "PND Casino"); return; }
+    if (await handlePerkInteraction(interaction)) { auditSlashUsage(interaction, "Avantages"); return; }
     if (await handleGamesInteraction(interaction, settings[interaction.guildId], record)) { auditSlashUsage(interaction, "Jeux & événements"); return; }
     if (await handleKnowledgeInteraction(interaction)) return;
     if (await handleTicketsInteraction(interaction, settings[interaction.guildId], {
