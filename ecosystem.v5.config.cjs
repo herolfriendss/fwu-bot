@@ -33,6 +33,8 @@ module.exports = {
       restart_delay: 5000,
       min_uptime: "15s",
       max_restarts: 10,
+      // 78 = gave up after repeated Discord connection failures (bot/gateway-watchdog.js).
+      stop_exit_codes: [78],
       time: true,
     },
   ],

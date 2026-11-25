@@ -25,6 +25,7 @@ if dirty:
     sys.exit(f"Dépôt non propre : commite d'abord.\n{dirty}")
 commit = subprocess.run(["git", "rev-parse", "--short", "HEAD"], cwd=ROOT, capture_output=True, text=True, check=True).stdout.strip()
 
+run("npm", "--prefix", "bot", "test")  # tests du bot : jamais de bot cassé dans une livraison
 run("npm", "test")  # tests du site : sautés sur un petit VPS quand le site est livré tout fait
 run("./node_modules/.bin/tsc", "--noEmit")
 run("npm", "run", "build")

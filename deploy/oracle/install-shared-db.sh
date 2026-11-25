@@ -43,7 +43,22 @@ if ! grep -qE '^host\s+fwu\s+fwu\s+127\.0\.0\.1/32\s+scram-sha-256' /var/lib/pgs
   sed -i '1i host    fwu    fwu    127.0.0.1/32    scram-sha-256' /var/lib/pgsql/data/pg_hba.conf
 fi
 systemctl enable --now postgresql >/dev/null
-systemctl reload postgresql
+# Petite machine (moins de 2 Go, ex. VPS de 500 Mo) : réglages mémoire minimaux, sinon PostgreSQL
+# réserve 128 Mo de cache à lui seul. Sans effet sur une machine plus grande (Ampere A1).
+MEM_KB="$(awk '/^MemTotal:/ {print $2}' /proc/meminfo 2>/dev/null || echo 0)"
+if [[ "${MEM_KB:-0}" -gt 0 && "$MEM_KB" -lt 2097152 ]]; then
+  info "Petite machine ($((MEM_KB / 1024)) Mo) : réglages mémoire réduits pour PostgreSQL"
+  sudo -u postgres psql -v ON_ERROR_STOP=1 -q <<'SQL' >/dev/null
+ALTER SYSTEM SET shared_buffers = '32MB';
+ALTER SYSTEM SET max_connections = 30;  -- 5 bots x 5 connexions max + marge
+ALTER SYSTEM SET work_mem = '2MB';
+ALTER SYSTEM SET maintenance_work_mem = '16MB';
+ALTER SYSTEM SET effective_cache_size = '96MB';
+SQL
+  systemctl restart postgresql
+else
+  systemctl reload postgresql
+fi
 
 info "Création de l'utilisateur et de la base"
 PASSWORD="$(openssl rand -hex 24)"

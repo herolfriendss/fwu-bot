@@ -212,3 +212,14 @@ test("bots diagnostic shows who handles each domain", () => {
   assert.match(formatBotsDiagnostic(2_000_000), /⚪ \*\*GUARD\*\*.*dernier signe/);
   db.exec("DELETE FROM bot_domain_leases");
 });
+
+test("bots diagnostic shows connection failures and definitive stops", async () => {
+  const { recordGatewayFailure, clearGatewayFailures } = await import("./gateway-watchdog.js");
+  for (let i = 0; i < 6; i++) recordGatewayFailure(db, "guard", "TokenInvalid", 1_000_000);
+  recordGatewayFailure(db, "fisc", "startup_timeout", 1_000_000);
+  const text = formatBotsDiagnostic(1_010_000);
+  assert.match(text, /🔴 \*\*GUARD\*\* — arrêté après 6 échecs de connexion à Discord \(TokenInvalid\)/);
+  assert.match(text, /🟠 \*\*LE FISC\*\* — 1 échec\(s\) de connexion/);
+  clearGatewayFailures(db, "guard"); clearGatewayFailures(db, "fisc");
+  assert.doesNotMatch(formatBotsDiagnostic(1_010_000), /échec/);
+});

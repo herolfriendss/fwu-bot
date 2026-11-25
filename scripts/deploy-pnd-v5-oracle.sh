@@ -237,6 +237,8 @@ for (const name of ["her-v5-web", "her-v5-bot"]) {
 }
 console.log("Processus V5 existants compatibles avec la racine cible.");
 ' 
+# The bot writes bot/.connected once Discord accepts it (see bot/gateway-watchdog.js).
+rm -f "$ROOT/bot/.connected"
 pm2 startOrReload ecosystem.v5.config.cjs --update-env
 
 info "Contrôle des processus V5"
@@ -249,6 +251,13 @@ for attempt in $(seq 1 20); do
   '; then break; fi
   [[ "$attempt" -lt 20 ]] || { pm2 status; pm2 logs --lines 60 --nostream; fail "Les deux processus PM2 V5 ne sont pas en ligne."; }
   sleep 2
+done
+
+info "Contrôle de la connexion de FWU à Discord"
+for attempt in $(seq 1 30); do
+  [[ -f "$ROOT/bot/.connected" ]] && { printf 'FWU est connecté à Discord.\n'; break; }
+  [[ "$attempt" -lt 30 ]] || { pm2 logs her-v5-bot --lines 40 --nostream | grep -vi token || true; fail "FWU ne se connecte pas à Discord (token, intents ou réseau)."; }
+  sleep 5
 done
 
 info "Contrôle HTTP local du dashboard"

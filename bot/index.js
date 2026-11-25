@@ -103,6 +103,8 @@ import { armSlowCommandWatchdog } from "./interaction-watchdog.js";
 import { STAFF_ONLY_MESSAGE, isServerStaff } from "./server-staff.js";
 import { installOwnerShield, runAsActor } from "./owner-shield.js";
 import { assertOwnerConfig } from "./owner-config.js";
+import { db } from "./database.js";
+import { clearConnectedMarker, clearGatewayFailures, createGatewayWatchdog, recordGatewayFailure, writeConnectedMarker } from "./gateway-watchdog.js";
 import { LOGS_HUB_GUILD_ID, ACTIVE_SOURCE_GUILD_IDS, allowedRuntimeGuild, filterInactiveSourceGuilds, isLogsHub, provisionLogsHub } from "./logs-hub.js";
 
 const { SITE_URL, BOT_SYNC_SECRET } = process.env;
@@ -938,6 +940,8 @@ async function reconcileDogLeashes() {
 }
 
 client.once("clientReady", () => {
+  writeConnectedMarker();
+  try { clearGatewayFailures(db, RUNTIME.profile); } catch { /* diagnostic only */ }
   if (!IS_FWU) tickDomainLease();
   // Every FWU bot records its Discord id so GUARD's anti-nuke never targets its siblings.
   try { registerBotIdentity(RUNTIME.profile, client.user.id); } catch { record("bot_identity_error"); }
@@ -1554,4 +1558,27 @@ setInterval(sync, 60_000);
 setInterval(reportStatus, 20_000);
 startGamesScheduler(client, record, () => serves("fwu"));
 startAutomationScheduler(client, record, () => serves("suckme"));
-client.login(DISCORD_TOKEN).catch(() => { record("gateway_error"); process.exitCode = 1; });
+// Silent-crash guard: a failed login or a long disconnection stops the process with an
+// error, so PM2 restarts it and counts it instead of showing a dead bot as "online".
+// Each failure waits longer before restarting (30 s → 8 min); after 6 failures in a row the
+// bot stops for good (exit code ignored by PM2) and the diagnostic shows it in red.
+let stoppingOffline = false;
+function stopOffline(reason) {
+  if (stoppingOffline) return;
+  stoppingOffline = true;
+  let plan = { failures: 1, stop: false, delayMs: 30_000, exitCode: 1 };
+  try { plan = recordGatewayFailure(db, RUNTIME.profile, reason); } catch { /* keep the default pause */ }
+  console.error(`❌ ${BOT_LABEL} : pas de connexion à Discord (${reason}, échec ${plan.failures}). Vérifie le token et les intents « Server Members » et « Message Content ».`);
+  console.error(plan.stop
+    ? `⛔ ${BOT_LABEL} s'arrête définitivement après ${plan.failures} échecs. Corrige puis relance : pm2 restart ${process.env.name ?? "<processus>"}`
+    : `↻ Nouvel essai dans ${Math.round(plan.delayMs / 1000)} s.`);
+  record("gateway_error");
+  clearConnectedMarker();
+  try { gate.release(); } catch { /* the lease expires on its own */ }
+  try { client.destroy(); } catch { /* already closed */ }
+  setTimeout(() => process.exit(plan.exitCode), Math.max(1_000, plan.delayMs));
+}
+clearConnectedMarker();
+const gatewayWatchdog = createGatewayWatchdog({ isReady: () => client.isReady(), exit: stopOffline });
+setInterval(() => gatewayWatchdog.check(), 15_000).unref?.();
+client.login(DISCORD_TOKEN).catch((error) => stopOffline(error?.code ?? error?.name ?? "login_failed"));
