@@ -12,7 +12,7 @@ Chaque choix se change sans toucher au code (variable d'environnement ou command
 | 2 | SYS+ et MENOTTE / WAKEUP | Réservé à l'OWNER et aux ADMIN+ dont le scope vocal est activé. Les messages d'erreur le disent clairement. | Donner aussi le rôle ADMIN+ aux SYS+ concernés, ou demander une modification du code. |
 | 3 | Règle de rang pour l'OWNER | Pas d'exception : l'OWNER doit avoir un rôle au-dessus de sa cible pour DOG et MENOTTE (seul le propriétaire du serveur Discord y échappe, règle native). | Placer le rôle de l'OWNER en haut de la hiérarchie Discord. |
 | 4 | Propriétaire du serveur ≠ OWNER FWU | Les deux restent distincts : le propriétaire du serveur garde ses privilèges natifs Discord. | Rien. |
-| 22 | Paliers de modération (0, 1, 5, 10, 50 %…) | Seule l'association faite avec `/quota palier` donne un palier ou la protection 0 %. Le nom d'un rôle (« Moi 1 % ») ne compte plus, et « % » est refusé dans les noms de rôles perso. **Arrive avec la PR #5** : avant de la déployer, faire `/quota palier` pour le rôle 0 % et chaque rôle de staff. | `/quota palier @rôle palier` (OWNER uniquement). |
+| 22 | Paliers de modération (0, 1, 5, 10, 50 %…) | Seule l'association faite avec `/quota palier` donne un palier ou la protection 0 %. Le nom d'un rôle (« Moi 1 % ») ne compte plus, et « % » est refusé dans les noms de rôles perso. **Arrive avec la correction de sécurité des rôles** (fil « Verrouiller les rôles ») : avant de la déployer, faire `/quota palier` pour le rôle 0 % et chaque rôle de staff. | `/quota palier @rôle palier` (OWNER uniquement). |
 | 23 | Rôles et accès sur le site | SYS+, WHITELIST, ADMIN+ et PND Intelligence sont en **lecture seule** sur le site. Ils se modifient seulement dans Discord, par l'OWNER, avec `/sysp` (chaque changement est journalisé). | Rien. |
 | 24 | Rôle de laisse (DOG) | Un rôle par propriétaire : `En laisse (<nom du propriétaire>)`, partagé par toutes ses laisses, supprimé quand plus personne ne l'a (ton choix du 24/11). L'ancien rôle commun `En laisse` est reconnu et migré. | Rien. |
 
@@ -61,4 +61,4 @@ Chaque choix se change sans toucher au code (variable d'environnement ou command
 - ~~**21 (23/11) — Commandes `=` abandonnées, tout en slash.**~~ Remplacée le 24/11 par la décision 21 ci-dessus (un préfixe par bot, FWU en slash uniquement).
 - ~~**14 (23/11) — RESUME non développé.**~~ Développé depuis (`bot/resume.js`).
 - ~~**8 (23/11) — `DEMARRER_AVEC_CLAUDE.txt` laissé en l'état.**~~ Rangé dans `docs/archives/` le 25/11.
-- ~~**Paliers lus dans le nom des rôles (« 10 % Modérateur »).**~~ Remplacé par la décision 22 (PR #5).
+- ~~**Paliers lus dans le nom des rôles (« 10 % Modérateur »).**~~ Remplacé par la décision 22 (correction de sécurité des rôles).
