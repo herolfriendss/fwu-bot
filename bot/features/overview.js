@@ -209,23 +209,38 @@ export function panelView(now = Date.now()) {
 
 export const OVERVIEW_COMMANDS = new Set(["moi", "fwu"]);
 
-/** Shows a member's profile; only the owner of the profile sees it privately. */
+/**
+ * Shows a member's profile: the drawn card as the embed's image, with the
+ * detailed fields underneath. A card that fails to draw is not fatal — the
+ * embed falls back to its banner.
+ */
 async function showProfile(interaction, target) {
   const member = target.id === interaction.user.id
     ? interaction.member
     : await interaction.guild.members.fetch(target.id).catch(() => null);
+  const username = member?.displayName ?? target.username;
+  const avatarUrl = target.displayAvatarURL?.({ extension: "png", size: 256 }) ?? null;
   const overview = memberOverview(interaction.guildId, target.id, { member });
-  const embed = overviewEmbed(overview, {
-    username: member?.displayName ?? target.username,
-    avatarUrl: target.displayAvatarURL?.({ extension: "png", size: 256 }) ?? null,
-  });
-  return { embeds: [embed] };
+  const embed = overviewEmbed(overview, { username, avatarUrl });
+
+  try {
+    const { profileCardAttachment } = await import("./profile-card.js");
+    const { attachment } = await profileCardAttachment({
+      guildId: interaction.guildId, userId: target.id, username, avatarUrl, member,
+    });
+    embed.setImage("attachment://profil.png");
+    return { embeds: [embed], files: [attachment] };
+  } catch (error) {
+    console.error("[profil] carte impossible:", error?.message ?? "erreur");
+    return { embeds: [embed] };
+  }
 }
 
 export async function handleOverviewInteraction(interaction) {
   try {
     if (interaction.isButton?.() && interaction.customId === "fwu:moi") {
-      await interaction.reply({ ...(await showProfile(interaction, interaction.user)), flags: 64 });
+      await interaction.deferReply({ flags: 64 });
+      await interaction.editReply(await showProfile(interaction, interaction.user));
       return true;
     }
     if (interaction.isButton?.() && interaction.customId === "fwu:etat") {
@@ -240,9 +255,10 @@ export async function handleOverviewInteraction(interaction) {
       return true;
     }
     const target = interaction.options.getUser("membre") ?? interaction.user;
-    const payload = await showProfile(interaction, target);
     // Someone else's profile is public; your own stays private by default.
-    await interaction.reply(target.id === interaction.user.id ? { ...payload, flags: 64 } : payload);
+    const own = target.id === interaction.user.id;
+    await interaction.deferReply(own ? { flags: 64 } : {});
+    await interaction.editReply(await showProfile(interaction, target));
     return true;
   } catch (error) {
     const content = `❌ ${error instanceof Error ? error.message : "Profil indisponible."}`;

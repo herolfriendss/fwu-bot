@@ -17,6 +17,9 @@ BOT = ROOT / "bot"
 OUT = Path(sys.argv[1]) if len(sys.argv) > 1 else ROOT / "livraison" / "bots"
 EXCLUDED_DIRS = {".git", "node_modules", "data", "coverage", ".cache", ".output", "tmp", "temp", "fixtures"}
 EXCLUDED_SUFFIXES = {".sqlite", ".sqlite3", ".db", ".log", ".zip", ".tar", ".gz", ".tmp"}
+# Shipped assets whose extension the filters above would otherwise drop.
+# The glyph atlas is gzipped on purpose: node:zlib unpacks it with no dependency.
+ALWAYS_INCLUDE = {"image/atlas.bin.gz"}
 
 BOTS = {
     "guard": ("GUARD", "PND_GUARD_TOKEN", "Administration et protection : GuildGuard, avertissements, mute, kick, purge, verrouillage, vérification, anti-spam, Guardian."),
@@ -217,7 +220,9 @@ def bot_files():
         name = path.name
         if name == ".env" or name.startswith(".env."):
             continue
-        if path.suffix.lower() in EXCLUDED_SUFFIXES or name.endswith((".pem", ".key", ".p12", ".pfx")):
+        if rel.as_posix() not in ALWAYS_INCLUDE and (
+            path.suffix.lower() in EXCLUDED_SUFFIXES or name.endswith((".pem", ".key", ".p12", ".pfx"))
+        ):
             continue
         if name.endswith(".test.js") or rel.parts[0] == "scripts":
             continue
