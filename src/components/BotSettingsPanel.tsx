@@ -94,6 +94,14 @@ export function BotSettingsPanel({ guildId, channels, onDirtyChange }: { guildId
         </select>
         <Label>Message ({"{user}"} = nouveau membre, {"{server}"} = nom du serveur)</Label>
         <Textarea value={s.welcome.message} onChange={(e) => set("welcome", { message: e.target.value })} rows={2} />
+        <div className="flex items-center gap-3 border-t border-border pt-3"><Switch checked={s.welcome.leaveEnabled} onCheckedChange={(v) => set("welcome", { leaveEnabled: v })} /><h4 className="font-medium">Message de départ</h4></div>
+        <p className="text-xs text-muted-foreground">Désactivé par défaut. Aucun salon n’est créé ou modifié ; choisis un salon existant ou réutilise celui du message de bienvenue.</p>
+        <select className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm" value={s.welcome.leaveChannelId} onChange={(e) => set("welcome", { leaveChannelId: e.target.value })}>
+          <option value="">Même salon que le message de bienvenue</option>
+          {channels.map((c) => <option key={c.id} value={c.id}>#{c.name}</option>)}
+        </select>
+        <Label>Message de départ ({"{user}"} = membre, {"{server}"} = nom du serveur)</Label>
+        <Textarea value={s.welcome.leaveMessage} onChange={(e) => set("welcome", { leaveMessage: e.target.value })} rows={2} />
       </div>
 
       <p className="text-xs text-muted-foreground">Les réponses de l’assistant IA se règlent dans l’onglet « Modules ».</p>
