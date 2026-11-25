@@ -86,7 +86,7 @@ test("une application principale absente demande une réinvitation, pas une corr
       { label: "Invest +", present: false, optional: true, missing: [], placement: [] },
     ],
   });
-  assert.match(text, /Réinvite ou redémarre 1 application(?:\\(s\\))? principale(?:\\(s\\))? absente(?:\\(s\\))?/);
+  assert.match(text, /Réinvite ou redémarre 1 application(?:\(s\))? principale(?:\(s\))? absente(?:\(s\))?/);
   assert.doesNotMatch(text, /Paramètres du serveur → Rôles/);
 });
 
