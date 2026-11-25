@@ -8,14 +8,7 @@ create table if not exists public.bot_settings (
 );
 
 alter table public.bot_settings enable row level security;
-
--- The dashboard and bot server use the service role; browser roles must never
--- receive table privileges, even if a future RLS policy is accidentally added.
-revoke all on table public.bot_settings from public, anon, authenticated;
--- The server performs reads and upserts only. It does not need TRUNCATE,
--- REFERENCES, TRIGGER or table DELETE privileges.
-revoke all on table public.bot_settings from service_role;
-grant select, insert, update on table public.bot_settings to service_role;
+grant all on table public.bot_settings to service_role;
 
 comment on table public.bot_settings is
   'Canonical per-guild PND bot settings. Access is server-side through the service role.';
