@@ -1824,6 +1824,22 @@ export const EXTRA_SLASH_COMMANDS: SlashCommandDef[] = [
     ],
   },
   {
+    name: "avantage",
+    description: "Dépense tes PND pour des avantages valables dans tous les bots",
+    usage: "/avantage liste | acheter | mes-avantages",
+    category: "Économie",
+    dmPermission: false,
+    requiresBotProcess: true,
+    options: [
+      sub("liste", "Tous les avantages et leur prix"),
+      sub("acheter", "Achète un avantage", [
+        opt(3, "avantage", "Avantage à acheter", { required: true, choices: [{ name: "Boost d'XP", value: "xp_boost" }, { name: "Protection anti-vol", value: "anti_vol" }, { name: "Couleur de pseudo", value: "couleur" }, { name: "Droit DJ", value: "dj" }, { name: "Plafond de mise doublé", value: "vip_casino" }] }),
+        opt(3, "couleur", "Couleur au format #rrggbb (pour la couleur de pseudo)", { max_length: 7 }),
+      ]),
+      sub("mes-avantages", "Tes avantages actifs"),
+    ],
+  },
+  {
     name: "bouclier",
     description: "Salon piège, sauvegardes du serveur et verrouillage d'urgence",
     usage: "/bouclier piege | sauvegarder | restaurer | verrouiller | etat",

@@ -2,6 +2,7 @@
 import { PermissionFlagsBits as P } from "discord.js";
 import { db } from "../database.js";
 import { parsePndOwnerId } from "../pnd-owner-policy.js";
+import { perkActive } from "../features/perks.js";
 
 export const AUDIO_FILTERS = Object.freeze({
   aucun: null,
@@ -34,7 +35,9 @@ export function isDj(member, guildId = member?.guild?.id) {
   if (member.id === parsePndOwnerId(process.env.PND_OWNER_DISCORD_ID) || member.id === member.guild?.ownerId) return true;
   if (member.permissions?.has?.(P.ManageChannels) || member.permissions?.has?.(P.Administrator)) return true;
   const role = djRoleId(guildId);
-  return !role || Boolean(member.roles?.cache?.has?.(role));
+  if (!role || member.roles?.cache?.has?.(role)) return true;
+  // A DJ right bought with PND counts exactly like the role.
+  return perkActive(guildId, member.id, "dj");
 }
 
 /** Commands that change the session for everyone: reserved to DJs when a DJ role exists. */

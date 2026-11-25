@@ -8,6 +8,7 @@ import { db, transaction } from "./database.js";
 import { consumeEvents, initCursor, publishEventSafe, EVENT_KINDS } from "./event-bus.js";
 import { applySanction, liftSanction, invalidateTrust, expireSanctions, SANCTION_SCOPES } from "./trust.js";
 import { addClanPoints, dueSeasons, closeSeason } from "./features/clans.js";
+import { expirePerks } from "./features/perks.js";
 
 export const CASCADE_CONSUMER = "cascade:core";
 const MAX_BALANCE = 1_000_000_000_000;
@@ -121,7 +122,7 @@ export function applyPlan(event, now = Date.now()) {
  * One pass over the pending events. `onEffect` receives every applied effect so
  * the caller can mirror it into the audit channel.
  */
-export async function runCascade({ guildIds = null, onEffect = () => {}, now = Date.now() } = {}) {
+export async function runCascade({ guildIds = null, onEffect = () => {}, onPerkExpired = null, now = Date.now() } = {}) {
   let effects = 0;
   const result = await consumeEvents(CASCADE_CONSUMER, (event) => {
     for (const line of applyPlan(event, Date.now())) {
@@ -140,6 +141,14 @@ export async function runCascade({ guildIds = null, onEffect = () => {}, now = D
     } catch (error) {
       console.error("[cascade] clôture de saison impossible:", error?.message ?? "erreur");
     }
+  }
+
+  // Expired perks: the row is gone either way, but a colour role still needs
+  // deleting, and only the caller holds the Discord client to do it.
+  for (const perk of expirePerks(now)) {
+    effects += 1;
+    onEffect({ kind: "perk.expired", guildId: perk.guildId }, `avantage ${perk.kind} expiré pour ${perk.userId}`);
+    if (onPerkExpired) await onPerkExpired(perk).catch?.(() => {});
   }
 
   for (const lifted of expireSanctions(now)) {

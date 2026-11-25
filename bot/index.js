@@ -52,6 +52,8 @@ import { handleConfessionInteraction } from "./features/confessions-commands.js"
 import { handleOverviewInteraction } from "./features/overview.js";
 import { handleClanInteraction } from "./features/clans-commands.js";
 import { handleQuestInteraction } from "./features/quests-commands.js";
+import { handlePerkInteraction } from "./features/perks-commands.js";
+import { removeColourRole } from "./features/perks.js";
 import { pruneEvents } from "./event-bus.js";
 import { handleBusinessInvestmentMessage } from "./business-investments-commands.js";
 import { startInvestmentMaintenance } from "./business-investments-maintenance.js";
@@ -1118,6 +1120,11 @@ client.once("clientReady", () => {
     const drain = () => void runCascade({
       guildIds: ALLOWED_GUILDS,
       onEffect: (event, line) => console.log(`[cascade] ${event.kind} → ${line}`),
+      onPerkExpired: async ({ guildId, userId, kind }) => {
+        if (kind !== "couleur") return;
+        const guild = client.guilds.cache.get(guildId);
+        if (guild) await removeColourRole(guild, userId).catch(() => {});
+      },
     }).catch(() => record("cascade_error"));
     drain();
     const cascadeTimer = setInterval(drain, 20_000);
@@ -1473,6 +1480,7 @@ client.on("interactionCreate", (interaction) => {
     if (serves("fwu") && await handleOverviewInteraction(interaction)) { auditSlashUsage(interaction, "Profil FWU"); return; }
     if (serves("fwu") && await handleConfessionInteraction(interaction)) { auditSlashUsage(interaction, "Confessions"); return; }
     if (serves("fisc") && await handleCasinoInteraction(interaction)) { auditSlashUsage(interaction, "PND Casino"); return; }
+    if (serves("fisc") && await handlePerkInteraction(interaction)) { auditSlashUsage(interaction, "Avantages"); return; }
     if (await handleGamesInteraction(interaction, settings[interaction.guildId], record)) { auditSlashUsage(interaction, "Jeux & événements"); return; }
     if (await handleKnowledgeInteraction(interaction)) return;
     if (await handleTicketsInteraction(interaction, settings[interaction.guildId], {

@@ -5,6 +5,7 @@ import { parsePndOwnerId } from "../pnd-owner-policy.js";
 import { isSysPlus } from "../systems/sysplus/permissions.js";
 import { achievementsText, announceAchievements, checkAchievements } from "./achievements.js";
 import { publishEventSafe } from "../event-bus.js";
+import { boostedXp, perkActive } from "./perks.js";
 
 export const COMMUNITY_COMMANDS = new Set(["niveau", "suggestion", "anniversaire", "rappel", "stats"]);
 
@@ -74,6 +75,8 @@ function saveLevelConfig(guildId, config) {
 
 /** Adds XP; returns { before, after } levels. Pure SQLite, no Discord call. */
 export function addXp(guildId, userId, amount, { message = false, voiceMinutes = 0, now = Date.now() } = {}) {
+  // A bought XP boost applies wherever XP is earned, messages, voice or quests.
+  amount = boostedXp(amount, perkActive(guildId, userId, "xp_boost", now));
   const row = db.prepare("SELECT xp, level FROM community_levels WHERE guild_id=? AND user_id=?").get(guildId, userId) ?? { xp: 0, level: 0 };
   const xp = row.xp + amount;
   const after = levelFromXp(xp).level;

@@ -18,6 +18,7 @@ import {
   jackpotInfo, awardJackpot, vipStatus, cashbackDue, claimCashback, walletBalance, casinoLeaderboard,
 } from "./store.js";
 import { permissionFor } from "../trust.js";
+import { perkActive } from "../features/perks.js";
 import {
   blackjackView, minesView, crashView, slotsView, rouletteView, plinkoView,
   jackpotView, vipView, leaderboardView, casinoEmbed, pnd,
@@ -48,8 +49,11 @@ function guardStake(interaction, total) {
     member: interaction.member, baseBet: CASINO_BASE_MAX_BET,
   });
   if (!verdict.allowed) throw new Error(verdict.reason);
-  if (verdict.maxBet && total > verdict.maxBet) {
-    throw new Error(`Ton rang de confiance ${verdict.trust.tier.emoji} ${verdict.trust.tier.label} limite tes mises à ${pnd(verdict.maxBet)} par partie.`);
+  const ceiling = verdict.maxBet && perkActive(interaction.guildId, interaction.user.id, "vip_casino")
+    ? verdict.maxBet * 2
+    : verdict.maxBet;
+  if (ceiling && total > ceiling) {
+    throw new Error(`Ton rang de confiance ${verdict.trust.tier.emoji} ${verdict.trust.tier.label} limite tes mises à ${pnd(ceiling)} par partie.`);
   }
   return verdict;
 }

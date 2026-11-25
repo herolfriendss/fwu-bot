@@ -14,6 +14,7 @@ import { DAILY_MISSIONS, advanceMission, missionDate } from "./mission-policy.js
 import { describeSignal, detectTransferSignals, evaluateTransfer, recordTransfer, senderWindow } from "./economy-antifraud.js";
 import { isWhitelistMember } from "./systems/sysplus/whitelist-policy.js";
 import { sendCentralLog, systemLogEmbed } from "./logs.js";
+import { perkActive } from "./features/perks.js";
 
 const purchaseLocks = new Set();
 const marketLocks = new Set();
@@ -704,6 +705,7 @@ export async function handleEconomyMessage(message, guildSettings = null) {
       if (!target || target.bot || target.id === uid) throw new Error("Utilisation : `=rob @membre`.");
       const remaining = cooldownRemaining(gid, uid, "rob");
       if (remaining) throw new Error(`⏳ Tu pourras retenter un vol dans **${Math.ceil(remaining / 60_000)} min**.`);
+      if (perkActive(gid, target.id, "anti_vol")) throw new Error("🛡️ Cette personne a une protection anti-vol active.");
       const victim = wallet(gid, target.id).balance;
       const plan = robPlan({ victimBalance: victim, ownBalance: wallet(gid, uid).balance, roll: randomInt(1_000_000) / 1_000_000 });
       if (!plan.allowed) throw new Error("Cette personne n’a pas assez de PND à voler.");
