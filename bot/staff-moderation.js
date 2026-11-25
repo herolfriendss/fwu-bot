@@ -8,7 +8,7 @@ import { appealButton, recordModerationCase } from "./moderation.js";
 import { SharedDbUnavailableError, isConnectionError } from "./shared/db.js";
 import {
   QUOTA_COMMANDS, addExemption, addWhitelistedBot, formatDurationFr, listExemptions, listQuotas, listWhitelistedBots,
-  recentConfigChanges, removeExemption, removeWhitelistedBot, resetQuota, setQuota,
+  recentConfigChanges, removeExemption, removeWhitelistedBot, resetQuota, setQuota, quotaStatusForUser, formatQuotaStatus,
 } from "./shared/quotas.js";
 import {
   addSanctionType, deleteSanctionType, getSanctionType, listMemberSanctions, listSanctionTypes, parseDurationToSeconds, updateSanctionType,
@@ -188,6 +188,15 @@ async function handleQuota(interaction, settings, tier, bot) {
   const actorId = interaction.user.id;
   const owner = ownerId();
 
+  if (!group && sub === "moi") {
+    try {
+      const status = await quotaStatusForUser({ guildId: guild.id, userId: actorId, tier });
+      return reply(interaction, formatQuotaStatus(status, TIER_LABELS[tier] ?? "").slice(0, 2000));
+    } catch (error) {
+      if (error instanceof SharedDbUnavailableError || isConnectionError(error)) return reply(interaction, "⚠️ Base centrale injoignable : impossible de lire tes quotas pour l'instant.");
+      throw error;
+    }
+  }
   if (!group && sub === "voir") {
     if (!canUseModeration(tier)) return reply(interaction, "⛔ Réservé au staff (palier 50 % minimum).");
     const quotas = await listQuotas(guild.id);

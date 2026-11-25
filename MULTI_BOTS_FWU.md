@@ -61,7 +61,7 @@ L'installateur de chaque bot lance `scripts/fwu-synchroniser.sh` : FWU retire de
 
 ## Mises à jour
 - FWU : `scripts/update-1942.sh`, comme avant. Les 4 autres bots continuent de tourner pendant la mise à jour de FWU.
-- Chaque bot : dézipper la nouvelle version dans `/home/opc/fwu-bots` (`unzip -o`), puis relancer son `installer.sh`. Son `.env` est conservé.
+- Chaque bot : `/maj lancer` s'en occupe. Avant de dézipper, il garde une copie de l'ancienne version de chaque bot ; si l'installateur d'un bot échoue, cette ancienne version est remise et redémarrée (`/maj etat` le dit). À la main : dézipper la nouvelle version dans `/home/opc/fwu-bots` (`unzip -o`), puis relancer son `installer.sh`. Son `.env` est conservé.
 
 ## RESUME (sur SUCK ME : `/afk` ou `=afk`)
 - `/afk on [raison]` : début de l'absence.
