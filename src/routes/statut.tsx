@@ -49,7 +49,7 @@ function StatusPage() {
       <section className="border-b border-border pb-8">
         <h2 className="mb-4 text-lg font-semibold">Les autres bots</h2>
         <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          {(["guard", "fdpdlavoc", "suckme", "fisc"] as const).map((id) => {
+          {(["guard", "fdpdlavoc", "suckme", "fisc", "investplus"] as const).map((id) => {
             const bot = bots.data?.[id] ?? null;
             const botState = !now || !bot ? "unknown" : bot.connected && now - Date.parse(bot.lastSeen) <= 70_000 ? "online" : "offline";
             return <li key={id} className="rounded-md border border-border p-3">

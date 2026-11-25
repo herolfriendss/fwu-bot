@@ -241,6 +241,10 @@ export function V4ModulesPanel({ guildId, channels, roles, onDirtyChange }: { gu
             <Label>Modèle de nom</Label>
             <Input value={s.tempVoice.nameTemplate} onChange={(e) => set("tempVoice", { nameTemplate: e.target.value })} />
           </div>
+          <div>
+            <Label>Délai avant suppression d’un salon vide (secondes, 0 à 300)</Label>
+            <Input type="number" min={0} max={300} value={s.tempVoice.emptyDeleteSeconds} onChange={(e) => set("tempVoice", { emptyDeleteSeconds: Number(e.target.value) })} />
+          </div>
         </div>
       </Section>
 

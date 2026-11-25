@@ -76,7 +76,7 @@ test("published confessions are counted, drafts are not", () => {
   assert.equal(memberOverview(guild, USER).extras.confessions, 1);
 });
 
-test("presence lists the five bots and marks a stale lease offline", () => {
+test("presence lists the six bots and marks a stale lease offline", () => {
   const now = Date.now();
   db.exec(`CREATE TABLE IF NOT EXISTS bot_domain_leases (
     domain TEXT PRIMARY KEY, holder TEXT NOT NULL, expires_at INTEGER NOT NULL, renewed_at INTEGER NOT NULL)`);
@@ -86,7 +86,7 @@ test("presence lists the five bots and marks a stale lease offline", () => {
     .run("guard", "host-2", now - 10 * 60_000, now - 11 * 60_000);
 
   const presence = botPresence(now);
-  assert.equal(presence.length, 5);
+  assert.equal(presence.length, 6);
   assert.equal(presence.find((b) => b.id === "fwu").online, true);
   assert.equal(presence.find((b) => b.id === "guard").online, false, "un bail périmé veut dire hors ligne");
   assert.equal(presence.find((b) => b.id === "fisc").online, false, "aucun bail veut dire hors ligne");

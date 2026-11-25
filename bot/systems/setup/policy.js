@@ -141,6 +141,15 @@ export const SETUP_MODULES = Object.freeze({
         max: 80,
         placeholder: "Salon de {user}",
       },
+      {
+        key: "emptyDeleteSeconds",
+        label: "Délai avant suppression si vide (s)",
+        kind: "integer",
+        min: 0,
+        max: 300,
+        default: 0,
+        placeholder: "0 = tout de suite, jusqu’à 300",
+      },
     ],
   },
   automation: {
