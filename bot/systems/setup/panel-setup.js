@@ -239,7 +239,9 @@ export function moduleView(module, guildSettings, actorId, notice = "") {
     const on = current.enabled === true;
     buttons.push(
       new ButtonBuilder()
-        .setCustomId(`pndsetup:toggle:${module}:${actorId}`)
+        // L’état voulu est inscrit dans le bouton : un clic applique ce que
+        // l’administrateur a vu, jamais l’inverse d’un cache périmé.
+        .setCustomId(`pndsetup:toggle:${module}:${on ? "off" : "on"}:${actorId}`)
         .setLabel(on ? "Désactiver" : "Activer")
         .setEmoji(on ? "⏸️" : "▶️")
         .setStyle(on ? ButtonStyle.Danger : ButtonStyle.Success),
@@ -438,7 +440,7 @@ export async function handlePanelSetupInteraction(
   }
   const [, action, ...rest] = customId.split(":");
   const actorId = interaction.user.id;
-  const module = ["toggle", "form", "save"].includes(action) ? rest[0] : null;
+  let module = ["toggle", "form", "save"].includes(action) ? rest[0] : null;
   if (module !== null && !SETUP_MODULES[module]) {
     await respondInPlace(interaction, { content: "Module inconnu. Relance `/setup`.", ephemeral: true });
     return true;
@@ -457,22 +459,32 @@ export async function handlePanelSetupInteraction(
     await interaction.update(moduleView(selected, guildSettings, actorId));
     return true;
   }
+  if (action === "toggle" && !["on", "off"].includes(rest[1])) module = null;
   if (action === "form") {
+    rememberFormSnapshot(guildId, actorId, module, guildSettings[module]);
     await interaction.showModal(setupModal(module, actorId, guildSettings[module]));
     return true;
   }
-  if (action === "toggle" || action === "save") {
+  if (module && (action === "toggle" || action === "save")) {
     let patch;
+    let base;
     if (action === "toggle") {
-      patch = { enabled: guildSettings[module]?.enabled !== true };
+      const target = rest[1] === "on";
+      patch = { enabled: target };
+      base = { enabled: !target };
     } else {
       const raw = Object.fromEntries(
         setupFormFields(module).map((field) => [field.key, interaction.fields.getTextInputValue(field.key)]),
       );
       try {
         // Seuls les champs du formulaire sont relus ; `enabled` reste inchangé.
-        const parsed = parseSetupModule(module, raw, guildSettings[module] ?? {});
-        patch = Object.fromEntries(setupFormFields(module).map((field) => [field.key, parsed[field.key]]));
+        // Comparaison avec ce que le formulaire affichait à l’ouverture : seuls les
+        // champs réellement modifiés par l’administrateur sont envoyés.
+        const shown = takeFormSnapshot(guildId, actorId, module) ?? guildSettings[module] ?? {};
+        const parsed = parseSetupModule(module, raw, shown);
+        const keys = setupChangedKeys(shown, parsed).filter((key) => setupFormFields(module).some((field) => field.key === key));
+        patch = Object.fromEntries(keys.map((key) => [key, parsed[key]]));
+        base = Object.fromEntries(keys.map((key) => [key, shown[key] ?? null]));
       } catch (error) {
         await interaction.reply({ content: `❌ ${error.message}`, ephemeral: true });
         return true;
@@ -495,10 +507,12 @@ export async function handlePanelSetupInteraction(
     const fromMessage = action === "toggle" || interaction.isFromMessage?.() !== false;
     if (fromMessage) await interaction.deferUpdate();
     else await interaction.deferReply({ ephemeral: true });
-    const result = await saveModule(interaction, module, patch, { apiUrl, secret, settings, audit, record });
+    const result = await saveModule(interaction, module, patch, base, { apiUrl, secret, settings, audit, record });
     const latest = settings[guildId] ?? guildSettings;
     let notice;
     if (result.error) notice = `⚠️ ${result.error}`;
+    else if (!result.changed.length && action === "toggle")
+      notice = `ℹ️ **${SETUP_MODULES[module].label}** était déjà ${patch.enabled ? "activé" : "désactivé"}.`;
     else if (!result.changed.length) notice = "ℹ️ Aucun changement : les valeurs étaient déjà celles-ci.";
     else if (action === "toggle")
       notice = patch.enabled
@@ -517,12 +531,33 @@ export async function handlePanelSetupInteraction(
   return true;
 }
 
+// Valeurs affichées dans un formulaire ouvert, pour n’envoyer que les champs
+// modifiés et repérer ce qui a changé ailleurs entre l’ouverture et l’envoi.
+const formSnapshots = new Map();
+const FORM_SNAPSHOT_TTL = 30 * 60_000;
+
+function rememberFormSnapshot(guildId, actorId, module, current) {
+  const now = Date.now();
+  for (const [key, entry] of formSnapshots) if (entry.at + FORM_SNAPSHOT_TTL < now) formSnapshots.delete(key);
+  formSnapshots.set(`${guildId}:${actorId}:${module}`, { at: now, values: structuredClone(current ?? {}) });
+}
+
+function takeFormSnapshot(guildId, actorId, module) {
+  const key = `${guildId}:${actorId}:${module}`;
+  const entry = formSnapshots.get(key);
+  formSnapshots.delete(key);
+  return entry && entry.at + FORM_SNAPSHOT_TTL >= Date.now() ? entry.values : null;
+}
+
+const same = (a, b) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
+
 /**
  * Enregistre directement un changement de module, sans brouillon.
- * Les réglages sont relus juste avant l’écriture afin de ne jamais écraser
- * une modification faite entre-temps sur un autre champ du module.
+ * `patch` ne contient que les champs modifiés et `base` leurs valeurs telles
+ * que l’administrateur les a vues. Les réglages sont relus juste avant
+ * l’écriture : un champ modifié ailleurs entre-temps n’est jamais écrasé.
  */
-async function saveModule(interaction, module, patch, { apiUrl, secret, settings, audit, record }) {
+async function saveModule(interaction, module, patch, base, { apiUrl, secret, settings, audit, record }) {
   const guildId = interaction.guildId;
   let current;
   try {
@@ -539,17 +574,30 @@ async function saveModule(interaction, module, patch, { apiUrl, secret, settings
     record("discord_setup_apply_error");
     return { error: "Impossible de joindre le tableau de bord pour le moment. Rien n’a été modifié, réessaie dans un instant." };
   }
-  const merged = { ...current, ...patch };
-  const changed = setupChangedKeys(current, merged);
+  const conflicts = Object.keys(patch).filter(
+    (key) => !same(current[key], base[key]) && !same(current[key], patch[key]),
+  );
+  if (conflicts.length) {
+    const labels = conflicts.map((key) => SETUP_MODULES[module].fields.find((field) => field.key === key)?.label ?? key);
+    return {
+      error: `Modifié ailleurs entre-temps (${labels.map((label) => `« ${label} »`).join(", ")}). Rien n’a été écrasé : voici les valeurs actuelles, recommence si besoin.`,
+    };
+  }
+  const changes = Object.fromEntries(Object.entries(patch).filter(([key, value]) => !same(current[key], value)));
+  const changed = Object.keys(changes);
   if (!changed.length) return { changed };
+  const merged = { ...current, ...changes };
   const requirement = setupRequirementError(module, merged);
   if (requirement) return { error: `${requirement} Clique sur « Modifier les réglages » pour les compléter.` };
   // Désactiver doit toujours rester possible, même si un rôle ou salon a disparu.
-  const disablingOnly = Object.keys(patch).length === 1 && patch.enabled === false;
+  const disablingOnly = changed.length === 1 && changes.enabled === false;
   const invalid = disablingOnly ? null : await setupCandidateError(interaction, module, merged, guildId);
   if (invalid) return { error: invalid };
   try {
-    const updated = await updateModuleSettings({ apiUrl, secret, guildId, module, value: merged, actorId: interaction.user.id });
+    const expected = Object.fromEntries(changed.map((key) => [key, current[key] ?? null]));
+    const updated = await updateModuleSettings({
+      apiUrl, secret, guildId, module, value: merged, changes, expected, actorId: interaction.user.id,
+    });
     settings[guildId] = updated;
     audit(
       interaction.guild,
@@ -559,8 +607,11 @@ async function saveModule(interaction, module, patch, { apiUrl, secret, settings
     );
     record("discord_setup_applied");
     return { changed };
-  } catch {
+  } catch (error) {
     record("discord_setup_apply_error");
+    if (error?.conflict) {
+      return { error: "Ces réglages viennent d’être modifiés ailleurs. Rien n’a été écrasé : relance `/setup` pour voir les valeurs actuelles." };
+    }
     return { error: "L’enregistrement a échoué. Rien n’a été modifié, réessaie dans un instant." };
   }
 }
