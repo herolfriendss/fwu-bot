@@ -236,7 +236,8 @@ test("bots diagnostic shows who handles each domain", () => {
   claimDomainLease("guard", "guard:1", 1_000_000, 60_000);
   const text = formatBotsDiagnostic(1_010_000);
   assert.match(text, /🟢 \*\*GUARD\*\* — en ligne/);
-  assert.match(text, /⚪ \*\*LE FISC\*\* — non démarré ou arrêté : \*\*FWU traite ce domaine\*\*/);
+  assert.match(text, /⚪ \*\*LE FISC\*\* — non démarré ou arrêté : \*\*FWU reprend les événements de ce domaine\*\*/);
+  assert.match(text, /⚪ \*\*Invest \+\*\* \(facultatif\) — non démarré : aucun domaine Invest \+ actif/);
   assert.match(text, /Logs relayés en attente : 0/);
   assert.match(formatBotsDiagnostic(2_000_000), /⚪ \*\*GUARD\*\*.*dernier signe/);
   db.exec("DELETE FROM bot_domain_leases");
