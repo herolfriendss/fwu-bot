@@ -110,15 +110,16 @@ export async function buildInstallationReport(guild, {
     const admin = perms?.has?.(P.Administrator);
     const missing = admin ? [] : REQUIRED_PERMISSIONS[profile].filter((name) => !perms?.has?.(P[name])).map((name) => PERMISSION_LABELS[name] ?? name);
     const ownerRoleIds = new Set(owner?.roles?.cache?.keys?.() ?? []);
+    const botTop = member.roles?.highest?.position;
     const placement = botPlacementIssues({
-      botTop: member.roles.highest.position,
+      botTop,
       roles,
       ownerTop: owner?.roles?.highest?.position ?? null,
       ownerRoleIds,
     });
     if (profile === "suckme") {
       placement.push(...suckMePlacementIssues({
-        botTop: member.roles.highest.position,
+        botTop,
         roles,
         tier0RoleIds,
         ownerTop: owner?.roles?.highest?.position ?? null,
