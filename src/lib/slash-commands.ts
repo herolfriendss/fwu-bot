@@ -1788,13 +1788,13 @@ export const EXTRA_SLASH_COMMANDS: SlashCommandDef[] = [
   {
     name: "casier",
     description: "GUARD : historique des sanctions d'un membre",
-    usage: "/casier voir membre · /casier supprimer affaire",
+    usage: "/casier voir membre · /casier supprimer affaire motif",
     category: "Modération",
     dmPermission: false,
     requiresBotProcess: true,
     options: [
       sub("voir", "Affiche le casier d'un membre", [opt(6, "membre", "Membre", { required: true })]),
-      sub("supprimer", "Supprime une affaire du casier", [opt(4, "affaire", "Numéro de l'affaire", { required: true, min_value: 1 })]),
+      sub("supprimer", "SYS+ : retire une affaire du casier (archivée, avec un motif)", [opt(4, "affaire", "Numéro de l'affaire", { required: true, min_value: 1 }), opt(3, "motif", "Pourquoi l'affaire est retirée", { required: true, max_length: 300 })]),
     ],
   },
   {
