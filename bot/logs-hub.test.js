@@ -157,7 +157,10 @@ test("logs hub inspection is read-only and reports missing existing channels", a
   const report = inspectLogsHub(guild);
   assert.equal(report.ready, false);
   const activeSources = new Set(ACTIVE_SOURCE_GUILD_IDS.map(logSourceForGuild).filter(Boolean));
-  assert.equal(report.missing.length, ALL_LOG_CHANNELS.filter((spec) => activeSources.has(spec.source)).length);
+  const required = ALL_LOG_CHANNELS.filter((spec) => activeSources.has(spec.source));
+  assert.equal(report.required, required.length);
+  assert.deepEqual(new Set(report.activeSources), activeSources);
+  assert.equal(report.missing.length, required.length);
   assert.equal(typeof guild.channels.create, "undefined");
   assert.equal(typeof guild.roles.create, "undefined");
 });

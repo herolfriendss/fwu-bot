@@ -216,7 +216,13 @@ export function inspectLogsHub(guild) {
     }
     channels.set(spec.key, channel.id);
   }
-  return { ready: missing.length === 0, channels, missing };
+  return {
+    ready: missing.length === 0,
+    channels,
+    missing,
+    required: requiredChannels.length,
+    activeSources: [...activeSources],
+  };
 }
 
 export async function sendToLogsHub(client, sourceGuild, embed, title = "", components = [], allowedUserIds = []) {
