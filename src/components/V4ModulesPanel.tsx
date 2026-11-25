@@ -3,6 +3,8 @@ import { toast } from "sonner";
 import { Save, ShieldCheck, Sparkles } from "lucide-react";
 import { type BotSettings } from "@/lib/bot-settings";
 import { useSectionSettings } from "@/components/useSectionSettings";
+import { MODULE_CATALOG, type ToggleModuleKey } from "@/lib/module-catalog";
+import { BOT_PROFILES, BOT_PROFILE_IDS } from "@/lib/bot-profiles";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -76,6 +78,32 @@ export function V4ModulesPanel({ guildId, channels, roles, onDirtyChange }: { gu
 
   return (
     <div className="space-y-5">
+      <section className={box} aria-labelledby="modules-overview">
+        <div>
+          <h3 id="modules-overview" className="font-semibold">Modules par bot</h3>
+          <p className="mt-1 text-xs text-muted-foreground">Les mêmes interrupteurs que la commande /setup sur Discord. Chaque module est géré par le bot indiqué. Pense à enregistrer en bas de la page.</p>
+        </div>
+        <div className="grid gap-3 md:grid-cols-2">
+          {BOT_PROFILE_IDS.filter((id) => MODULE_CATALOG.some((m) => m.owner === id)).map((id) => (
+            <div key={id} className="console-glass-tile rounded-xl p-3">
+              <p className="font-mono text-xs uppercase tracking-widest text-primary">{BOT_PROFILES[id].label}</p>
+              <ul className="mt-2 space-y-2">
+                {MODULE_CATALOG.filter((m) => m.owner === id).map((m) => (
+                  <li key={m.key} className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium">{m.label}</p>
+                      <p className="text-xs text-muted-foreground">{m.description}</p>
+                    </div>
+                    {m.toggle
+                      ? <Switch aria-label={`Activer : ${m.label}`} checked={s[m.key as ToggleModuleKey].enabled} onCheckedChange={(v) => set(m.key as ToggleModuleKey, { enabled: v })} />
+                      : <span className="shrink-0 rounded-full border border-border px-2 py-0.5 text-[11px] text-muted-foreground">Toujours actif</span>}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ))}
+        </div>
+      </section>
       <Section title="Journal centralisé" icon={ShieldCheck} description="Tous les événements importants de ce serveur sont envoyés dans un seul salon #logs. Configure-le une seule fois ici.">
         <div>
           <Label>Salon unique des logs</Label>

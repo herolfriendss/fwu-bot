@@ -1,4 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { SiteNav } from "@/components/SiteNav";
 import { getBotConnection } from "@/lib/bot-settings.functions";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, Download, FileKey } from "lucide-react";
@@ -21,7 +22,7 @@ function InstallationPage() {
   return <div className="console-shell bg-background"><header className="console-header border-b border-border p-4 md:p-8"><div className="mx-auto flex max-w-4xl items-center gap-4">
     <Button asChild variant="ghost" size="icon"><Link to="/configuration" aria-label="Retour à la configuration"><ArrowLeft className="h-5 w-5" /></Link></Button>
     <h1 className="flex items-center gap-2 text-xl font-semibold"><FileKey className="h-5 w-5 text-primary" /> Installation Oracle</h1>
-  </div></header><main className="console-content mx-auto max-w-4xl space-y-6 p-4 md:p-8">
+  </div></header><SiteNav /><main className="console-content mx-auto max-w-4xl space-y-6 p-4 md:p-8">
     <section className="space-y-4 border-b border-border pb-6">
       <h2 className="text-lg font-semibold">Dernière version du bot</h2>
       <p className="text-sm text-muted-foreground">L’archive du bot contient les commandes DOG, les accès vocaux, la lecture de flux audio HTTPS autorisés, la radio configurable, l’économie PND, les jeux et les commandes slash partagées. Node.js 24 et npm install restent nécessaires.</p>

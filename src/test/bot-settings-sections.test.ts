@@ -30,11 +30,21 @@ describe("dashboard section saves", () => {
   });
 
   it("ignores server-owned keys and sanitizes the patched values", () => {
-    const latest = sanitizeSettings({ sysPlus: { roleId: "11111" }, dog: { maxActiveLeashes: 6 } });
-    const next = applySectionPatch(latest, { sysPlus: { roleId: "99999" }, dog: { maxActiveLeashes: 1 }, spam: { maxMessages: 999 } });
+    const latest = sanitizeSettings({ sysPlus: { roleId: "11111" }, adminPlus: { roleId: "33333" }, voiceAccess: { panelRoleIds: ["44444"], pvRoleIds: [] } });
+    const next = applySectionPatch(latest, { sysPlus: { roleId: "99999" }, adminPlus: { roleId: "88888" }, voiceAccess: { panelRoleIds: [] }, spam: { maxMessages: 999 } });
     expect(next.sysPlus.roleId).toBe("11111");
-    expect(next.dog).toEqual({ maxActiveLeashes: 6 });
+    expect(next.adminPlus.roleId).toBe("33333");
+    expect(next.voiceAccess.panelRoleIds).toEqual(["44444"]);
     expect(next.spam.maxMessages).toBeLessThan(999);
+  });
+
+  it("edits the DOG limit and WAKEUP channels as sections", () => {
+    const latest = sanitizeSettings({ dog: { maxActiveLeashes: 6 } });
+    const loaded = sanitizeSettings({});
+    expect(sectionConflicts(latest, { dog: { maxActiveLeashes: 4 } }, { dog: loaded.dog })).toEqual(["dog"]);
+    const next = applySectionPatch(latest, { wakeup: { ownerChannelId: "123456", excludedChannelIds: ["bad", "654321"] } });
+    expect(next.dog).toEqual({ maxActiveLeashes: 6 });
+    expect(next.wakeup).toEqual({ ownerChannelId: "123456", waitingChannelId: null, excludedChannelIds: ["654321"] });
     expect(mergeSettingsForWrite(next, latest, false).dog).toEqual({ maxActiveLeashes: 6 });
   });
 });

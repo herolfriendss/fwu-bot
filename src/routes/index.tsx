@@ -1,4 +1,5 @@
 import { createFileRoute, useRouter, Link, type ErrorComponentProps } from "@tanstack/react-router";
+import { SiteNav } from "@/components/SiteNav";
 import { queryOptions, useQuery, useQueryClient, useSuspenseQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useState } from "react";
@@ -115,6 +116,7 @@ function Dashboard() {
           </Button>
         </div>
       </header>
+      <SiteNav />
 
       <main className="dashboard-workspace mx-auto grid max-w-6xl gap-4 p-4 md:grid-cols-[180px_180px_minmax(0,1fr)] md:p-8">
         <section className="min-w-0 border border-border bg-sidebar p-2">

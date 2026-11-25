@@ -1,4 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { SiteNav } from "@/components/SiteNav";
 import { queryOptions, useSuspenseQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { ArrowLeft, Shield } from "lucide-react";
@@ -27,6 +28,7 @@ function Admin() {
       <h1 className="flex flex-1 items-center gap-2 text-xl font-bold"><Shield className="h-5 w-5" /> Admin</h1>
       <select aria-label="Serveur" value={guildId} onChange={(e) => setGuildId(e.target.value)} className="max-w-full rounded-md border border-input bg-background px-3 py-2 text-sm">{data.guilds.map((g) => <option key={g.id} value={g.id}>{g.name}</option>)}</select>
     </div></header>
+    <SiteNav />
     <main className="console-content mx-auto max-w-6xl p-4 md:p-8">{guildId ? <VoiceAccessPanel key={guildId} guildId={guildId} /> : <p className="text-muted-foreground">Le bot n’est sur aucun serveur.</p>}</main>
   </div>;
 }

@@ -1,4 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { SiteNav } from "@/components/SiteNav";
 import { queryOptions, useSuspenseQuery } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { ArrowLeft, Coins, Crown, Gamepad2, RefreshCw, ShoppingBag, Wallet } from "lucide-react";
@@ -67,6 +68,7 @@ function EconomyPage() {
         <RefreshCw className={`h-4 w-4 ${q.isFetching ? "animate-spin" : ""}`} />
       </Button>
     </div></header>
+    <SiteNav />
 
     <main className="console-content mx-auto max-w-6xl space-y-8 p-4 md:p-8">
       {q.isRefetchError && <p role="alert" className="text-destructive">Actualisation impossible : les dernières données reçues sont affichées.</p>}

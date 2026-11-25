@@ -310,12 +310,13 @@ const escape = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 /**
  * Sections the dashboard edits. A dashboard save sends only the sections that changed,
  * so a module switched from Discord (/setup, bot-sync) in the meantime is never undone
- * by a tab that stayed open. Server-owned keys (voiceAccess, prefixCommands, dog, wakeup,
- * sysPlus, adminPlus) are deliberately absent.
+ * by a tab that stayed open. voiceAccess and prefixCommands have their own functions; SYS+,
+ * WHITELIST and ADMIN+ roles are changed only from Discord (owner commands, audited), so they
+ * are deliberately absent.
  */
 export const DASHBOARD_SECTION_KEYS = [
   "logs", "keywords", "filter", "spam", "welcome", "ai",
-  "guildGuard", "moderation", "verification", "tickets", "tempVoice", "automation", "liveAlerts",
+  "guildGuard", "moderation", "verification", "tickets", "tempVoice", "automation", "liveAlerts", "dog", "wakeup",
 ] as const;
 export type DashboardSectionKey = (typeof DASHBOARD_SECTION_KEYS)[number];
 export type DashboardSectionPatch = Partial<Pick<BotSettings, DashboardSectionKey>>;
@@ -366,6 +367,8 @@ export const SECTION_LABELS: Record<DashboardSectionKey, string> = {
   tempVoice: "Salons vocaux temporaires",
   automation: "Automatisations de bienvenue",
   liveAlerts: "Alertes de démarrage LIVE",
+  dog: "DOG — laisses par SYS+",
+  wakeup: "WAKEUP",
 };
 
 export type BotModuleKey = (typeof BOT_MODULE_SETTINGS_KEYS)[number];

@@ -1,4 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { SiteNav } from "@/components/SiteNav";
 import { queryOptions, useQuery, useSuspenseQuery } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { Activity, ArrowLeft, RefreshCw } from "lucide-react";
@@ -32,6 +33,7 @@ function StatusPage() {
       <h1 className="flex flex-1 items-center gap-2 text-xl font-semibold"><Activity className="h-5 w-5 text-primary" /> Statut des bots</h1>
       <Button variant="outline" size="icon" aria-label="Actualiser" title="Actualiser" disabled={q.isFetching} onClick={() => q.refetch()}><RefreshCw className="h-4 w-4" /></Button>
     </div></header>
+    <SiteNav />
     <main className="console-content mx-auto max-w-6xl space-y-8 p-4 md:p-8">
       {q.isRefetchError && <p role="alert" className="text-destructive">Actualisation impossible : les dernières données reçues sont affichées.</p>}
       <section className="border-b border-border pb-8">
