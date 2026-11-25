@@ -5,6 +5,14 @@ import { rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
+// The production bot is started with --env-file=.env. When it launches the
+// deployment test suite as a child process, that environment is inherited.
+// Never let the suite treat production PostgreSQL as configured: safety checks
+// such as loadRoleTiersStrict() would otherwise fail closed because tests do
+// not initialize the production pool. Tests that need PostgreSQL must opt in
+// explicitly with their disposable test database, never the production URL.
+delete process.env.SHARED_DATABASE_URL;
+
 if (!process.env.HER_DB_PATH || process.env.HER_DB_PATH_AUTO === "1") {
   const path = join(tmpdir(), `pnd-test-${process.pid}-${Date.now()}.sqlite`);
   process.env.HER_DB_PATH = path;
