@@ -9,6 +9,8 @@ const {
   isTier0Role, isTier0Protected, primeTier0Members, resetTier0State, setTier0AuditWaitsForTests,
 } = await import("./tier0-shield.js");
 setTier0AuditWaitsForTests([0]);
+const { setRoleTiersForTests } = await import("./shared/tiers.js");
+setRoleTiersForTests("g1", [["zero", 0], ["ten", 10], ["hundred", 100]]);
 
 const OWNER = "100000000000000001";
 const PROTECTED = "200000000000000001";
@@ -60,13 +62,11 @@ const muteEntry = (executor, key = "mute") => ({ target: { id: PROTECTED }, exec
 
 test.beforeEach(() => { resetTier0State(); delete process.env.PND_TIER0_PROTECTION; });
 
-test("un rôle « 0% » est reconnu ; « 10% » et « 100% » ne le sont pas", () => {
-  assert.equal(isTier0Role({ id: "a", name: "0%" }), true);
-  assert.equal(isTier0Role({ id: "a", name: "0 % Owner" }), true);
-  assert.equal(isTier0Role({ id: "a", name: "10%" }), false);
-  assert.equal(isTier0Role({ id: "a", name: "100%" }), false);
+test("seule l'association /quota palier 0 protège ; un rôle nommé « 0% » ne protège pas", () => {
+  assert.equal(isTier0Role({ id: "a", name: "0%" }), false, "faille « Moi 0 % » fermée");
+  assert.equal(isTier0Role({ id: "a", name: "Moi 0 %" }), false);
   assert.equal(isTier0Role({ id: "a", name: "Staff" }, new Map([["a", 0]])), true, "association explicite au palier 0");
-  assert.equal(isTier0Role({ id: "a", name: "0%" }, new Map([["a", 10]])), false, "l'association explicite prime sur le nom");
+  assert.equal(isTier0Role({ id: "a", name: "0%" }, new Map([["a", 10]])), false);
 });
 
 test("micro coupé par clic droit : rétabli INSTANTANÉMENT, avant même de chercher l'auteur", async () => {

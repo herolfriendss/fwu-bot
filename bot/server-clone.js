@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { stripPrivilegedPermissions } from "./role-grant-guard.js";
 import { authorize } from "./platform/policy/authorize.js";
 
 /**
@@ -27,35 +28,9 @@ const CHANNEL_CATEGORY = 4;
 // Permission bits that must never be restored by a clone, whatever the source.
 // Values match Discord's permission bitfield (ADMINISTRATOR, KICK_MEMBERS,
 // BAN_MEMBERS, MANAGE_GUILD, MANAGE_ROLES, MANAGE_WEBHOOKS, MANAGE_GUILD_EXPRESSIONS).
-const PRIVILEGED_BITS = Object.freeze([
-  ["ADMINISTRATOR", 1n << 3n],
-  ["KICK_MEMBERS", 1n << 1n],
-  ["BAN_MEMBERS", 1n << 2n],
-  ["MANAGE_GUILD", 1n << 5n],
-  ["MANAGE_ROLES", 1n << 28n],
-  ["MANAGE_WEBHOOKS", 1n << 29n],
-  ["MANAGE_GUILD_EXPRESSIONS", 1n << 43n],
-]);
-
-function toBigInt(value) {
-  try {
-    return BigInt(value ?? "0");
-  } catch {
-    return 0n;
-  }
-}
-
-/** Removes privileged bits from a restored role's permission string. */
+/** Removes privileged bits from a restored role's permission string (liste commune aux 5 bots). */
 export function sanitizeRolePermissions(permissions) {
-  let value = toBigInt(permissions);
-  const stripped = [];
-  for (const [name, bit] of PRIVILEGED_BITS) {
-    if ((value & bit) !== 0n) {
-      stripped.push(name);
-      value &= ~bit;
-    }
-  }
-  return { permissions: value.toString(), stripped };
+  return stripPrivilegedPermissions(permissions);
 }
 
 function hash(value) {
@@ -75,7 +50,11 @@ export function buildServerClonePlan({ snapshot, guild }) {
 
   const existingRoles = [...(guild.roles?.cache?.values?.() ?? [])].filter((role) => !role.managed && role.id !== guild.id);
   const existingChannels = [...(guild.channels?.cache?.values?.() ?? [])].filter((channel) => !channel.isThread?.());
-  const existingRoleIdByName = new Map(existingRoles.map((role) => [role.name, role.id]));
+  // Un nom porté par plusieurs rôles est ambigu (un rôle perso peut imiter un rôle de staff) :
+  // on ne s'y rattache jamais, le rôle du blueprint sera recréé sans permission sensible.
+  const nameCounts = new Map();
+  for (const role of existingRoles) nameCounts.set(role.name, (nameCounts.get(role.name) ?? 0) + 1);
+  const existingRoleIdByName = new Map(existingRoles.filter((role) => nameCounts.get(role.name) === 1).map((role) => [role.name, role.id]));
   const existingChannelIdByKey = new Map(existingChannels.map((channel) => [`${channel.type}:${channel.name}`, channel.id]));
   const warnings = [];
   const stripped = [];
@@ -138,7 +117,13 @@ export function buildServerClonePlan({ snapshot, guild }) {
       userLimit: Number(channel.userLimit) || 0,
       permissionOverwrites: (channel.permissionOverwrites ?? [])
         .filter((overwrite) => Number(overwrite.type) === 0)
-        .map((overwrite) => ({ id: overwrite.id, allow: String(overwrite.allow ?? "0"), deny: String(overwrite.deny ?? "0") })),
+        // Les autorisations de salon sont nettoyées comme celles des rôles : un salon recréé ne
+        // donne jamais Gérer les permissions, Déplacer, Mentionner @everyone… à un rôle.
+        .map((overwrite) => {
+          const clean = sanitizeRolePermissions(overwrite.allow ?? "0");
+          if (clean.stripped.length) stripped.push({ role: `#${String(channel.name).slice(0, 60)}`, bits: clean.stripped });
+          return { id: overwrite.id, allow: clean.permissions, deny: String(overwrite.deny ?? "0") };
+        }),
     });
   }
 

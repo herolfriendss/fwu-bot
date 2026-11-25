@@ -51,6 +51,9 @@ async function getLeashRole(guild, ownerId, ownerName, records = null) {
     if (candidate && isOwnerLeashRoleName(candidate.name)) { role = candidate; break; }
   }
   role ??= findLeashRole(guild.roles.cache, botMember.roles.highest.position, ownerName);
+  // Retrouvé par son nom : on ne réutilise qu'un rôle sans AUCUNE permission, sinon un rôle
+  // nommé « En laisse (…) » à la main pourrait être donné au membre tenu en laisse.
+  if (role && !leashRoleIsHarmless(role)) role = null;
   if (!role) {
     const key = `${guild.id}:${ownerId}`;
     if (!leashRolePromises.has(key)) {
@@ -77,6 +80,11 @@ async function getLeashRole(guild, ownerId, ownerName, records = null) {
     role = await role.setName(expectedName, "DOG : pseudo du maître mis à jour").catch(() => role);
   }
   return role;
+}
+
+function leashRoleIsHarmless(role) {
+  if (!role || role.managed) return false;
+  try { return BigInt(role.permissions?.bitfield ?? role.permissions ?? 0) === 0n; } catch { return false; }
 }
 
 async function fetchRole(guild, roleId) {

@@ -4,6 +4,7 @@
 // SQLite, toujours par serveur. Les permissions Discord sont revérifiées à chaque
 // commande ; aucune sanction ne peut viser un rôle supérieur au bot.
 import { updateModuleSettings } from "./module-settings.js";
+import { assertRoleGrantable, roleGrantRefusal } from "./role-grant-guard.js";
 import { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder, ModalBuilder, PermissionFlagsBits, TextInputBuilder, TextInputStyle } from "discord.js";
 import { createHash, randomInt, timingSafeEqual } from "node:crypto";
 import { db, transaction } from "./database.js";
@@ -295,6 +296,7 @@ export async function handleModerationInteraction(interaction, guildSettings = {
           const bot = guild.members.me ?? await guild.members.fetchMe();
           if (chosenRole.id === guild.id || chosenRole.managed) throw new Error("Choisis un vrai rôle (pas @everyone ni un rôle de bot).");
           if (chosenRole.position >= bot.roles.highest.position) throw new Error("Place mon rôle au-dessus du rôle choisi, sinon je ne pourrai pas le donner.");
+          await assertRoleGrantable(guild, chosenRole, { automatic: true, settings });
           if (!api?.apiUrl || !api?.secret) throw new Error("Réglage impossible pour le moment : connexion au dashboard indisponible.");
           const panelChannel = interaction.options.getChannel("salon");
           const next = {
@@ -506,6 +508,9 @@ async function submitVerificationChallenge(interaction, settings) {
     if (freshMember.roles.cache.has(role.id)) {
       db.prepare("DELETE FROM verification_challenges WHERE guild_id=? AND user_id=?").run(guild.id, interaction.user.id);
       return interaction.reply({ content: "✅ Tu es déjà vérifié.", ephemeral: true });
+    }
+    if (await roleGrantRefusal(guild, role, { automatic: true, settings })) {
+      return interaction.reply({ content: "Le rôle de vérification est protégé (accès, palier ou permissions sensibles) : préviens le staff.", ephemeral: true });
     }
     await freshMember.roles.add(role, "CAPTCHA validé");
     db.prepare("DELETE FROM verification_challenges WHERE guild_id=? AND user_id=?").run(guild.id, interaction.user.id);

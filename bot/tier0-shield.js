@@ -8,8 +8,9 @@
 //   • rôle 0 % retiré             → remis          • déplacé de force → ramené (Anti-Move forcé)
 //   • banni                       → débanni        • expulsé / déconnecté → journalisé (impossible à annuler)
 //
-// Protégés : l'owner (PND_OWNER_DISCORD_ID), les rôles associés au palier 0 par
-// l'owner (/quota palier) et les rôles nommés « 0% » / « 0 % ».
+// Protégés : l'owner (PND_OWNER_DISCORD_ID) et les rôles associés au palier 0 par
+// l'owner (/quota palier). Le NOM d'un rôle ne protège jamais : un SYS+ pouvait se
+// créer un rôle perso « Moi 0 % » et devenir intouchable.
 // Micro, casque, exclusion, bannissement : annulés INSTANTANÉMENT, quel que soit l'auteur
 // (l'auteur est retrouvé ensuite dans le journal d'audit pour les logs).
 // Pseudo et rôle : laissés passer si c'est la personne elle-même, l'owner ou ce bot.
@@ -19,7 +20,6 @@ import { AuditLogEvent } from "discord.js";
 import { runAsActor, ownerId } from "./owner-shield.js";
 import { loadRoleTiers } from "./shared/tiers.js";
 
-const ZERO_ROLE = /(?:^|[\s|·\-[(])0\s?%(?=$|[\s|·\-\])])/u;
 const REVERT_MAX = 8;
 const REVERT_WINDOW_MS = 60_000;
 const AUDIT_MAX_AGE_MS = 20_000;
@@ -36,11 +36,10 @@ export function tier0ProtectionEnabled(env = process.env) {
   return String(env.PND_TIER0_PROTECTION ?? "").trim().toLowerCase() !== "off";
 }
 
-/** Rôle 0 % : association explicite (palier 0) ou nom « 0% ». */
+/** Rôle 0 % : uniquement une association explicite au palier 0 (/quota palier), jamais le nom. */
 export function isTier0Role(role, explicit = new Map()) {
   if (!role) return false;
-  if (explicit.has(role.id)) return explicit.get(role.id) === 0;
-  return ZERO_ROLE.test(String(role.name ?? "").trim());
+  return explicit.get(role.id) === 0;
 }
 
 /** Rôles 0 % portés par un membre (liste vide si aucun). */

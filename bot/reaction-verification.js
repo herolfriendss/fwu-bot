@@ -1,4 +1,5 @@
 import { EmbedBuilder, PermissionFlagsBits } from "discord.js";
+import { assertRoleGrantable } from "./role-grant-guard.js";
 import { db } from "./database.js";
 
 const P = PermissionFlagsBits;
@@ -48,6 +49,7 @@ export async function handleReactionVerificationCommand(message) {
         role.permissions.has(P.Administrator)) {
       throw new Error("Ce rôle est protégé ou possède les permissions Administrateur. Choisis un rôle membre standard.");
     }
+    await assertRoleGrantable(message.guild, role, { automatic: true });
 
     const botMember = await message.guild.members.fetchMe();
 
@@ -169,6 +171,8 @@ export async function handleReactionVerificationReaction(reaction, user) {
   }
 
   if (member.roles.cache.has(role.id)) return true;
+  // Tout le monde peut réagir : le rôle ne doit jamais donner d'accès, de palier ou de permission.
+  await assertRoleGrantable(guild, role, { automatic: true });
 
   const botMember = await guild.members.fetchMe();
   if (!botMember.permissions.has(P.ManageRoles) ||

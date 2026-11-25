@@ -4,6 +4,7 @@
 // Réservé aux admins (palier 5 % ou plus haut). Tout est stocké dans la base
 // centrale ; le règlement n'est publié qu'après validation par un admin.
 import { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder, ModalBuilder, PermissionFlagsBits, TextInputBuilder, TextInputStyle } from "discord.js";
+import { roleGrantRefusal } from "./role-grant-guard.js";
 import { SharedDbUnavailableError, isConnectionError, sharedQuery } from "./shared/db.js";
 import { logCommandUsage } from "./shared/audit.js";
 import { memberTier } from "./shared/tiers.js";
@@ -422,6 +423,9 @@ async function handleScreeningAccept(interaction, { bot }) {
   if (!config) return reply(interaction, "L'écran d'adhésion n'est plus configuré : préviens le staff.");
   const member = interaction.member ?? await guild.members.fetch(interaction.user.id);
   if (member.roles.cache.has(config.role_id)) return reply(interaction, "✅ Tu as déjà accepté le règlement.");
+  const screeningRole = guild.roles.cache.get(config.role_id) ?? await guild.roles.fetch(config.role_id).catch(() => null);
+  const refused = screeningRole ? await roleGrantRefusal(guild, screeningRole, { automatic: true }) : "Rôle introuvable.";
+  if (refused) return reply(interaction, "❌ Le rôle de l'écran d'adhésion est protégé ou introuvable : préviens le staff.");
   try {
     await member.roles.add(config.role_id, "Règlement accepté (écran d'adhésion FWU)");
   } catch {
