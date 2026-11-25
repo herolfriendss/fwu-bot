@@ -16,18 +16,20 @@ test("SUCK ME : doit dominer les rôles 0 % et les laisses, juste sous le rôle 
   assert.deepEqual(suckMePlacementIssues({ botTop: 19, roles, tier0RoleIds: new Set(["zero"]), ownerTop: 20 }), []);
 });
 
-test("rapport : ✅ / ⚠️ avec la correction, bots absents signalés sans alarme", () => {
+test("rapport : bots principaux absents signalés, Invest + facultatif sans alarme", () => {
   const text = formatInstallationReport({
     bots: [
       { label: "FWU", present: true, missing: [], placement: [] },
       { label: "GUARD", present: true, missing: ["Bannir"], placement: [] },
-      { label: "LE FISC", present: false, missing: [], placement: [] },
+      { label: "LE FISC", present: false, optional: false, missing: [], placement: [] },
+      { label: "Invest +", present: false, optional: true, missing: [], placement: [] },
     ],
     extraLines: ["🟢 Base centrale : joignable."],
   });
   assert.match(text, /✅ \*\*FWU\*\*/);
   assert.match(text, /⚠️ \*\*GUARD\*\* :\n　• permission manquante : Bannir/);
-  assert.match(text, /⚪ \*\*LE FISC\*\* : pas sur ce serveur/);
+  assert.match(text, /🟠 \*\*LE FISC\*\* : absent/);
+  assert.match(text, /⚪ \*\*Invest \+\*\* : facultatif, non installé/);
   assert.match(text, /Paramètres du serveur → Rôles/);
   assert.ok(REQUIRED_PERMISSIONS.suckme.includes("MuteMembers"), "rôle 0 % intouchable : rendre muet requis");
 });
