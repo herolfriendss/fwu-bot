@@ -14,10 +14,19 @@ const DEFAULT_WINDOW_MS = 10 * 60_000;
 
 /** Origine courte d'une erreur : code Discord/Node s'il existe, et premier fichier du bot dans la pile. */
 export function describeRejection(reason) {
-  const code = reason && typeof reason === "object" && reason.code != null ? String(reason.code).slice(0, 40) : null;
+  const code =
+    reason && typeof reason === "object" && reason.code != null
+      ? String(reason.code).slice(0, 40)
+      : null;
   const name = reason instanceof Error ? reason.name : typeof reason;
   const stack = reason instanceof Error ? String(reason.stack ?? "") : "";
-  const frame = stack.split("\n").map((line) => /([\w./-]+\.(?:m?js|ts)):\d+/.exec(line)?.[1]).find((file) => file && !file.includes("node_modules") && !file.startsWith("node:"));
+  const frame = stack
+    .split("\n")
+    .map((line) => /([\w./-]+\.(?:m?js|ts)):\d+/.exec(line)?.[1])
+    .find(
+      (file) =>
+        file && !file.includes("node_modules") && !file.startsWith("node:"),
+    );
   const module = frame ? frame.split("/").slice(-2).join("/") : null;
   return { code, name, module };
 }
@@ -27,12 +36,18 @@ export function rejectionLimits(env = process.env) {
   const minutes = Number.parseInt(env.PND_REJECTION_WINDOW_MIN ?? "", 10);
   return {
     limit: Number.isFinite(limit) && limit > 0 ? limit : DEFAULT_LIMIT,
-    windowMs: Number.isFinite(minutes) && minutes > 0 ? minutes * 60_000 : DEFAULT_WINDOW_MS,
+    windowMs:
+      Number.isFinite(minutes) && minutes > 0
+        ? minutes * 60_000
+        : DEFAULT_WINDOW_MS,
   };
 }
 
 /** Compteur pur : renvoie { total, recent, overLimit } après avoir noté un rejet à `now`. */
-export function createRejectionCounter({ limit = DEFAULT_LIMIT, windowMs = DEFAULT_WINDOW_MS } = {}) {
+export function createRejectionCounter({
+  limit = DEFAULT_LIMIT,
+  windowMs = DEFAULT_WINDOW_MS,
+} = {}) {
   const times = [];
   let total = 0;
   let last = null;
@@ -61,7 +76,13 @@ export function processGuardStats() {
  * À appeler une fois au démarrage. `record(code)` = journal d'événements du bot,
  * `exit(code)` = sortie (process.exit par défaut), `stderr` = écriture brute.
  */
-export function installProcessGuard({ record = () => {}, exit = (code) => process.exit(code), stderr = (text) => process.stderr.write(text), env = process.env, target = process } = {}) {
+export function installProcessGuard({
+  record = () => {},
+  exit = (code) => process.exit(code),
+  stderr = (text) => process.stderr.write(text),
+  env = process.env,
+  target = process,
+} = {}) {
   const limits = rejectionLimits(env);
   counter = createRejectionCounter(limits);
   let stopping = false;
@@ -69,11 +90,15 @@ export function installProcessGuard({ record = () => {}, exit = (code) => proces
     const info = describeRejection(reason);
     const { total, recent, overLimit } = counter.note(info);
     // L'erreur complète reste visible dans les logs d'erreur PM2 : le filet ne masque rien.
-    stderr(`[process-guard] promesse rejetée sans catch n°${total} (${recent} en ${Math.round(limits.windowMs / 60_000)} min)${info.code ? ` code=${info.code}` : ""}${info.module ? ` module=${info.module}` : ""}\n${reason instanceof Error ? reason.stack : String(reason)}\n`);
+    stderr(
+      `[process-guard] promesse rejetée sans catch n°${total} (${recent} en ${Math.round(limits.windowMs / 60_000)} min)${info.code ? ` code=${info.code}` : ""}${info.module ? ` module=${info.module}` : ""}\n${reason instanceof Error ? reason.stack : String(reason)}\n`,
+    );
     record("unhandled_rejection"); // code fixe : le site refuse tout rapport avec un code inconnu
     if (overLimit && !stopping) {
       stopping = true;
-      stderr(`[process-guard] plus de ${limits.limit} rejets en ${Math.round(limits.windowMs / 60_000)} min : arrêt volontaire, PM2 relance le bot.\n`);
+      stderr(
+        `[process-guard] plus de ${limits.limit} rejets en ${Math.round(limits.windowMs / 60_000)} min : arrêt volontaire, PM2 relance le bot.\n`,
+      );
       record("unhandled_rejection_restart");
       setTimeout(() => exit(1), 500).unref?.();
     }
