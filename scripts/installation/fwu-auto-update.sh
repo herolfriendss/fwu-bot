@@ -28,6 +28,11 @@ if ! command -v node >/dev/null 2>&1 || [ "$(node_major node)" -lt 24 ] 2>/dev/n
 fi
 echo "Node utilisé : $(command -v node || echo introuvable) $(node -v 2>/dev/null)"
 
+# The bot runs under PM2 with NODE_ENV=production, and this script inherits it.
+# A build and a test run need the dev dependencies, so the update starts from a
+# neutral environment instead of the bot's own.
+unset NODE_ENV
+
 status() { printf '{"state":"%s","step":"%s","at":%s}\n' "$1" "$2" "$(date +%s)" > "$STATUS.tmp" && mv "$STATUS.tmp" "$STATUS"; }
 
 exec 9>"$DATA/maj.lock"

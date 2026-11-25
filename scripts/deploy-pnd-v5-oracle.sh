@@ -156,10 +156,14 @@ if (( MEM_MB + SWAP_MB < 3500 )) && [[ ! -e /swapfile-fwu ]]; then
   fi
 fi
 export NODE_OPTIONS="${NODE_OPTIONS:-} --max-old-space-size=2048"
+# --include=dev is explicit on purpose: this script runs the test suite, the
+# type check and the build, which all live in devDependencies. Launched from
+# the bot's own /maj, the process inherits NODE_ENV=production from PM2 and
+# npm would otherwise skip them, failing later on "vitest: command not found".
 info "Installation reproductible des dépendances (dashboard)"
-npm ci --no-audit --no-fund
+npm ci --include=dev --no-audit --no-fund
 info "Installation reproductible des dépendances (bot)"
-npm --prefix bot ci --no-audit --no-fund
+npm --prefix bot ci --include=dev --no-audit --no-fund
 
 info "Tests complets du bot"
 npm --prefix bot test
