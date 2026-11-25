@@ -1692,6 +1692,45 @@ const ALL_TIER_CHOICES: SlashOptionChoice[] = [
 
 export const EXTRA_SLASH_COMMANDS: SlashCommandDef[] = [
   {
+    name: "outils",
+    description: "Outils staff : message collé en bas d'un salon et modmail (MP au staff)",
+    usage: "/outils sticky definir|retirer|liste · /outils modmail config|etat|repondre|fermer|bloquer|debloquer|desactiver",
+    category: "Administration & sécurité",
+    dmPermission: false,
+    requiresBotProcess: true,
+    options: [
+      {
+        type: 2, name: "sticky", description: "Message toujours affiché en bas d'un salon",
+        options: [
+          sub("definir", "Colle un message en bas d'un salon (remplace l'ancien)", [
+            opt(7, "salon", "Salon", { required: true, channel_types: [0, 5] }),
+            opt(3, "texte", "Texte du message (\\n pour aller à la ligne)", { required: true, max_length: 1500 }),
+          ]),
+          sub("retirer", "Retire le message collé d'un salon", [opt(7, "salon", "Salon", { required: true, channel_types: [0, 5] })]),
+          sub("liste", "Les messages collés du serveur"),
+        ],
+      },
+      {
+        type: 2, name: "modmail", description: "Les membres écrivent en MP au bot, le staff répond dans un fil",
+        options: [
+          sub("repondre", "Dans un fil modmail : envoie une réponse en MP au membre", [
+            opt(3, "message", "Ta réponse", { required: true, max_length: 1800 }),
+            opt(5, "anonyme", "Signer « Staff du serveur » au lieu de ton nom (réglage du serveur par défaut)"),
+          ]),
+          sub("fermer", "Dans un fil modmail : ferme la conversation", [opt(3, "raison", "Raison montrée au membre", { max_length: 300 })]),
+          sub("config", "Staff : salon privé où arrivent les conversations", [
+            opt(7, "salon", "Salon réservé au staff", { required: true, channel_types: [0] }),
+            opt(5, "anonyme", "Réponses signées « Staff du serveur » (oui par défaut)"),
+          ]),
+          sub("etat", "Le modmail est-il activé ?"),
+          sub("bloquer", "Staff : empêche un membre d'écrire au staff", [opt(6, "membre", "Membre", { required: true })]),
+          sub("debloquer", "Staff : autorise de nouveau un membre", [opt(6, "membre", "Membre", { required: true })]),
+          sub("desactiver", "Staff : arrête le modmail"),
+        ],
+      },
+    ],
+  },
+  {
     name: "anim",
     description: "Animation du serveur : salon de comptage, mur des célébrités, question du jour",
     usage: "/anim comptage salon|etat|classement|desactiver · /anim vedette config|etat|desactiver · /anim qdj config|etat|ajouter|maintenant|sans_role|desactiver",
