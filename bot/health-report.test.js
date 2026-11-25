@@ -149,6 +149,7 @@ test("permissions and checks are scoped to the active application", () => {
     ...okSnapshot,
     profile: "guard",
     antiMoveEnabled: true,
+    logsHubPresent: null,
     missingPermissions: [{ name: "MoveMembers", label: "Déplacer des membres" }],
   }, 1_030_000);
   assert.ok(!guard.checks.some((check) => check.name === "Anti-Move"));
