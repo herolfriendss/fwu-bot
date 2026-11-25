@@ -62,6 +62,7 @@ import { handlePndIntelligenceMessage, handlePndIntelligenceInteraction, expireP
 import { handleOrganizationMessage } from "./organization-commands.js";
 import { startOrganizationMaintenance } from "./organization-maintenance.js";
 import { recordAnalyticsMetric, flushAnalyticsMetrics } from "./analytics-buffer.js";
+import { installProcessGuard } from "./process-guard.js";
 import { recoverInterruptedAutomationRuns } from "./automation-rules.js";
 import { handleAutomationRulesMessage } from "./automation-rules-commands.js";
 import { previewGuildAutomationRules, previewScheduledAutomationRules, buildAutomationEventFromMember } from "./automation-rules-runtime.js";
@@ -192,6 +193,8 @@ function record(code) {
   console.log(`[bot] ${code}`);
 }
 registerHealthProvider(() => ({ events: [...events], lastSync, startedAt }));
+// Promesses oubliées : comptées et visibles, redémarrage au-delà de 10 en 10 min (process-guard.js).
+installProcessGuard({ record });
 const lastHealthStatus = new Map();
 function checkHealthAlerts() {
   for (const guild of client.guilds.cache.values()) {
