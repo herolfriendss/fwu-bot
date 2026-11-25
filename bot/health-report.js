@@ -3,6 +3,7 @@ import { getAntiMoveConfig } from "./anti-move.js";
 import { LOGS_HUB_GUILD_ID } from "./logs-hub.js";
 import {
   criticalPermissionsForProfile,
+  PERMISSION_LABELS,
   requiredPermissionsForProfile,
 } from "./permissions-catalog.js";
 
@@ -160,7 +161,7 @@ export function collectHealthSnapshot(client, guild, profile = "fwu") {
   const required = requiredPermissionsForProfile(profile);
   const missingPermissions = required
     .filter((name) => !me?.permissions?.has?.(name))
-    .map((name) => ({ name, label: name }));
+    .map((name) => ({ name, label: PERMISSION_LABELS[name] ?? name }));
   return {
     profile,
     ready: Boolean(client?.isReady?.() ?? client?.readyAt),
