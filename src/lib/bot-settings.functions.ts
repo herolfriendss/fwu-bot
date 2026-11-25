@@ -1,6 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireOwner, snowflake } from "./discord.server";
-import { sanitizeSettings, type BotSettings } from "./bot-settings";
+import { DASHBOARD_SECTION_KEYS, sanitizeSettings, type BotSettings, type DashboardSectionPatch } from "./bot-settings";
 import { z } from "zod";
 import { prefixCommandFormSchema } from "./prefix-commands";
 
@@ -18,6 +18,19 @@ export const saveBotSettings = createServerFn({ method: "POST" })
     await requireOwner();
     const { writeBotSettings } = await import("./bot-settings.server");
     return writeBotSettings(data.guildId, data.settings);
+  });
+
+// Dashboard saves: only the changed sections, refused if one was modified elsewhere meanwhile.
+export const saveBotSettingsSections = createServerFn({ method: "POST" })
+  .inputValidator((d: { guildId: string; patch: DashboardSectionPatch; base: DashboardSectionPatch }) => {
+    const object = (v: unknown) => (v && typeof v === "object" && !Array.isArray(v) ? v as Record<string, unknown> : {});
+    const pick = (v: unknown) => Object.fromEntries(Object.entries(object(v)).filter(([key]) => (DASHBOARD_SECTION_KEYS as readonly string[]).includes(key)));
+    return { guildId: snowflake(d.guildId), patch: pick(d.patch), base: pick(d.base) };
+  })
+  .handler(async ({ data }) => {
+    await requireOwner();
+    const { writeSettingsSections } = await import("./bot-settings.server");
+    return writeSettingsSections(data.guildId, data.patch, data.base);
   });
 
 // Never return protected secret values to the browser.

@@ -29,10 +29,10 @@
 | `sanction_types` | sanctions prédéfinies de `/tempmute` (nom, durée), par serveur |
 | `sanctions` | historique complet : modérateur, cible, action, sanction, motif, durée, bot, date |
 | `quotas` | commande × palier → nombre max (NULL = illimité, 0 = interdit) et fenêtre ; `guild_id = '*'` = valeur par défaut |
-| `quota_usage` | un enregistrement par usage (fenêtre glissante) ; `refunded` si l'action Discord a échoué |
+| `quota_usage` | un enregistrement par usage (fenêtre glissante) ; `refunded` si l'action Discord a échoué ; gardé 31 jours (purge quotidienne par FWU) |
 | `quota_exemptions` | exemptions par ID utilisateur |
 | `bot_whitelist` | bots qui outrepassent les quotas |
-| `command_usage` | journal des commandes (ok, refusée, quota, erreur, base injoignable) |
+| `command_usage` | journal des commandes (ok, refusée, quota, erreur, base injoignable), gardé 90 jours |
 | `quota_violations` | dépassements de quota |
 | `config_changes` | toute modification de configuration : qui, quoi, avant, après |
 | `embeds`, `rules_drafts` | embeds gérés par FWU ; brouillons de règlement (brouillon → validé → publié) |
@@ -43,6 +43,7 @@
 
 - Palier d'un membre : l'owner (`PND_OWNER_DISCORD_ID`) est toujours **0 %** ; sinon le plus fort de ses rôles associés avec `/quota palier`. **Le nom d'un rôle ne donne jamais de palier** (un SYS+ pourrait se créer un rôle perso « Moi 1 % ») ; le symbole « % » est refusé dans les noms de rôles perso. `/quota paliers` liste les rôles avec « % » encore sans association.
 - 70 %, 80 %, 100 % et membres sans palier : aucune commande de modération.
+- `/quota moi` (réponse visible seulement par toi) : ce qu'il te reste pour chaque commande et quand la suivante se libère. Ne consomme rien.
 - Commandes à quota (tous bots) : `tempmute`, `unmute`, `warn`, `kick`, `ban`, `unban`, `blacklist`, `mv`.
 
 | Palier | tempmute | kick | ban | warn | unmute | unban | blacklist | mv |

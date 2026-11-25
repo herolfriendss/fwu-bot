@@ -177,7 +177,7 @@ export function collectHealthSnapshot(client, guild) {
     database,
     recentErrorCodes: events
       .map((e) => e.code)
-      .filter((code) => /error|failed|refused/.test(code)),
+      .filter((code) => /error|failed|refused|rejection/.test(code)),
     rankallRunning: count(
       "SELECT COUNT(*) c FROM rankall_jobs WHERE status='running' AND guild_id=?",
       guild?.id ?? "",
