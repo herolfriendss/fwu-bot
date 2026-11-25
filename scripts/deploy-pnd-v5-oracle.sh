@@ -19,7 +19,24 @@ EXPECTED_ROOT="${PND_EXPECTED_ROOT:-/home/opc/her-v5-production}"
   || fail "Racine inattendue : $(pwd -P). La production attendue est $EXPECTED_ROOT. Pour une recette staging, ne lance pas ce script de production."
 [[ -f .env && -f bot/.env ]] || fail "Fichiers .env manquants. Copie les deux .env.example et renseigne-les avant le déploiement."
 
-NODE_MAJOR="$(node -p 'Number(process.versions.node.split(".")[0])' 2>/dev/null || echo 0)"
+# Node 24 is installed through nvm on the Oracle VPS, while /usr/local/bin
+# still holds an older one. A script started without a terminal (the bot's own
+# /maj) never loads the profile that puts nvm first, so look for a suitable
+# Node ourselves before giving up.
+node_major_of() { "$1" -p 'Number(process.versions.node.split(".")[0])' 2>/dev/null || echo 0; }
+NODE_MAJOR="$(command -v node >/dev/null 2>&1 && node_major_of node || echo 0)"
+if (( NODE_MAJOR < 24 )); then
+  for candidate in "$HOME"/.nvm/versions/node/*/bin/node; do
+    [[ -x "$candidate" ]] || continue
+    if (( $(node_major_of "$candidate") >= 24 )); then
+      PATH="$(dirname "$candidate"):$PATH"
+      export PATH
+      NODE_MAJOR="$(node_major_of node)"
+      echo "Node 24 trouvé via nvm : $(dirname "$candidate")"
+      break
+    fi
+  done
+fi
 (( NODE_MAJOR >= 24 )) || fail "Node.js 24 minimum requis (version actuelle : $(node --version 2>/dev/null || echo absente))."
 command -v npm >/dev/null 2>&1 || fail "npm est introuvable."
 

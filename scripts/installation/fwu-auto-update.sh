@@ -12,6 +12,22 @@ STATUS="$DATA/maj-status.json"
 REPO_SLUG="${FWU_REPO_SLUG:-herolfriendss/her-v3-}"
 export PATH="/usr/local/bin:/usr/bin:/bin:$HOME/.npm-global/bin:$PATH"
 
+# Node 24 comes from nvm on this VPS, and a script launched in the background
+# by the bot never reads the profile that puts nvm on the PATH. Without this,
+# /usr/local/bin/node (v20) wins and the update refuses to start.
+node_major() { "$1" -e 'process.stdout.write(String(process.versions.node.split(".")[0]))' 2>/dev/null; }
+if ! command -v node >/dev/null 2>&1 || [ "$(node_major node)" -lt 24 ] 2>/dev/null; then
+  for candidate in "$HOME"/.nvm/versions/node/*/bin/node; do
+    [ -x "$candidate" ] || continue
+    if [ "$(node_major "$candidate")" -ge 24 ] 2>/dev/null; then
+      PATH="$(dirname "$candidate"):$PATH"
+      export PATH
+      break
+    fi
+  done
+fi
+echo "Node utilisé : $(command -v node || echo introuvable) $(node -v 2>/dev/null)"
+
 status() { printf '{"state":"%s","step":"%s","at":%s}\n' "$1" "$2" "$(date +%s)" > "$STATUS.tmp" && mv "$STATUS.tmp" "$STATUS"; }
 
 exec 9>"$DATA/maj.lock"
