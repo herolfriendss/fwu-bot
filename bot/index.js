@@ -1,5 +1,5 @@
 // Bot Discord 24h/24 — à lancer sur ton VPS. Les réglages viennent du site (onglet « Bot 24h/24 »).
-import { Client, EmbedBuilder, GatewayIntentBits, Partials, PermissionFlagsBits, REST } from "discord.js";
+import { Client, GatewayIntentBits, Partials, PermissionFlagsBits, REST } from "discord.js";
 import { startPresence } from "./presence.js";
 import { buildActivitySnapshot } from "./activity-snapshot.js";
 import { existsSync } from "node:fs";
