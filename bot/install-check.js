@@ -26,13 +26,14 @@ export function suckMePlacementIssues({ botTop, roles, tier0RoleIds, ownerTop })
 /** Pur : texte final. bots = [{ label, present, missing: [], placement: [] }]. */
 export function formatInstallationReport({ bots, extraLines = [] }) {
   const lines = ["**Bilan de l'installation** (lecture seule)"];
-  let warnings = 0;
+  let missingBots = 0;
+  let permissionProblems = 0;
   for (const bot of bots) {
     if (!bot.present) {
       if (bot.optional) {
         lines.push(`⚪ **${bot.label}** : facultatif, non installé sur ce serveur.`);
       } else {
-        warnings += 1;
+        missingBots += 1;
         lines.push(`🟠 **${bot.label}** : absent. FWU peut reprendre les événements de son domaine, mais les commandes propres à cette application sont indisponibles sur ce serveur.`);
       }
       continue;
@@ -40,12 +41,14 @@ export function formatInstallationReport({ bots, extraLines = [] }) {
     const problems = [...bot.missing.map((p) => `permission manquante : ${p}`), ...bot.placement];
     if (!problems.length) lines.push(`✅ **${bot.label}** : permissions et place du rôle OK.`);
     else {
-      warnings += problems.length;
+      permissionProblems += problems.length;
       lines.push(`⚠️ **${bot.label}** :`, ...problems.map((p) => `　• ${p}`));
     }
   }
   lines.push(...extraLines);
-  lines.push(warnings ? `\n👉 Corrige dans Paramètres du serveur → Rôles (permissions et ordre), puis relance la commande.` : "\n✅ Rien à corriger côté Discord.");
+  if (missingBots) lines.push(`\n👉 Réinvite ou redémarre ${missingBots} application(s) principale(s) absente(s), puis vérifie que chacune a rejoint tous les serveurs autorisés.`);
+  if (permissionProblems) lines.push("\n👉 Corrige les permissions Discord et l'ordre des rôles dans Paramètres du serveur → Rôles, puis relance la commande.");
+  if (!missingBots && !permissionProblems) lines.push("\n✅ Rien à corriger côté Discord.");
   return lines.join("\n").slice(0, 3900);
 }
 
