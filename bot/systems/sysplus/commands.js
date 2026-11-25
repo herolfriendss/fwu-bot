@@ -30,8 +30,10 @@ import { respondInPlaceSafe } from "../../interaction-reply.js";
 import { formatBotsDiagnostic, formatRelayLossLine } from "../../bot-runtime.js";
 import { formatSharedDbLine } from "../../shared/index.js";
 import { formatBackupLine, readBackupStatus } from "../../backup-status.js";
+import { buildInstallationReport } from "../../install-check.js";
+import { parsePndOwnerId } from "../../pnd-owner-policy.js";
 
-const DIAGNOSTIC_ACTIONS = new Set(["acl", "sante", "santé", "logs-couverture", "matrice", "economie", "économie", "bots"]);
+const DIAGNOSTIC_ACTIONS = new Set(["acl", "sante", "santé", "logs-couverture", "matrice", "economie", "économie", "bots", "installation"]);
 
 /** Read-only diagnostics shared by =sysp and /sysp diagnostic. Throws user-facing errors. */
 export async function runSysPlusDiagnostic(guild, member, roleId, action, record = () => {}, whitelistRoleId = null) {
@@ -50,6 +52,10 @@ export async function runSysPlusDiagnostic(guild, member, roleId, action, record
     return text;
   }
   if (action === "logs-couverture") return formatCoverageSummary();
+  if (action === "installation") {
+    recordSysPlusAudit(guild.id, member.id, "diagnostic.installation", null, {});
+    return buildInstallationReport(guild, { ownerId: parsePndOwnerId(process.env.PND_OWNER_DISCORD_ID), extraLines: [formatSharedDbLine(), formatBackupLine(readBackupStatus())] });
+  }
   if (action === "bots") return `${formatBotsDiagnostic()}\n${formatRelayLossLine()}\n${formatSharedDbLine()}\n${formatBackupLine(readBackupStatus())}`;
   if (action === "matrice") {
     const scopes = Object.fromEntries(Object.keys(ADMIN_PLUS_SCOPES).map((scope) => [scope, getAdminPlusScope(guild.id, scope)]));
