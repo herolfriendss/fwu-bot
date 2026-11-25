@@ -1677,6 +1677,56 @@ const ALL_TIER_CHOICES: SlashOptionChoice[] = [
 
 export const EXTRA_SLASH_COMMANDS: SlashCommandDef[] = [
   {
+    name: "anim",
+    description: "Animation du serveur : salon de comptage, mur des célébrités, question du jour",
+    usage: "/anim comptage salon|etat|classement|desactiver · /anim vedette config|etat|desactiver · /anim qdj config|etat|ajouter|maintenant|sans_role|desactiver",
+    category: "Communauté",
+    dmPermission: false,
+    requiresBotProcess: true,
+    options: [
+      {
+        type: 2, name: "comptage", description: "Salon où l'on compte 1, 2, 3… chacun son tour",
+        options: [
+          sub("etat", "Où en est le comptage, et le record"),
+          sub("classement", "Les meilleurs compteurs du serveur"),
+          sub("salon", "Staff : choisit le salon de comptage et l'active", [opt(7, "salon", "Salon de comptage", { required: true, channel_types: [0] })]),
+          sub("desactiver", "Staff : arrête le comptage (le record est gardé)"),
+        ],
+      },
+      {
+        type: 2, name: "vedette", description: "Mur des célébrités : les messages les plus étoilés",
+        options: [
+          sub("etat", "Réglages et statistiques du mur"),
+          sub("config", "Staff : salon du mur, emoji et nombre d'étoiles", [
+            opt(7, "salon", "Salon où les messages sont recopiés", { required: true, channel_types: [0, 5] }),
+            opt(3, "emoji", "Emoji qui compte (⭐ par défaut)", { max_length: 64 }),
+            opt(4, "seuil", "Nombre d'étoiles nécessaires (3 par défaut)", { min_value: 1, max_value: 50 }),
+            opt(5, "auto_etoile", "L'auteur peut-il voter pour son propre message ? (non par défaut)"),
+          ]),
+          sub("desactiver", "Staff : arrête le mur (les messages publiés restent)"),
+        ],
+      },
+      {
+        type: 2, name: "qdj", description: "Une question publiée chaque jour, avec un fil pour répondre",
+        options: [
+          sub("etat", "Réglages de la question du jour"),
+          sub("config", "Staff : salon, heure (Paris), rôle mentionné et fil", [
+            opt(7, "salon", "Salon de la question du jour", { required: true, channel_types: [0, 5] }),
+            opt(4, "heure", "Heure de publication, heure de Paris (18 par défaut)", { min_value: 0, max_value: 23 }),
+            opt(8, "role", "Rôle mentionné à chaque question"),
+            opt(5, "fil", "Ouvrir un fil de réponses (oui par défaut)"),
+          ]),
+          sub("ajouter", "Staff : ajoute une question, publiée avant les questions intégrées", [
+            opt(3, "question", "La question", { required: true, min_length: 5, max_length: 300 }),
+          ]),
+          sub("maintenant", "Staff : publie la question du jour tout de suite"),
+          sub("sans_role", "Staff : ne plus mentionner de rôle"),
+          sub("desactiver", "Staff : arrête la question du jour"),
+        ],
+      },
+    ],
+  },
+  {
     name: "afk",
     description: "RESUME : signale ton absence et retrouve ce qui s’est passé pendant ce temps",
     usage: "/afk on [raison] · /afk off · /afk resume [heures]",

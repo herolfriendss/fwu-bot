@@ -3,7 +3,10 @@ import { toast } from "sonner";
 import { Save, ShieldCheck, Sparkles } from "lucide-react";
 import { type BotSettings } from "@/lib/bot-settings";
 import { useSectionSettings } from "@/components/useSectionSettings";
-import { MODULE_CATALOG, type ToggleModuleKey } from "@/lib/module-catalog";
+import { HANDCRAFTED_MODULES, MODULE_CATALOG } from "@/lib/module-catalog";
+import { GenericModuleForm } from "@/components/GenericModuleForm";
+import { SettingsDiagnostic } from "@/components/SettingsDiagnostic";
+import { DASHBOARD_SECTION_KEYS } from "@/lib/bot-settings";
 import { BOT_PROFILES, BOT_PROFILE_IDS } from "@/lib/bot-profiles";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -63,10 +66,14 @@ function RoleSelect({ value, onChange, roles, placeholder }: {
   );
 }
 
-const SECTIONS = ["logs", "ai", "guildGuard", "moderation", "verification", "tickets", "tempVoice", "liveAlerts", "automation"] as const;
+// Every module section (hand-made and generated forms) is saved from this tab, except dog/wakeup (Rôles et accès).
+const SECTIONS = DASHBOARD_SECTION_KEYS.filter((key) => !["keywords", "filter", "welcome", "dog", "wakeup"].includes(key));
+const GENERATED = MODULE_CATALOG.filter((m) => !HANDCRAFTED_MODULES.includes(m.key));
 
 export function V4ModulesPanel({ guildId, channels, roles, onDirtyChange }: { guildId: string; channels: Chan[]; roles: Role[]; onDirtyChange?: (dirty: boolean) => void }) {
-  const { q, s, set, dirty, saving, save } = useSectionSettings(guildId, SECTIONS, onDirtyChange);
+  const { q, s, setS, set, dirty, saving, save } = useSectionSettings(guildId, SECTIONS, onDirtyChange);
+  const moduleValue = (key: string) => (s as unknown as Record<string, Record<string, unknown> | undefined>)[key];
+  const setModule = (key: string, next: Record<string, unknown>) => setS((prev) => ({ ...prev, [key]: next }));
   const [livePlatform, setLivePlatform] = useState<"youtube" | "tiktok" | "twitch" | "other">("youtube");
   const [liveName, setLiveName] = useState("");
   const [liveFeed, setLiveFeed] = useState("");
@@ -78,6 +85,7 @@ export function V4ModulesPanel({ guildId, channels, roles, onDirtyChange }: { gu
 
   return (
     <div className="space-y-5">
+      {q.data && <SettingsDiagnostic settings={q.data} channels={channels} roles={roles} />}
       <section className={box} aria-labelledby="modules-overview">
         <div>
           <h3 id="modules-overview" className="font-semibold">Modules par bot</h3>
@@ -95,7 +103,7 @@ export function V4ModulesPanel({ guildId, channels, roles, onDirtyChange }: { gu
                       <p className="text-xs text-muted-foreground">{m.description}</p>
                     </div>
                     {m.toggle
-                      ? <Switch aria-label={`Activer : ${m.label}`} checked={s[m.key as ToggleModuleKey].enabled} onCheckedChange={(v) => set(m.key as ToggleModuleKey, { enabled: v })} />
+                      ? <Switch aria-label={`Activer : ${m.label}`} checked={moduleValue(m.key)?.["enabled"] === true} onCheckedChange={(v) => setModule(m.key, { ...moduleValue(m.key), enabled: v })} />
                       : <span className="shrink-0 rounded-full border border-border px-2 py-0.5 text-[11px] text-muted-foreground">Toujours actif</span>}
                   </li>
                 ))}
@@ -311,6 +319,15 @@ export function V4ModulesPanel({ guildId, channels, roles, onDirtyChange }: { gu
           <Textarea rows={2} value={s.automation.welcomeDmMessage} onChange={(e) => set("automation", { welcomeDmMessage: e.target.value })} />
         </div>
       </Section>
+
+      <Section title="Page publique du serveur" icon={Sparkles} description="Une page visible sans connexion : membres, boosts, état des bots, activité, boutique PND et commandes accessibles à tous. Désactivée par défaut.">
+        <label className="flex items-center gap-2 text-sm"><Switch checked={s.publicPage.enabled} onCheckedChange={(v) => set("publicPage", { enabled: v })} /> Publier la page de ce serveur</label>
+        <label className="flex items-center gap-2 text-sm"><Switch checked={s.publicPage.showLeaderboard} disabled={!s.publicPage.enabled} onCheckedChange={(v) => set("publicPage", { showLeaderboard: v })} /> Afficher les classements PND et XP avec les pseudos des 10 premiers</label>
+        {q.data?.publicPage.enabled && <p className="text-sm">Adresse : <a className="text-primary underline" href={`/serveur/${guildId}`} target="_blank" rel="noreferrer">{typeof window !== "undefined" ? window.location.origin : ""}/serveur/{guildId}</a></p>}
+        <p className="text-xs text-muted-foreground">La page ne montre jamais les réglages, les journaux ni les identifiants. Elle se met à jour toutes les 5 minutes au plus.</p>
+      </Section>
+
+      {GENERATED.map((m) => <GenericModuleForm key={m.key} module={m} value={moduleValue(m.key)} onChange={(next) => setModule(m.key, next)} channels={channels} roles={roles} />)}
 
       <div className="console-save-bar flex flex-wrap items-center gap-3">
         <Button onClick={onSave} disabled={saving || !dirty}><Save className="h-4 w-4" /> {saving ? "Enregistrement…" : "Enregistrer les modules"}</Button>

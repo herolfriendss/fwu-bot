@@ -4,7 +4,7 @@ import { queryOptions, useQuery, useQueryClient, useSuspenseQuery } from "@tanst
 import { useServerFn } from "@tanstack/react-start";
 import { useCallback, useState } from "react";
 import { toast } from "sonner";
-import { Bot, Hash, Megaphone, Shield, Users, Trash2, Plus, Volume2, Folder, Save, BarChart3, Command, UserRoundCheck, Server, SlidersHorizontal, KeyRound } from "lucide-react";
+import { Bot, Hash, Megaphone, Shield, Users, Trash2, Plus, Volume2, Folder, Save, BarChart3, Command, UserRoundCheck, Server, SlidersHorizontal, KeyRound, Activity } from "lucide-react";
 import { getOverview } from "@/lib/discord.functions";
 import { cn } from "@/lib/utils";
 import {
@@ -13,6 +13,7 @@ import {
 } from "@/lib/discord-admin.functions";
 import { IncidentAdvisor } from "@/components/IncidentAdvisor";
 import { AccessPanel } from "@/components/AccessPanel";
+import { ActivityPanel } from "@/components/ActivityPanel";
 import { useConfirm } from "@/components/useConfirm";
 import { ServerAnalytics } from "@/components/ServerAnalytics";
 import { CommandManager } from "@/components/CommandManager";
@@ -51,6 +52,7 @@ const errMsg = (e: unknown) => (e instanceof Error ? e.message : "Erreur");
 const TABS = [
   { id: "profil", label: "Profil", icon: Bot },
   { id: "analyses", label: "Analyses", icon: BarChart3 },
+  { id: "activite", label: "Activité et XP", icon: Activity },
   { id: "salons", label: "Salons", icon: Hash },
   { id: "membres", label: "Rôles & membres", icon: Users },
   { id: "moderation", label: "Modération", icon: Shield },
@@ -101,7 +103,7 @@ function Config() {
   const admin = useQuery({
     queryKey: ["discord", "admin", guildId],
     queryFn: () => fetchAdmin({ data: { guildId } }),
-    enabled: !!guildId && tab !== "analyses" && tab !== "commandes" && tab !== "adhesions",
+    enabled: !!guildId && tab !== "analyses" && tab !== "activite" && tab !== "commandes" && tab !== "adhesions",
   });
 
   return (
@@ -137,8 +139,9 @@ function Config() {
           {tab === "profil" && <Profile name={data.bot.username} guildId={guildId} />}
           {tab !== "profil" && !guildId && <p className="text-muted-foreground">Le bot n'est sur aucun serveur.</p>}
           {tab === "analyses" && guildId && <ServerAnalytics key={guildId} guildId={guildId} />}
-          {tab !== "profil" && tab !== "analyses" && tab !== "commandes" && tab !== "adhesions" && guildId && admin.isLoading && <p className="text-muted-foreground">Chargement…</p>}
-          {tab !== "profil" && tab !== "analyses" && tab !== "commandes" && tab !== "adhesions" && admin.error && <p className="text-destructive">{errMsg(admin.error)}</p>}
+          {tab === "activite" && guildId && <ActivityPanel key={guildId} guildId={guildId} />}
+          {tab !== "profil" && tab !== "analyses" && tab !== "activite" && tab !== "commandes" && tab !== "adhesions" && guildId && admin.isLoading && <p className="text-muted-foreground">Chargement…</p>}
+          {tab !== "profil" && tab !== "analyses" && tab !== "activite" && tab !== "commandes" && tab !== "adhesions" && admin.error && <p className="text-destructive">{errMsg(admin.error)}</p>}
           {admin.data && tab === "salons" && <Channels guildId={guildId} channels={admin.data.channels} />}
           {admin.data && tab === "membres" && <Members guildId={guildId} admin={admin.data} />}
           {admin.data && tab === "moderation" && <Moderation guildId={guildId} admin={admin.data} />}

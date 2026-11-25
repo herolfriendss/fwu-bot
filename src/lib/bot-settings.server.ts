@@ -51,7 +51,12 @@ export async function writeSettingsSections(guildId: string, patch: unknown, bas
     const names = conflicts.map((key) => `« ${SECTION_LABELS[key]} »`).join(", ");
     throw new Error(`Modifié entre-temps depuis Discord ou un autre onglet : ${names}. Recharge la page pour voir la version actuelle, puis refais ta modification.`);
   }
-  return writeBotSettings(guildId, applySectionPatch(latest, patch));
+  const saved = await writeBotSettings(guildId, applySectionPatch(latest, patch));
+  if (patch && typeof patch === "object" && Object.hasOwn(patch, "publicPage")) {
+    const { forgetPublicPage } = await import("./public-page.server");
+    forgetPublicPage(guildId);
+  }
+  return saved;
 }
 
 export function checkBotSecret(request: Request): boolean {
