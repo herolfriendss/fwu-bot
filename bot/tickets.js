@@ -17,7 +17,7 @@ import { canUseAdminPlusScope, getAdminPlusScope } from "./systems/sysplus/admin
 import { getAdminPlusRoleId } from "./systems/sysplus/role-config.js";
 import { parsePndOwnerId } from "./pnd-owner-policy.js";
 import {
-  canActOnTicket, sanitizeTicketSubject, ticketChannelName, ticketDuration, ticketOpenAllowed, ticketStatusLabel, parseTicketPrefixCommand,
+  canActOnTicket, sanitizeTicketSubject, ticketChannelName, ticketDuration, ticketOpenAllowed, ticketStatusLabel, ticketSetupIssue, parseTicketPrefixCommand,
 } from "./tickets-policy.js";
 
 const P = PermissionFlagsBits;
@@ -145,7 +145,7 @@ export async function handleTicketsInteraction(interaction, guildSettings = {}, 
   try {
     if (subcommand === "panel") {
       if (!isTicketStaff(member, settings)) throw new Error("Permission Gérer les salons requise.");
-      if (!settings.tickets?.enabled) throw new Error("Active les tickets dans les réglages des modules avant de publier le panneau.");
+      const setupIssue = ticketSetupIssue(settings.tickets);\n      if (setupIssue) throw new Error(setupIssue);
       const channel = interaction.channel;
       if (!channel?.isTextBased()) throw new Error("Choisis un salon textuel existant pour publier le panneau.");
       await interaction.deferReply({ ephemeral: true });
@@ -341,7 +341,7 @@ async function openTicket(interaction, guildSettings = {}, record = () => {}) {
     if (openingTickets.has(lockKey)) throw new Error("La création de ton ticket est déjà en cours. Patiente quelques secondes.");
     openingTickets.add(lockKey);
     lockAcquired = true;
-    if (!settings.tickets?.enabled) throw new Error("Les tickets ne sont pas activés sur ce serveur.");
+    const setupIssue = ticketSetupIssue(settings.tickets);\n    if (setupIssue) throw new Error(setupIssue);
     if (!ticketOpenAllowed(openTicketsFor(guild.id, interaction.user.id), settings.tickets.maxOpenPerUser)) {
       throw new Error("Tu as déjà un ticket ouvert. Ferme-le avant d’en ouvrir un autre.");
     }
