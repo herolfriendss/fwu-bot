@@ -221,7 +221,7 @@ function checkHealthAlerts() {
   for (const guild of client.guilds.cache.values()) {
     if (!guildAllowed(guild.id, ALLOWED_GUILDS) || isLogsHub(guild.id)) continue;
     try {
-      const { evaluation, text } = buildHealthReport(client, guild);
+      const { evaluation, text } = buildHealthReport(client, guild, Date.now(), RUNTIME.profile);
       const previous = lastHealthStatus.get(guild.id) ?? "ok";
       lastHealthStatus.set(guild.id, evaluation.status);
       // Alert only on transition to critical (and once on recovery), never every cycle.
