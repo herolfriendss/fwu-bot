@@ -1,67 +1,130 @@
-# Audit du catalogue slash 1942
+# Audit du catalogue slash FWU
 
-- Commandes racine : **100/100**.
-- Doublons : **0**.
-- Architecture : un seul bot, une seule application Discord.
+- Applications Discord : **6**.
+- Définitions racine : **129** commandes uniques.
+- Commandes communes à chaque application : **/aide, /status**.
+- Doublons de définition : **0**.
+- Commandes attribuées à plusieurs bots : **0**.
+- Commandes sans propriétaire : **0**.
 
-## Répartition par catégorie
+## Limite Discord par application
 
-- **Général** : 8
-- **Administration & sécurité** : 2
-- **Modération** : 11
-- **SYS+** : 9
-- **Automatisation** : 2
-- **Économie PND** : 18
-- **Social & cartes** : 14
-- **Jeux & événements** : 7
-- **Vocal & DOG** : 13
-- **Musique & radio** : 16
+| Application | Commandes propres | Communes | Total | Limite |
+|---|---:|---:|---:|---:|
+| FWU | 10 | 2 | 12/100 | OK |
+| GUARD | 15 | 2 | 17/100 | OK |
+| FDPDLAVOC | 7 | 2 | 9/100 | OK |
+| SUCK ME | 61 | 2 | 63/100 | OK |
+| LE FISC | 32 | 2 | 34/100 | OK |
+| Invest + | 2 | 2 | 4/100 | OK |
 
-## Commandes par catégorie
+## FWU
 
-### Général — 8
-- /aide
-- /ia
-- /status
-- /sondage
-- /nettoyer
-- /panel
-- /setup
-- /knowledge
-
-### Administration & sécurité — 2
-- /guildguard
-- /rankall
-
-### Modération — 11
-- /warn
-- /warnings
 - /tempmute
 - /unmute
+- /warn
+- /warnings
+- /sanction
+- /sanction-type
+- /quota
+- /embed
+- /reglement
+- /screening
+
+## GUARD
+
+- /guildguard
 - /kick
 - /ban
+- /blacklist
 - /purge
+- /nettoyer
 - /slowmode
 - /lock
 - /unlock
 - /verify
+- /antinuke
+- /automod
+- /casier
+- /quarantaine
+- /bouclier
 
-### SYS+ — 9
+## FDPDLAVOC
+
+- /voice
+- /voc
+- /music
+- /radio
+- /effet
+- /playlist
+- /dj
+
+## SUCK ME
+
+- /sysp
+- /panel
+- /setup
+- /knowledge
+- /rank
+- /rankall
 - /removerole
 - /rolepanel
-- /rank
-- /sysp
-- /ticket
-- /candidature
-- /vocalpresence
 - /staffhistory
+- /vocalpresence
 - /lockname
-
-### Automatisation — 2
 - /webhook
 - /automation
+- /anti-moove
+- /wakeup
+- /dog
+- /undog
+- /doginfo
+- /wouaf
+- /menotte
+- /unmenotte
+- /menotteinfo
+- /dmall
+- /undogall
+- /roletemp
+- /annonce
+- /staff
+- /pseudo
+- /maj
+- /ia
+- /ticket
+- /candidature
+- /sondage
+- /profil
+- /bio
+- /rep
+- /toprep
+- /color
+- /academy
+- /award
+- /story
+- /radar
+- /wrapped
+- /giveaway
+- /event
+- /pndevent
+- /afk
+- /live
+- /niveau
+- /suggestion
+- /anniversaire
+- /rappel
+- /stats
+- /confession
+- /moi
+- /fwu
+- /clan
+- /saison
+- /quete
+- /anim
+- /outils
 
-### Économie PND — 18
+## LE FISC
+
 - /balance
 - /daily
 - /work
@@ -80,65 +143,22 @@
 - /blackjack
 - /business
 - /invest
-
-### Social & cartes — 14
-- /profil
-- /bio
-- /rep
-- /toprep
-- /color
+- /casino
+- /impots
+- /pret
+- /duel
+- /pari
+- /avantage
+- /dice
+- /coinflip
+- /trivia
 - /cards
 - /card
 - /pack
 - /trade
-- /academy
-- /award
-- /story
-- /radar
-- /wrapped
+- /jeu
 
-### Jeux & événements — 7
-- /dice
-- /coinflip
-- /trivia
-- /giveaway
-- /event
-- /casino
-- /pndevent
+## Invest +
 
-### Vocal & DOG — 13
-- /anti-moove
-- /wakeup
-- /dog
-- /undog
-- /wouaf
-- /doginfo
-- /menotte
-- /unmenotte
-- /menotteinfo
-- /access
-- /unaccess
-- /pv
-- /voc
-
-### Musique & radio — 16
-- /play
-- /pause
-- /resume
-- /skip
-- /stop
-- /queue
-- /nowplaying
-- /volume
-- /loop
-- /shuffle
-- /clearqueue
-- /remove
-- /join
-- /leave
-- /musicpanel
-- /radio
-
-## Limites
-
-- Le catalogue utilise les emplacements de commandes racine Discord disponibles (maximum 100) : toute nouvelle commande doit devenir une sous-commande d'une commande existante ou en remplacer une.
+- /abonnement
+- /investadmin

@@ -1,4 +1,4 @@
-# FWU — 5 bots, préfixes, quotas partagés (24/11/2026)
+# FWU — 5 bots principaux + Invest + facultatif, préfixes et quotas partagés (25/11/2026)
 
 ## 1. Qui fait quoi
 
@@ -15,6 +15,23 @@
 - **Une commande n'existe que sur son bot.** Chaque bot retire de son application Discord les commandes des autres ; `=ban` ou `+play` ne font rien. L'ancienne reprise des commandes par FWU quand un bot est arrêté est supprimée (la reprise des **événements** — logs, anti-spam, blacklist à l'arrivée — reste).
 - `/mute` est remplacée par `/tempmute` (retirée automatiquement de toutes les applications).
 - Préfixes : `PND_DATA_DIR/bots.json` (même fichier pour les 5 bots ; modèle : `bot/config/bots.example.json`). Valeurs vérifiées au démarrage : 1 à 3 symboles, tous différents, aucun préfixe qui commence comme un autre ; FWU sans préfixe.
+
+## 1 bis. Permissions Discord attendues par application
+
+La source de vérité est `bot/permissions-catalog.js`, utilisée à la fois par le diagnostic de santé et par `/sysp diagnostic installation`. Une permission manquante ne doit pas pénaliser un autre bot qui n'utilise pas cette fonction.
+
+| Application | Permissions attendues |
+|---|---|
+| **FWU** | Envoyer des messages, intégrer des liens, gérer les rôles et les salons, voir les logs, exclure temporairement |
+| **GUARD** | Gérer les messages, exclure, bannir, exclure temporairement, gérer les rôles et les salons, voir les logs, ajouter des réactions |
+| **FDPDLAVOC** | Se connecter, parler, déplacer des membres, gérer les salons et les rôles, envoyer des messages |
+| **SUCK ME** | Gérer les rôles et les pseudos, déplacer des membres, voir les logs, gérer les messages et webhooks, rendre muet/sourd, modérer et bannir, envoyer des messages, gérer les salons |
+| **LE FISC** | Gérer les rôles, envoyer des messages |
+| **Invest +** *(facultatif)* | Gérer les rôles et les salons, envoyer des messages, intégrer des liens |
+
+Les alertes critiques sont également propres à chaque profil : l'absence de `BanMembers` est critique pour GUARD, mais ne doit pas dégrader LE FISC. Les contrôles Anti-Move ne s'appliquent qu'à SUCK ME ; la présence sur le Logs Hub n'est requise que pour FWU, qui centralise les journaux des applications dédiées.
+
+Le diagnostic d'installation identifie le bot qui exécute réellement la commande SYS+, vérifie les six applications et distingue l'absence d'un bot principal de l'absence facultative d'Invest +. L'absence d'un bot principal signifie que ses commandes propres ne sont pas disponibles, même si FWU reprend les événements de son domaine.
 
 ## 2. Base centrale (PostgreSQL)
 

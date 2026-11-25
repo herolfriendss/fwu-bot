@@ -14,6 +14,9 @@ import {
   MZ_LOG_ROLES,
   LOGS_HUB_GUILD_ID,
   RESERVED_SOURCE_GUILD_ID,
+  ACTIVE_SOURCE_GUILD_IDS,
+  logSourceForGuild,
+  inspectLogsHub,
   logRolesForCategory,
 } from "./logs-hub.js";
 
@@ -142,6 +145,32 @@ test("category isolation rejects roles with Administrator and member-specific vi
   delete adminLogsRole.permissions;
   category.permissionOverwrites.cache.values = () => [{ type: 1, id: "unexpected-member", allow: { has: () => true } }];
   assert.equal(hasIsolatedLogPermissions(category, "pnd"), false);
+});
+
+test("logs hub inspection is read-only and reports missing existing channels", async () => {
+  const { inspectLogsHub } = await import("./logs-hub.js");
+  const guild = {
+    id: LOGS_HUB_GUILD_ID,
+    channels: { cache: { find: () => null } },
+    roles: { cache: { find: () => null } },
+  };
+  const report = inspectLogsHub(guild);
+  assert.equal(report.ready, false);
+  const activeSources = new Set(ACTIVE_SOURCE_GUILD_IDS.map(logSourceForGuild).filter(Boolean));
+  const required = ALL_LOG_CHANNELS.filter((spec) => activeSources.has(spec.source));
+  assert.equal(report.required, required.length);
+  assert.deepEqual(new Set(report.activeSources), activeSources);
+  assert.equal(report.missing.length, required.length);
+  assert.equal(typeof guild.channels.create, "undefined");
+  assert.equal(typeof guild.roles.create, "undefined");
+});
+
+test("logs hub inspection refuses any guild other than the configured log server", async () => {
+  const { inspectLogsHub } = await import("./logs-hub.js");
+  assert.throws(
+    () => inspectLogsHub({ id: "123", channels: { cache: { find: () => null } } }),
+    /Serveur central de logs incorrect/,
+  );
 });
 
 test("ticket, verification and webhook events have dedicated central log destinations", () => {

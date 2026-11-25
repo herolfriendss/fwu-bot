@@ -213,6 +213,7 @@ export function V4ModulesPanel({ guildId, channels, roles, onDirtyChange }: { gu
           <div>
             <Label>Rôle support</Label>
             <RoleSelect value={s.tickets.supportRoleId} roles={roles} onChange={(v) => set("tickets", { supportRoleId: v })} placeholder="Staff du serveur" />
+            <p className="text-xs text-muted-foreground">Obligatoire : sélectionne un rôle staff déjà existant. Le bot ne crée ni ne modifie aucun rôle.</p>
           </div>
           <p className="text-xs text-muted-foreground sm:col-span-2">Ouvertures, prises en charge et fermetures de tickets sont envoyées dans le journal centralisé.</p>
           <div>

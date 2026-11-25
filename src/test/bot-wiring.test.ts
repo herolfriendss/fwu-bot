@@ -97,6 +97,10 @@ describe("bot wiring", () => {
     // casino, blackjack, roulette : le casino v2 (bot/casino) répond avant l'ancien routeur V4, gardé en secours.
     const SHARED_DISPATCH = new Set(["sysp", "casino", "blackjack", "roulette"]);
     const handled = new Set<string>();
+    // Group roots are routed by their subcommand dispatchers, not by a flat
+    // interaction.commandName comparison; register them as concrete handlers.
+    handled.add("voice");
+    handled.add("music");
     const add = (name: string) => {
       if (handled.has(name) && !SHARED_DISPATCH.has(name)) throw new Error(`Commande ${name} routée deux fois`);
       handled.add(name);
@@ -166,6 +170,11 @@ describe("bot wiring", () => {
       // bot/index.js but not in the catalog (the 100 root-command limit is reached), so they
       // cannot be invoked via slash. Kept for now; removal/folding is an owner decision.
       "vocal-panel", "salut", "info-serveur",
+      // Retired top-level commands remain in internal dispatch code for stale
+      // registrations/compatibility, but are no longer published by the catalogue.
+      "access", "unaccess", "pv",
+      "play", "pause", "resume", "skip", "stop", "queue", "nowplaying", "volume", "loop",
+      "shuffle", "clearqueue", "remove", "join", "leave", "musicpanel",
     ]);
     expect([...handled].filter((name) => !registered.includes(name) && !LEGACY_ALIASES.has(name))).toEqual([]);
   });

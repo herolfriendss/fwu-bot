@@ -1467,39 +1467,27 @@ export const SLASH_COMMANDS: SlashCommandDef[] = [
     options: [opt(6, "membre", "Membre à consulter", { required: true })],
   },
 
-  // ── Vocal ──────────────────────────────────────────────────────────────────
+  // ── Accès et confidentialité vocale — racine regroupée ─────────────────────
   {
-    name: "access",
-    description: "Autorise un membre à rejoindre ton salon vocal",
-    usage: "/access membre",
+    name: "voice",
+    description: "Gère les accès et la confidentialité des salons vocaux",
+    usage: "/voice access grant|revoke · /voice private activer|liste|retirer",
     category: "Vocal & DOG",
     dmPermission: false,
     requiresBotProcess: true,
-    options: [opt(6, "membre", "Membre à autoriser", { required: true })],
-  },
-  {
-    name: "unaccess",
-    description: "Retire l’accès d’un membre à ton salon vocal",
-    usage: "/unaccess membre",
-    category: "Vocal & DOG",
-    dmPermission: false,
-    requiresBotProcess: true,
-    options: [opt(6, "membre", "Membre à retirer de la liste d’accès", { required: true })],
-  },
-  {
-    name: "pv",
-    description: "Salon vocal privé : activer, lister ou rétablir",
-    usage: "/pv activer | liste | retirer",
-    category: "Vocal & DOG",
-    dmPermission: false,
-    requiresBotProcess: true,
-    options: [
+    options: groupSubcommands([
+      sub("grant", "Autorise un membre à rejoindre ton salon vocal", [opt(6, "membre", "Membre à autoriser", { required: true })]),
+      sub("revoke", "Retire l’accès d’un membre à ton salon vocal", [opt(6, "membre", "Membre à retirer de la liste d’accès", { required: true })]),
       sub("activer", "Rend ton salon vocal actuel privé"),
       sub("liste", "Liste les salons privatisés du serveur"),
       sub("retirer", "Rétablit les permissions d’origine de ton salon vocal"),
-    ],
+    ], [
+      { group: "access", description: "Gère les autorisations d’accès", members: ["grant", "revoke"] },
+      { group: "private", description: "Gère les salons vocaux privés", members: ["activer", "liste", "retirer"] },
+    ]),
   },
-  {
+
+    {
     name: "panel",
     description: "Ouvre le centre de contrôle FWU",
     usage: "/panel",
@@ -1581,63 +1569,44 @@ export const SLASH_COMMANDS: SlashCommandDef[] = [
     ],
   },
 
-  // ── Musique ────────────────────────────────────────────────────────────────
+  // ── Musique — une seule racine, toutes les actions conservées ───────────────
   {
-    name: "play",
-    description: "Joue un lien YouTube/SoundCloud ou recherche un titre",
-    usage: "/play lien YouTube ou titre",
+    name: "music",
+    description: "Contrôle la lecture, la file et le lecteur vocal",
+    usage: "/music player play|pause|resume|skip|stop|queue|nowplaying|volume|loop|shuffle|clearqueue|remove|join|leave|panel",
     category: "Musique & radio",
     dmPermission: false,
     requiresBotProcess: true,
-    options: [opt(3, "recherche", "Lien YouTube/SoundCloud ou titre à rechercher", { required: true, max_length: 500 })],
-  },
-  { name: "pause", description: "Met la musique en pause", usage: "/pause", category: "Musique & radio", dmPermission: false, requiresBotProcess: true },
-  { name: "resume", description: "Reprend la lecture de la musique", usage: "/resume", category: "Musique & radio", dmPermission: false, requiresBotProcess: true },
-  { name: "skip", description: "Passe au titre suivant", usage: "/skip", category: "Musique & radio", dmPermission: false, requiresBotProcess: true },
-  { name: "stop", description: "Arrête la musique et vide la file", usage: "/stop", category: "Musique & radio", dmPermission: false, requiresBotProcess: true },
-  { name: "queue", description: "Affiche la file d’attente musicale", usage: "/queue", category: "Musique & radio", dmPermission: false, requiresBotProcess: true },
-  { name: "nowplaying", description: "Affiche le titre en cours de lecture", usage: "/nowplaying", category: "Musique & radio", dmPermission: false, requiresBotProcess: true },
-  {
-    name: "volume",
-    description: "Règle le volume de la musique",
-    usage: "/volume niveau",
-    category: "Musique & radio",
-    dmPermission: false,
-    requiresBotProcess: true,
-    options: [opt(4, "niveau", "Volume entre 0 et 100", { required: true, min_value: 0, max_value: 100 })],
-  },
-  {
-    name: "loop",
-    description: "Change le mode de répétition",
-    usage: "/loop mode",
-    category: "Musique & radio",
-    dmPermission: false,
-    requiresBotProcess: true,
-    options: [
-      opt(3, "mode", "Mode de répétition (sans option : passe au suivant)", {
+    options: groupSubcommands([
+      sub("play", "Joue un lien YouTube/SoundCloud ou recherche un titre", [opt(3, "recherche", "Lien YouTube/SoundCloud ou titre à rechercher", { required: true, max_length: 500 })]),
+      sub("pause", "Met la musique en pause"),
+      sub("resume", "Reprend la lecture de la musique"),
+      sub("skip", "Passe au titre suivant"),
+      sub("stop", "Arrête la musique et vide la file"),
+      sub("queue", "Affiche la file d’attente musicale"),
+      sub("nowplaying", "Affiche le titre en cours de lecture"),
+      sub("volume", "Règle le volume de la musique", [opt(4, "niveau", "Volume entre 0 et 100", { required: true, min_value: 0, max_value: 100 })]),
+      sub("loop", "Change le mode de répétition", [opt(3, "mode", "Mode de répétition", {
         choices: [
           { name: "Désactivée", value: "off" },
           { name: "Titre", value: "track" },
           { name: "File", value: "queue" },
           { name: "Auto (titres proches à la fin de la file)", value: "auto" },
         ],
-      }),
-    ],
+      })]),
+      sub("shuffle", "Mélange la file d’attente musicale"),
+      sub("clearqueue", "Vide la file d’attente musicale"),
+      sub("remove", "Retire un titre de la file d’attente", [opt(4, "position", "Position du titre dans /music player queue", { required: true, min_value: 1, max_value: 100 })]),
+      sub("join", "Connecte le bot à ton salon vocal"),
+      sub("leave", "Déconnecte le bot du salon vocal"),
+      sub("panel", "Affiche le panneau de contrôle musical"),
+    ], [
+      { group: "player", description: "Lecture, file d’attente et contrôles du lecteur", members: [
+        "play", "pause", "resume", "skip", "stop", "queue", "nowplaying", "volume",
+        "loop", "shuffle", "clearqueue", "remove", "join", "leave", "panel",
+      ] },
+    ]),
   },
-  { name: "shuffle", description: "Mélange la file d’attente musicale", usage: "/shuffle", category: "Musique & radio", dmPermission: false, requiresBotProcess: true },
-  { name: "clearqueue", description: "Vide la file d’attente musicale", usage: "/clearqueue", category: "Musique & radio", dmPermission: false, requiresBotProcess: true },
-  {
-    name: "remove",
-    description: "Retire un titre de la file d’attente",
-    usage: "/remove position",
-    category: "Musique & radio",
-    dmPermission: false,
-    requiresBotProcess: true,
-    options: [opt(4, "position", "Position du titre dans /queue", { required: true, min_value: 1, max_value: 100 })],
-  },
-  { name: "join", description: "Connecte le bot à ton salon vocal", usage: "/join", category: "Musique & radio", dmPermission: false, requiresBotProcess: true },
-  { name: "leave", description: "Déconnecte le bot du salon vocal", usage: "/leave", category: "Musique & radio", dmPermission: false, requiresBotProcess: true },
-  { name: "musicpanel", description: "Affiche le panneau de contrôle musical", usage: "/musicpanel", category: "Musique & radio", dmPermission: false, requiresBotProcess: true },
 
   // ── Radio PND ──────────────────────────────────────────────────────────────
   {

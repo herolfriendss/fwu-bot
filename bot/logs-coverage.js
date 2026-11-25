@@ -250,6 +250,13 @@ export const LOG_EVENT_MATRIX = Object.freeze([
     key: "voice",
     status: "covered",
   },
+  // Tickets — événements de cycle de vie (contenu des échanges jamais journalisé)
+  { event: "ticket", source: "bot", title: "🎫 Ticket — opened", key: "tickets", status: "covered" },
+  { event: "ticket", source: "bot", title: "🎫 Ticket — claimed", key: "tickets", status: "covered" },
+  { event: "ticket", source: "bot", title: "🎫 Ticket — assigned", key: "tickets", status: "covered" },
+  { event: "ticket", source: "bot", title: "🎫 Ticket — member_added", key: "tickets", status: "covered" },
+  { event: "ticket", source: "bot", title: "🎫 Ticket — member_removed", key: "tickets", status: "covered" },
+  { event: "ticket", source: "bot", title: "🎫 Ticket — closed", key: "tickets", status: "covered" },
   // Bot — administration
   {
     event: "rankall",

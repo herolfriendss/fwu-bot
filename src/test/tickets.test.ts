@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  canActOnTicket, sanitizeTicketSubject, ticketChannelName, ticketDuration, ticketOpenAllowed, ticketStatusLabel,
+  canActOnTicket, sanitizeTicketSubject, ticketChannelName, ticketDuration, ticketOpenAllowed, ticketStatusLabel, ticketSetupIssue,
 } from "../../bot/tickets-policy.js";
 
 describe("tickets policy", () => {
@@ -33,5 +33,11 @@ describe("tickets policy", () => {
     expect(ticketDuration(0, 30 * 60_000)).toBe("30 min");
     expect(ticketDuration(0, 2 * 3_600_000)).toBe("2 h");
     expect(ticketDuration(0, 2 * 86_400_000)).toBe("2 j");
+  });
+  it("requires explicit enablement and an existing support role before ticket publication", () => {
+    expect(ticketSetupIssue({ enabled: false, supportRoleId: "123456789012345678" })).toMatch(/pas activés/);
+    expect(ticketSetupIssue({ enabled: true, supportRoleId: null })).toMatch(/rôle support existant/);
+    expect(ticketSetupIssue({ enabled: true, supportRoleId: "invalid" })).toMatch(/rôle support existant/);
+    expect(ticketSetupIssue({ enabled: true, supportRoleId: "123456789012345678" })).toBeNull();
   });
 });

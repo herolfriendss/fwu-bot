@@ -43,6 +43,7 @@ import { handleGuardianReviewMessage, recordGuardianMessageRisk, pruneGuardianRi
 import { handleVoiceV2Interaction, handleVoiceV2State, forgetGuildTempVoices, forgetTempVoice, reconcileTempVoices } from "./voice-v2.js";
 import { handleGamesInteraction, handleGamesMessage, startGamesScheduler } from "./games.js";
 import { handleTicketChannelDelete, handleTicketsInteraction, handleTicketsMessage } from "./tickets.js";
+import { buildWelcomePayload, buildDeparturePayload } from "./welcome.js";
 import { purgeExpiredTranscripts } from "./ticket-records.js";
 import { handleKnowledgeInteraction, handleKnowledgeMessage } from "./pnd-knowledge.js";
 import { handleAutomationInteraction, handleAutomationJoin, handleAutomationMessage, startAutomationScheduler } from "./automation.js";
@@ -120,7 +121,7 @@ import { installOwnerShield, runAsActor } from "./owner-shield.js";
 import { assertOwnerConfig } from "./owner-config.js";
 import { db } from "./database.js";
 import { clearConnectedMarker, clearGatewayFailures, createGatewayWatchdog, recordGatewayFailure, writeConnectedMarker } from "./gateway-watchdog.js";
-import { LOGS_HUB_GUILD_ID, ACTIVE_SOURCE_GUILD_IDS, allowedRuntimeGuild, filterInactiveSourceGuilds, isLogsHub, provisionLogsHub } from "./logs-hub.js";
+import { LOGS_HUB_GUILD_ID, ACTIVE_SOURCE_GUILD_IDS, allowedRuntimeGuild, filterInactiveSourceGuilds, isLogsHub, inspectLogsHub } from "./logs-hub.js";
 
 const { SITE_URL, BOT_SYNC_SECRET } = process.env;
 // FWU multi-bot: PND_BOT_PROFILE selects the application (fwu by default, the
@@ -221,7 +222,7 @@ function checkHealthAlerts() {
   for (const guild of client.guilds.cache.values()) {
     if (!guildAllowed(guild.id, ALLOWED_GUILDS) || isLogsHub(guild.id)) continue;
     try {
-      const { evaluation, text } = buildHealthReport(client, guild);
+      const { evaluation, text } = buildHealthReport(client, guild, Date.now(), RUNTIME.profile);
       const previous = lastHealthStatus.get(guild.id) ?? "ok";
       lastHealthStatus.set(guild.id, evaluation.status);
       // Alert only on transition to critical (and once on recovery), never every cycle.
@@ -495,7 +496,7 @@ const guardWatch = (guild) => guild && serves("guard") && guildAllowed(guild.id,
 client.on("channelDelete", (channel) => { if (guardWatch(channel.guild)) void antiNuke.channelDelete(channel).catch(() => record("antinuke_error")); });
 client.on("roleDelete", (role) => { if (guardWatch(role.guild)) void antiNuke.roleDelete(role).catch(() => record("antinuke_error")); });
 client.on("guildBanAdd", (ban) => { if (guardWatch(ban.guild)) void antiNuke.ban(ban).catch(() => record("antinuke_error")); });
-client.on("guildMemberRemove", (member) => { if (guardWatch(member.guild)) void antiNuke.memberRemove(member).catch(() => record("antinuke_error")); });
+client.on("guildMemberRemove", async (member) => { if (guardWatch(member.guild)) void antiNuke.memberRemove(member).catch(() => record("antinuke_error")); });
 client.on("webhooksUpdate", (channel) => { if (guardWatch(channel.guild)) void antiNuke.webhooksUpdate(channel).catch(() => record("antinuke_error")); });
 
 // A prefix command runs on behalf of its author, like a slash command: the OWNER shield's
@@ -832,18 +833,27 @@ client.on("guildMemberAdd", async (member) => {
   const w = s?.welcome;
   if (!w?.enabled || !w.channelId) return;
   const channel = await member.guild.channels.fetch(w.channelId).catch(() => null);
-  if (channel?.isTextBased()) {
-    await channel.send({ content: fill(w.message, { user: `<@${member.id}>`, server: member.guild.name }), allowedMentions: noMentions }).catch(() => record("welcome_error"));
+  if (!channel?.isTextBased()) {
+    record("welcome_channel_unavailable");
+    return;
   }
+  const payload = buildWelcomePayload(member, w);
+  if (payload) await channel.send(payload).catch(() => record("welcome_error"));
 });
 
-client.on("guildMemberRemove", (member) => {
+client.on("guildMemberRemove", async (member) => {
   if (!guildAllowed(member.guild.id, ALLOWED_GUILDS)) return;
   if (serves("suckme")) void previewGuildAutomationRules(member.guild, "member_leave", `${member.id}:${Date.now()}`, buildAutomationEventFromMember(member), client, record);
   if (serves("suckme")) void handleTier0Kick(member, { audit: (guild, title, description, color) => auditLog(guild, settings[guild.id], title, description, color), record }).catch(() => record("tier0_error"));
   if (!serves("fwu")) return;
   recordAnalyticsMetric(member.guild.id, "leaves");
-  auditLog(member.guild, settings[member.guild.id], "🚪 Départ d’un membre", `Membre : <@${member.id}>\nID : \`${member.id}\``, 0xef4444);
+  const guildSettings = settings[member.guild.id];
+  auditLog(member.guild, guildSettings, "🚪 Départ d’un membre", `Membre : <@${member.id}>\nID : \`${member.id}\``, 0xef4444);
+  const departure = buildDeparturePayload(member, guildSettings?.welcome);
+  if (!departure) return;
+  const channel = await member.guild.channels.fetch(departure.channelId).catch(() => null);
+  if (!channel?.isTextBased()) { record("departure_channel_unavailable"); return; }
+  await channel.send(departure.payload).catch(() => record("departure_message_error"));
 });
 
 client.on("guildMemberUpdate", (oldMember, newMember) => {
@@ -1129,8 +1139,11 @@ client.once("clientReady", () => {
   } catch {
     record("voice_sessions_reconcile_error");
   }
-  const logsGuild = client.guilds.cache.get(LOGS_HUB_GUILD_ID);
-  if (logsGuild && IS_FWU) void provisionLogsHub(logsGuild, record).catch(() => record("logs_hub_provision_error"));
+  if (IS_FWU) {
+    const logsGuild = client.guilds.cache.get(LOGS_HUB_GUILD_ID);
+    const report = logsGuild ? inspectLogsHub(logsGuild) : { ready: false };
+    record(report.ready ? "logs_hub_verified" : "logs_hub_incomplete");
+  }
   if (serves("fdpdlavoc")) void reconcileTempVoices(client, record, settings).catch(() => record("temp_voice_reconcile_error"));
   startOrganizationMaintenance(client, ALLOWED_GUILDS.filter((guildId) => !isLogsHub(guildId)), record, () => serves("fwu"));
   startInvestmentMaintenance(client, ALLOWED_GUILDS.filter((guildId) => !isLogsHub(guildId)), record, () => serves("fisc"));

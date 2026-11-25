@@ -4,3 +4,4 @@ export function ticketOpenAllowed(openCount: number, maxOpenPerUser: number): bo
 export function canActOnTicket(input: { actorId: string | null; ticketUserId: string; claimedBy?: string | null; isStaff?: boolean }): boolean;
 export function ticketStatusLabel(status: string): string;
 export function ticketDuration(createdAt: number, now?: number): string;
+export function ticketSetupIssue(settings: unknown): string | null;

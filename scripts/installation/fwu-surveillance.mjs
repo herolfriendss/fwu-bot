@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// FWU — surveillance extérieure des 5 bots (proposition n°3 de l'Éclaireur).
+// FWU — surveillance extérieure des 5 bots principaux et d’Invest + (facultatif) (proposition n°3 de l'Éclaireur).
 //
 // Lancée chaque minute par une tâche cron du VPS, HORS des bots : si un bot plante,
 // ou si FWU lui-même s'arrête, cette tâche le voit quand même. Elle prévient par un
@@ -31,7 +31,7 @@ export const PROCESSES = Object.freeze([
   { name: "fwu-fdpdlavoc", label: "FDPDLAVOC" },
   { name: "fwu-suckme", label: "SUCK ME" },
   { name: "fwu-fisc", label: "LE FISC" },
-  { name: "fwu-investplus", label: "Invest +" },
+  { name: "fwu-investplus", label: "Invest +", optional: true },
 ]);
 export const DOWN_GRACE_MS = 2 * 60_000;
 export const OUTBOX_LIMIT = 50;
@@ -65,17 +65,38 @@ export function evaluate(previous = {}, observed, now = Date.now()) {
   } else {
     if (state.pm2Alert) messages.push("🟢 PM2 répond de nouveau.");
     state.pm2Alert = false;
-    for (const { name, label } of PROCESSES) {
+    for (const { name, label, optional = false } of PROCESSES) {
       const before = previous.processes?.[name] ?? {};
+      const presentInPm2 = Object.hasOwn(observed.processes, name);
       const seen = observed.processes[name] ?? {
         online: false,
         restarts: before.restarts ?? 0,
       };
+
+      // Invest + is optional. Do not alert while it has never appeared in PM2;
+      // once installed/observed, a later stop must be monitored like every bot.
+      const monitored = !optional || Boolean(before.monitored) || presentInPm2;
+      if (!monitored) {
+        state.processes[name] = {
+          restarts: Number(before.restarts ?? seen.restarts ?? 0),
+          monitored: false,
+          downSince: null,
+          alerted: false,
+          restartWindow: Array.isArray(before.restartWindow)
+            ? before.restartWindow
+            : [],
+        };
+        continue;
+      }
+
       const entry = {
         restarts: Number(seen.restarts ?? 0),
+        monitored: true,
         downSince: null,
         alerted: false,
-        restartWindow: before.restartWindow ?? [],
+        restartWindow: Array.isArray(before.restartWindow)
+          ? before.restartWindow
+          : [],
       };
       if (!seen.online) {
         entry.downSince = before.downSince ?? now;

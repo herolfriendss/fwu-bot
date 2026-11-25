@@ -11,13 +11,13 @@ import { fetchChannelMessages, formatTicketTimeline, getTranscript, listTicketEv
 import { incrementDailyMetric } from "./organization.js";
 import { sendCentralLog } from "./logs.js";
 import { herBotAvatar, themePanelEmbed } from "./theme.js";
-import { updateModuleSettings } from "./module-settings.js";
 import { respondToInteraction } from "./interaction-response.js";
 import { recordSysPlusAudit } from "./systems/sysplus/audit.js";
 import { canUseAdminPlusScope, getAdminPlusScope } from "./systems/sysplus/admin-plus-scopes.js";
 import { getAdminPlusRoleId } from "./systems/sysplus/role-config.js";
+import { parsePndOwnerId } from "./pnd-owner-policy.js";
 import {
-  canActOnTicket, sanitizeTicketSubject, ticketChannelName, ticketDuration, ticketOpenAllowed, ticketStatusLabel, parseTicketPrefixCommand,
+  canActOnTicket, sanitizeTicketSubject, ticketChannelName, ticketDuration, ticketOpenAllowed, ticketStatusLabel, ticketSetupIssue, parseTicketPrefixCommand,
 } from "./tickets-policy.js";
 
 const P = PermissionFlagsBits;
@@ -29,7 +29,7 @@ function mention(id) { return `<@${id}>`; }
 
 function isTicketStaff(member, settings) {
   if (!member?.guild) return false;
-  if (member.id === member.guild.ownerId) return true;
+  if (member.id === member.guild.ownerId || member.id === parsePndOwnerId(process.env.PND_OWNER_DISCORD_ID)) return true;
   if (member.permissions.has(P.Administrator) || member.permissions.has(P.ManageChannels)) return true;
   if (settings?.tickets?.supportRoleId && member.roles.cache.has(settings.tickets.supportRoleId)) return true;
   const adminRoleId = settings?.adminPlus?.roleId ?? getAdminPlusRoleId(member.guild.id);
@@ -145,24 +145,13 @@ export async function handleTicketsInteraction(interaction, guildSettings = {}, 
   try {
     if (subcommand === "panel") {
       if (!isTicketStaff(member, settings)) throw new Error("Permission Gérer les salons requise.");
-      await interaction.deferReply({ ephemeral: true });
-      if (!settings.tickets?.enabled) {
-        const saved = await updateModuleSettings({
-          apiUrl,
-          secret,
-          guildId: guild.id,
-          module: "tickets",
-          value: {
-            ...(settings.tickets ?? {}),
-            enabled: true,
-            categoryId: settings.tickets?.categoryId ?? interaction.channel?.parentId ?? null,
-          },
-          actorId: interaction.user.id,
-        });
-        settings.tickets = saved.tickets;
-      }
+      const setupIssue = ticketSetupIssue(settings.tickets);
+      if (setupIssue) throw new Error(setupIssue);
+      const supportRole = await guild.roles.fetch(settings.tickets.supportRoleId, { force: true }).catch(() => null);
+      if (!supportRole || supportRole.id === guild.id || supportRole.managed) throw new Error("Le rôle support configuré est introuvable ou invalide. Corrige-le dans les réglages des tickets.");
       const channel = interaction.channel;
-      if (!channel?.isTextBased()) throw new Error("Choisis un salon textuel.");
+      if (!channel?.isTextBased()) throw new Error("Choisis un salon textuel existant pour publier le panneau.");
+      await interaction.deferReply({ ephemeral: true });
       await channel.send({ embeds: [panelEmbed(settings, guild)], components: [panelButtons()], allowedMentions: { parse: [] } });
       await interaction.editReply({ content: `✅ Panneau de tickets publié dans <#${channel.id}>.` });
       record("ticket_panel");
@@ -222,6 +211,7 @@ export async function handleTicketsInteraction(interaction, guildSettings = {}, 
       if (!Number(assigned.changes)) throw new Error("Ce ticket vient d’être fermé.");
       recordSysPlusAudit(guild.id, interaction.user.id, "ticket.assign", assignee.id, { ticketId: row.id });
       recordTicketEvent({ guildId: guild.id, ticketId: row.id, action: "assigned", actorId: interaction.user.id, targetId: assignee.id });
+      await sendTicketLog(guild, settings, ticketLogEmbed(guild, interaction, "assigned", row, [{ name: "Assigné", value: mention(assignee.id), inline: true }]));
       await interaction.reply({ content: `👤 Ticket assigné à ${mention(assignee.id)}.`, allowedMentions: { users: [assignee.id] } });
       record("ticket_assigned");
       return true;
@@ -251,12 +241,14 @@ export async function handleTicketsInteraction(interaction, guildSettings = {}, 
         await interaction.reply({ content: `✅ ${mention(user.id)} a été ajouté au ticket.`, ephemeral: true, allowedMentions: { parse: [] } });
         recordSysPlusAudit(guild.id, interaction.user.id, "ticket.add", user.id, { ticketId: row.id });
         recordTicketEvent({ guildId: guild.id, ticketId: row.id, action: "member_added", actorId: interaction.user.id, targetId: user.id });
+        await sendTicketLog(guild, settings, ticketLogEmbed(guild, interaction, "member_added", row, [{ name: "Membre ajouté", value: mention(user.id), inline: true }]));
         record("ticket_member_added");
       } else {
         await channel.permissionOverwrites.delete(user.id, `Ticket #${row.id} : retrait par ${interaction.user.tag}`).catch(() => {});
         await interaction.reply({ content: `✅ ${mention(user.id)} a été retiré du ticket.`, ephemeral: true, allowedMentions: { parse: [] } });
         recordSysPlusAudit(guild.id, interaction.user.id, "ticket.remove", user.id, { ticketId: row.id });
         recordTicketEvent({ guildId: guild.id, ticketId: row.id, action: "member_removed", actorId: interaction.user.id, targetId: user.id });
+        await sendTicketLog(guild, settings, ticketLogEmbed(guild, interaction, "member_removed", row, [{ name: "Membre retiré", value: mention(user.id), inline: true }]));
         record("ticket_member_removed");
       }
       return true;
@@ -352,7 +344,8 @@ async function openTicket(interaction, guildSettings = {}, record = () => {}) {
     if (openingTickets.has(lockKey)) throw new Error("La création de ton ticket est déjà en cours. Patiente quelques secondes.");
     openingTickets.add(lockKey);
     lockAcquired = true;
-    if (!settings.tickets?.enabled) throw new Error("Les tickets ne sont pas activés sur ce serveur.");
+    const setupIssue = ticketSetupIssue(settings.tickets);
+    if (setupIssue) throw new Error(setupIssue);
     if (!ticketOpenAllowed(openTicketsFor(guild.id, interaction.user.id), settings.tickets.maxOpenPerUser)) {
       throw new Error("Tu as déjà un ticket ouvert. Ferme-le avant d’en ouvrir un autre.");
     }
@@ -414,6 +407,7 @@ async function openTicket(interaction, guildSettings = {}, record = () => {}) {
       });
       recordSysPlusAudit(guild.id, member.id, "ticket.open", channel.id, { ticketId });
       recordTicketEvent({ guildId: guild.id, ticketId, action: "opened", actorId: member.id });
+      await sendTicketLog(guild, settings, ticketLogEmbed(guild, interaction, "opened", ticket));
     } catch (creationError) {
       if (ticketId) db.prepare("UPDATE tickets SET status='failed', closed_at=? WHERE id=? AND guild_id=? AND status='open'").run(Date.now(), ticketId, guild.id);
       await channel.delete("Nettoyage : création du ticket incomplète").catch(() => {});
@@ -458,6 +452,7 @@ async function ticketButton(interaction, guildSettings = {}, record = () => {}) 
       if (!Number(claimed.changes)) throw new Error("Ce ticket vient d’être fermé ou modifié. Actualise le salon.");
       recordSysPlusAudit(guild.id, interaction.user.id, "ticket.claim", row.channel_id, { ticketId: row.id });
       recordTicketEvent({ guildId: guild.id, ticketId: row.id, action: "claimed", actorId: interaction.user.id });
+      await sendTicketLog(guild, settings, ticketLogEmbed(guild, interaction, "claimed", row));
       await interaction.editReply({ content: "🙋 Tu prends en charge ce ticket." });
       record("ticket_claimed");
       return true;

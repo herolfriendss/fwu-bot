@@ -1,3 +1,7 @@
+> [!WARNING]
+> **Document historique — phase 1942 monolithique.** Il ne décrit plus l'architecture FWU multi-bots actuelle. Ne copie pas les anciennes archives ni les commandes de ce document pour une mise à jour FWU.
+> Pour le projet actuel, utilise d'abord [DEMARRAGE_FWU.md](DEMARRAGE_FWU.md), [MULTI_BOTS_FWU.md](MULTI_BOTS_FWU.md) et [DECISIONS.md](DECISIONS.md). Ce guide est conservé uniquement comme référence historique.
+
 # 1942 — Mise en production : le minimum à faire
 
 Tout ce qui pouvait être automatisé l'est. Il te reste 4 étapes, dont une seule à refaire à chaque mise à jour.

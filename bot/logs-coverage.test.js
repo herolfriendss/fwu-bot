@@ -39,6 +39,7 @@ test("every matrix sample title is actually emitted somewhere in the bot", () =>
     "ai-memory-preferences.js",
     "webhooks.js",
     "live-alerts.js",
+    "tickets.js",
   ]
     .map((file) => {
       try {
@@ -53,6 +54,12 @@ test("every matrix sample title is actually emitted somewhere in the bot", () =>
     "🎭 Rôle attribué",
     "🤖 IA — demande traitée",
     "⏰ WAKEUP — séquence terminée",
+    "🎫 Ticket — opened",
+    "🎫 Ticket — claimed",
+    "🎫 Ticket — assigned",
+    "🎫 Ticket — member_added",
+    "🎫 Ticket — member_removed",
+    "🎫 Ticket — closed",
   ]);
   const missing = LOG_EVENT_MATRIX.filter(
     (row) => row.title && !dynamic.has(row.title) && !files.includes(row.title),

@@ -12,11 +12,13 @@ export const SLASH_FOR_PREFIX = Object.freeze({
   radar: "radar", wrapped: "wrapped", afk: "afk", blacklist: "blacklist", live: "live",
   ban: "ban", kick: "kick", purge: "purge", nettoyer: "nettoyer", slowmode: "slowmode", lock: "lock", unlock: "unlock",
   "guardian-review": "guildguard review", verification: "verify reaction",
-  pv: "pv activer", unpv: "pv retirer", access: "access", unaccess: "unaccess", panel: "voc vocal-panel",
-  demandevocal: "voc demander", play: "play", p: "play", pause: "pause", resume: "resume", skip: "skip", stop: "stop",
-  queue: "queue", nowplaying: "nowplaying", np: "nowplaying", volume: "volume", vol: "volume", loop: "loop",
-  shuffle: "shuffle", clearqueue: "clearqueue", remove: "remove", join: "join", leave: "leave",
-  musicpanel: "musicpanel", radio: "radio",
+  pv: "voice private activer", unpv: "voice private retirer", access: "voice access grant", unaccess: "voice access revoke", panel: "voc vocal-panel",
+  demandevocal: "voc demander", play: "music player play", p: "music player play", pause: "music player pause",
+  resume: "music player resume", skip: "music player skip", stop: "music player stop", queue: "music player queue",
+  nowplaying: "music player nowplaying", np: "music player nowplaying", volume: "music player volume",
+  vol: "music player volume", loop: "music player loop", shuffle: "music player shuffle",
+  clearqueue: "music player clearqueue", remove: "music player remove", join: "music player join",
+  leave: "music player leave", musicpanel: "music player panel", radio: "radio",
   sysp: "sysp", rank: "rank", addrole: "rank", removerole: "removerole", rankall: "rankall", rolepanel: "rolepanel",
   staffhistory: "staffhistory", vocalpresence: "vocalpresence", lockname: "lockname proteger",
   unlockname: "lockname retirer", locknamelist: "lockname liste", automation: "automation",
@@ -45,8 +47,11 @@ function slashFor(token, args) {
     return `/${token}${rest ? ` ${rest}` : ""}`;
   }
   if (token === "guardian-review") return /^resolve\b/i.test(rest) ? `/guildguard resolve${rest.replace(/^resolve/i, "")}` : "/guildguard review";
-  if (token === "pv" || token === "rep") {
-    if (/^(liste)\b/i.test(rest)) return `/pv liste`;
+  if (token === "pv") {
+    if (/^liste\b/i.test(rest)) return "/voice private liste";
+    return `/${path}${rest ? ` ${rest}` : ""}`;
+  }
+  if (token === "rep") {
     if (/^(historique|history)\b/i.test(rest)) return `/rep historique${rest.replace(/^(historique|history)/i, "")}`;
     return `/${path}${rest ? ` ${rest}` : ""}`;
   }

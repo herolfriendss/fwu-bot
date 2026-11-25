@@ -41,6 +41,15 @@ describe("bot settings", () => {
     expect(s.spam.perSeconds).toBe(1);
     expect(s.spam.maxMentions).toBe(20);
     expect(s.welcome.channelId).toBe("");
+    expect(s.welcome.leaveEnabled).toBe(false);
+    expect(s.welcome.leaveChannelId).toBe("");
+    expect(s.welcome.leaveMessage).toBe("{user} a quitté **{server}**.");
+  });
+
+  it("sanitizes configurable departure messages and accepts only Discord channel ids", () => {
+    const s = sanitizeSettings({ welcome: { leaveEnabled: true, leaveChannelId: "123456789012345", leaveMessage: "Au revoir {user}" } });
+    expect(s.welcome).toMatchObject({ leaveEnabled: true, leaveChannelId: "123456789012345", leaveMessage: "Au revoir {user}" });
+    expect(sanitizeSettings({ welcome: { leaveEnabled: true, leaveChannelId: "not-a-channel" } }).welcome.leaveChannelId).toBe("");
   });
 
   it("keeps AI conversation memory opt-in and sanitizes the setting", () => {

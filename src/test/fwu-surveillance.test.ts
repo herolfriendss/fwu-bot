@@ -16,6 +16,12 @@ const allOnline = (restarts = 0) =>
   );
 const MIN = 60_000;
 
+type OptionalProcessState = { monitored?: boolean };
+type ProcessStates = Record<string, OptionalProcessState>;
+function processStates(state: Record<string, unknown>): ProcessStates {
+  return state["processes"] as ProcessStates;
+}
+
 describe("surveillance FWU", () => {
   it("prévient après 2 min d'arrêt seulement, une fois, puis au retour", () => {
     let r = evaluate(
@@ -77,6 +83,51 @@ describe("surveillance FWU", () => {
       3 * MIN,
     );
     expect(r.messages).toEqual([expect.stringMatching(/PM2 ne répond pas/)]);
+  });
+
+  it("ignore Invest + tant qu'il n'a jamais été installé", () => {
+    const processes = allOnline();
+    delete processes["fwu-investplus"];
+
+    let r = evaluate(
+      {},
+      { processes, outbox: 0, diskPercent: 50, backup: null },
+      0,
+    );
+    expect(r.messages).toEqual([]);
+    expect(processStates(r.state)["fwu-investplus"]?.monitored).toBe(false);
+
+    r = evaluate(
+      r.state,
+      { processes, outbox: 0, diskPercent: 50, backup: null },
+      10 * MIN,
+    );
+    expect(r.messages.some((message) => message.includes("Invest +"))).toBe(false);
+  });
+
+  it("surveille Invest + après sa première apparition dans PM2", () => {
+    let r = evaluate(
+      {},
+      { processes: allOnline(), outbox: 0, diskPercent: 50, backup: null },
+      0,
+    );
+    expect(processStates(r.state)["fwu-investplus"]?.monitored).toBe(true);
+
+    const processes = allOnline();
+    delete processes["fwu-investplus"];
+    r = evaluate(
+      r.state,
+      { processes, outbox: 0, diskPercent: 50, backup: null },
+      MIN,
+    );
+    expect(r.messages).toEqual([]);
+
+    r = evaluate(
+      r.state,
+      { processes, outbox: 0, diskPercent: 50, backup: null },
+      3 * MIN,
+    );
+    expect(r.messages.join("\n")).toMatch(/Invest \+\*\* arrêté depuis 2 min/);
   });
 
   it("redémarrages en boucle, logs en attente, disque plein et sauvegarde", () => {

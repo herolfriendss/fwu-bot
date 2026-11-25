@@ -77,12 +77,16 @@ test("replies of a prefix command show the bot's own prefix", () => {
 
 test("help texts written for = are translated into slash commands", () => {
   assert.equal(slashifyText("Utilise `=ticket help`."), "Utilise `/ticket help`.");
-  assert.equal(slashifyText("`=unpv` puis `=pv liste`"), "`/pv retirer` puis `/pv liste`");
-  assert.equal(slashifyText("`=pv`"), "`/pv activer`");
+  assert.equal(slashifyText("`=unpv` puis `=pv liste`"), "`/voice private retirer` puis `/voice private liste`");
+  assert.equal(slashifyText("`=pv`"), "`/voice private activer`");
+  assert.equal(slashifyText("`=access @membre`"), "`/voice access grant @membre`");
+  assert.equal(slashifyText("`=unaccess @membre`"), "`/voice access revoke @membre`");
   assert.equal(slashifyText("`=rep @membre [raison]`"), "`/rep donner @membre [raison]`");
   assert.equal(slashifyText("`=rephistorique @B`"), "`/rep historique @B`");
   assert.equal(slashifyText("`=pndia crée un rôle`"), "`/ia demande crée un rôle`");
   assert.equal(slashifyText("`=casino roulette 10 rouge`"), "`/casino roulette 10 rouge`");
+  assert.equal(slashifyText("`=play daft punk`"), "`/music player play daft punk`");
+  assert.equal(slashifyText("`=musicpanel`"), "`/music player panel`");
   assert.equal(slashifyText("`=inconnu`"), "`=inconnu`", "une commande personnalisée reste intacte");
   assert.equal(slashifyText("rien à changer"), "rien à changer");
   const payload = slashifyPayload({ content: "`=afk off`", embeds: [{ description: "`=guardian-review list`", fields: [{ name: "x", value: "`=solde`" }] }] });

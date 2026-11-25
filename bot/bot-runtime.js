@@ -36,7 +36,12 @@ export const {
 } = profilesModule;
 
 /** Commands replaced by another one: removed from every application. */
-export const RETIRED_SLASH_COMMANDS = Object.freeze(["mute", "vocal-panel"]);
+export const RETIRED_SLASH_COMMANDS = Object.freeze([
+  "mute", "vocal-panel",
+  "play", "pause", "resume", "skip", "stop", "queue", "nowplaying", "volume", "loop",
+  "shuffle", "clearqueue", "remove", "join", "leave", "musicpanel",
+  "access", "unaccess", "pv",
+]);
 
 const LOCAL_BOTS_CONFIG = fileURLToPath(new URL("./config/bots.json", import.meta.url));
 
@@ -328,9 +333,12 @@ export function formatBotsDiagnostic(now = Date.now()) {
       continue;
     }
     const lease = leases.get(id);
+    const optional = profile.optional ? " (facultatif)" : "";
     lines.push(lease?.live
-      ? `🟢 **${profile.label}** — en ligne, renouvelé <t:${Math.floor(lease.renewedAt / 1000)}:R>`
-      : `⚪ **${profile.label}** — non démarré ou arrêté : **FWU traite ce domaine**${lease ? ` (dernier signe <t:${Math.floor(lease.renewedAt / 1000)}:R>)` : ""}`);
+      ? `🟢 **${profile.label}**${optional} — en ligne, renouvelé <t:${Math.floor(lease.renewedAt / 1000)}:R>`
+      : profile.optional
+        ? `⚪ **${profile.label}**${optional} — non démarré : aucun domaine Invest + actif pour le moment.`
+        : `⚪ **${profile.label}** — non démarré ou arrêté : **FWU reprend les événements de ce domaine**${lease ? ` (dernier signe <t:${Math.floor(lease.renewedAt / 1000)}:R>)` : ""}. Les commandes propres à ce bot restent indisponibles.`);
   }
   // Connection failures recorded by the silent-crash guard (bot/gateway-watchdog.js).
   let failures = [];

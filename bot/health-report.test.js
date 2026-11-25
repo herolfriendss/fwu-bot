@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-const { evaluateHealth, buildHealthReport, registerHealthProvider } =
+const { evaluateHealth, buildHealthReport, collectHealthSnapshot, registerHealthProvider } =
   await import("./health-report.js");
 const { runSysPlusDiagnostic } = await import("./systems/sysplus/commands.js");
 
@@ -20,7 +20,7 @@ test("a healthy snapshot is ok", () => {
   assert.equal(evaluateHealth(okSnapshot, 1_030_000).status, "ok");
 });
 
-test("stale sync and many errors degrade, missing ManageRoles or broken DB is critical", () => {
+test("stale sync and many errors degrade, a critical FWU permission or broken DB is critical", () => {
   assert.equal(
     evaluateHealth({ ...okSnapshot, lastSync: null }, 1_030_000).status,
     "degraded",
@@ -36,7 +36,7 @@ test("stale sync and many errors degrade, missing ManageRoles or broken DB is cr
     evaluateHealth(
       {
         ...okSnapshot,
-        missingPermissions: [{ name: "ManageRoles", label: "Gérer les rôles" }],
+        missingPermissions: [{ name: "ModerateMembers", label: "Exclure temporairement" }],
       },
       1_030_000,
     ).status,
@@ -52,6 +52,7 @@ test("Anti-Move enabled without its permissions is critical", () => {
   const evaluation = evaluateHealth(
     {
       ...okSnapshot,
+      profile: "suckme",
       antiMoveEnabled: true,
       missingPermissions: [{ name: "ViewAuditLog", label: "Voir les logs" }],
     },
@@ -127,4 +128,57 @@ test("SYS+ gets the read-only ACL and coverage reports", async () => {
     await runSysPlusDiagnostic(guild, member, "sysrole", "logs-couverture"),
     /Couverture/,
   );
+});
+
+test("permissions and checks are scoped to the active application", () => {
+  const client = {
+    isReady: () => true,
+    ws: { ping: 30 },
+    uptime: 60_000,
+    guilds: { cache: new Map() },
+  };
+  const noPermissions = () => false;
+  const voiceSnapshot = collectHealthSnapshot(client, fakeGuild(noPermissions), "fdpdlavoc");
+  assert.equal(voiceSnapshot.profile, "fdpdlavoc");
+  assert.ok(voiceSnapshot.missingPermissions.some((p) => p.name === "Connect"));
+  assert.ok(voiceSnapshot.missingPermissions.some((p) => p.name === "BanMembers"));
+  assert.equal(voiceSnapshot.logsHubPresent, null);
+  assert.equal(voiceSnapshot.antiMoveEnabled, false);
+
+  const guard = evaluateHealth({
+    ...okSnapshot,
+    profile: "guard",
+    antiMoveEnabled: true,
+    logsHubPresent: null,
+    missingPermissions: [{ name: "MoveMembers", label: "Déplacer des membres" }],
+  }, 1_030_000);
+  assert.ok(!guard.checks.some((check) => check.name === "Anti-Move"));
+  assert.ok(!guard.checks.some((check) => check.name === "Logs Hub"));
+
+  const fwu = collectHealthSnapshot(client, fakeGuild(noPermissions), "fwu");
+  assert.equal(fwu.logsHubPresent, false);
+  assert.ok(evaluateHealth(fwu, 1_030_000).checks.some((check) => check.name === "Logs Hub"));
+
+  const suckme = evaluateHealth({
+    ...okSnapshot,
+    profile: "suckme",
+    antiMoveEnabled: true,
+    missingPermissions: [{ name: "MoveMembers", label: "Déplacer des membres" }],
+  }, 1_030_000);
+  assert.ok(suckme.checks.some((check) => check.name === "Anti-Move" && check.severity === "critical"));
+});
+
+test("the health summary shows persistent counters only for the owning bot", async () => {
+  const { formatHealthReport } = await import("./health-report.js");
+  const snapshot = {
+    ...okSnapshot,
+    profile: "fisc",
+    uptimeMs: 60_000,
+    pvLocks: 9,
+    menottes: 8,
+    antiMoveProtected: 7,
+  };
+  const text = formatHealthReport(snapshot, evaluateHealth(snapshot, 1_030_000));
+  assert.match(text, /Application : fisc/);
+  assert.doesNotMatch(text, /menotte|salon\(s\) vocal/);
 });
