@@ -192,8 +192,13 @@ else
 fi
 info "Contrôle du catalogue de commandes (100 maximum, aucun doublon)"
 npm --prefix bot run audit:commands
-info "Tests dashboard"
-npm test
+if (( PREBUILT_OK )); then
+  info "Tests dashboard"
+  echo "Sautés sur ce petit serveur : le site livré a été testé et construit avant l'envoi (empreinte identique)."
+else
+  info "Tests dashboard"
+  npm test
+fi
 if (( ! PREBUILT_OK )); then
   info "Vérification TypeScript"
   ./node_modules/.bin/tsc --noEmit

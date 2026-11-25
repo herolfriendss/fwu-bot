@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Fabrique livraison/FWU_<date>.zip : le projet (git archive de HEAD) + le site déjà
-vérifié (tsc) et construit (.output), pour les VPS trop petits pour le construire.
+testé (vitest), vérifié (tsc) et construit (.output), pour les VPS trop petits pour le faire.
 
     python3 scripts/package-fwu-archive.py
 
@@ -25,6 +25,7 @@ if dirty:
     sys.exit(f"Dépôt non propre : commite d'abord.\n{dirty}")
 commit = subprocess.run(["git", "rev-parse", "--short", "HEAD"], cwd=ROOT, capture_output=True, text=True, check=True).stdout.strip()
 
+run("npm", "test")  # tests du site : sautés sur un petit VPS quand le site est livré tout fait
 run("./node_modules/.bin/tsc", "--noEmit")
 run("npm", "run", "build")
 if not (ROOT / ".output" / "server" / "index.mjs").is_file():
