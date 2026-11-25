@@ -204,7 +204,9 @@ export function installOwnerShield({ report = () => {} } = {}) {
   GuildBanManager.prototype.create = async function (user, options) {
     const id = resolveUserId(this, user);
     if (shielded(id)) block("bannissement");
-    await enforceRank(this.guild, id, "bannissement");
+    // Discord autorise le bannissement par ID d'un utilisateur qui n'est pas membre.
+    // Seul ce cas 404 confirmé peut donc contourner la comparaison de rôles.
+    await enforceRank(this.guild, id, "bannissement", { allowMissingTarget: true });
     return ban.call(this, user, options);
   };
 
