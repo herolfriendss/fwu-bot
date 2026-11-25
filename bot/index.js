@@ -841,7 +841,7 @@ client.on("guildMemberAdd", async (member) => {
   if (payload) await channel.send(payload).catch(() => record("welcome_error"));
 });
 
-client.on("guildMemberRemove", (member) => {
+client.on("guildMemberRemove", async (member) => {
   if (!guildAllowed(member.guild.id, ALLOWED_GUILDS)) return;
   if (serves("suckme")) void previewGuildAutomationRules(member.guild, "member_leave", `${member.id}:${Date.now()}`, buildAutomationEventFromMember(member), client, record);
   if (serves("suckme")) void handleTier0Kick(member, { audit: (guild, title, description, color) => auditLog(guild, settings[guild.id], title, description, color), record }).catch(() => record("tier0_error"));
