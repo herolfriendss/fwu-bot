@@ -16,6 +16,8 @@ EXCLUDED_DIRS = {
     ".vite", ".nitro", "dist", "build", "tmp", "temp",
 }
 EXCLUDED_SUFFIXES = {".sqlite", ".sqlite3", ".db", ".log", ".zip", ".tar", ".gz"}
+# Shipped assets the suffix filter would drop (the profile card glyph atlas is gzipped on purpose).
+ALWAYS_INCLUDE = {"image/atlas.bin.gz"}
 
 if not (BOT / "index.js").is_file() or not (BOT / "package.json").is_file():
     raise SystemExit("Racine bot invalide : index.js ou package.json absent.")
@@ -30,7 +32,9 @@ for path in sorted(BOT.rglob("*")):
     name = path.name
     if name == ".env" or (name.startswith(".env.") and name != ".env.example"):
         continue
-    if name in {"*.sqlite", "*.db"} or path.suffix.lower() in EXCLUDED_SUFFIXES:
+    if name == ".connected":  # runtime marker written by the running bot
+        continue
+    if rel.as_posix() not in ALWAYS_INCLUDE and path.suffix.lower() in EXCLUDED_SUFFIXES:
         continue
     if name.endswith((".pem", ".key", ".p12", ".pfx")):
         continue

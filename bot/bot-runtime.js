@@ -13,6 +13,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { db, transaction } from "./database.js";
+import { listGatewayFailures } from "./gateway-watchdog.js";
 
 const sharedProfiles = new URL("../src/lib/bot-profiles.ts", import.meta.url);
 const localProfiles = new URL("./bot-profiles.ts", import.meta.url);
@@ -264,6 +265,15 @@ export function formatBotsDiagnostic(now = Date.now()) {
     lines.push(lease?.live
       ? `🟢 **${profile.label}** — en ligne, renouvelé <t:${Math.floor(lease.renewedAt / 1000)}:R>`
       : `⚪ **${profile.label}** — non démarré ou arrêté : **FWU traite ce domaine**${lease ? ` (dernier signe <t:${Math.floor(lease.renewedAt / 1000)}:R>)` : ""}`);
+  }
+  // Connection failures recorded by the silent-crash guard (bot/gateway-watchdog.js).
+  let failures = [];
+  try { failures = listGatewayFailures(db); } catch { /* diagnostic only */ }
+  for (const failure of failures) {
+    const label = BOT_PROFILES[failure.profile]?.label ?? failure.profile;
+    lines.push(failure.stopped
+      ? `🔴 **${label}** — arrêté après ${failure.failures} échecs de connexion à Discord (${failure.reason}) <t:${Math.floor(failure.at / 1000)}:R>. Corrige le token ou les intents, puis \`pm2 restart\`.`
+      : `🟠 **${label}** — ${failure.failures} échec(s) de connexion à Discord (${failure.reason}) <t:${Math.floor(failure.at / 1000)}:R>, nouvel essai en cours.`);
   }
   const pending = pendingRelayedLogs();
   lines.push(pending > 50 ? `🟧 ${pending} logs en attente de publication par FWU : vérifie que FWU est en ligne.` : `🟢 Logs relayés en attente : ${pending}.`);

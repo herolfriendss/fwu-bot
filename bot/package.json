@@ -15,10 +15,10 @@
     "smoke": "node --experimental-strip-types --no-warnings scripts/smoke-commands.mjs"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^1.13.0",
+    "@anthropic-ai/sdk": "^1.14.0",
     "@discordjs/voice": "^0.18.0",
     "@noble/ciphers": "^1.3.0",
-    "discord.js": "^14.16.3",
-    "pg": "^8.13.1"
+    "discord.js": "^14.28.1",
+    "pg": "^8.23.1"
   }
 }

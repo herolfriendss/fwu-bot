@@ -54,6 +54,11 @@ L'installateur de chaque bot lance `scripts/fwu-synchroniser.sh` : FWU retire de
 ## Retour arrière
 - **Immédiat** : `pm2 stop fwu-guard`. FWU reprend en moins d'une minute les **événements** du domaine (tâches, filtre anti-spam, blacklist à l'arrivée). Les **commandes** de GUARD restent indisponibles tant que GUARD est arrêté : une commande n'existe que sur son bot (décision du 24/11).
 
+## Bot qui n'arrive pas à se connecter
+- Un bot qui ne se connecte pas à Discord (token faux, intents non activés) ne reste plus « online » pour rien : il réessaie après 30 s, 1 min, 2 min, 4 min puis 8 min, et s'arrête définitivement au 6e échec (PM2 ne le relance plus).
+- `/sysp diagnostic bots` l'affiche en 🟠 (essais en cours) ou 🔴 (arrêté). Après correction : `pm2 restart fwu-<bot>` (ou `her-v5-bot` pour FWU).
+- Les installateurs et la mise à jour de FWU attendent la vraie connexion à Discord, pas seulement « online » dans PM2.
+
 ## Mises à jour
 - FWU : `scripts/update-1942.sh`, comme avant. Les 4 autres bots continuent de tourner pendant la mise à jour de FWU.
 - Chaque bot : dézipper la nouvelle version dans `/home/opc/fwu-bots` (`unzip -o`), puis relancer son `installer.sh`. Son `.env` est conservé.
