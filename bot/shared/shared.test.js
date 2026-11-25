@@ -90,7 +90,7 @@ test("le message de refus indique le temps restant", () => {
 pgTest("les migrations s'appliquent une seule fois", async () => {
   assert.deepEqual(await runSharedMigrations(), []);
   const { rows } = await sharedQuery("SELECT count(*)::int AS n FROM schema_migrations");
-  assert.equal(rows[0].n, 3);
+  assert.equal(rows[0].n, 5);
 });
 
 pgTest("quotas par défaut : Modérateur test = 2 tempmute / 30 min, puis refus avec délai", async () => {
@@ -334,4 +334,62 @@ pgTest("/quota moi : restant par commande, délai quand c'est plein, rien n'est 
   assert.match(text, /`kick` : ✅ \*\*1\*\* restant/);
   assert.deepEqual(await quotaStatusForUser({ guildId, userId: user, tier: 0 }), { exempt: "owner" });
   assert.match(formatQuotaStatus(await quotaStatusForUser({ guildId, userId: user, tier: 70 })), /pas de palier de modération/);
+});
+
+pgTest("gel d'urgence : quotas à 0 pour le staff, owner et exemptés servis, dégel journalisé", async () => {
+  const { setStaffFreeze, liftStaffFreeze, getStaffFreeze, expiredStaffFreezes } = await import("./freeze.js");
+  const guildId = "gel-test";
+  const mod = "300000000000000088";
+  assert.equal((await consumeQuota({ guildId, userId: mod, command: "warn", tier: 10, bot: "fwu" })).allowed, true);
+  await assert.rejects(() => setStaffFreeze({ guildId, seconds: 10, actorId: OWNER, bot: "fwu" }), /entre 1 min et 7 jours/);
+  const freeze = await setStaffFreeze({ guildId, seconds: 3600, reason: "compte piraté", actorId: OWNER, bot: "fwu", removedAdminPlus: ["1"] });
+  assert.ok(freeze.until > Date.now());
+  const refused = await consumeQuota({ guildId, userId: mod, command: "warn", tier: 10, bot: "suckme" });
+  assert.equal(refused.reason, "frozen");
+  assert.match(formatQuotaRefusal(refused, "warn"), /gelé/);
+  assert.equal((await consumeQuota({ guildId, userId: OWNER, command: "ban", tier: 0, bot: "guard" })).allowed, true, "l'owner n'est jamais gelé");
+  // Un 2e gel garde la liste des ADMIN+ à rendre.
+  const again = await setStaffFreeze({ guildId, seconds: 7200, actorId: OWNER, bot: "fwu", removedAdminPlus: ["2"] });
+  assert.deepEqual(again.removedAdminPlus.sort(), ["1", "2"]);
+  assert.deepEqual(await expiredStaffFreezes().then((ids) => ids.includes(guildId)), false);
+  const lifted = await liftStaffFreeze({ guildId, actorId: OWNER, bot: "fwu" });
+  assert.deepEqual(lifted.removedAdminPlus.sort(), ["1", "2"]);
+  assert.equal(await getStaffFreeze(guildId), null);
+  assert.equal((await consumeQuota({ guildId, userId: mod, command: "warn", tier: 10, bot: "fwu" })).allowed, true);
+  const { rows } = await sharedQuery("SELECT entity_key FROM config_changes WHERE guild_id = $1 AND entity = 'staff_freeze' ORDER BY id", [guildId]);
+  assert.deepEqual(rows.map((r) => r.entity_key), ["gel", "gel", "degel"]);
+});
+
+pgTest("alerte d'abus du staff : rafale et cible répétée, une seule alerte, seuils owner journalisés", async () => {
+  const { checkStaffAbuse, setAbuseThresholds, getAbuseThresholds, formatAbuseAlert } = await import("./staff-abuse.js");
+  const { setSanctionObserver } = await import("./audit.js");
+  const guildId = "abus-test";
+  const mod = "300000000000000077";
+  assert.deepEqual(await getAbuseThresholds(guildId), { burstCount: 5, burstMinutes: 10, repeatCount: 3, repeatHours: 24, enabled: true });
+  await assert.rejects(() => setAbuseThresholds({ guildId, changes: { burstCount: 1 }, actorId: OWNER, bot: "fwu" }), /hors limites/);
+  await setAbuseThresholds({ guildId, changes: { burstCount: 4, repeatCount: 2 }, actorId: OWNER, bot: "fwu" });
+  const seen = [];
+  setSanctionObserver((entry) => { seen.push(entry.targetId); });
+  try {
+    for (const target of ["a1", "a2", "a3"]) await recordSanction({ guildId, targetId: target, moderatorId: mod, action: "warn", reason: "x", bot: "fwu" });
+    await new Promise((resolve) => setImmediate(resolve));
+    assert.deepEqual(seen, ["a1", "a2", "a3"], "l'observateur voit chaque sanction écrite");
+  } finally { setSanctionObserver(null); }
+  assert.deepEqual(await checkStaffAbuse({ guildId, moderatorId: mod, targetId: "a3", action: "warn", bot: "fwu" }), [], "3 sanctions < seuil 4");
+  // Les levées ne comptent pas.
+  await recordSanction({ guildId, targetId: "a3", moderatorId: mod, action: "unmute", reason: "", bot: "fwu" });
+  assert.deepEqual(await checkStaffAbuse({ guildId, moderatorId: mod, targetId: "a3", action: "unmute", bot: "fwu" }), []);
+  await recordSanction({ guildId, targetId: "a3", moderatorId: mod, action: "tempmute", reason: "", bot: "suckme" });
+  const alerts = await checkStaffAbuse({ guildId, moderatorId: mod, targetId: "a3", action: "tempmute", bot: "suckme" });
+  assert.deepEqual(alerts.map((a) => a.kind).sort(), ["burst", "repeat"]);
+  assert.equal(alerts.find((a) => a.kind === "burst").count, 4);
+  assert.match(formatAbuseAlert(alerts.find((a) => a.kind === "repeat"), "PND"), /<@a3> \*\*2 fois en 24 h\*\*/);
+  // Un 2e bot qui vérifie juste après ne renvoie rien (une seule alerte par 30 min).
+  assert.deepEqual(await checkStaffAbuse({ guildId, moderatorId: mod, targetId: "a3", action: "warn", bot: "guard" }), []);
+  // L'owner n'est jamais signalé ; alertes coupées = rien.
+  assert.deepEqual(await checkStaffAbuse({ guildId, moderatorId: OWNER, targetId: "a3", action: "ban", bot: "fwu", ownerId: OWNER }), []);
+  await setAbuseThresholds({ guildId, changes: { enabled: false }, actorId: OWNER, bot: "fwu" });
+  assert.deepEqual(await checkStaffAbuse({ guildId, moderatorId: "300000000000000066", targetId: "a3", action: "warn", bot: "fwu" }), []);
+  const { rows } = await sharedQuery("SELECT count(*)::int AS n FROM config_changes WHERE guild_id = $1 AND entity = 'staff_abuse'", [guildId]);
+  assert.equal(rows[0].n, 2);
 });
