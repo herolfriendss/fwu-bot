@@ -68,6 +68,7 @@ export const SYSP_LAYOUT: SubcommandLayoutEntry[] = [
   { group: "whitelist", description: "Exemption WHITELIST (propriétaire)", members: ["whitelist-add", "whitelist-remove", "whitelist-list"] },
   { group: "outils", description: "Ghost, composer, recherche, blueprints, clone, studio, packs", members: ["ghost", "composer", "search", "blueprint", "clone", "studio", "pack"] },
   { group: "diagnostic", description: "Audit ACL, santé du bot et couverture des logs (lecture seule)", members: ["acl", "sante", "logs-couverture", "matrice", "economie", "bots", "installation"] },
+  { group: "urgence", description: "Gel d'urgence du staff et alertes d'abus du staff", members: ["gel", "degel", "alerte-abus"] },
   { group: "market", description: "Marketplace d'extensions (désactivé par défaut)", members: ["catalog", "installed", "publish", "withdraw", "submit", "validate", "reject", "install", "uninstall", "rollback"] },
 ];
 
@@ -515,6 +516,19 @@ export const SLASH_COMMANDS: SlashCommandDef[] = [
       sub("economie", "Intégrité du grand livre PND et signaux de fraude"),
       sub("bots", "Bots FWU : quel bot traite chaque domaine en ce moment"),
       sub("installation", "Bilan : permissions et place du rôle de chaque bot, base centrale, sauvegarde"),
+      sub("gel", "Owner : suspend toutes les commandes du staff sur les 5 bots, pour une durée", [
+        opt(3, "duree", "Durée : 30m, 2h, 1j (7 jours maximum)", { required: true, max_length: 20 }),
+        opt(3, "raison", "Raison (visible dans le Logs Hub)", { max_length: 300 }),
+        opt(5, "retirer_admin_plus", "Retire aussi le rôle ADMIN+ (rendu au dégel)"),
+      ]),
+      sub("degel", "Owner : lève le gel du staff tout de suite"),
+      sub("alerte-abus", "Alertes MP aux SYS+ si un membre du staff sanctionne en rafale ou s'acharne (owner pour modifier)", [
+        opt(5, "active", "Active ou coupe les alertes"),
+        opt(4, "rafale", "Nombre de sanctions qui déclenche l'alerte rafale (2 à 100)", { min_value: 2, max_value: 100 }),
+        opt(4, "rafale_minutes", "En combien de minutes (1 à 1440)", { min_value: 1, max_value: 1440 }),
+        opt(4, "cible", "Nombre de sanctions sur la même personne (2 à 50)", { min_value: 2, max_value: 50 }),
+        opt(4, "cible_heures", "En combien d'heures (1 à 720)", { min_value: 1, max_value: 720 }),
+      ]),
       sub("add", "Attribue le rôle SYS+ à un membre (propriétaire)", [opt(6, "membre", "Membre concerné", { required: true })]),
       sub("remove", "Retire le rôle SYS+ à un membre (propriétaire)", [opt(6, "membre", "Membre concerné", { required: true })]),
       sub("permissions", "Consulte les scopes ADMIN+"),
@@ -1835,13 +1849,13 @@ export const EXTRA_SLASH_COMMANDS: SlashCommandDef[] = [
   {
     name: "casier",
     description: "GUARD : historique des sanctions d'un membre",
-    usage: "/casier voir membre · /casier supprimer affaire",
+    usage: "/casier voir membre · /casier supprimer affaire motif",
     category: "Modération",
     dmPermission: false,
     requiresBotProcess: true,
     options: [
       sub("voir", "Affiche le casier d'un membre", [opt(6, "membre", "Membre", { required: true })]),
-      sub("supprimer", "Supprime une affaire du casier", [opt(4, "affaire", "Numéro de l'affaire", { required: true, min_value: 1 })]),
+      sub("supprimer", "SYS+ : retire une affaire du casier (archivée, avec un motif)", [opt(4, "affaire", "Numéro de l'affaire", { required: true, min_value: 1 }), opt(3, "motif", "Pourquoi l'affaire est retirée", { required: true, max_length: 300 })]),
     ],
   },
   {
