@@ -328,9 +328,12 @@ export function formatBotsDiagnostic(now = Date.now()) {
       continue;
     }
     const lease = leases.get(id);
+    const optional = profile.optional ? " (facultatif)" : "";
     lines.push(lease?.live
-      ? `🟢 **${profile.label}** — en ligne, renouvelé <t:${Math.floor(lease.renewedAt / 1000)}:R>`
-      : `⚪ **${profile.label}** — non démarré ou arrêté : **FWU traite ce domaine**${lease ? ` (dernier signe <t:${Math.floor(lease.renewedAt / 1000)}:R>)` : ""}`);
+      ? `🟢 **${profile.label}**${optional} — en ligne, renouvelé <t:${Math.floor(lease.renewedAt / 1000)}:R>`
+      : profile.optional
+        ? `⚪ **${profile.label}**${optional} — non démarré : aucun domaine Invest + actif pour le moment.`
+        : `⚪ **${profile.label}** — non démarré ou arrêté : **FWU reprend les événements de ce domaine**${lease ? ` (dernier signe <t:${Math.floor(lease.renewedAt / 1000)}:R>)` : ""}. Les commandes propres à ce bot restent indisponibles.`);
   }
   // Connection failures recorded by the silent-crash guard (bot/gateway-watchdog.js).
   let failures = [];
