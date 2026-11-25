@@ -7,7 +7,9 @@ import { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder } from "disc
 import { db, tableExists } from "../database.js";
 import { applyBanner } from "../banners.js";
 import { trustFor, activeSanctions } from "../trust.js";
-import { BOT_PROFILES, BOT_PROFILE_IDS } from "../../src/lib/bot-profiles.ts";
+// Via bot-runtime.js, which finds bot-profiles.ts both in the repository
+// (src/lib) and in a packaged bot folder (copied next to bot-runtime.js).
+import { BOT_PROFILES, BOT_PROFILE_IDS } from "../bot-runtime.js";
 
 const DAY = 86_400_000;
 const PRESENCE_GRACE_MS = 3 * 60_000;
