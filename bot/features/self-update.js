@@ -26,9 +26,23 @@ export function canStartUpdate(status, now = Date.now()) {
   return now - Number(status.at ?? 0) * 1000 > STALE_MS;
 }
 
+/** Version numérotée (« v1.2.0 » ou « 1.2.0 »), ou null si le texte n'en est pas une. */
+export function parseVersionTag(value) {
+  const text = String(value ?? "").trim();
+  const match = /^v?(\d{1,4}\.\d{1,4}\.\d{1,4})$/.exec(text);
+  return match ? `v${match[1]}` : null;
+}
+
+export function readInstalledVersion(dir = DATA()) {
+  try { return readFileSync(`${dir}/version-installee`, "utf8").trim() || null; } catch { return null; }
+}
+
 /** Detached launch: the script survives the PM2 restarts it triggers (reparented to init). */
-export function launchUpdate(spawnFn = spawn, script = SCRIPT()) {
-  const child = spawnFn("bash", ["-c", 'setsid nohup bash "$0" >/dev/null 2>&1 < /dev/null &', script], { detached: true, stdio: "ignore" });
+export function launchUpdate(spawnFn = spawn, script = SCRIPT(), version = null) {
+  const args = version
+    ? ["-c", 'setsid nohup bash "$0" "$1" >/dev/null 2>&1 < /dev/null &', script, version]
+    : ["-c", 'setsid nohup bash "$0" >/dev/null 2>&1 < /dev/null &', script];
+  const child = spawnFn("bash", args, { detached: true, stdio: "ignore" });
   child.unref?.();
 }
 
@@ -49,7 +63,8 @@ export async function handleSelfUpdateInteraction(interaction, { spawnFn = spawn
   const status = readUpdateStatus();
   if (sub === "etat") {
     const log = readUpdateLog();
-    await interaction.reply({ content: `${statusText(status)}${log ? `\n\`\`\`\n${log.replace(/`/g, "'")}\n\`\`\`` : ""}`.slice(0, 1990), ephemeral: true, allowedMentions: { parse: [] } });
+    const installed = readInstalledVersion();
+    await interaction.reply({ content: `Version installée : **${installed ?? "inconnue"}**\n${statusText(status)}${log ? `\n\`\`\`\n${log.replace(/`/g, "'")}\n\`\`\`` : ""}`.slice(0, 1990), ephemeral: true, allowedMentions: { parse: [] } });
     return true;
   }
   if (!existsSync(SCRIPT())) {
@@ -60,8 +75,15 @@ export async function handleSelfUpdateInteraction(interaction, { spawnFn = spawn
     await interaction.reply({ content: `⏳ Une mise à jour est déjà en cours : ${status.step}. Suis-la avec \`/maj etat\`.`, ephemeral: true });
     return true;
   }
-  launchUpdate(spawnFn);
-  await interaction.reply({ content: "🚀 Mise à jour lancée depuis GitHub : FWU et le site, puis les 4 bots (10 à 30 min). Les bots vont redémarrer chacun leur tour : c'est normal.\nSuis l'avancement avec `/maj etat`. Je t'enverrai le résultat en message privé.", ephemeral: true });
+  const rawVersion = interaction.options.getString?.("version") ?? null;
+  const version = rawVersion ? parseVersionTag(rawVersion) : null;
+  if (rawVersion && !version) {
+    await interaction.reply({ content: "❌ Version illisible. Exemple : `v1.2.0`. Laisse vide pour la dernière version publiée.", ephemeral: true });
+    return true;
+  }
+  launchUpdate(spawnFn, SCRIPT(), version);
+  const target = version ? `la version **${version}**` : "la dernière version publiée (ou main s'il n'y en a pas encore)";
+  await interaction.reply({ content: `🚀 Mise à jour lancée vers ${target} : FWU et le site, puis les 4 bots (10 à 30 min). Les bots vont redémarrer chacun leur tour : c'est normal.\nSuis l'avancement avec \`/maj etat\`. Je t'enverrai le résultat en message privé.`, ephemeral: true });
   return true;
 }
 

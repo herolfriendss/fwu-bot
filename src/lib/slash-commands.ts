@@ -2120,12 +2120,12 @@ export const EXTRA_SLASH_COMMANDS: SlashCommandDef[] = [
   {
     name: "maj",
     description: "OWNER : met à jour FWU et les 4 bots depuis GitHub, sans ordinateur",
-    usage: "/maj lancer · /maj etat",
+    usage: "/maj lancer [version] · /maj etat",
     category: "SYS+",
     dmPermission: false,
     requiresBotProcess: true,
     options: [
-      sub("lancer", "Télécharge la dernière version et met tout à jour (10 à 30 min)"),
+      sub("lancer", "Installe la dernière version publiée, ou une version précise (10 à 30 min)", [opt(3, "version", "Version précise pour revenir en arrière, ex. v1.2.0", { max_length: 20 })]),
       sub("etat", "Avancement et journal de la dernière mise à jour"),
     ],
   },
