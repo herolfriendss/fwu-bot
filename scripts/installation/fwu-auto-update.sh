@@ -117,6 +117,10 @@ cp "$WORK/FWU-maj.zip" "$REPO/scripts/update-1942.sh" "$H/FWU-installation/"
 cp "$WORK"/bots/FWU-*.zip "$H/FWU-installation/"
 # Keep this updater itself current for the next run.
 install -m 700 "$REPO/scripts/installation/fwu-auto-update.sh" "$H/fwu-auto-update.sh.new" && mv "$H/fwu-auto-update.sh.new" "$H/fwu-auto-update.sh"
+# Sauvegarde et surveillance : fichiers posés à jour ; ils ne tournent que si Ryan a ajouté leur ligne cron (docs/SAUVEGARDES.md, docs/SURVEILLANCE.md).
+for extra in fwu-sauvegarde.sh fwu-surveillance.mjs; do
+  [[ -f "$REPO/scripts/installation/$extra" ]] && install -m 700 "$REPO/scripts/installation/$extra" "$H/$extra.new" && mv "$H/$extra.new" "$H/$extra"
+done
 
 if [[ "${FWU_UPDATE_DRY_RUN:-}" == "1" ]]; then echo "Essai à blanc : paquets prêts."; status done "Essai à blanc"; exit 0; fi
 
