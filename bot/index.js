@@ -832,7 +832,7 @@ client.on("voiceStateUpdate", (oldState, newState) => {
     record(code);
     const guild = newState.guild ?? oldState.guild;
     if (!guild || !guildSettings?.logs?.channelId) return;
-    const labels = { temp_voice_created: "Salon vocal temporaire créé", temp_voice_deleted: "Salon vocal temporaire supprimé", temp_voice_error: "Erreur Join-to-Create" };
+    const labels = { temp_voice_created: "Salon vocal temporaire créé", temp_voice_deleted: "Salon vocal temporaire supprimé", temp_voice_transferred: "Propriété transférée (propriétaire parti)", temp_voice_error: "Erreur Join-to-Create" };
     void sendCentralLog(guild, guildSettings, systemLogEmbed({
       title: `🎙️ Join-to-Create — ${labels[code] ?? code}`,
       description: `Événement : \`${code}\`\nMembre : <@${newState.id}>`,
@@ -1035,7 +1035,7 @@ client.once("clientReady", () => {
   }
   const logsGuild = client.guilds.cache.get(LOGS_HUB_GUILD_ID);
   if (logsGuild && IS_FWU) void provisionLogsHub(logsGuild, record).catch(() => record("logs_hub_provision_error"));
-  if (serves("fdpdlavoc")) void reconcileTempVoices(client, record).catch(() => record("temp_voice_reconcile_error"));
+  if (serves("fdpdlavoc")) void reconcileTempVoices(client, record, settings).catch(() => record("temp_voice_reconcile_error"));
   startOrganizationMaintenance(client, ALLOWED_GUILDS.filter((guildId) => !isLogsHub(guildId)), record, () => serves("fwu"));
   startInvestmentMaintenance(client, ALLOWED_GUILDS.filter((guildId) => !isLogsHub(guildId)), record, () => serves("fisc"));
   void enforceGuildAllowlist(client, ALLOWED_GUILDS, record);
@@ -1519,7 +1519,7 @@ client.on("interactionCreate", (interaction) => {
     if (await handleStaffModerationInteraction(interaction, settings[interaction.guildId], { bot: RUNTIME.profile })) { auditSlashUsage(interaction, "Modération staff"); return; }
     if (await handleEmbedInteraction(interaction, settings[interaction.guildId], { bot: RUNTIME.profile, audit: auditLog })) return;
     if (await handleModerationInteraction(interaction, settings[interaction.guildId], { apiUrl: API, secret: BOT_SYNC_SECRET, bot: RUNTIME.profile })) return;
-    if (await handleVoiceV2Interaction(interaction, settings[interaction.guildId])) { auditSlashUsage(interaction, "Vocal temporaire"); return; }
+    if (await handleVoiceV2Interaction(interaction, settings[interaction.guildId], record)) { auditSlashUsage(interaction, "Vocal temporaire"); return; }
     // Commandes et boutons : une commande slash n'arrive qu'à son bot propriétaire (filtre en tête),
     // un bouton revient toujours au bot qui l'a publié. Aucune condition de domaine ici.
     if (await handleShieldInteraction(interaction)) { auditSlashUsage(interaction, "Bouclier"); return; }

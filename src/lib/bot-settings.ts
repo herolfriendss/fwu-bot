@@ -37,6 +37,8 @@ export type TempVoiceSettings = {
   categoryId: string | null;
   defaultLimit: number;
   nameTemplate: string;
+  /** Grace period before an empty temporary channel is deleted (0–300 s). */
+  emptyDeleteSeconds: number;
 };
 export type AutomationSettings = {
   autoRoleIds: string[];
@@ -124,6 +126,7 @@ export const DEFAULT_SETTINGS: BotSettings = {
     categoryId: null,
     defaultLimit: 0,
     nameTemplate: "Salon de {user}",
+    emptyDeleteSeconds: 0,
   },
   automation: { autoRoleIds: [], welcomeDm: false, welcomeDmMessage: "Bienvenue sur **{server}** !" },
   liveAlerts: { enabled: false, channelId: null, animated: true, mentionRoleId: null, creators: [] },
@@ -221,6 +224,7 @@ function sanitizeCoreSettings(raw: unknown): BotSettings {
       categoryId: snowflakeId(r.tempVoice?.categoryId),
       defaultLimit: int(r.tempVoice?.defaultLimit, 0, 99, d.tempVoice.defaultLimit),
       nameTemplate: str(r.tempVoice?.nameTemplate, 80) || d.tempVoice.nameTemplate,
+      emptyDeleteSeconds: int(r.tempVoice?.emptyDeleteSeconds, 0, 300, d.tempVoice.emptyDeleteSeconds),
     },
     automation: {
       autoRoleIds: snowflakeList(r.automation?.autoRoleIds, 10),
