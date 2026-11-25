@@ -1824,6 +1824,32 @@ export const EXTRA_SLASH_COMMANDS: SlashCommandDef[] = [
     ],
   },
   {
+    name: "bouclier",
+    description: "Salon piège, sauvegardes du serveur et verrouillage d'urgence",
+    usage: "/bouclier piege | sauvegarder | restaurer | verrouiller | etat",
+    category: "Administration",
+    dmPermission: false,
+    requiresBotProcess: true,
+    options: [
+      sub("etat", "Ce que le bouclier protège en ce moment"),
+      sub("piege", "Arme un salon piège anti-robot", [
+        opt(3, "action", "Sanction appliquée à qui y écrit", { choices: [
+          { name: "Mettre en quarantaine (recommandé)", value: "quarantaine" },
+          { name: "Signaler seulement", value: "signaler" },
+          { name: "Expulser", value: "expulser" },
+          { name: "Bannir", value: "bannir" },
+        ] }),
+        opt(7, "salon", "Salon existant à utiliser (sinon le bot en crée un)"),
+      ]),
+      sub("piege-off", "Désarme le salon piège"),
+      sub("sauvegarder", "Enregistre la structure du serveur", [opt(3, "nom", "Nom de la sauvegarde", { max_length: 40 })]),
+      sub("sauvegardes", "Liste les sauvegardes disponibles"),
+      sub("restaurer", "Aperçu puis restauration d'une sauvegarde", [opt(4, "sauvegarde", "Numéro de la sauvegarde", { required: true, min_value: 1 })]),
+      sub("verrouiller", "Ferme tous les salons à l'écriture", [opt(3, "raison", "Raison affichée dans le journal", { max_length: 200 })]),
+      sub("deverrouiller", "Rouvre les salons que le verrouillage avait fermés"),
+    ],
+  },
+  {
     name: "quete",
     description: "Tes trois quêtes du jour et leurs récompenses",
     usage: "/quete",

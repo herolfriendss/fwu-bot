@@ -71,7 +71,7 @@ test("every bot keeps at most 100 root commands, FWU included before any delegat
   assert.deepEqual(allDelegated.skipped, []);
   for (const id of ["guard", "fdpdlavoc", "suckme", "fisc"]) assert.deepEqual(slashRegistrationPlan({ profile: id, delegated: [] }, SLASH_COMMANDS, EXTRA_SLASH_COMMANDS).skipped, [], id);
   const guard = slashRegistrationPlan({ profile: "guard", delegated: [] }, SLASH_COMMANDS, EXTRA_SLASH_COMMANDS);
-  assert.deepEqual(guard.register.map((c) => c.name).sort(), ["aide", "status", "guildguard", "warn", "warnings", "mute", "unmute", "kick", "purge", "slowmode", "lock", "unlock", "verify", "antinuke", "automod", "casier", "quarantaine"].sort());
+  assert.deepEqual(guard.register.map((c) => c.name).sort(), ["aide", "status", "guildguard", "warn", "warnings", "mute", "unmute", "kick", "purge", "slowmode", "lock", "unlock", "verify", "antinuke", "automod", "casier", "quarantaine", "bouclier"].sort());
   assert.deepEqual(guard.retire, []);
 });
 

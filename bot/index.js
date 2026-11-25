@@ -83,6 +83,7 @@ import { getPndPrivilegedIds } from "./pnd-owner-policy.js";
 import { checkInteractionHierarchy } from "./hierarchy-guard.js";
 import { createAntiNuke, registerBotIdentity } from "./guard/anti-nuke.js";
 import { createAutomod } from "./guard/automod.js";
+import { handleShieldInteraction, checkHoneypotMessage } from "./guard/shield-commands.js";
 import { runAutoconfig } from "./autoconfig.js";
 import { handleGuardInteraction } from "./guard/commands.js";
 import { communityAutoconfig, handleCommunityInteraction, handleLevelMessage, runBirthdays, runReminders, tickVoiceXp } from "./features/community.js";
@@ -446,6 +447,15 @@ client.on("messageCreate", async (msg) => {
   const prefixBlocked = !PREFIX_COMMANDS_ENABLED && /^=[a-z]/i.test(String(msg.content ?? "").trim());
   const runCmd = (domain) => !prefixBlocked && (allDomains || (prefixOwner ? prefixOwner === domain && serves(domain) : serves(domain)));
   if (serves("fwu")) recordAnalyticsMetric(msg.guild.id, "messages");
+  // GUARD trap channel: anyone writing there is handled and the message is gone.
+  if (serves("guard")) {
+    const caught = await checkHoneypotMessage(msg, s).catch(() => null);
+    if (caught) {
+      void guardReport(msg.guild, { title: "🪤 Salon piège", description: caught }).catch(() => {});
+      record("guild_guard_quarantine");
+      return;
+    }
+  }
   // GUARD automod: a removed message stops here (no XP, no other processing).
   if (serves("guard") && await automod(msg, s).catch(() => null)) return;
   if (serves("fwu")) void handleLevelMessage(msg).catch(() => record("levels_error"));
@@ -1457,6 +1467,7 @@ client.on("interactionCreate", (interaction) => {
     })) return;
     if (await handleModerationInteraction(interaction, settings[interaction.guildId], { apiUrl: API, secret: BOT_SYNC_SECRET })) return;
     if (await handleVoiceV2Interaction(interaction, settings[interaction.guildId])) { auditSlashUsage(interaction, "Vocal temporaire"); return; }
+    if (serves("guard") && await handleShieldInteraction(interaction)) { auditSlashUsage(interaction, "Bouclier"); return; }
     if (serves("fwu") && await handleQuestInteraction(interaction)) { auditSlashUsage(interaction, "Quêtes"); return; }
     if (serves("fwu") && await handleClanInteraction(interaction)) { auditSlashUsage(interaction, "Clans & saisons"); return; }
     if (serves("fwu") && await handleOverviewInteraction(interaction)) { auditSlashUsage(interaction, "Profil FWU"); return; }
