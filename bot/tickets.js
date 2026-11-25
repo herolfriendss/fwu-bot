@@ -147,6 +147,8 @@ export async function handleTicketsInteraction(interaction, guildSettings = {}, 
       if (!isTicketStaff(member, settings)) throw new Error("Permission Gérer les salons requise.");
       const setupIssue = ticketSetupIssue(settings.tickets);
       if (setupIssue) throw new Error(setupIssue);
+      const supportRole = await guild.roles.fetch(settings.tickets.supportRoleId, { force: true }).catch(() => null);
+      if (!supportRole || supportRole.id === guild.id || supportRole.managed) throw new Error("Le rôle support configuré est introuvable ou invalide. Corrige-le dans les réglages des tickets.");
       const channel = interaction.channel;
       if (!channel?.isTextBased()) throw new Error("Choisis un salon textuel existant pour publier le panneau.");
       await interaction.deferReply({ ephemeral: true });
