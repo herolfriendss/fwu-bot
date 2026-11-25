@@ -1,6 +1,10 @@
 import { db } from "./database.js";
 import { getAntiMoveConfig } from "./anti-move.js";
 import { LOGS_HUB_GUILD_ID } from "./logs-hub.js";
+import {
+  criticalPermissionsForProfile,
+  requiredPermissionsForProfile,
+} from "./permissions-catalog.js";
 
 /**
  * Bot health: a pure evaluator plus a collector. The collector only reads
@@ -13,14 +17,7 @@ export function registerHealthProvider(fn) {
   if (typeof fn === "function") provider = fn;
 }
 
-const REQUIRED_PERMISSIONS = [
-  ["ManageRoles", "Gérer les rôles (DOG, rôles, rankall, PV)"],
-  ["MoveMembers", "Déplacer des membres (MENOTTE, WAKEUP, Anti-Move)"],
-  ["ViewAuditLog", "Voir les logs (Anti-Move, Guardian)"],
-  ["ManageChannels", "Gérer les salons (Join-to-Create, tickets)"],
-  ["ManageNicknames", "Gérer les pseudos (LOCKNAME, DOG)"],
-  ["SendMessages", "Envoyer des messages"],
-];
+
 
 /** Pure evaluation of a collected snapshot. */
 export function evaluateHealth(snapshot, now = Date.now()) {
@@ -65,10 +62,11 @@ export function evaluateHealth(snapshot, now = Date.now()) {
     );
 
   const missing = snapshot.missingPermissions ?? [];
+  const criticalPermissions = criticalPermissionsForProfile(snapshot.profile);
   if (missing.length)
     add(
       "Permissions du bot",
-      missing.some((p) => ["ManageRoles", "SendMessages"].includes(p.name))
+      missing.some((p) => criticalPermissions.includes(p.name))
         ? "critical"
         : "warning",
       `Manquantes : ${missing.map((p) => p.label).join(" ; ")}.`,
@@ -81,6 +79,7 @@ export function evaluateHealth(snapshot, now = Date.now()) {
     );
 
   if (
+    snapshot.profile === "suckme" &&
     snapshot.antiMoveEnabled &&
     missing.some((p) => ["MoveMembers", "ViewAuditLog"].includes(p.name))
   ) {
@@ -147,7 +146,7 @@ function count(sql, ...params) {
   }
 }
 
-export function collectHealthSnapshot(client, guild) {
+export function collectHealthSnapshot(client, guild, profile = "fwu") {
   const { events = [], lastSync = null, startedAt = null } = provider() ?? {};
   let database = "ok";
   try {
@@ -158,42 +157,39 @@ export function collectHealthSnapshot(client, guild) {
     database = "erreur de lecture";
   }
   const me = guild?.members?.me;
-  const missingPermissions = me
-    ? REQUIRED_PERMISSIONS.filter(([name]) => !me.permissions?.has?.(name)).map(
-        ([name, label]) => ({ name, label }),
-      )
-    : REQUIRED_PERMISSIONS.map(([name, label]) => ({ name, label }));
+  const required = requiredPermissionsForProfile(profile);
+  const missingPermissions = required
+    .filter((name) => !me?.permissions?.has?.(name))
+    .map((name) => ({ name, label: name }));
   return {
+    profile,
     ready: Boolean(client?.isReady?.() ?? client?.readyAt),
     wsPing: client?.ws?.ping,
     uptimeMs: client?.uptime ?? null,
     startedAt,
     lastSync,
     missingPermissions,
-    antiMoveEnabled: guild ? getAntiMoveConfig(guild.id).enabled : false,
-    logsHubPresent: client?.guilds?.cache
-      ? client.guilds.cache.has(LOGS_HUB_GUILD_ID)
+    antiMoveEnabled: profile === "suckme" && guild ? getAntiMoveConfig(guild.id).enabled : false,
+    // Only FWU owns the central Logs Hub. Dedicated bots send their logs through its relay.
+    logsHubPresent: profile === "fwu"
+      ? (client?.guilds?.cache ? client.guilds.cache.has(LOGS_HUB_GUILD_ID) : null)
       : null,
     database,
     recentErrorCodes: events
       .map((e) => e.code)
       .filter((code) => /error|failed|refused|rejection/.test(code)),
-    rankallRunning: count(
-      "SELECT COUNT(*) c FROM rankall_jobs WHERE status='running' AND guild_id=?",
-      guild?.id ?? "",
-    ),
-    pvLocks: count(
-      "SELECT COUNT(*) c FROM voice_lock_snapshots WHERE guild_id=?",
-      guild?.id ?? "",
-    ),
-    menottes: count(
-      "SELECT COUNT(*) c FROM voice_menottes WHERE guild_id=?",
-      guild?.id ?? "",
-    ),
-    antiMoveProtected: count(
-      "SELECT COUNT(*) c FROM anti_move_protected_members WHERE guild_id=?",
-      guild?.id ?? "",
-    ),
+    rankallRunning: profile === "suckme"
+      ? count("SELECT COUNT(*) c FROM rankall_jobs WHERE status='running' AND guild_id=?", guild?.id ?? "")
+      : 0,
+    pvLocks: ["fdpdlavoc", "suckme"].includes(profile)
+      ? count("SELECT COUNT(*) c FROM voice_lock_snapshots WHERE guild_id=?", guild?.id ?? "")
+      : 0,
+    menottes: profile === "suckme"
+      ? count("SELECT COUNT(*) c FROM voice_menottes WHERE guild_id=?", guild?.id ?? "")
+      : 0,
+    antiMoveProtected: profile === "suckme"
+      ? count("SELECT COUNT(*) c FROM anti_move_protected_members WHERE guild_id=?", guild?.id ?? "")
+      : 0,
   };
 }
 
@@ -217,8 +213,8 @@ export function formatHealthReport(snapshot, evaluation) {
   ].join("\n");
 }
 
-export function buildHealthReport(client, guild, now = Date.now()) {
-  const snapshot = collectHealthSnapshot(client, guild);
+export function buildHealthReport(client, guild, now = Date.now(), profile = "fwu") {
+  const snapshot = collectHealthSnapshot(client, guild, profile);
   const evaluation = evaluateHealth(snapshot, now);
   return {
     snapshot,
