@@ -9,6 +9,7 @@
 | **FDPDLAVOC** | `;` | musique et radio, `;pv`, `;access`, `;unaccess`, `;voc`, `;demandevocal`, **`;mv`**, **`;accessall`** |
 | **SUCK ME** | `=` | SYS+, rôles, DOG, MENOTTE, WAKEUP, LOCKNAME, Anti-Move, automatisations, webhooks, dmall ; **venues de FWU** : tickets, candidatures, sondage, IA, live, AFK, social (profil, bio, rep…), giveaways, événements ; commandes personnalisées du site |
 | **LE FISC** | `-` | économie, casino ; **venus de FWU** : dice, coinflip, trivia, cartes (card, cards, pack, trade) |
+| **Invest +** | `$` | abonnements des membres : `/abonnement`, `/investadmin`, `$abonnement`/`$abo` (voir `docs/INVEST_PLUS.md`) |
 
 - La carte exacte est dans `src/lib/bot-profiles.ts` (un test refuse qu'une commande appartienne à deux bots).
 - **Une commande n'existe que sur son bot.** Chaque bot retire de son application Discord les commandes des autres ; `=ban` ou `+play` ne font rien. L'ancienne reprise des commandes par FWU quand un bot est arrêté est supprimée (la reprise des **événements** — logs, anti-spam, blacklist à l'arrivée — reste).
