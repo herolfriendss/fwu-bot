@@ -1,6 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { formatInstallationReport, resolveInstallationBotIds, suckMePlacementIssues, REQUIRED_PERMISSIONS } from "./install-check.js";
+import { formatInstallationReport, resolveInstallationBotIds, suckMePlacementIssues, botPlacementIssues, REQUIRED_PERMISSIONS } from "./install-check.js";
+import { BOT_PROFILE_IDS } from "./bot-runtime.js";
+import { PermissionFlagsBits } from "discord.js";
 
 test("SUCK ME : doit dominer les rôles 0 % et les laisses, juste sous le rôle de l'owner", () => {
   const roles = [
@@ -14,6 +16,48 @@ test("SUCK ME : doit dominer les rôles 0 % et les laisses, juste sous le rôle 
   assert.match(issues[0], /au-dessus de \*\*Intouchable\*\*/);
   assert.match(issues[1], /juste sous ton rôle.*2 rôle/);
   assert.deepEqual(suckMePlacementIssues({ botTop: 19, roles, tier0RoleIds: new Set(["zero"]), ownerTop: 20 }), []);
+});
+
+test("les six bots reçoivent le même socle opérationnel étendu sans Administrator", () => {
+  const profiles = BOT_PROFILE_IDS.map((profile) => REQUIRED_PERMISSIONS[profile]);
+  for (const permissions of profiles) {
+    assert.ok(permissions.includes("ManageRoles"));
+    assert.ok(permissions.includes("ManageChannels"));
+    assert.ok(permissions.includes("BanMembers"));
+    assert.ok(permissions.includes("ModerateMembers"));
+    assert.ok(!permissions.includes("Administrator"));
+    for (const name of permissions) {
+      assert.notEqual(PermissionFlagsBits[name], undefined, `permission Discord inconnue: ${name}`);
+    }
+  }
+  assert.ok(profiles.every((permissions) => JSON.stringify(permissions) === JSON.stringify(profiles[0])));
+});
+
+test("hiérarchie : chaque bot reste sous OWNER et au-dessus des rôles humains administrables", () => {
+  const roles = [
+    { id: "owner-role", name: "OWNER", position: 30, managed: false },
+    { id: "staff", name: "Staff", position: 20, managed: false },
+    { id: "member", name: "Membre", position: 5, managed: false },
+    { id: "integration", name: "Bot role", position: 25, managed: true },
+  ];
+  assert.deepEqual(botPlacementIssues({
+    botTop: 25,
+    roles,
+    ownerTop: 30,
+    ownerRoleIds: new Set(["owner-role"]),
+  }), []);
+  assert.ok(botPlacementIssues({
+    botTop: 15,
+    roles,
+    ownerTop: 30,
+    ownerRoleIds: new Set(["owner-role"]),
+  }).some((issue) => issue.includes("Staff")));
+  assert.ok(botPlacementIssues({
+    botTop: 30,
+    roles,
+    ownerTop: 30,
+    ownerRoleIds: new Set(["owner-role"]),
+  }).some((issue) => issue.includes("sous le rôle OWNER")));
 });
 
 test("rapport : bots principaux absents signalés, Invest + facultatif sans alarme", () => {
