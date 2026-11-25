@@ -241,16 +241,31 @@ export async function executeRankAllJob({
     try {
       const fresh = await guild.members.fetch({ user: member.id, force: true });
       if (!fresh || fresh.user?.bot || fresh.roles.cache.has(role.id)) continue;
+
+      // A rankall job can run for minutes. Re-read the live role object on every
+      // iteration so a permission/position change during the batch cannot turn
+      // a previously harmless mass assignment into privilege escalation.
+      const currentRole = guild.roles?.cache?.get?.(role.id) ?? role;
+      if (
+        guild.roles?.cache?.has?.(role.id) === false ||
+        dangerousRolePermissions(currentRole).length ||
+        currentRole.managed ||
+        currentRole.id === guild.id ||
+        currentRole.position >= botMember.roles.highest.position
+      ) {
+        stopped = true;
+        break;
+      }
       const decision = roleAssignmentDecision({
         actorId: actor.id,
         ownerId: guild.ownerId,
         targetId: fresh.id,
         actorPosition: actor.roles.highest.position,
         targetPosition: fresh.roles.highest.position,
-        roleId: role.id,
+        roleId: currentRole.id,
         everyoneRoleId: guild.id,
-        rolePosition: role.position,
-        roleManaged: role.managed,
+        rolePosition: currentRole.position,
+        roleManaged: currentRole.managed,
         botId: botMember.id,
         botPosition: botMember.roles.highest.position,
       });
@@ -259,7 +274,7 @@ export async function executeRankAllJob({
         continue;
       }
       await fresh.roles.add(
-        role,
+        currentRole,
         `FWU rankall ${job.id} confirmé par ${actor.id}`,
       );
       assigned.push(fresh.id);
