@@ -19,6 +19,7 @@ import { parsePndOwnerId } from "./pnd-owner-policy.js";
 
 export const OWNER_SHIELD_MESSAGE = "⛔ L'OWNER est protégé : aucune action ne peut le viser.";
 export const RANK_SHIELD_MESSAGE = "⛔ Tu ne peux agir que sur un membre dont le rôle le plus élevé est en dessous du tien.";
+export const HIERARCHY_UNREADABLE_MESSAGE = "⛔ Impossible de vérifier la hiérarchie des rôles. Action refusée par sécurité.";
 const context = new AsyncLocalStorage();
 let installed = false;
 let onBlocked = () => {};
@@ -52,29 +53,72 @@ function block(action, message) {
 }
 
 /** Pure rank rule between two members (positions = highest role positions). */
-export function rankAllows({ actorId, targetId, actorPosition, targetPosition, guildOwnerId = null, owner = ownerId() }) {
+export function rankAllows({ actorId, targetId, actorPosition, targetPosition, guildOwnerId = null, owner = ownerId(), allowMissingTarget = false }) {
   if (!actorId || !targetId || actorId === targetId) return true;
   if (actorId === owner || actorId === guildOwnerId) return true;
-  if (targetPosition === null || targetPosition === undefined) return true; // not on the server (ban by ID)
+  // Le propriétaire du serveur est protégé au même titre qu'une cible hiérarchiquement supérieure.
+  if (targetId === guildOwnerId) return false;
+  if (targetPosition === null || targetPosition === undefined) return allowMissingTarget;
   if (!Number.isFinite(actorPosition) || !Number.isFinite(targetPosition)) return false;
   return actorPosition > targetPosition;
 }
 
+function isUnknownGuildMember(error) {
+  return Number(error?.code ?? error?.rawError?.code) === 10007;
+}
+
+/**
+ * Fetch a fresh role position. A confirmed 404/Unknown Member is represented by null;
+ * network/API errors and malformed role data remain unverifiable (NaN / thrown error).
+ */
 async function position(guild, id) {
-  const member = guild?.members?.cache?.get?.(id) ?? (await guild?.members?.fetch?.({ user: id }).catch(() => null));
+  if (!guild?.members?.fetch) return Number.NaN;
+  let member;
+  try {
+    member = await guild.members.fetch({ user: id, force: true });
+  } catch (error) {
+    if (isUnknownGuildMember(error)) return null;
+    throw error;
+  }
   if (!member) return null;
   const value = member.roles?.highest?.position;
   return Number.isFinite(value) ? value : Number.NaN;
 }
 
 /** Refuse a harmful change to `targetId` when the member behind the current action is not ranked above. */
-async function enforceRank(guild, targetId, action) {
+async function enforceRank(guild, targetId, action, { allowMissingTarget = false } = {}) {
   const actorId = context.getStore()?.actorId;
   if (!actorId || !guild || actorId === targetId) return;
-  if (actorId === ownerId() || actorId === guild.ownerId) return;
-  const [actorPosition, targetPosition] = await Promise.all([position(guild, actorId), position(guild, targetId)]);
-  if (!rankAllows({ actorId, targetId, actorPosition: actorPosition ?? Number.NaN, targetPosition, guildOwnerId: guild.ownerId })) {
+  if (targetId === guild.ownerId && actorId !== guild.ownerId && actorId !== ownerId()) {
     block(action, RANK_SHIELD_MESSAGE);
+  }
+  if (actorId === ownerId() || actorId === guild.ownerId) return;
+
+  let actorPosition;
+  let targetPosition;
+  try {
+    [actorPosition, targetPosition] = await Promise.all([
+      position(guild, actorId),
+      position(guild, targetId),
+    ]);
+  } catch {
+    block(action, HIERARCHY_UNREADABLE_MESSAGE);
+  }
+
+  // Missing targets are acceptable only for ban-by-ID. A failed lookup is never
+  // confused with a member who is confirmed not to be in the guild.
+  if (targetPosition === null && allowMissingTarget) return;
+  if (!rankAllows({
+    actorId,
+    targetId,
+    actorPosition,
+    targetPosition,
+    guildOwnerId: guild.ownerId,
+    allowMissingTarget,
+  })) {
+    block(action, targetPosition === null || !Number.isFinite(actorPosition)
+      ? HIERARCHY_UNREADABLE_MESSAGE
+      : RANK_SHIELD_MESSAGE);
   }
 }
 
@@ -98,10 +142,25 @@ export function harmfulMemberEdit(options = {}, currentRoleIds = null) {
 }
 
 /** Pure: true when a list of overwrites denies anything to the OWNER. */
-export function overwritesHarmOwner(overwrites, owner = ownerId()) {
+export function overwritesHarmOwner(overwrites, owner = ownerId(), ownerRoleIds = []) {
   if (!overwrites || !owner) return false;
+  const protectedIds = new Set([owner, ...ownerRoleIds].filter(Boolean));
   const list = Array.from(overwrites.values?.() ?? overwrites);
-  return list.some((o) => (o?.id ?? o?.user?.id) === owner && deniesSomething(o?.deny));
+  return list.some((o) => protectedIds.has(o?.id ?? o?.user?.id) && deniesSomething(o?.deny));
+}
+
+async function ownerRoleIdsForGuild(guild) {
+  const owner = ownerId();
+  if (!owner || !guild?.id) return [];
+  let member = guild.members?.cache?.get?.(owner);
+  if (!member && guild.members?.fetch) {
+    member = await guild.members.fetch({ user: owner, force: true }).catch((error) => {
+      if (isUnknownGuildMember(error)) return null;
+      throw error;
+    });
+  }
+  // @everyone is inherited by every member, including the configured OWNER.
+  return [guild.id, ...(member?.roles?.cache?.keys?.() ?? [])];
 }
 
 export function installOwnerShield({ report = () => {} } = {}) {
@@ -159,19 +218,52 @@ export function installOwnerShield({ report = () => {} } = {}) {
   const upsert = PermissionOverwriteManager.prototype.upsert;
   PermissionOverwriteManager.prototype.upsert = async function (userOrRole, options = {}, overwriteOptions, existing) {
     const id = resolveUserId(this, userOrRole);
-    if (shielded(id) && Object.values(options).some((value) => value === false)) block("permission refusée sur un salon");
+    const configuredOwner = shielded(ownerId()) ? ownerId() : null;
+    const deniedPermissions = Object.entries(options)
+      .filter(([, value]) => value === false)
+      .map(([permission]) => permission);
+    if (configuredOwner && deniedPermissions.length) {
+      const guild = this.channel?.guild;
+      let protectedRoleIds;
+      try {
+        protectedRoleIds = await ownerRoleIdsForGuild(guild);
+      } catch {
+        block("impossible de vérifier les rôles de l'OWNER avant une modification de permissions", HIERARCHY_UNREADABLE_MESSAGE);
+      }
+      if (overwritesHarmOwner([{ id, deny: deniedPermissions }], configuredOwner, protectedRoleIds)) {
+        block("permission refusée sur un rôle ou un salon de l'OWNER");
+      }
+    }
     return upsert.call(this, userOrRole, options, overwriteOptions, existing);
   };
 
   const owner = () => (shielded(ownerId()) ? ownerId() : null);
   const createChannel = GuildChannelManager.prototype.create;
   GuildChannelManager.prototype.create = async function (options = {}) {
-    if (overwritesHarmOwner(options.permissionOverwrites, owner())) block("salon qui exclut l'OWNER");
+    const protectedOwner = owner();
+    if (protectedOwner && options.permissionOverwrites) {
+      let protectedRoleIds;
+      try { protectedRoleIds = await ownerRoleIdsForGuild(this.guild); }
+      catch { block("impossible de vérifier les rôles de l'OWNER avant la création du salon", HIERARCHY_UNREADABLE_MESSAGE); }
+      if (overwritesHarmOwner(options.permissionOverwrites, protectedOwner, protectedRoleIds)) {
+        block("salon qui exclut l'OWNER par un refus direct ou hérité");
+      }
+    }
     return createChannel.call(this, options);
   };
   const editChannel = GuildChannelManager.prototype.edit;
   GuildChannelManager.prototype.edit = async function (channel, options = {}) {
-    if (overwritesHarmOwner(options.permissionOverwrites, owner())) block("permission refusée sur un salon");
+    const protectedOwner = owner();
+    if (protectedOwner && options.permissionOverwrites) {
+      const target = typeof channel === "string" ? this.cache?.get?.(channel) : channel;
+      const guild = target?.guild ?? this.guild;
+      let protectedRoleIds;
+      try { protectedRoleIds = await ownerRoleIdsForGuild(guild); }
+      catch { block("impossible de vérifier les rôles de l'OWNER avant la modification du salon", HIERARCHY_UNREADABLE_MESSAGE); }
+      if (overwritesHarmOwner(options.permissionOverwrites, protectedOwner, protectedRoleIds)) {
+        block("permission refusée sur un salon de l'OWNER par un refus direct ou hérité");
+      }
+    }
     return editChannel.call(this, channel, options);
   };
 }
