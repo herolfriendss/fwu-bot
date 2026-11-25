@@ -5,7 +5,8 @@ import { getActivitySnapshot } from "@/lib/activity.functions";
 import { ACTIVITY_STALE_MS, activityTotals, fillActivityDays, type ActivityDay } from "@/lib/activity";
 
 const n = (value: number) => value.toLocaleString("fr-FR");
-const parisDay = (date: Date) => new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Paris" }).format(date);
+// Days are UTC days, as stored by the bot (analytics_daily).
+const utcDay = (date: Date) => date.toISOString().slice(0, 10);
 const shortDay = (day: string) => new Date(`${day}T12:00:00Z`).toLocaleDateString("fr-FR", { day: "numeric", month: "short", timeZone: "UTC" });
 
 export function ActivityPanel({ guildId }: { guildId: string }) {
@@ -24,7 +25,7 @@ export function ActivityPanel({ guildId }: { guildId: string }) {
 
   const captured = new Date(a.capturedAt);
   const stale = Date.now() - captured.getTime() > ACTIVITY_STALE_MS;
-  const days = fillActivityDays(a.daily, parisDay(captured));
+  const days = fillActivityDays(a.daily, utcDay(captured));
   const totals = activityTotals(days);
 
   return (

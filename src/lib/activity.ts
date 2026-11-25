@@ -5,7 +5,7 @@ import { z } from "zod";
 
 const snowflake = z.string().regex(/^\d{5,25}$/);
 const count = (max: number) => z.number().int().min(0).max(max);
-const day = z.string().regex(/^\d{4}-\d{2}-\d{2}$/); // day in Europe/Paris
+const day = z.string().regex(/^\d{4}-\d{2}-\d{2}$/); // UTC day, as stored by the bot in analytics_daily
 
 export const activityMemberSchema = z.object({
   userId: snowflake,
