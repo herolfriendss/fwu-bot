@@ -354,7 +354,7 @@ pgTest("/tempmute : la sanction choisie fixe la durée, tout est enregistré et 
   assert.match(replies.at(-1).content, /exclu temporairement \*\*30 min\*\* pour \*\*Insultes graves\*\*/);
   await handleStaffModerationInteraction(base("sanction", {}), null, { bot: "fwu" });
   const history = replies.at(-1).embeds[0].toJSON();
-  assert.match(history.description, /tempmute\*\* · Insultes graves · 30 min · par <@author> \(fwu\) — message 123/);
+  assert.match(history.description, /\*\*#\d+ · Exclusion \(Insultes graves\) · 30 min\*\* · <t:\d+:d> · par <@author> · fwu\n↳ message 123/, "historique unifié : une seule ligne, avec le numéro d'affaire");
   assert.match(history.footer.text, /1 sanction/);
   // Un membre 100 % ne peut ni sanctionner ni consulter.
   const member100 = world.makeMember("400000000000000010", null, ["100%"], 1);
