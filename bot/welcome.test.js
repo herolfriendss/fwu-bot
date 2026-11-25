@@ -31,3 +31,14 @@ test("welcome payload uses FWU dark red branding and only pings the joining memb
   assert.deepEqual(payload.allowedMentions, { parse: [], users: ["123456789012345678"] });
   assert.equal(embed.fields.length, 2);
 });
+
+
+test("departure message is opt-in and reuses the configured welcome channel by default", async () => {
+  const { buildDeparturePayload } = await import("./welcome.js");
+  assert.equal(buildDeparturePayload(member, { leaveEnabled: false, channelId: "123456789012345679" }), null);
+  const result = buildDeparturePayload(member, { channelId: "123456789012345679", leaveEnabled: true, leaveMessage: "Au revoir {user}, à bientôt sur {server} !" }, 1_800_000_000_000);
+  assert.equal(result.channelId, "123456789012345679");
+  const embed = result.payload.embeds[0].toJSON();
+  assert.match(embed.description, /Au revoir <@123456789012345678>, à bientôt sur FWU/);
+  assert.deepEqual(result.payload.allowedMentions, { parse: [], users: ["123456789012345678"] });
+});
