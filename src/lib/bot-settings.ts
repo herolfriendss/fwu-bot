@@ -81,6 +81,8 @@ export type BotSettings = {
   tempVoice: TempVoiceSettings;
   automation: AutomationSettings;
   liveAlerts: LiveAlertsSettings;
+  /** Public showcase page of the server on the website. Off by default; the leaderboard shows member names, so it is a separate opt-in. */
+  publicPage: { enabled: boolean; showLeaderboard: boolean };
   dog?: DogSettings;
   wakeup?: WakeupSettings;
 };
@@ -130,6 +132,7 @@ export const DEFAULT_SETTINGS: BotSettings = {
   },
   automation: { autoRoleIds: [], welcomeDm: false, welcomeDmMessage: "Bienvenue sur **{server}** !" },
   liveAlerts: { enabled: false, channelId: null, animated: true, mentionRoleId: null, creators: [] },
+  publicPage: { enabled: false, showLeaderboard: false },
 };
 
 const str = (v: unknown, max: number) => String(v ?? "").trim().slice(0, max);
@@ -247,6 +250,7 @@ function sanitizeCoreSettings(raw: unknown): BotSettings {
         return [{ id: str(c?.id, 40) || `creator-${index}`, platform, displayName, feedUrl }];
       }),
     },
+    publicPage: { enabled: bool(r.publicPage?.enabled, false), showLeaderboard: bool(r.publicPage?.showLeaderboard, false) },
   };
 }
 
@@ -320,7 +324,7 @@ const escape = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
  */
 export const DASHBOARD_SECTION_KEYS = [
   "logs", "keywords", "filter", "spam", "welcome", "ai",
-  "guildGuard", "moderation", "verification", "tickets", "tempVoice", "automation", "liveAlerts", "dog", "wakeup",
+  "guildGuard", "moderation", "verification", "tickets", "tempVoice", "automation", "liveAlerts", "dog", "wakeup", "publicPage",
 ] as const;
 export type DashboardSectionKey = (typeof DASHBOARD_SECTION_KEYS)[number];
 export type DashboardSectionPatch = Partial<Pick<BotSettings, DashboardSectionKey>>;
@@ -373,6 +377,7 @@ export const SECTION_LABELS: Record<DashboardSectionKey, string> = {
   liveAlerts: "Alertes de démarrage LIVE",
   dog: "DOG — laisses par SYS+",
   wakeup: "WAKEUP",
+  publicPage: "Page publique",
 };
 
 export type BotModuleKey = (typeof BOT_MODULE_SETTINGS_KEYS)[number];

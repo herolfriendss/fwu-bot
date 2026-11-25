@@ -67,7 +67,7 @@ export const SYSP_LAYOUT: SubcommandLayoutEntry[] = [
   { group: "staff", description: "Responsables et hiérarchie du staff", members: ["supervisor-set", "supervisor-remove", "supervisor-list"] },
   { group: "whitelist", description: "Exemption WHITELIST (propriétaire)", members: ["whitelist-add", "whitelist-remove", "whitelist-list"] },
   { group: "outils", description: "Ghost, composer, recherche, blueprints, clone, studio, packs", members: ["ghost", "composer", "search", "blueprint", "clone", "studio", "pack"] },
-  { group: "diagnostic", description: "Audit ACL, santé du bot et couverture des logs (lecture seule)", members: ["acl", "sante", "logs-couverture", "matrice", "economie", "bots"] },
+  { group: "diagnostic", description: "Audit ACL, santé du bot et couverture des logs (lecture seule)", members: ["acl", "sante", "logs-couverture", "matrice", "economie", "bots", "installation"] },
   { group: "market", description: "Marketplace d'extensions (désactivé par défaut)", members: ["catalog", "installed", "publish", "withdraw", "submit", "validate", "reject", "install", "uninstall", "rollback"] },
 ];
 
@@ -395,13 +395,13 @@ export const SLASH_COMMANDS: SlashCommandDef[] = [
   {
     name: "sysp",
     description: "Gestion du système SYS+",
-    usage: "/sysp panel|audit|role|add|remove|permissions|whitelist-*|supervisor-*|diagnostic acl|sante|logs-couverture|matrice|economie|bots",
+    usage: "/sysp panel|audit|role|add|remove|permissions|whitelist-*|supervisor-*|diagnostic acl|sante|logs-couverture|matrice|economie|bots|installation",
     category: "SYS+",
     dmPermission: false,
     requiresBotProcess: true,
     options: groupSubcommands([
       sub("panel", "Ouvre le centre de contrôle SYS+"),
-      sub("audit", "Affiche les dernières actions staff"),
+      sub("audit", "Affiche les dernières actions staff (filtre par membre ou action)", [opt(6, "membre", "Actions faites par ce membre ou le visant"), opt(3, "action", "Début du nom d’action, ex. whitelist, adminplus", { max_length: 60 })]),
       sub("role", "Configure le rôle Perm SYS+", [opt(8, "role", "Rôle à attribuer comme Perm SYS+", { required: true })]),
       sub("admin-role", "Configure le rôle ADMIN+ (permissions administratives limitées)", [opt(8, "role", "Rôle à attribuer comme ADMIN+", { required: true })]),
       sub("whitelist-role", "Configure le rôle exact WHITELIST (propriétaire uniquement)", [opt(8, "role", "Rôle nommé WHITELIST", { required: true })]),
@@ -514,6 +514,7 @@ export const SLASH_COMMANDS: SlashCommandDef[] = [
       sub("matrice", "Matrice des permissions par niveau (calculée depuis le code)"),
       sub("economie", "Intégrité du grand livre PND et signaux de fraude"),
       sub("bots", "Bots FWU : quel bot traite chaque domaine en ce moment"),
+      sub("installation", "Bilan : permissions et place du rôle de chaque bot, base centrale, sauvegarde"),
       sub("add", "Attribue le rôle SYS+ à un membre (propriétaire)", [opt(6, "membre", "Membre concerné", { required: true })]),
       sub("remove", "Retire le rôle SYS+ à un membre (propriétaire)", [opt(6, "membre", "Membre concerné", { required: true })]),
       sub("permissions", "Consulte les scopes ADMIN+"),
@@ -1665,6 +1666,56 @@ const ALL_TIER_CHOICES: SlashOptionChoice[] = [
 ];
 
 export const EXTRA_SLASH_COMMANDS: SlashCommandDef[] = [
+  {
+    name: "anim",
+    description: "Animation du serveur : salon de comptage, mur des célébrités, question du jour",
+    usage: "/anim comptage salon|etat|classement|desactiver · /anim vedette config|etat|desactiver · /anim qdj config|etat|ajouter|maintenant|sans_role|desactiver",
+    category: "Communauté",
+    dmPermission: false,
+    requiresBotProcess: true,
+    options: [
+      {
+        type: 2, name: "comptage", description: "Salon où l'on compte 1, 2, 3… chacun son tour",
+        options: [
+          sub("etat", "Où en est le comptage, et le record"),
+          sub("classement", "Les meilleurs compteurs du serveur"),
+          sub("salon", "Staff : choisit le salon de comptage et l'active", [opt(7, "salon", "Salon de comptage", { required: true, channel_types: [0] })]),
+          sub("desactiver", "Staff : arrête le comptage (le record est gardé)"),
+        ],
+      },
+      {
+        type: 2, name: "vedette", description: "Mur des célébrités : les messages les plus étoilés",
+        options: [
+          sub("etat", "Réglages et statistiques du mur"),
+          sub("config", "Staff : salon du mur, emoji et nombre d'étoiles", [
+            opt(7, "salon", "Salon où les messages sont recopiés", { required: true, channel_types: [0, 5] }),
+            opt(3, "emoji", "Emoji qui compte (⭐ par défaut)", { max_length: 64 }),
+            opt(4, "seuil", "Nombre d'étoiles nécessaires (3 par défaut)", { min_value: 1, max_value: 50 }),
+            opt(5, "auto_etoile", "L'auteur peut-il voter pour son propre message ? (non par défaut)"),
+          ]),
+          sub("desactiver", "Staff : arrête le mur (les messages publiés restent)"),
+        ],
+      },
+      {
+        type: 2, name: "qdj", description: "Une question publiée chaque jour, avec un fil pour répondre",
+        options: [
+          sub("etat", "Réglages de la question du jour"),
+          sub("config", "Staff : salon, heure (Paris), rôle mentionné et fil", [
+            opt(7, "salon", "Salon de la question du jour", { required: true, channel_types: [0, 5] }),
+            opt(4, "heure", "Heure de publication, heure de Paris (18 par défaut)", { min_value: 0, max_value: 23 }),
+            opt(8, "role", "Rôle mentionné à chaque question"),
+            opt(5, "fil", "Ouvrir un fil de réponses (oui par défaut)"),
+          ]),
+          sub("ajouter", "Staff : ajoute une question, publiée avant les questions intégrées", [
+            opt(3, "question", "La question", { required: true, min_length: 5, max_length: 300 }),
+          ]),
+          sub("maintenant", "Staff : publie la question du jour tout de suite"),
+          sub("sans_role", "Staff : ne plus mentionner de rôle"),
+          sub("desactiver", "Staff : arrête la question du jour"),
+        ],
+      },
+    ],
+  },
   {
     name: "afk",
     description: "RESUME : signale ton absence et retrouve ce qui s’est passé pendant ce temps",
