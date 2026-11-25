@@ -4,6 +4,15 @@ Date de cadrage : 25 novembre 2026
 Branche de travail : `codex/fwu-hardening-2026-11-26`  
 Pull request : [#25](https://github.com/herolfriendss/her-v3-/pull/25)
 
+## État d'avancement — 25 novembre 2026
+
+- Accueil et départ : messages configurables, avec destinations choisies parmi les salons existants.
+- Tickets natifs : parcours de création et de prise en charge renforcé ; les salons privés ne sont créés qu'à l'ouverture volontaire d'un ticket.
+- Logs : cycle de vie des tickets et événements membres relayés ; vérification du serveur de logs en lecture seule, sans provisionner de rôles, salons ou catégories.
+- Commandes : 15 actions du lecteur musical regroupées sous `/music player`, et `/access`, `/unaccess`, `/pv` regroupées sous `/voice`. Les préfixes historiques restent compatibles. Le catalogue est ramené à 129 racines uniques.
+- Identité : pack de 16 PNG transparents préparés ; aucun téléversement Discord.
+- Production : aucun déploiement ni redémarrage effectué.
+
 ## Objectif
 
 Faire évoluer l'écosystème FWU complet (FWU, GUARD, FDPDLAVOC, SUCK ME, LE FISC et Invest +) sans régression, sans multiplier inutilement les commandes et sans modifier la configuration du serveur Discord actuellement en fonctionnement.
