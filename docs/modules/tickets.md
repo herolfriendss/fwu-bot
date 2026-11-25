@@ -10,3 +10,10 @@ Décision produit à confirmer : activer ou non les transcriptions et choisir le
 ## Limite de configuration du serveur
 
 Le bot utilise uniquement la catégorie et le rôle support déjà sélectionnés dans les réglages. La commande de panneau publie le panneau dans le salon existant choisi par l'administrateur. Le bot ne provisionne pas de catégorie, ne réorganise pas les salons et ne modifie aucun rôle existant. Un salon privé de ticket est créé uniquement à la demande d'un membre via le bouton d'ouverture, puis supprimé à la fermeture après les opérations prévues. Si aucun emplacement existant n'est configuré, la fonctionnalité signale le prérequis au lieu de créer une structure serveur.
+
+## Prérequis explicites
+
+- Les tickets doivent être activés dans les réglages des modules.
+- Un rôle support déjà existant doit être sélectionné avant de publier le panneau ou d’ouvrir un ticket. Le bot ne crée, ne renomme, ne recolore et ne modifie aucun rôle.
+- La catégorie reste facultative : si aucune catégorie existante n’est choisie, le salon privé du ticket est créé à la racine du serveur uniquement à la demande du membre.
+- `=ticket panel` et `/ticket panel` ne modifient plus automatiquement les réglages. Ils publient seulement le panneau dans le salon textuel où la commande est exécutée.
