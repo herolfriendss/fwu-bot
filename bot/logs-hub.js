@@ -193,9 +193,11 @@ export function inspectLogsHub(guild) {
   if (!guild || guild.id !== LOGS_HUB_GUILD_ID)
     throw new Error("Serveur central de logs incorrect.");
 
+  const activeSources = new Set(ACTIVE_SOURCE_GUILD_IDS.map(logSourceForGuild).filter(Boolean));
+  const requiredChannels = ALL_LOG_CHANNELS.filter((spec) => activeSources.has(spec.source));
   const channels = new Map();
   const missing = [];
-  for (const spec of ALL_LOG_CHANNELS) {
+  for (const spec of requiredChannels) {
     const channel = guild.channels.cache.find(
       (item) => item.name === spec.name && item.isTextBased(),
     );

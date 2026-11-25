@@ -14,6 +14,9 @@ import {
   MZ_LOG_ROLES,
   LOGS_HUB_GUILD_ID,
   RESERVED_SOURCE_GUILD_ID,
+  ACTIVE_SOURCE_GUILD_IDS,
+  logSourceForGuild,
+  inspectLogsHub,
   logRolesForCategory,
 } from "./logs-hub.js";
 
@@ -153,7 +156,8 @@ test("logs hub inspection is read-only and reports missing existing channels", a
   };
   const report = inspectLogsHub(guild);
   assert.equal(report.ready, false);
-  assert.equal(report.missing.length, ALL_LOG_CHANNELS.length);
+  const activeSources = new Set(ACTIVE_SOURCE_GUILD_IDS.map(logSourceForGuild).filter(Boolean));
+  assert.equal(report.missing.length, ALL_LOG_CHANNELS.filter((spec) => activeSources.has(spec.source)).length);
   assert.equal(typeof guild.channels.create, "undefined");
   assert.equal(typeof guild.roles.create, "undefined");
 });
