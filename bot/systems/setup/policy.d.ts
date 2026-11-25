@@ -1,0 +1,22 @@
+export type SetupFieldKind = "boolean" | "integer" | "enum" | "role" | "textChannel" | "category" | "voiceChannel" | "roleList" | "liveCreators" | "text";
+export type SetupField = {
+  key: string;
+  label: string;
+  kind: SetupFieldKind;
+  min?: number;
+  max?: number;
+  values?: string[];
+  choices?: Record<string, string>;
+  aliases?: Record<string, string>;
+  placeholder?: string;
+  required?: boolean;
+};
+export type SetupModule = { label: string; description: string; fields: SetupField[] };
+export const SETUP_MODULES: Readonly<Record<string, SetupModule>>;
+export function parseSetupId(value: unknown, kind: string): string | null;
+export function parseSetupBoolean(value: unknown): boolean;
+export function setupHasToggle(module: string): boolean;
+export function setupFormFields(module: string): SetupField[];
+export function setupRequirementError(module: string, next: Record<string, unknown>): string | null;
+export function parseSetupModule(module: string, rawValues: Record<string, unknown>, current?: Record<string, unknown>): Record<string, unknown>;
+export function setupChangedKeys(previous: Record<string, unknown> | null | undefined, next: Record<string, unknown>): string[];

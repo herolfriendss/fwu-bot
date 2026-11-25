@@ -67,7 +67,7 @@ export const SYSP_LAYOUT: SubcommandLayoutEntry[] = [
   { group: "staff", description: "Responsables et hiérarchie du staff", members: ["supervisor-set", "supervisor-remove", "supervisor-list"] },
   { group: "whitelist", description: "Exemption WHITELIST (propriétaire)", members: ["whitelist-add", "whitelist-remove", "whitelist-list"] },
   { group: "outils", description: "Ghost, composer, recherche, blueprints, clone, studio, packs", members: ["ghost", "composer", "search", "blueprint", "clone", "studio", "pack"] },
-  { group: "diagnostic", description: "Audit ACL, santé du bot et couverture des logs (lecture seule)", members: ["acl", "sante", "logs-couverture", "matrice", "economie", "bots"] },
+  { group: "diagnostic", description: "Audit ACL, santé du bot et couverture des logs (lecture seule)", members: ["acl", "sante", "logs-couverture", "matrice", "economie", "bots", "installation"] },
   { group: "market", description: "Marketplace d'extensions (désactivé par défaut)", members: ["catalog", "installed", "publish", "withdraw", "submit", "validate", "reject", "install", "uninstall", "rollback"] },
 ];
 
@@ -395,13 +395,13 @@ export const SLASH_COMMANDS: SlashCommandDef[] = [
   {
     name: "sysp",
     description: "Gestion du système SYS+",
-    usage: "/sysp panel|audit|role|add|remove|permissions|whitelist-*|supervisor-*|diagnostic acl|sante|logs-couverture|matrice|economie|bots",
+    usage: "/sysp panel|audit|role|add|remove|permissions|whitelist-*|supervisor-*|diagnostic acl|sante|logs-couverture|matrice|economie|bots|installation",
     category: "SYS+",
     dmPermission: false,
     requiresBotProcess: true,
     options: groupSubcommands([
       sub("panel", "Ouvre le centre de contrôle SYS+"),
-      sub("audit", "Affiche les dernières actions staff"),
+      sub("audit", "Affiche les dernières actions staff (filtre par membre ou action)", [opt(6, "membre", "Actions faites par ce membre ou le visant"), opt(3, "action", "Début du nom d’action, ex. whitelist, adminplus", { max_length: 60 })]),
       sub("role", "Configure le rôle Perm SYS+", [opt(8, "role", "Rôle à attribuer comme Perm SYS+", { required: true })]),
       sub("admin-role", "Configure le rôle ADMIN+ (permissions administratives limitées)", [opt(8, "role", "Rôle à attribuer comme ADMIN+", { required: true })]),
       sub("whitelist-role", "Configure le rôle exact WHITELIST (propriétaire uniquement)", [opt(8, "role", "Rôle nommé WHITELIST", { required: true })]),
@@ -514,6 +514,7 @@ export const SLASH_COMMANDS: SlashCommandDef[] = [
       sub("matrice", "Matrice des permissions par niveau (calculée depuis le code)"),
       sub("economie", "Intégrité du grand livre PND et signaux de fraude"),
       sub("bots", "Bots FWU : quel bot traite chaque domaine en ce moment"),
+      sub("installation", "Bilan : permissions et place du rôle de chaque bot, base centrale, sauvegarde"),
       sub("add", "Attribue le rôle SYS+ à un membre (propriétaire)", [opt(6, "membre", "Membre concerné", { required: true })]),
       sub("remove", "Retire le rôle SYS+ à un membre (propriétaire)", [opt(6, "membre", "Membre concerné", { required: true })]),
       sub("permissions", "Consulte les scopes ADMIN+"),
