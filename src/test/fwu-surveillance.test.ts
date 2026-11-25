@@ -1,7 +1,6 @@
 // @vitest-environment node
 // Surveillance extérieure des bots (scripts/installation/fwu-surveillance.mjs) : logique pure.
 import { describe, expect, it } from "vitest";
-// @ts-expect-error script Node sans types
 import {
   evaluate,
   parsePm2List,
