@@ -142,25 +142,25 @@ if [[ -f "$FWU_ENV_FILE" ]] && ! grep -qE '^SHARED_DATABASE_URL=postgres' "$FWU_
     echo "⚠️ Base centrale non installée (sudo ou dnf indisponible) : relance sudo bash $H/her-v5-production/deploy/oracle/install-shared-db.sh"
   fi
 fi
-# Préfixes : un seul fichier pour les 5 bots, créé une fois, jamais écrasé.
+# Préfixes : un seul fichier pour les 6 bots, créé une fois, jamais écrasé.
 SHARED_DIR="$(grep -E '^PND_DATA_DIR=' "$FWU_ENV_FILE" 2>/dev/null | tail -n 1 | cut -d= -f2- | tr -d '"'"'"'[:space:]' || true)"
 if [[ -n "$SHARED_DIR" && -d "$SHARED_DIR" && ! -f "$SHARED_DIR/bots.json" && -f "$H/her-v5-production/bot/config/bots.example.json" ]]; then
   install -m 600 "$H/her-v5-production/bot/config/bots.example.json" "$SHARED_DIR/bots.json"
-  echo "Préfixes : GUARD +, FDPDLAVOC ;, SUCK ME =, LE FISC - ($SHARED_DIR/bots.json)"
+  echo "Préfixes : GUARD +, FDPDLAVOC ;, SUCK ME =, LE FISC -, Invest + $ ($SHARED_DIR/bots.json)"
 fi
 
-status running "Mise à jour des 4 bots"
+status running "Mise à jour des 5 bots"
 echo "==> Bots"
 cd "$H/fwu-bots" || fail "Dossier des bots introuvable."
 broken=""; rolled=""
 # Chaque bot : copie de l'ancienne version, mise à jour, et retour arrière si son installateur échoue.
-for pair in GUARD:guard FDPDLAVOC:fdpdlavoc SUCK-ME:suckme LE-FISC:fisc; do
+for pair in GUARD:guard FDPDLAVOC:fdpdlavoc SUCK-ME:suckme LE-FISC:fisc INVEST-PLUS:investplus; do
   z="${pair%%:*}"; b="${pair##*:}"
   echo "--- $b"
   bash "$REPO/scripts/installation/fwu-maj-un-bot.sh" "$H/FWU-installation/FWU-$z.zip" "$H/fwu-bots" "$b"
   case $? in
     0) ;;
-    2) broken="$broken $b(sans token)" ;;
+    2) [[ "$b" == investplus ]] && echo "Invest + passé (pas de token, facultatif)." || broken="$broken $b(sans token)" ;;
     4) rolled="$rolled $b" ;;
     *) broken="$broken $b" ;;
   esac

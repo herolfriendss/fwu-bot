@@ -8,9 +8,9 @@
 #
 # Déroulé de « migrer » :
 #   1. prépare la nouvelle machine (Node 24, PM2, FFmpeg, yt-dlp, PostgreSQL 16) — bots toujours en ligne ;
-#   2. arrête les 5 bots sur l'ancienne (le site reste allumé), sauvegarde base + données ;
+#   2. arrête les bots sur l'ancienne (le site reste allumé), sauvegarde base + données ;
 #   3. copie tout vers la nouvelle (via cet ordinateur : aucune clé n'est posée sur les serveurs) ;
-#   4. restaure la base centrale, les .env, les données ; réinstalle site + 5 bots ; démarrage au reboot ;
+#   4. restaure la base centrale, les .env, les données ; réinstalle site + bots ; démarrage au reboot ;
 #   5. vérifie, puis retire les bots de l'ancienne (pour qu'ils ne redémarrent jamais en double).
 # Aucun secret n'est affiché. L'ancienne machine n'est jamais effacée.
 set -Eeuo pipefail
@@ -43,7 +43,7 @@ if [[ "$MODE" == retour ]]; then
 set -e
 for c in "$HOME"/.nvm/versions/node/*/bin; do [[ -x "$c/node" ]] && PATH="$c:$PATH"; done
 cd ~/her-v5-production && pm2 startOrReload ecosystem.v5.config.cjs --update-env >/dev/null
-for b in guard fdpdlavoc suckme fisc; do
+for b in guard fdpdlavoc suckme fisc investplus; do
   [[ -f ~/fwu-bots/fwu-$b/ecosystem.config.cjs ]] && (cd ~/fwu-bots/fwu-$b && pm2 startOrReload ecosystem.config.cjs --update-env >/dev/null)
 done
 pm2 save >/dev/null
@@ -111,7 +111,7 @@ Site         : $(case "$SITE_KIND" in
 esac)
 nginx        : $NGINX$([[ -n "$CERTS" ]] && echo " · certificats : $CERTS")
 
-Pendant « migrer » : les 5 bots sont arrêtés environ 15 à 30 min (copie + installation),
+Pendant « migrer » : les bots sont arrêtés environ 15 à 30 min (copie + installation),
 le site reste en ligne sur l'ancien VPS. En cas de problème : bash $0 retour
 PLAN
 
@@ -173,7 +173,7 @@ on_old "bash -s -- '$NGINX'" <<'REMOTE'
 set -Eeuo pipefail
 NGINX="$1"
 for c in "$HOME"/.nvm/versions/node/*/bin; do [[ -x "$c/node" ]] && PATH="$c:$PATH"; done
-pm2 stop her-v5-bot fwu-guard fwu-fdpdlavoc fwu-suckme fwu-fisc >/dev/null 2>&1 || true
+pm2 stop her-v5-bot fwu-guard fwu-fdpdlavoc fwu-suckme fwu-fisc fwu-investplus >/dev/null 2>&1 || true
 pm2 save >/dev/null 2>&1 || true
 echo "Bots arrêtés sur l'ancien VPS."
 mkdir -p ~/fwu-migration && rm -f ~/fwu-migration/*
@@ -258,11 +258,13 @@ PND_SUPABASE_MIGRATIONS_APPLIED=YES bash scripts/deploy-pnd-v5-oracle.sh > ~/fwu
   || { tail -n 40 ~/fwu-migration/deploy.log; echo "Déploiement de FWU échoué (journal : ~/fwu-migration/deploy.log)."; exit 1; }
 echo "FWU et le site sont en ligne."
 
-echo "▶ Les 4 bots"
+echo "▶ Les bots spécialisés"
 broken=""
-for b in guard fdpdlavoc suckme fisc; do
+for b in guard fdpdlavoc suckme fisc investplus; do
   [[ -f "$HOME/fwu-bots/fwu-$b/installer.sh" ]] || continue
-  bash "$HOME/fwu-bots/fwu-$b/installer.sh" </dev/null > ~/fwu-migration/install-$b.log 2>&1 || broken="$broken $b"
+  rc=0; bash "$HOME/fwu-bots/fwu-$b/installer.sh" </dev/null > ~/fwu-migration/install-$b.log 2>&1 || rc=$?
+  # Invest + est facultatif : sans token (code 2), il est simplement passé.
+  [[ "$rc" == 0 || ( "$b" == investplus && "$rc" == 2 ) ]] || broken="$broken $b"
 done
 [[ -z "$broken" ]] || { echo "Bots en erreur :$broken (journaux : ~/fwu-migration/install-*.log)"; exit 1; }
 
@@ -277,33 +279,33 @@ STATUS="$(on_new 'bash -s' <<'REMOTE'
 export PATH=/usr/local/bin:$PATH
 pm2 jlist 2>/dev/null | node -e '
 let raw="";process.stdin.on("data",c=>raw+=c).on("end",()=>{
-  const want=["her-v5-bot","her-v5-web","fwu-guard","fwu-fdpdlavoc","fwu-suckme","fwu-fisc"];
+  const want=["her-v5-bot","her-v5-web","fwu-guard","fwu-fdpdlavoc","fwu-suckme","fwu-fisc","fwu-investplus"];
   const rows=JSON.parse(raw||"[]");
   for (const name of want){const p=rows.find(r=>r.name===name);console.log(`${name}=${p?.pm2_env?.status??"absent"}`);}
 });'
 sleep 15
-for b in her-v5-bot fwu-guard fwu-fdpdlavoc fwu-suckme fwu-fisc; do
+for b in her-v5-bot fwu-guard fwu-fdpdlavoc fwu-suckme fwu-fisc fwu-investplus; do
   echo "$b.db=$(pm2 logs "$b" --nostream --lines 200 2>/dev/null | grep -oE 'shared_db_(up|down|not_configured)' | tail -n 1)"
 done
 echo "web.http=$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:3000/ || echo 000)"
 REMOTE
 )"
 printf '%s\n' "$STATUS" | sed 's/=/ : /'
-if printf '%s\n' "$STATUS" | grep -qE '^(her-v5-bot|her-v5-web|fwu-[a-z]+)=(stopped|errored|absent)'; then
+if printf '%s\n' "$STATUS" | grep -vE '^fwu-investplus=absent$' | grep -qE '^(her-v5-bot|her-v5-web|fwu-[a-z]+)=(stopped|errored|absent)'; then
   fail "Un processus n'est pas en ligne sur la nouvelle machine. Rien n'est retiré de l'ancienne. Pour revenir en arrière : bash $0 retour"
 fi
 
 step "Retrait des bots de l'ancien VPS (pour qu'ils ne redémarrent jamais en double)"
 on_old 'bash -s' <<'REMOTE'
 for c in "$HOME"/.nvm/versions/node/*/bin; do [[ -x "$c/node" ]] && PATH="$c:$PATH"; done
-pm2 delete her-v5-bot fwu-guard fwu-fdpdlavoc fwu-suckme fwu-fisc >/dev/null 2>&1 || true
+pm2 delete her-v5-bot fwu-guard fwu-fdpdlavoc fwu-suckme fwu-fisc fwu-investplus >/dev/null 2>&1 || true
 pm2 save >/dev/null 2>&1 || true
 echo "Ancien VPS : bots retirés (le site her-v5-web y reste allumé ; dossiers et données conservés)."
 REMOTE
 
 cat <<END
 
-✅ Migration terminée : les 5 bots et le site tournent sur $NEW.
+✅ Migration terminée : les bots et le site tournent sur $NEW.
 $(case "$SITE_KIND" in
   domaine) echo "👉 À faire : chez ton fournisseur de domaine, fais pointer $SITE_HOST (enregistrement A) vers $NEW.
    Ensuite, sur l'ancien VPS : pm2 stop her-v5-web && pm2 save" ;;
