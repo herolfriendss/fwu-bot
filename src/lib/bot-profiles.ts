@@ -1,6 +1,6 @@
 // FWU multi-bot ownership map, shared by the dashboard and every bot process.
-// Decided by the owner on 2026-11-23: FWU keeps the historical application and
-// token, and four specialised applications take over one domain each.
+// Five core applications plus optional Invest +. FWU keeps its existing
+// application and token; each specialised application owns one command domain.
 // Plain, erasable TypeScript only: the Oracle bot imports this file directly.
 
 export type BotProfileId = "fwu" | "guard" | "fdpdlavoc" | "suckme" | "fisc" | "investplus";
@@ -13,6 +13,8 @@ export type BotProfile = {
   /** Optional per-bot guild allowlist (falls back to V4_ALLOWED_GUILD_IDS). */
   guildAllowlistEnv: string;
   summary: string;
+  /** True when this application may be absent without degrading the five core FWU bots. */
+  optional?: boolean;
 };
 
 export const BOT_PROFILES: Record<BotProfileId, BotProfile> = {
@@ -58,6 +60,7 @@ export const BOT_PROFILES: Record<BotProfileId, BotProfile> = {
     tokenEnv: "PND_INVESTPLUS_TOKEN",
     guildAllowlistEnv: "PND_INVESTPLUS_GUILD_IDS",
     summary: "Abonnements des membres, espace privé par membre, administration des formules",
+    optional: true,
   },
 };
 
