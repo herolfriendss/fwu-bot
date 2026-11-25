@@ -38,8 +38,17 @@ export const Route = createFileRoute("/api/public/bot-sync")({
         const { checkBotSecret } = await import("@/lib/bot-settings.server");
         if (!checkBotSecret(request)) return json({ error: "unauthorized" }, 401);
         let body: { action?: unknown; guildId?: unknown; userId?: unknown; memoryEnabled?: unknown; roleId?: unknown; actorId?: unknown; intelligenceEnabled?: unknown; intelligenceChannelId?: unknown; applicationId?: unknown; name?: unknown; permissions?: unknown; prompt?: unknown; instructions?: unknown; author?: unknown; module?: unknown; settings?: unknown; changes?: unknown; expected?: unknown };
+        let rawBody: string;
         try {
-          body = await request.json();
+          rawBody = await request.text();
+        } catch {
+          return json({ error: "invalid body" }, 400);
+        }
+        if (Buffer.byteLength(rawBody, "utf8") > 256_000) {
+          return json({ error: "request body too large" }, 413);
+        }
+        try {
+          body = JSON.parse(rawBody);
         } catch {
           return json({ error: "invalid json" }, 400);
         }
