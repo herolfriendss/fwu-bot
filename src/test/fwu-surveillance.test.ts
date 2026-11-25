@@ -111,7 +111,7 @@ describe("surveillance FWU", () => {
       { processes: allOnline(), outbox: 0, diskPercent: 50, backup: null },
       0,
     );
-    expect(r.state["processes"]["fwu-investplus"]?.monitored).toBe(true);
+    expect(processStates(r.state)["fwu-investplus"]?.monitored).toBe(true);
 
     const processes = allOnline();
     delete processes["fwu-investplus"];
