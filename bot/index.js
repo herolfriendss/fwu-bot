@@ -1,5 +1,6 @@
 // Bot Discord 24h/24 — à lancer sur ton VPS. Les réglages viennent du site (onglet « Bot 24h/24 »).
 import { Client, GatewayIntentBits, Partials, PermissionFlagsBits, REST } from "discord.js";
+import { buildActivitySnapshot } from "./activity-snapshot.js";
 import { existsSync } from "node:fs";
 // The dashboard and the Oracle bot share one command definition file. In the
 // repository it lives in ../src/lib; the public source archive ships a copy at
@@ -183,6 +184,7 @@ const API = `${SITE_URL.replace(/\/$/, "")}/api/public/bot-sync`;
 const AUTH = { Authorization: `Bearer ${BOT_SYNC_SECRET}` };
 const STATUS_API = `${SITE_URL.replace(/\/$/, "")}/api/public/bot-status`;
 const ECONOMY_API = `${SITE_URL.replace(/\/$/, "")}/api/public/economy-snapshot`;
+const ACTIVITY_API = `${SITE_URL.replace(/\/$/, "")}/api/public/activity-snapshot`;
 // Optional isolation allowlist. Empty = accept every guild, but each guild's
 // data remains isolated by guild_id in SQLite and in bot_settings.
 const CONFIGURED_GUILDS = filterInactiveSourceGuilds(
@@ -326,6 +328,35 @@ const client = new Client({
   intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildVoiceStates, GatewayIntentBits.GuildMessages, GatewayIntentBits.GuildMessageReactions, GatewayIntentBits.GuildInvites, GatewayIntentBits.MessageContent, GatewayIntentBits.GuildMembers, GatewayIntentBits.GuildModeration, GatewayIntentBits.GuildWebhooks],
   partials: [Partials.Channel, Partials.Message, Partials.Reaction],
 });
+
+let activityReporting = false;
+let activitySnapshotReported = false;
+/** Classement XP et activité pour le site : un instantané borné par serveur (format du 25/11/2026). */
+async function reportActivity() {
+  if (activityReporting || !client.isReady()) return;
+  activityReporting = true;
+  try {
+    const snapshots = client.guilds.cache
+      .filter((guild) => guildAllowed(guild.id, ALLOWED_GUILDS) && !isLogsHub(guild.id))
+      .map((guild) => buildActivitySnapshot(guild.id, guild));
+    if (!snapshots.length) return;
+    const res = await fetch(ACTIVITY_API, {
+      method: "POST",
+      headers: { ...AUTH, "Content-Type": "application/json" },
+      signal: AbortSignal.timeout(15_000),
+      body: JSON.stringify({ snapshots }),
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    if (!activitySnapshotReported) {
+      activitySnapshotReported = true;
+      record("activity_snapshot_ok");
+    }
+  } catch {
+    record("activity_snapshot_error");
+  } finally {
+    activityReporting = false;
+  }
+}
 
 let economyReporting = false;
 let economySnapshotReported = false;
@@ -1156,6 +1187,9 @@ client.once("clientReady", () => {
   liveAlertsTimer.unref?.();
   const economyTimer = setInterval(() => { if (serves("fisc")) void reportEconomy(); }, 5 * 60_000);
   economyTimer.unref?.();
+  if (serves("fwu")) void reportActivity();
+  const activityTimer = setInterval(() => { if (serves("fwu")) void reportActivity(); }, 15 * 60_000);
+  activityTimer.unref?.();
   const auctionSettlementTimer = setInterval(() => {
     if (!client.isReady() || !serves("fisc")) return;
     void settleExpiredEconomyAuctions(Date.now(), async (transfer) => {
