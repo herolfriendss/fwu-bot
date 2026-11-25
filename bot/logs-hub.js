@@ -1,4 +1,4 @@
-// 1942 — central log server provisioning and routing.
+// FWU — read-only central log verification and routing.
 import { buildLogAllowedMentions } from "./logs.js";
 export const LOGS_HUB_GUILD_ID = "1570484435239833701";
 export const ACTIVE_SOURCE_GUILD_IDS = Object.freeze(["1562643485981544559"]);

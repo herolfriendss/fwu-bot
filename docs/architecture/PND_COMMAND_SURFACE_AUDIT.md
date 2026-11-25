@@ -18,19 +18,147 @@
 | LE FISC | 32 | 2 | 34/100 | OK |
 | Invest + | 2 | 2 | 4/100 | OK |
 
-## FDPDLAVOC — racines regroupées
+## FWU
 
-- /music player : play, pause, resume, skip, stop, queue, nowplaying, volume, loop, shuffle, clearqueue, remove, join, leave, panel
-- /voice access : grant, revoke
-- /voice private : activer, liste, retirer
-- /voc : gestion des salons vocaux temporaires et commandes vocales existantes
+- /tempmute
+- /unmute
+- /warn
+- /warnings
+- /sanction
+- /sanction-type
+- /quota
+- /embed
+- /reglement
+- /screening
+
+## GUARD
+
+- /guildguard
+- /kick
+- /ban
+- /blacklist
+- /purge
+- /nettoyer
+- /slowmode
+- /lock
+- /unlock
+- /verify
+- /antinuke
+- /automod
+- /casier
+- /quarantaine
+- /bouclier
+
+## FDPDLAVOC
+
+- /voice
+- /voc
+- /music
 - /radio
 - /effet
 - /playlist
 - /dj
 
-Les anciens noms slash du lecteur et des accès vocaux sont retirés du catalogue racine et nettoyés lors d'une future synchronisation. Les commandes préfixées historiques restent disponibles et sont traduites vers les nouveaux chemins slash.
+## SUCK ME
 
-## Autres applications
+- /sysp
+- /panel
+- /setup
+- /knowledge
+- /rank
+- /rankall
+- /removerole
+- /rolepanel
+- /staffhistory
+- /vocalpresence
+- /lockname
+- /webhook
+- /automation
+- /anti-moove
+- /wakeup
+- /dog
+- /undog
+- /doginfo
+- /wouaf
+- /menotte
+- /unmenotte
+- /menotteinfo
+- /dmall
+- /undogall
+- /roletemp
+- /annonce
+- /staff
+- /pseudo
+- /maj
+- /ia
+- /ticket
+- /candidature
+- /sondage
+- /profil
+- /bio
+- /rep
+- /toprep
+- /color
+- /academy
+- /award
+- /story
+- /radar
+- /wrapped
+- /giveaway
+- /event
+- /pndevent
+- /afk
+- /live
+- /niveau
+- /suggestion
+- /anniversaire
+- /rappel
+- /stats
+- /confession
+- /moi
+- /fwu
+- /clan
+- /saison
+- /quete
+- /anim
+- /outils
 
-Les autres racines restent inchangées dans cette étape. Leur regroupement sera effectué par familles, avec une table de parité testée avant le retrait de chaque ancienne racine.
+## LE FISC
+
+- /balance
+- /daily
+- /work
+- /job
+- /bank
+- /history
+- /rob
+- /lottery
+- /pay
+- /leaderboard
+- /inventory
+- /shop
+- /buy
+- /pnd
+- /roulette
+- /blackjack
+- /business
+- /invest
+- /casino
+- /impots
+- /pret
+- /duel
+- /pari
+- /avantage
+- /dice
+- /coinflip
+- /trivia
+- /cards
+- /card
+- /pack
+- /trade
+- /jeu
+
+## Invest +
+
+- /abonnement
+- /investadmin
