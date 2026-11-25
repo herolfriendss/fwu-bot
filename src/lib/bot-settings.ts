@@ -148,36 +148,36 @@ const asRecord = (value: unknown): Record<string, unknown> =>
 
 function sanitizeCoreSettings(raw: unknown): BotSettings {
   const r = asRecord(raw);
-  const logs = asRecord(r.logs);
-  const sysPlus = asRecord(r.sysPlus);
-  const adminPlus = asRecord(r.adminPlus);
-  const filter = asRecord(r.filter);
-  const spam = asRecord(r.spam);
-  const welcome = asRecord(r.welcome);
-  const ai = asRecord(r.ai);
-  const guildGuard = asRecord(r.guildGuard);
-  const moderation = asRecord(r.moderation);
-  const verification = asRecord(r.verification);
-  const tickets = asRecord(r.tickets);
-  const tempVoice = asRecord(r.tempVoice);
-  const automation = asRecord(r.automation);
-  const liveAlerts = asRecord(r.liveAlerts);
-  const publicPage = asRecord(r.publicPage);
+  const logs = asRecord(r["logs"]);
+  const sysPlus = asRecord(r["sysPlus"]);
+  const adminPlus = asRecord(r["adminPlus"]);
+  const filter = asRecord(r["filter"]);
+  const spam = asRecord(r["spam"]);
+  const welcome = asRecord(r["welcome"]);
+  const ai = asRecord(r["ai"]);
+  const guildGuard = asRecord(r["guildGuard"]);
+  const moderation = asRecord(r["moderation"]);
+  const verification = asRecord(r["verification"]);
+  const tickets = asRecord(r["tickets"]);
+  const tempVoice = asRecord(r["tempVoice"]);
+  const automation = asRecord(r["automation"]);
+  const liveAlerts = asRecord(r["liveAlerts"]);
+  const publicPage = asRecord(r["publicPage"]);
   const d = DEFAULT_SETTINGS;
-  const keywords = (Array.isArray(r.keywords) ? r.keywords : [])
+  const keywords = (Array.isArray(r["keywords"]) ? r["keywords"] : [])
     .map((value: unknown) => {
       const keyword = asRecord(value);
-      return { trigger: str(keyword.trigger, 100).toLowerCase(), response: str(keyword.response, 2000), exact: bool(keyword.exact, false) };
+      return { trigger: str(keyword["trigger"], 100).toLowerCase(), response: str(keyword["response"], 2000), exact: bool(keyword["exact"], false) };
     })
     .filter((k: KeywordRule) => k.trigger && k.response)
     .slice(0, 100);
-  const words = (Array.isArray(filter.words) ? filter.words : [])
+  const words = (Array.isArray(filter["words"]) ? filter["words"] : [])
     .map((w: unknown) => str(w, 60).toLowerCase())
     .filter(Boolean)
     .slice(0, 300);
-  const channelId = str(welcome.channelId, 25);
-  const sysPlusRoleId = str(sysPlus.roleId, 25);
-  const whitelistRoleId = str(sysPlus.whitelistRoleId, 25);
+  const channelId = str(welcome["channelId"], 25);
+  const sysPlusRoleId = str(sysPlus["roleId"], 25);
+  const whitelistRoleId = str(sysPlus["whitelistRoleId"], 25);
   const snowflakeId = (value: unknown) => {
     const id = str(value, 25);
     return /^\d{5,25}$/.test(id) ? id : null;
@@ -185,95 +185,95 @@ function sanitizeCoreSettings(raw: unknown): BotSettings {
   const snowflakeList = (value: unknown, max: number) => [...new Set(
     (Array.isArray(value) ? value : []).map(snowflakeId).filter((id): id is string => Boolean(id)),
   )].slice(0, max);
-  const youngAction = ["log", "kick", "quarantine"].includes(str(guildGuard.youngAccountAction, 20))
-    ? str(guildGuard.youngAccountAction, 20) as GuildGuardSettings["youngAccountAction"]
-    : d.guildGuard.youngAccountAction;
-  const adminPlusRoleId = str(adminPlus.roleId, 25);
+  const youngAction = ["log", "kick", "quarantine"].includes(str(guildGuard["youngAccountAction"], 20))
+    ? str(guildGuard["youngAccountAction"], 20) as GuildGuardSettings["youngAccountAction"]
+    : d.guildGuard["youngAccountAction"];
+  const adminPlusRoleId = str(adminPlus["roleId"], 25);
   return {
-    logs: { channelId: snowflakeId(logs.channelId) },
+    logs: { channelId: snowflakeId(logs["channelId"]) },
     sysPlus: {
       roleId: /^\d{5,25}$/.test(sysPlusRoleId) ? sysPlusRoleId : null,
       whitelistRoleId: /^\d{5,25}$/.test(whitelistRoleId) ? whitelistRoleId : null,
-      intelligenceEnabled: bool(sysPlus.intelligenceEnabled, false),
-      intelligenceChannelId: snowflakeId(sysPlus.intelligenceChannelId),
+      intelligenceEnabled: bool(sysPlus["intelligenceEnabled"], false),
+      intelligenceChannelId: snowflakeId(sysPlus["intelligenceChannelId"]),
     },
     adminPlus: { roleId: /^\d{5,25}$/.test(adminPlusRoleId) ? adminPlusRoleId : null },
-    voiceAccess: voiceAccessSchema.safeParse(r.voiceAccess).success ? voiceAccessSchema.parse(r.voiceAccess) : DEFAULT_VOICE_ACCESS,
-    prefixCommands: (Array.isArray(r.prefixCommands) ? r.prefixCommands : []).flatMap((command: unknown) => {
+    voiceAccess: voiceAccessSchema.safeParse(r["voiceAccess"]).success ? voiceAccessSchema.parse(r["voiceAccess"]) : DEFAULT_VOICE_ACCESS,
+    prefixCommands: (Array.isArray(r["prefixCommands"]) ? r["prefixCommands"] : []).flatMap((command: unknown) => {
       const result = prefixCommandSchema.safeParse(command);
       return result.success ? [result.data] : [];
     }),
     keywords,
-    filter: { enabled: bool(filter.enabled, false), words, deleteMessage: bool(filter.deleteMessage, true), warn: str(filter.warn, 500) },
+    filter: { enabled: bool(filter["enabled"], false), words, deleteMessage: bool(filter["deleteMessage"], true), warn: str(filter["warn"], 500) },
     spam: {
-      enabled: bool(spam.enabled, false),
-      maxMessages: int(spam.maxMessages, 2, 30, d.spam.maxMessages),
-      perSeconds: int(spam.perSeconds, 1, 60, d.spam.perSeconds),
-      timeoutMinutes: int(spam.timeoutMinutes, 1, 1440, d.spam.timeoutMinutes),
-      maxMentions: int(spam.maxMentions, 2, 20, d.spam.maxMentions),
+      enabled: bool(spam["enabled"], false),
+      maxMessages: int(spam["maxMessages"], 2, 30, d.spam["maxMessages"]),
+      perSeconds: int(spam["perSeconds"], 1, 60, d.spam["perSeconds"]),
+      timeoutMinutes: int(spam["timeoutMinutes"], 1, 1440, d.spam["timeoutMinutes"]),
+      maxMentions: int(spam["maxMentions"], 2, 20, d.spam["maxMentions"]),
     },
-    welcome: { enabled: bool(welcome.enabled, false), channelId: /^\d{5,25}$/.test(channelId) ? channelId : "", message: str(welcome.message, 2000) || d.welcome.message, leaveEnabled: bool(welcome.leaveEnabled, false), leaveChannelId: snowflakeId(welcome.leaveChannelId) ?? "", leaveMessage: str(welcome.leaveMessage, 2000) || d.welcome.leaveMessage },
-    ai: { enabled: bool(ai.enabled, false), memoryEnabled: bool(ai.memoryEnabled, false), instructions: str(ai.instructions, 2000) || d.ai.instructions },
+    welcome: { enabled: bool(welcome["enabled"], false), channelId: /^\d{5,25}$/.test(channelId) ? channelId : "", message: str(welcome["message"], 2000) || d.welcome["message"], leaveEnabled: bool(welcome["leaveEnabled"], false), leaveChannelId: snowflakeId(welcome["leaveChannelId"]) ?? "", leaveMessage: str(welcome["leaveMessage"], 2000) || d.welcome["leaveMessage"] },
+    ai: { enabled: bool(ai["enabled"], false), memoryEnabled: bool(ai["memoryEnabled"], false), instructions: str(ai["instructions"], 2000) || d.ai["instructions"] },
     guildGuard: {
-      enabled: bool(guildGuard.enabled, false),
-      minAccountAgeDays: int(guildGuard.minAccountAgeDays, 0, 365, d.guildGuard.minAccountAgeDays),
+      enabled: bool(guildGuard["enabled"], false),
+      minAccountAgeDays: int(guildGuard["minAccountAgeDays"], 0, 365, d.guildGuard["minAccountAgeDays"]),
       youngAccountAction: youngAction,
-      quarantineRoleId: snowflakeId(guildGuard.quarantineRoleId),
-      logChannelId: snowflakeId(guildGuard.logChannelId),
-      raidJoinThreshold: int(guildGuard.raidJoinThreshold, 0, 100, d.guildGuard.raidJoinThreshold),
-      raidWindowSeconds: int(guildGuard.raidWindowSeconds, 10, 600, d.guildGuard.raidWindowSeconds),
-      lockdown: bool(guildGuard.lockdown, false),
+      quarantineRoleId: snowflakeId(guildGuard["quarantineRoleId"]),
+      logChannelId: snowflakeId(guildGuard["logChannelId"]),
+      raidJoinThreshold: int(guildGuard["raidJoinThreshold"], 0, 100, d.guildGuard["raidJoinThreshold"]),
+      raidWindowSeconds: int(guildGuard["raidWindowSeconds"], 10, 600, d.guildGuard["raidWindowSeconds"]),
+      lockdown: bool(guildGuard["lockdown"], false),
     },
     moderation: {
-      logChannelId: snowflakeId(moderation.logChannelId),
-      dmOnWarn: bool(moderation.dmOnWarn, true),
-      warnExpiryDays: int(moderation.warnExpiryDays, 0, 365, d.moderation.warnExpiryDays),
+      logChannelId: snowflakeId(moderation["logChannelId"]),
+      dmOnWarn: bool(moderation["dmOnWarn"], true),
+      warnExpiryDays: int(moderation["warnExpiryDays"], 0, 365, d.moderation["warnExpiryDays"]),
     },
     verification: {
-      enabled: bool(verification.enabled, false),
-      roleId: snowflakeId(verification.roleId),
-      channelId: snowflakeId(verification.channelId),
-      minAccountAgeDays: int(verification.minAccountAgeDays, 0, 365, d.verification.minAccountAgeDays),
-      message: str(verification.message, 2000) || d.verification.message,
+      enabled: bool(verification["enabled"], false),
+      roleId: snowflakeId(verification["roleId"]),
+      channelId: snowflakeId(verification["channelId"]),
+      minAccountAgeDays: int(verification["minAccountAgeDays"], 0, 365, d.verification["minAccountAgeDays"]),
+      message: str(verification["message"], 2000) || d.verification["message"],
     },
     tickets: {
-      enabled: bool(tickets.enabled, false),
-      categoryId: snowflakeId(tickets.categoryId),
-      supportRoleId: snowflakeId(tickets.supportRoleId),
-      logChannelId: snowflakeId(tickets.logChannelId),
-      maxOpenPerUser: int(tickets.maxOpenPerUser, 1, 5, d.tickets.maxOpenPerUser),
+      enabled: bool(tickets["enabled"], false),
+      categoryId: snowflakeId(tickets["categoryId"]),
+      supportRoleId: snowflakeId(tickets["supportRoleId"]),
+      logChannelId: snowflakeId(tickets["logChannelId"]),
+      maxOpenPerUser: int(tickets["maxOpenPerUser"], 1, 5, d.tickets["maxOpenPerUser"]),
     },
     tempVoice: {
-      enabled: bool(tempVoice.enabled, false),
-      hubChannelId: snowflakeId(tempVoice.hubChannelId),
-      categoryId: snowflakeId(tempVoice.categoryId),
-      defaultLimit: int(tempVoice.defaultLimit, 0, 99, d.tempVoice.defaultLimit),
-      nameTemplate: str(tempVoice.nameTemplate, 80) || d.tempVoice.nameTemplate,
-      emptyDeleteSeconds: int(tempVoice.emptyDeleteSeconds, 0, 300, d.tempVoice.emptyDeleteSeconds),
+      enabled: bool(tempVoice["enabled"], false),
+      hubChannelId: snowflakeId(tempVoice["hubChannelId"]),
+      categoryId: snowflakeId(tempVoice["categoryId"]),
+      defaultLimit: int(tempVoice["defaultLimit"], 0, 99, d.tempVoice["defaultLimit"]),
+      nameTemplate: str(tempVoice["nameTemplate"], 80) || d.tempVoice["nameTemplate"],
+      emptyDeleteSeconds: int(tempVoice["emptyDeleteSeconds"], 0, 300, d.tempVoice["emptyDeleteSeconds"]),
     },
     automation: {
-      autoRoleIds: snowflakeList(automation.autoRoleIds, 10),
-      welcomeDm: bool(automation.welcomeDm, false),
-      welcomeDmMessage: str(automation.welcomeDmMessage, 2000) || d.automation.welcomeDmMessage,
+      autoRoleIds: snowflakeList(automation["autoRoleIds"], 10),
+      welcomeDm: bool(automation["welcomeDm"], false),
+      welcomeDmMessage: str(automation["welcomeDmMessage"], 2000) || d.automation["welcomeDmMessage"],
     },
     liveAlerts: {
-      enabled: bool(liveAlerts.enabled, false),
-      channelId: snowflakeId(liveAlerts.channelId),
-      animated: bool(liveAlerts.animated, true),
-      mentionRoleId: snowflakeId(liveAlerts.mentionRoleId),
-      creators: (Array.isArray(liveAlerts.creators) ? liveAlerts.creators : []).slice(0, 30).flatMap((value: unknown, index: number) => {
+      enabled: bool(liveAlerts["enabled"], false),
+      channelId: snowflakeId(liveAlerts["channelId"]),
+      animated: bool(liveAlerts["animated"], true),
+      mentionRoleId: snowflakeId(liveAlerts["mentionRoleId"]),
+      creators: (Array.isArray(liveAlerts["creators"]) ? liveAlerts["creators"] : []).slice(0, 30).flatMap((value: unknown, index: number) => {
         const creator = asRecord(value);
-        const platform = ["youtube", "tiktok", "twitch", "other"].includes(str(creator.platform, 20)) ? str(creator.platform, 20) as LiveAlertCreator["platform"] : null;
-        const displayName = str(creator.displayName, 80);
-        const feedUrl = str(creator.feedUrl, 1000);
+        const platform = ["youtube", "tiktok", "twitch", "other"].includes(str(creator["platform"], 20)) ? str(creator["platform"], 20) as LiveAlertCreator["platform"] : null;
+        const displayName = str(creator["displayName"], 80);
+        const feedUrl = str(creator["feedUrl"], 1000);
         try {
           const url = new URL(feedUrl);
           if (!platform || !displayName || url.protocol !== "https:" || !url.hostname || !feedUrl) return [];
         } catch { return []; }
-        return [{ id: str(creator.id, 40) || `creator-${index}`, platform, displayName, feedUrl }];
+        return [{ id: str(creator["id"], 40) || `creator-${index}`, platform, displayName, feedUrl }];
       }),
     },
-    publicPage: { enabled: bool(publicPage.enabled, false), showLeaderboard: bool(publicPage.showLeaderboard, false) },
+    publicPage: { enabled: bool(publicPage["enabled"], false), showLeaderboard: bool(publicPage["showLeaderboard"], false) },
   };
 }
 
