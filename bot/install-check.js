@@ -65,7 +65,10 @@ export function formatInstallationReport({ bots, extraLines = [] }) {
     }
   }
   lines.push(...extraLines);
-  if (missingBots) {\n    const noun = missingBots === 1 ? "application principale absente" : "applications principales absentes";\n    lines.push(`\n👉 Réinvite ou redémarre ${missingBots} ${noun}, puis vérifie que chacune a rejoint tous les serveurs autorisés.`);\n  }
+  if (missingBots) {
+    const noun = missingBots === 1 ? "application principale absente" : "applications principales absentes";
+    lines.push(`\n👉 Réinvite ou redémarre ${missingBots} ${noun}, puis vérifie que chacune a rejoint tous les serveurs autorisés.`);
+  }
   if (permissionProblems) lines.push("\n👉 Corrige les permissions Discord et l'ordre des rôles dans Paramètres du serveur → Rôles, puis relance la commande.");
   if (!missingBots && !permissionProblems) lines.push("\n✅ Rien à corriger côté Discord.");
   return lines.join("\n").slice(0, 3900);
@@ -85,6 +88,8 @@ export function resolveInstallationBotIds(savedIds, currentProfile, currentBotId
   if (BOT_PROFILE_IDS.includes(currentProfile) && /^\d{17,20}$/.test(String(currentBotId ?? ""))) {
     ids[currentProfile] = String(currentBotId);
   }
+  return ids;
+}
 
 /** Collecte sur Discord puis formate. `extraLines` : base centrale, sauvegarde… */
 export async function buildInstallationReport(guild, {
