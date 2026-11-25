@@ -42,7 +42,6 @@ export const PERMISSION_LABELS = Object.freeze({
   UseApplicationCommands: "Utiliser les commandes d'applications",
   UseExternalApps: "Utiliser les applications externes",
   SendPolls: "Envoyer des sondages",
-  CreatePolls: "Créer des sondages",
   UseSoundboard: "Utiliser la table de mixage",
   UseExternalSounds: "Utiliser les sons externes",
   UseEmbeddedActivities: "Utiliser les activités intégrées",
@@ -58,7 +57,7 @@ const allOperationalPermissions = Object.freeze([
   "UseExternalStickers", "Connect", "Speak", "Stream", "UseVAD", "PrioritySpeaker",
   "MuteMembers", "DeafenMembers", "MoveMembers", "ManageWebhooks",
   "ManageGuildExpressions", "UseApplicationCommands", "UseExternalApps", "SendPolls",
-  "CreatePolls", "UseSoundboard", "UseExternalSounds", "UseEmbeddedActivities",
+  "UseSoundboard", "UseExternalSounds", "UseEmbeddedActivities",
 ]);
 
 // All six apps receive the same broad operational capability set, so a stopped
