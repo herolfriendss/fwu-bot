@@ -3,16 +3,13 @@
 // de son rôle, puis base centrale, dernière sauvegarde et verrous de domaine.
 import { PermissionFlagsBits as P } from "discord.js";
 import { db } from "./database.js";
-import { BOT_PROFILES, listDomainLeases } from "./bot-runtime.js";
+import { BOT_PROFILES, BOT_PROFILE_IDS, listDomainLeases } from "./bot-runtime.js";
+import { PERMISSION_LABELS, REQUIRED_PERMISSIONS } from "./permissions-catalog.js";
 import { loadRoleTiers } from "./shared/tiers.js";
 
-const LABELS = {
-  ManageMessages: "Gérer les messages", KickMembers: "Exclure", BanMembers: "Bannir", ModerateMembers: "Exclure temporairement",
-  ManageRoles: "Gérer les rôles", ManageChannels: "Gérer les salons", ViewAuditLog: "Voir les logs", AddReactions: "Ajouter des réactions",
-  Connect: "Se connecter", Speak: "Parler", MoveMembers: "Déplacer des membres", ManageNicknames: "Gérer les pseudos",
-  ManageWebhooks: "Gérer les webhooks", MuteMembers: "Rendre muet", DeafenMembers: "Mettre en sourdine", SendMessages: "Envoyer des messages",
-  EmbedLinks: "Intégrer des liens",
-};
+export { REQUIRED_PERMISSIONS } from "./permissions-catalog.js";
+
+
 
 export const REQUIRED_PERMISSIONS = Object.freeze({
   fwu: ["SendMessages", "EmbedLinks", "ManageRoles", "ManageChannels", "ViewAuditLog"],
@@ -41,7 +38,15 @@ export function formatInstallationReport({ bots, extraLines = [] }) {
   const lines = ["**Bilan de l'installation** (lecture seule)"];
   let warnings = 0;
   for (const bot of bots) {
-    if (!bot.present) { lines.push(`⚪ **${bot.label}** : pas sur ce serveur (FWU fait son travail).`); continue; }
+    if (!bot.present) {
+      if (bot.optional) {
+        lines.push(`⚪ **${bot.label}** : facultatif, non installé sur ce serveur.`);
+      } else {
+        warnings += 1;
+        lines.push(`🟠 **${bot.label}** : absent. FWU peut reprendre les événements de son domaine, mais les commandes propres à cette application sont indisponibles sur ce serveur.`);
+      }
+      continue;
+    }
     const problems = [...bot.missing.map((p) => `permission manquante : ${p}`), ...bot.placement];
     if (!problems.length) lines.push(`✅ **${bot.label}** : permissions et place du rôle OK.`);
     else {
@@ -63,28 +68,45 @@ function botUserIds() {
 }
 
 /** Collecte sur Discord puis formate. `extraLines` : base centrale, sauvegarde… */
-export async function buildInstallationReport(guild, { ownerId = null, extraLines = [], now = Date.now() } = {}) {
+export async function buildInstallationReport(guild, {
+  ownerId = null,
+  extraLines = [],
+  now = Date.now(),
+  currentProfile = "fwu",
+  currentBotId = guild?.client?.user?.id ?? null,
+} = {}) {
   await guild.roles.fetch().catch(() => null);
-  const ids = { ...botUserIds(), fwu: guild.client.user.id };
+  const ids = botUserIds();
+  if (BOT_PROFILE_IDS.includes(currentProfile) && currentBotId) ids[currentProfile] = currentBotId;
   const tiers = await loadRoleTiers(guild.id).catch(() => new Map());
   const tier0RoleIds = new Set([...tiers].filter(([, tier]) => tier === 0).map(([id]) => id));
   const roles = [...guild.roles.cache.values()].filter((r) => r.id !== guild.id).map((r) => ({ id: r.id, name: r.name, position: r.position, managed: r.managed }));
   const owner = ownerId ? await guild.members.fetch(ownerId).catch(() => null) : null;
   const bots = [];
-  for (const profile of ["fwu", "guard", "fdpdlavoc", "suckme", "fisc"]) {
+  for (const profile of BOT_PROFILE_IDS) {
     const label = BOT_PROFILES[profile]?.label ?? profile;
+    const optional = Boolean(BOT_PROFILES[profile]?.optional);
     const member = ids[profile] ? await guild.members.fetch(ids[profile]).catch(() => null) : null;
-    if (!member) { bots.push({ label, present: false, missing: [], placement: [] }); continue; }
+    if (!member) { bots.push({ profile, label, optional, present: false, missing: [], placement: [] }); continue; }
     const perms = member.permissions;
     const admin = perms?.has?.(P.Administrator);
-    const missing = admin ? [] : REQUIRED_PERMISSIONS[profile].filter((name) => !perms?.has?.(P[name])).map((name) => LABELS[name] ?? name);
+    const missing = admin ? [] : REQUIRED_PERMISSIONS[profile].filter((name) => !perms?.has?.(P[name])).map((name) => PERMISSION_LABELS[name] ?? name);
     const placement = profile === "suckme"
       ? suckMePlacementIssues({ botTop: member.roles.highest.position, roles, tier0RoleIds, ownerTop: owner?.roles?.highest?.position ?? null })
       : [];
-    bots.push({ label, present: true, missing, placement });
+    bots.push({ profile, label, optional, present: true, missing, placement });
   }
   const leases = listDomainLeases(now);
-  const stale = leases.filter((lease) => lease.domain !== "fwu" && !lease.live).map((lease) => BOT_PROFILES[lease.domain]?.label ?? lease.domain);
-  const leaseLine = stale.length ? `🟧 Domaines repris par FWU (bot arrêté) : ${stale.join(", ")}.` : "🟢 Verrous de domaine : aucun bot arrêté.";
-  return formatInstallationReport({ bots, extraLines: [leaseLine, ...extraLines] });
+  const stale = leases
+    .filter((lease) => lease.domain !== "fwu" && !lease.live && !BOT_PROFILES[lease.domain]?.optional)
+    .map((lease) => BOT_PROFILES[lease.domain]?.label ?? lease.domain);
+  const leaseLine = stale.length
+    ? `🟧 Domaines principaux repris par FWU (bot arrêté) : ${stale.join(", ")}.`
+    : "🟢 Verrous des bots principaux : aucun arrêt détecté.";
+  const optionalProfiles = BOT_PROFILE_IDS.filter((id) => BOT_PROFILES[id]?.optional);
+  const optionalLine = optionalProfiles
+    .filter((id) => !leases.some((lease) => lease.domain === id && lease.live))
+    .map((id) => `${BOT_PROFILES[id].label} facultatif : aucun verrou actif.`);
+
+  return formatInstallationReport({ bots, extraLines: [leaseLine, ...optionalLine, ...extraLines] });
 }
