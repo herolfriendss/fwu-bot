@@ -8,14 +8,16 @@ Le problème produit n'est donc pas un dépassement de quota : c'est la dispersi
 
 ## Cibles de regroupement proposées
 
-| Application | Racines cibles | Familles à regrouper |
+| Application | Racines cibles globalement uniques | Familles à regrouper |
 |---|---|---|
-| FWU | moderation, embeds, reglement, screening, quota | warn, warnings, sanction, sanction-type, tempmute, unmute sous moderation ; garder les outils de contenu sous leurs commandes dédiées si leur UX est déjà claire |
-| GUARD | moderation, security, verification | ban, kick, purge, nettoyer, slowmode, lock, unlock, casier, quarantaine sous moderation ; guildguard, antinuke, automod, blacklist, bouclier sous security ; verify sous verification |
-| FDPDLAVOC | music, radio, voice | play, pause, resume, skip, stop, queue, nowplaying, volume, loop, shuffle, clearqueue, remove, join, leave, effet, playlist, dj sous music ; access, unaccess, pv, voc sous voice |
-| SUCK ME | sysp, roles, voice, community, events, profile | rank, rankall, removerole, rolepanel, roletemp sous roles ; dog, undog, doginfo, wouaf, menotte, unmenotte, menotteinfo, wakeup, anti-moove sous voice ; ticket, candidature, suggestion, confession, rep, toprep sous community ; event, pndevent, giveaway, anniversaire, rappel, live sous events ; profil, bio, moi, stats, wrapped sous profile |
-| LE FISC | economy, casino, cards, games | balance, daily, work, job, bank, history, rob, lottery, pay, leaderboard, inventory, shop, buy, pnd, business, invest, impots, pret, avantage sous economy ; roulette, blackjack, casino, duel, pari, dice, coinflip sous casino ; cards, card, pack, trade sous cards ; trivia et jeu sous games |
-| Invest + | subscription, investadmin | abonnement sous subscription ; administration des formules conservée sous investadmin |
+| FWU | `admin` | modération, embeds, règlement, screening, quotas |
+| GUARD | `guard` | modération, sécurité, vérification |
+| FDPDLAVOC | `music`, `voice`, `voc`, `radio` | lecture musicale, accès vocaux, salons temporaires, radio |
+| SUCK ME | `sysp`, `staff`, `community`, `events`, `profile` | SYS+, rôles/staff, communauté/tickets, événements, profils |
+| LE FISC | `fisc`, `games` | économie, entreprises, fiscalité, investissements virtuels, jeux/cartes |
+| Invest + | `investplus` | abonnements et administration des avantages |
+
+Les racines doivent rester uniques à l'échelle des six applications, car le runtime actuel utilise une table globale nom de commande → application. Les sous-commandes peuvent partager les mêmes noms sans conflit. Les anciens `/fwu` de SUCK ME et `/invest` du FISC seront déplacés comme sous-commandes de leur racine propriétaire avant d'être retirés.
 
 ## Méthode de migration
 
@@ -43,6 +45,13 @@ Le problème produit n'est donc pas un dépassement de quota : c'est la dispersi
 - Les anciens noms slash sont marqués comme retirés pour éviter qu'ils restent enregistrés sur l'application après une future mise en production.
 - `/radio`, `/effet`, `/playlist` et `/dj` restent séparés pour cette première migration afin de préserver leurs parcours spécialisés.
 - Le catalogue passe de 145 à 131 racines uniques ; FDPDLAVOC passe de 25 à 11 commandes racines communes comprises.
+
+## Migration 2 — accès vocal FDPDLAVOC
+
+- État : **implémentée sur la branche de développement**, à valider par CI.
+- `/access`, `/unaccess` et `/pv` sont regroupées sous `/voice access` et `/voice private`.
+- Les routes préfixées `;access`, `;unaccess`, `;pv` et `;unpv` restent disponibles et leurs aides sont traduites vers les nouveaux chemins slash.
+- `/voc` et ses sous-commandes de salons temporaires restent inchangées.
 
 ## Architecture de propriété
 

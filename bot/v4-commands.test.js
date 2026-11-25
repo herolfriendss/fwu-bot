@@ -35,6 +35,18 @@ test("the grouped music command preserves every legacy player route", () => {
   }
 });
 
+test("grouped voice access and privacy actions keep their legacy handlers", () => {
+  const make = (group, subcommand) => ({
+    commandName: "voice",
+    options: { getSubcommandGroup: () => group, getSubcommand: () => subcommand },
+  });
+  assert.equal(resolveLegacyCommandName(make("access", "grant")), "access");
+  assert.equal(resolveLegacyCommandName(make("access", "revoke")), "unaccess");
+  assert.equal(resolveLegacyCommandName(make("private", "activer")), "pv");
+  assert.equal(resolveLegacyCommandName(make("private", "liste")), "pv");
+  assert.equal(resolveLegacyCommandName(make("private", "retirer")), "pv");
+});
+
 test("unrelated roots and unknown music groups are not rewritten", () => {
   assert.equal(resolveLegacyCommandName({ commandName: "radio", options: {} }), "radio");
   assert.equal(resolveLegacyCommandName(musicInteraction("play", "unknown")), "music");

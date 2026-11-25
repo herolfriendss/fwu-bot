@@ -16,6 +16,10 @@ describe("V4 slash commands", () => {
     expect(names).not.toContain("info-serveur");
     expect(names).toContain("music");
     expect(names).not.toContain("musicpanel");
+    expect(names).toContain("voice");
+    expect(names).not.toContain("access");
+    expect(names).not.toContain("unaccess");
+    expect(names).not.toContain("pv");
     expect(names).toContain("sysp");
   });
 
@@ -45,7 +49,7 @@ describe("V4 slash commands", () => {
     const names = SLASH_COMMANDS.map((command) => command.name);
     expect(names).toEqual(expect.arrayContaining([
       "balance", "daily", "pay", "shop", "roulette", "blackjack",
-      "dog", "undog", "menotte", "unmenotte", "menotteinfo", "access", "panel", "music", "radio", "pnd", "lockname", "wouaf",
+      "dog", "undog", "menotte", "unmenotte", "menotteinfo", "voice", "panel", "music", "radio", "pnd", "lockname", "wouaf",
     ]));
     for (const name of ["dog", "undog", "doginfo"]) {
       expect(SLASH_COMMANDS.find((command) => command.name === name)?.defaultMemberPermissions).toBeUndefined();
@@ -66,6 +70,15 @@ describe("V4 slash commands", () => {
       "play", "pause", "resume", "skip", "stop", "queue", "nowplaying", "volume", "loop",
       "shuffle", "clearqueue", "remove", "join", "leave", "musicpanel",
     ]) expect(names).not.toContain(retired);
+  });
+
+  it("groups vocal access and private-salon controls under /voice", () => {
+    const voice = SLASH_COMMANDS.find((command) => command.name === "voice");
+    expect(voice?.requiresBotProcess).toBe(true);
+    expect(voice?.options?.map((option) => option.name)).toEqual(["access", "private"]);
+    expect(leafNames(voice?.options as SlashOptionLike[] | undefined)).toEqual([
+      "grant", "revoke", "activer", "liste", "retirer",
+    ]);
   });
 
   it("uses /wouaf as the public WOUAF command name", () => {
