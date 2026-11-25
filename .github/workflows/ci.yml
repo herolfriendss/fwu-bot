@@ -54,6 +54,9 @@ jobs:
       - name: Check bot command catalogue
         run: npm --prefix bot run audit:commands
 
+      - name: Verify generated command audit is committed
+        run: git diff --exit-code -- docs/architecture/PND_COMMAND_SURFACE_AUDIT.md
+
       - name: Check interaction reply safety
         run: npm --prefix bot run audit:replies
 
