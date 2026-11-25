@@ -78,6 +78,19 @@ L'aperçu et la confirmation de `/rankall` vérifiaient que le rôle ne portait 
 
 **Test ajouté :** le rôle reçoit la permission Administrator au milieu d'une opération ; les membres suivants ne doivent pas le recevoir.
 
+### SEC-005 — Droits SQL trop larges sur la table de configuration
+**Sévérité : moyenne (P2) — migration corrective ajoutée, non appliquée à distance**
+
+La migration historique de création de `bot_settings` accordait `ALL` à `service_role`. L'application utilise cette table pour lire et faire des `upsert` ; elle n'a pas besoin d'y exécuter `DELETE`, `TRUNCATE`, `REFERENCES` ou `TRIGGER`.
+
+**Correction proposée dans le dépôt :**
+- nouvelle migration additive `202611250002_bot_settings_least_privilege.sql` ;
+- activation/maintien de RLS ;
+- révocation explicite des droits `PUBLIC`, `anon` et `authenticated` ;
+- remplacement du `GRANT ALL` par `SELECT`, `INSERT` et `UPDATE` pour `service_role`.
+
+La migration est ajoutée au dépôt mais n'a pas été appliquée au projet Supabase distant. Il faudra l'exécuter et vérifier son état dans Supabase avant de considérer ce point comme corrigé en production.
+
 ## Contrôles existants positifs observés
 
 - Le propriétaire PND est identifié par ID Discord configuré, pas par nom ou surnom.
