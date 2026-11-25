@@ -1,0 +1,111 @@
+name: FWU quality gates
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: fwu-ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  bot-tests:
+    name: Bot tests (Node 24 + PostgreSQL 16)
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: fwu_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d fwu_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      SHARED_DATABASE_URL_TEST: postgres://postgres:postgres@localhost:5432/fwu_test
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: bot/package-lock.json
+
+      - name: Install bot dependencies
+        run: npm ci --prefix bot
+
+      - name: Run bot test suite
+        run: npm --prefix bot test
+
+      - name: Check bot command catalogue
+        run: npm --prefix bot run audit:commands
+
+      - name: Check interaction reply safety
+        run: npm --prefix bot run audit:replies
+
+  dashboard-quality:
+    name: Dashboard tests, types, lint and build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Install dashboard dependencies
+        run: npm ci
+
+      - name: Run dashboard tests
+        run: npx vitest run
+
+      - name: Type-check
+        run: npx tsc --noEmit
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Production build
+        run: npm run build
+
+  shell-and-packaging:
+    name: Shell and packaging checks
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Validate shell scripts
+        shell: bash
+        run: |
+          set -euo pipefail
+          while IFS= read -r -d '' script; do
+            bash -n "$script"
+          done < <(find . -type f -name '*.sh'             -not -path './.git/*'             -not -path '*/node_modules/*')
+      
+      - name: Validate packaging scripts
+        run: |
+          python -m py_compile             scripts/package-fwu-archive.py             scripts/package-fwu-bots.py             scripts/package-fwu-installation.py
