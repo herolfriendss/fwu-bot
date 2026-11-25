@@ -119,6 +119,7 @@ describe("bot wiring", () => {
       read("bot/features/confessions-commands.js"),
       read("bot/features/animation-commands.js"),
       read("bot/features/fisc.js"),
+      read("bot/features/investplus-commands.js"),
       read("bot/features/versus.js"),
       read("bot/features/overview.js"),
       read("bot/features/self-update.js"),

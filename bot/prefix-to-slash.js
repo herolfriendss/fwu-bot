@@ -29,6 +29,7 @@ export const SLASH_FOR_PREFIX = Object.freeze({
   pnd: "pnd", "pnd-history": "pnd historique", "pnd-audit": "pnd audit", "pnd-add": "pnd ajouter",
   "pnd-remove": "pnd retirer", roulette: "roulette", blackjack: "blackjack", casino: "casino",
   business: "business", invest: "invest",
+  abonnement: "abonnement voir", abo: "abonnement voir",
 });
 
 // Same-name commands keep their arguments ("=casino roulette" → "/casino roulette").

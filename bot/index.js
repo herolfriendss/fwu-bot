@@ -51,6 +51,7 @@ import { handleCasinoMessage } from "./casino.js";
 import { handleCasinoInteraction } from "./casino/commands.js";
 import { runCascade, startCascade } from "./cascade.js";
 import { handleConfessionInteraction } from "./features/confessions-commands.js";
+import { handleInvestPlusChannelDelete, handleInvestPlusInteraction, handleInvestPlusMessage, runInvestPlusJobs } from "./features/investplus-commands.js";
 import { handleAnimationInteraction, handleCountingDelete, handleCountingMessage, handleStarboardReaction } from "./features/animation-commands.js";
 import { runQotd } from "./features/qotd.js";
 import { handleOverviewInteraction } from "./features/overview.js";
@@ -619,6 +620,7 @@ async function handleMessageCreate(msg) {
     if (runCmd("fisc") && await handleCardsMessage(msg)) { auditPrefixUsage(msg, "Cartes"); return; }
     if (runCmd("suckme", "fisc") && await handleGamesMessage(msg, record)) { auditPrefixUsage(msg, "Jeux"); return; }
     if (runCmd("fisc") && await handleCasinoMessage(msg)) { auditPrefixUsage(msg, "PND Casino"); return; }
+    if (runCmd("investplus") && await handleInvestPlusMessage(msg)) { auditPrefixUsage(msg, "Invest +"); return; }
     if (runCmd("suckme") && await handleVoicePresenceMessage(msg)) { auditPrefixUsage(msg, "Historique vocal"); return; }
     if (runCmd("suckme") && await handleAutomationMessage(msg, s, { apiUrl: API, secret: BOT_SYNC_SECRET, record })) { auditPrefixUsage(msg, "Automatisation"); return; }
   } catch { record("voice_error"); return; }
@@ -941,6 +943,7 @@ client.on("channelDelete", (channel) => {
   forgetTempVoice(channel.id);
   forgetVoicePanels(channel.id);
   if (serves("fwu")) handleTicketChannelDelete(channel, record);
+  if (channel.guild && serves("investplus")) { try { handleInvestPlusChannelDelete(channel); } catch { record("investplus_job_error"); } }
 });
 client.on("roleCreate", (role) => {
   if (serves("fwu") && guildAllowed(role.guild.id, ALLOWED_GUILDS)) auditLog(role.guild, settings[role.guild.id], "🎭 Rôle créé", `Rôle : **${role.name}**\nID : \`${role.id}\``);
@@ -1056,6 +1059,12 @@ client.once("clientReady", () => {
     if (!serves("fisc")) return;
     try { runWealthTax(communityGuilds().map((g) => g.id)); runLoanCollection(); } catch { record("fisc_job_error"); }
   }, 60 * 60_000).unref?.();
+  // Invest + jobs: reminders before the due date, then expirations (every 5 minutes).
+  setInterval(() => {
+    if (!serves("investplus")) return;
+    void runInvestPlusJobs(client, { isAllowedGuild: (gid) => guildAllowed(gid, ALLOWED_GUILDS) && !isLogsHub(gid), settingsFor: (gid) => settings[gid] ?? null })
+      .catch(() => record("investplus_job_error"));
+  }, 5 * 60_000).unref?.();
   // Creator Studio scheduler: publishes due drafts only on allowlisted guilds (MZ stays excluded).
   const studioSender = createClientStudioSender(client, { isAllowedGuild: (gid) => guildAllowed(gid, ALLOWED_GUILDS) && !isLogsHub(gid) });
   // Each scheduled job checks its domain at every tick: exactly one process runs it.
@@ -1612,6 +1621,7 @@ client.on("interactionCreate", (interaction) => {
     if (await handleClanInteraction(interaction)) { auditSlashUsage(interaction, "Clans & saisons"); return; }
     if (await handleOverviewInteraction(interaction)) { auditSlashUsage(interaction, "Profil FWU"); return; }
     if (await handleConfessionInteraction(interaction)) { auditSlashUsage(interaction, "Confessions"); return; }
+    if (await handleInvestPlusInteraction(interaction, settings[interaction.guildId])) { auditSlashUsage(interaction, "Invest +"); return; }
     if (await handleAnimationInteraction(interaction)) { auditSlashUsage(interaction, "Animation"); return; }
     if (await handleCasinoInteraction(interaction)) { auditSlashUsage(interaction, "PND Casino"); return; }
     if (await handlePerkInteraction(interaction)) { auditSlashUsage(interaction, "Avantages"); return; }

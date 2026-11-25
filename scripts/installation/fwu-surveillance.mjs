@@ -31,6 +31,7 @@ export const PROCESSES = Object.freeze([
   { name: "fwu-fdpdlavoc", label: "FDPDLAVOC" },
   { name: "fwu-suckme", label: "SUCK ME" },
   { name: "fwu-fisc", label: "LE FISC" },
+  { name: "fwu-investplus", label: "Invest +" },
 ]);
 export const DOWN_GRACE_MS = 2 * 60_000;
 export const OUTBOX_LIMIT = 50;
