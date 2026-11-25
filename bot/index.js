@@ -51,6 +51,8 @@ import { handleCasinoMessage } from "./casino.js";
 import { handleCasinoInteraction } from "./casino/commands.js";
 import { runCascade, startCascade } from "./cascade.js";
 import { handleConfessionInteraction } from "./features/confessions-commands.js";
+import { handleAnimationInteraction, handleCountingDelete, handleCountingMessage, handleStarboardReaction } from "./features/animation-commands.js";
+import { runQotd } from "./features/qotd.js";
 import { handleOverviewInteraction } from "./features/overview.js";
 import { handleClanInteraction } from "./features/clans-commands.js";
 import { handleQuestInteraction } from "./features/quests-commands.js";
@@ -64,6 +66,8 @@ import { handleOrganizationMessage } from "./organization-commands.js";
 import { startOrganizationMaintenance } from "./organization-maintenance.js";
 import { recordAnalyticsMetric, flushAnalyticsMetrics } from "./analytics-buffer.js";
 import { installProcessGuard } from "./process-guard.js";
+import { autoIncidentNotice, recordGuardIncident } from "./systems/sysplus/auto-incidents.js";
+import { setSysPlusAuditObserver } from "./systems/sysplus/audit.js";
 import { recoverInterruptedAutomationRuns } from "./automation-rules.js";
 import { handleAutomationRulesMessage } from "./automation-rules-commands.js";
 import { previewGuildAutomationRules, previewScheduledAutomationRules, buildAutomationEventFromMember } from "./automation-rules-runtime.js";
@@ -196,6 +200,12 @@ function record(code) {
   console.log(`[bot] ${code}`);
 }
 registerHealthProvider(() => ({ events: [...events], lastSync, startedAt }));
+// S1 : les actions SYS+ qui changent des droits partent aussi au Logs Hub (le bot qui agit publie).
+setSysPlusAuditObserver(({ guildId, actorId, action, targetId }) => {
+  const guild = client.guilds.cache.get(guildId);
+  if (!guild) return;
+  auditLog(guild, settings[guildId], "🧾 Journal SYS+", `Action : \`${action}\`\nPar : <@${actorId}> (\`${actorId}\`)${targetId ? `\nCible : ${/^\d{17,20}$/.test(String(targetId)) ? `<@${targetId}> (\`${targetId}\`)` : `\`${String(targetId).slice(0, 60)}\``}` : ""}\nHistorique : \`/sysp audit\``, 0x8b5cf6);
+});
 // Promesses oubliées : comptées et visibles, redémarrage au-delà de 10 en 10 min (process-guard.js).
 installProcessGuard({ record });
 const lastHealthStatus = new Map();
@@ -464,7 +474,15 @@ function prefixifyMessageReplies(msg, prefix) {
 }
 
 // GUARD anti-nuke: destructive actions in bulk are reverted and their author neutralised.
-const antiNuke = createAntiNuke({ client, report: guardReport, record: (code) => record(code) });
+const antiNuke = createAntiNuke({
+  client, report: guardReport, record: (code) => record(code),
+  // S5 : chaque attaque bloquée ouvre (ou complète) un incident SYS+.
+  onTriggered: async (guild, { executorId, action, outcome }) => {
+    const result = recordGuardIncident({ guildId: guild.id, botId: client.user.id, kind: "nuke", detail: `${action} par ${executorId}, mesure : ${outcome}` });
+    const notice = autoIncidentNotice(result);
+    if (notice) await guardReport(guild, { title: "📋 Incident SYS+", description: notice, color: 0xf59e0b });
+  },
+});
 const guardWatch = (guild) => guild && serves("guard") && guildAllowed(guild.id, ALLOWED_GUILDS) && !isLogsHub(guild.id);
 client.on("channelDelete", (channel) => { if (guardWatch(channel.guild)) void antiNuke.channelDelete(channel).catch(() => record("antinuke_error")); });
 client.on("roleDelete", (role) => { if (guardWatch(role.guild)) void antiNuke.roleDelete(role).catch(() => record("antinuke_error")); });
@@ -530,6 +548,10 @@ async function handleMessageCreate(msg) {
   }
   }
   if (runCmd("guard") && await handleGuardianReviewMessage(msg)) return;
+  // SUCK ME animation: a number in the counting channel is handled here and stops.
+  if (serves("suckme")) {
+    try { if (await handleCountingMessage(msg)) return; } catch { record("counting_error"); }
+  }
   if (runCmd("suckme") && await handleStaffMemberHistoryMessage(msg, { settings, ownerIds: getPndPrivilegedIds(process.env.PND_OWNER_DISCORD_ID, process.env.PND_COFOUNDER_DISCORD_IDS) })) { auditPrefixUsage(msg, "Historique staff"); return; }
   if (serves("suckme")) void previewGuildAutomationRules(msg.guild, "message_created", msg.id, {
     memberId: msg.author.id,
@@ -708,6 +730,9 @@ async function handleMessageCreate(msg) {
 
 client.on("messageDelete", (message) => {
   const guild = message.guild;
+  if (serves("suckme") && guild && guildAllowed(guild.id, ALLOWED_GUILDS) && !isLogsHub(guild.id)) {
+    void handleCountingDelete(message).catch(() => record("counting_error"));
+  }
   if (!serves("fwu") || !guild || !guildAllowed(guild.id, ALLOWED_GUILDS) || message.author?.bot) return;
   auditLog(guild, settings[guild.id], "🗑️ Message supprimé", `Auteur : ${message.author ? `<@${message.author.id}>` : "inconnu"}\nSalon : <#${message.channelId}>\nContenu non enregistré pour préserver la confidentialité.` , 0xef4444);
 });
@@ -722,11 +747,17 @@ client.on("messageReactionAdd", async (reaction, user) => {
   try {
     const guildId = reaction.message.guildId ?? reaction.message.guild?.id;
     if (guildId && (!guildAllowed(guildId, ALLOWED_GUILDS) || isLogsHub(guildId))) return;
+    if (guildId && serves("suckme")) void handleStarboardReaction(reaction, user).catch(() => record("starboard_error"));
     if (!serves("guard")) return;
     await handleReactionVerificationReaction(reaction, user);
   } catch {
     record("verification_reaction_error");
   }
+});
+client.on("messageReactionRemove", (reaction, user) => {
+  const guildId = reaction.message?.guildId ?? reaction.message?.guild?.id;
+  if (!guildId || !guildAllowed(guildId, ALLOWED_GUILDS) || isLogsHub(guildId) || !serves("suckme")) return;
+  void handleStarboardReaction(reaction, user).catch(() => record("starboard_error"));
 });
 
 client.on("inviteCreate", (invite) => {
@@ -1002,6 +1033,8 @@ client.once("clientReady", () => {
   setInterval(() => { if (serves("fwu")) void runBirthdays(communityGuilds()).catch(() => record("birthdays_error")); }, 5 * 60_000).unref?.();
   // SUCK ME: tell the OWNER how the last /maj ended (checked every 2 minutes).
   setInterval(() => { if (serves("suckme")) void announceUpdateResult(client).catch(() => {}); }, 2 * 60_000).unref?.();
+  // SUCK ME animation: question of the day, checked every 5 minutes (Paris time).
+  setInterval(() => { if (serves("suckme")) void runQotd(communityGuilds()).catch(() => record("qotd_error")); }, 5 * 60_000).unref?.();
   // SUCK ME jobs: expired temporary roles and scheduled announcements (every minute).
   setInterval(() => {
     if (!serves("suckme")) return;
@@ -1561,6 +1594,7 @@ client.on("interactionCreate", (interaction) => {
     if (await handleClanInteraction(interaction)) { auditSlashUsage(interaction, "Clans & saisons"); return; }
     if (await handleOverviewInteraction(interaction)) { auditSlashUsage(interaction, "Profil FWU"); return; }
     if (await handleConfessionInteraction(interaction)) { auditSlashUsage(interaction, "Confessions"); return; }
+    if (await handleAnimationInteraction(interaction)) { auditSlashUsage(interaction, "Animation"); return; }
     if (await handleCasinoInteraction(interaction)) { auditSlashUsage(interaction, "PND Casino"); return; }
     if (await handlePerkInteraction(interaction)) { auditSlashUsage(interaction, "Avantages"); return; }
     if (await handleGamesInteraction(interaction, settings[interaction.guildId], record)) { auditSlashUsage(interaction, "Jeux & événements"); return; }
