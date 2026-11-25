@@ -60,6 +60,13 @@ function botUserIds() {
   }
 }
 
+/** Ensure the application running the diagnostic is identified under its own profile, not always FWU. */
+export function resolveInstallationBotIds(savedIds, currentProfile, currentBotId) {
+  const ids = { ...(savedIds ?? {}) };
+  if (BOT_PROFILE_IDS.includes(currentProfile) && currentBotId) ids[currentProfile] = currentBotId;
+  return ids;
+}
+
 /** Collecte sur Discord puis formate. `extraLines` : base centrale, sauvegarde… */
 export async function buildInstallationReport(guild, {
   ownerId = null,
@@ -69,8 +76,7 @@ export async function buildInstallationReport(guild, {
   currentBotId = guild?.client?.user?.id ?? null,
 } = {}) {
   await guild.roles.fetch().catch(() => null);
-  const ids = botUserIds();
-  if (BOT_PROFILE_IDS.includes(currentProfile) && currentBotId) ids[currentProfile] = currentBotId;
+  const ids = resolveInstallationBotIds(botUserIds(), currentProfile, currentBotId);
   const tiers = await loadRoleTiers(guild.id).catch(() => new Map());
   const tier0RoleIds = new Set([...tiers].filter(([, tier]) => tier === 0).map(([id]) => id));
   const roles = [...guild.roles.cache.values()].filter((r) => r.id !== guild.id).map((r) => ({ id: r.id, name: r.name, position: r.position, managed: r.managed }));
