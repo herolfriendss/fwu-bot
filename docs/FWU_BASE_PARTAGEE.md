@@ -43,6 +43,7 @@
 
 - Palier d'un membre : l'owner (`PND_OWNER_DISCORD_ID`) est toujours **0 %** ; sinon le plus fort de ses rôles associés avec `/quota palier`. **Le nom d'un rôle ne donne jamais de palier** (un SYS+ pourrait se créer un rôle perso « Moi 1 % ») ; le symbole « % » est refusé dans les noms de rôles perso. `/quota paliers` liste les rôles avec « % » encore sans association.
 - 70 %, 80 %, 100 % et membres sans palier : aucune commande de modération.
+- **Gel d'urgence** (`/sysp urgence gel durée [raison] [retirer_admin_plus]`, owner seulement) : jusqu'à 7 jours, tout le staff (SYS+, ADMIN+, WHITELIST, paliers de modération, permissions Administrateur / Gérer le serveur / Gérer les rôles) perd ses commandes de staff et à préfixe sur les 5 bots, et les quotas passent à 0. L'owner et les exemptés gardent tout. Option : ADMIN+ retiré puis rendu exactement aux mêmes membres au dégel (`/sysp urgence degel` ou fin de la durée), au nom de l'owner via `role-grant-guard`.
 - `/quota moi` (réponse visible seulement par toi) : ce qu'il te reste pour chaque commande et quand la suivante se libère. Ne consomme rien.
 - Commandes à quota (tous bots) : `tempmute`, `unmute`, `warn`, `kick`, `ban`, `unban`, `blacklist`, `mv`.
 

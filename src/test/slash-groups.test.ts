@@ -27,6 +27,7 @@ const EXISTING_SYSP_LEAVES = [
   "whitelist-list", "clone", "pack", "studio",
 ];
 const DIAGNOSTIC_LEAVES = ["acl", "sante", "logs-couverture", "matrice", "economie", "bots", "installation"];
+const URGENCE_LEAVES = ["gel", "degel"];
 const MARKET_LEAVES = ["catalog", "installed", "publish", "withdraw", "submit", "validate", "reject", "install", "uninstall", "rollback"];
 
 describe("subcommand groups preserve every existing /sysp command", () => {
@@ -40,7 +41,7 @@ describe("subcommand groups preserve every existing /sysp command", () => {
   it("places every subcommand exactly once and nothing is orphaned", () => {
     const leaves = leafPaths(sysp().options as Node[]);
     expect(new Set(leaves).size).toBe(leaves.length);
-    expect(leaves.length).toBe(EXISTING_SYSP_LEAVES.length + MARKET_LEAVES.length + DIAGNOSTIC_LEAVES.length);
+    expect(leaves.length).toBe(EXISTING_SYSP_LEAVES.length + MARKET_LEAVES.length + DIAGNOSTIC_LEAVES.length + URGENCE_LEAVES.length);
   });
 
   it("keeps the most used commands at the top level", () => {

@@ -68,6 +68,7 @@ export const SYSP_LAYOUT: SubcommandLayoutEntry[] = [
   { group: "whitelist", description: "Exemption WHITELIST (propriétaire)", members: ["whitelist-add", "whitelist-remove", "whitelist-list"] },
   { group: "outils", description: "Ghost, composer, recherche, blueprints, clone, studio, packs", members: ["ghost", "composer", "search", "blueprint", "clone", "studio", "pack"] },
   { group: "diagnostic", description: "Audit ACL, santé du bot et couverture des logs (lecture seule)", members: ["acl", "sante", "logs-couverture", "matrice", "economie", "bots", "installation"] },
+  { group: "urgence", description: "Owner : gel d'urgence de tout le staff sur les 5 bots", members: ["gel", "degel"] },
   { group: "market", description: "Marketplace d'extensions (désactivé par défaut)", members: ["catalog", "installed", "publish", "withdraw", "submit", "validate", "reject", "install", "uninstall", "rollback"] },
 ];
 
@@ -515,6 +516,12 @@ export const SLASH_COMMANDS: SlashCommandDef[] = [
       sub("economie", "Intégrité du grand livre PND et signaux de fraude"),
       sub("bots", "Bots FWU : quel bot traite chaque domaine en ce moment"),
       sub("installation", "Bilan : permissions et place du rôle de chaque bot, base centrale, sauvegarde"),
+      sub("gel", "Owner : suspend toutes les commandes du staff sur les 5 bots, pour une durée", [
+        opt(3, "duree", "Durée : 30m, 2h, 1j (7 jours maximum)", { required: true, max_length: 20 }),
+        opt(3, "raison", "Raison (visible dans le Logs Hub)", { max_length: 300 }),
+        opt(5, "retirer_admin_plus", "Retire aussi le rôle ADMIN+ (rendu au dégel)"),
+      ]),
+      sub("degel", "Owner : lève le gel du staff tout de suite"),
       sub("add", "Attribue le rôle SYS+ à un membre (propriétaire)", [opt(6, "membre", "Membre concerné", { required: true })]),
       sub("remove", "Retire le rôle SYS+ à un membre (propriétaire)", [opt(6, "membre", "Membre concerné", { required: true })]),
       sub("permissions", "Consulte les scopes ADMIN+"),

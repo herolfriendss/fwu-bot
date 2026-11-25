@@ -65,6 +65,8 @@ import { recordAnalyticsMetric, flushAnalyticsMetrics } from "./analytics-buffer
 import { installProcessGuard } from "./process-guard.js";
 import { autoIncidentNotice, recordGuardIncident } from "./systems/sysplus/auto-incidents.js";
 import { setSysPlusAuditObserver } from "./systems/sysplus/audit.js";
+import { freezeRefusal, startFreezeRefresh } from "./staff-freeze-gate.js";
+import { startFreezeExpiry } from "./systems/sysplus/freeze-commands.js";
 import { recoverInterruptedAutomationRuns } from "./automation-rules.js";
 import { handleAutomationRulesMessage } from "./automation-rules-commands.js";
 import { previewGuildAutomationRules, previewScheduledAutomationRules, buildAutomationEventFromMember } from "./automation-rules-runtime.js";
@@ -482,6 +484,10 @@ async function handleMessageCreate(msg) {
     prefixifyMessageReplies(msg, OWN_PREFIX);
   }
   const runCmd = (...domains) => ownCommand && domains.includes(RUNTIME.profile);
+  if (ownCommand) {
+    const refusal = await freezeRefusal({ guildId: msg.guild.id, member: msg.member, prefixed: true, settings });
+    if (refusal) { await msg.reply({ content: refusal, allowedMentions: { parse: [] } }).catch(() => {}); return; }
+  }
   if (serves("fwu")) recordAnalyticsMetric(msg.guild.id, "messages");
   // GUARD trap channel: anyone writing there is handled and the message is gone.
   if (serves("guard")) {
@@ -1455,6 +1461,12 @@ client.on("interactionCreate", (interaction) => {
       || (isLogsHub(interaction.guildId) && !interaction.customId?.startsWith("moderation:appeal-review:")))) return;
     // A slash command is handled only by the bot that owns its domain. Buttons
     // and menus always come back to the bot that posted them: no filter needed.
+    // Gel d'urgence du staff : commandes du staff refusées (sauf owner), sur les 5 bots.
+    if (interaction.isChatInputCommand?.() && interaction.guildId) {
+      const definition = SLASH_COMMANDS.find((c) => c.name === interaction.commandName);
+      const refusal = await freezeRefusal({ guildId: interaction.guildId, member: interaction.member, commandName: interaction.commandName, category: definition?.category ?? "", settings });
+      if (refusal) { await interaction.reply({ content: refusal, ephemeral: true }).catch(() => {}); return; }
+    }
     if (interaction.isChatInputCommand?.() || interaction.isAutocomplete?.()) {
       const owner = slashCommandOwner(interaction.commandName);
       if (owner && owner !== RUNTIME.profile) {
@@ -1501,14 +1513,15 @@ client.on("interactionCreate", (interaction) => {
     if (await handlePndIntelligenceInteraction(interaction, { settings, ownerIds: getPndPrivilegedIds(process.env.PND_OWNER_DISCORD_ID, process.env.PND_COFOUNDER_DISCORD_IDS) })) { auditSlashUsage(interaction, "PND Intelligence"); return; }
     if (await handlePackInteraction(interaction, { configuredOwners: process.env.PND_OWNER_DISCORD_ID })) return;
     if (await handleMarketInteraction(interaction, { roleId: settings[interaction.guildId]?.sysPlus?.roleId ?? null, configuredOwners: process.env.PND_OWNER_DISCORD_ID })) return;
-    if (await handleWhitelistInteraction(interaction, settings, { audit: auditLog })) return;
+    if (await handleWhitelistInteraction(interaction, settings, { audit: (guild, title, description) => auditLog(guild, settings[guild?.id], title, description) })) return;
     if (await handleLocknameInteraction(interaction, settings[interaction.guildId])) { auditSlashUsage(interaction, "LOCKNAME"); return; }
     if (await handleWaoufInteraction(interaction, settings[interaction.guildId], record)) { auditSlashUsage(interaction, "WAOUF"); return; }
     if (await handleSysPlusInteraction(interaction, settings, {
       apiUrl: API,
       secret: BOT_SYNC_SECRET,
       record,
-      audit: auditLog,
+      // Les handlers SYS+ appellent audit(guild, titre, description) : on ajoute les réglages du serveur.
+      audit: (guild, title, description) => auditLog(guild, settings[guild?.id], title, description),
     })) return;
     if (await handleCustomRolesInteraction(interaction, settings[interaction.guildId])) return;
     if (await handleRoleInteraction(interaction, settings[interaction.guildId])) return;
@@ -1599,6 +1612,8 @@ async function notifySharedDb(kind) {
 }
 await startSharedLayer({ record, notify: IS_FWU ? notifySharedDb : null });
 if (IS_FWU) startUsageRetention({ record });
+startFreezeRefresh(() => ALLOWED_GUILDS.filter((guildId) => !isLogsHub(guildId)));
+if (IS_FWU) startFreezeExpiry({ client, bot: RUNTIME.profile, record, audit: (guild, title, description) => auditLog(guild, settings[guild.id], title, description, 0x38bdf8) });
 await sync();
 setInterval(sync, 60_000);
 setInterval(reportStatus, 20_000);
