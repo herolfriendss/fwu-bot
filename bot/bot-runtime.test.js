@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   BOT_PROFILE_IDS,
+  BOT_PROFILES,
   SHARED_SLASH_COMMANDS,
   claimDomainLease,
   createDomainGate,
@@ -252,4 +253,59 @@ test("bots diagnostic shows connection failures and definitive stops", async () 
   assert.match(text, /🟠 \*\*LE FISC\*\* — 1 échec\(s\) de connexion/);
   clearGatewayFailures(db, "guard"); clearGatewayFailures(db, "fisc");
   assert.doesNotMatch(formatBotsDiagnostic(1_010_000), /échec/);
+});
+
+test("every dedicated profile, including optional Invest+, can claim only its own domain", () => {
+  db.exec("DELETE FROM bot_domain_leases");
+  let clock = 5_000_000;
+  const now = () => clock;
+  const fwu = createDomainGate({ profile: "fwu", holder: "fwu:matrix", now, cacheMs: 0 });
+
+  for (const profile of BOT_PROFILE_IDS.filter((id) => id !== "fwu")) {
+    const gate = createDomainGate({
+      profile,
+      holder: `${profile}:matrix`,
+      now,
+      ttlMs: 60_000,
+      cacheMs: 0,
+    });
+
+    assert.equal(fwu.serves(profile), true, `FWU doit reprendre ${profile} avant le démarrage`);
+    assert.equal(gate.serves(profile), false, `${profile} ne doit rien traiter avant son verrou`);
+    assert.equal(gate.tick(), true, `${profile} doit pouvoir prendre son domaine`);
+    assert.equal(gate.serves(profile), true);
+    assert.equal(fwu.serves(profile), false, `FWU doit céder ${profile}`);
+
+    for (const other of BOT_PROFILE_IDS.filter((id) => id !== profile && id !== "fwu")) {
+      assert.equal(gate.serves(other), false, `${profile} ne doit jamais traiter ${other}`);
+    }
+
+    gate.release();
+    assert.equal(fwu.serves(profile), true, `FWU doit reprendre ${profile} après libération`);
+    assert.equal(gate.serves(profile), false);
+    clock += 1_000;
+  }
+
+  db.exec("DELETE FROM bot_domain_leases");
+});
+
+test("every dedicated application resolves its own unique token, including optional Invest+", () => {
+  const seenTokens = new Set(["main-token"]);
+  for (const profile of BOT_PROFILE_IDS.filter((id) => id !== "fwu")) {
+    const token = `token-${profile}`;
+    assert.equal(seenTokens.has(token), false);
+    seenTokens.add(token);
+    const runtime = resolveBotRuntime({
+      DISCORD_TOKEN: "main-token",
+      PND_BOT_PROFILE: profile,
+      [BOT_PROFILES[profile].tokenEnv]: token,
+    });
+    assert.equal(runtime.profile, profile);
+    assert.equal(runtime.token, token);
+  }
+
+  assert.throws(() => resolveBotRuntime({
+    DISCORD_TOKEN: "main-token",
+    PND_BOT_PROFILE: "investplus",
+  }), /PND_INVESTPLUS_TOKEN/);
 });
