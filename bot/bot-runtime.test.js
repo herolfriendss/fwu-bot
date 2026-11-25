@@ -45,8 +45,9 @@ test("owner decisions of 2026-11-24 are encoded (FWU = staff + embeds, GUARD = b
   for (const name of ["ban", "kick", "blacklist", "guildguard", "purge", "nettoyer", "lock", "unlock", "verify"]) assert.equal(slashCommandOwner(name), "guard", name);
   for (const name of ["afk", "ticket", "ia", "live", "giveaway", "profil", "sondage"]) assert.equal(slashCommandOwner(name), "suckme", name);
   for (const name of ["dice", "coinflip", "trivia", "cards", "pack", "trade"]) assert.equal(slashCommandOwner(name), "fisc", name);
-  assert.equal(slashCommandOwner("play"), "fdpdlavoc");
-  assert.equal(slashCommandOwner("resume"), "fdpdlavoc", "/resume reste la musique");
+  assert.equal(slashCommandOwner("music"), "fdpdlavoc");
+  assert.equal(slashCommandOwner("play"), null, "/play est regroupée sous /music player play");
+  assert.equal(slashCommandOwner("resume"), null, "/resume est regroupée sous /music player resume");
   assert.equal(slashCommandOwner("voc"), "fdpdlavoc");
   for (const name of ["sysp", "dog", "menotte", "wakeup", "anti-moove", "rankall", "lockname"]) assert.equal(slashCommandOwner(name), "suckme", name);
   for (const name of ["balance", "pay", "shop", "casino", "invest", "business"]) assert.equal(slashCommandOwner(name), "fisc", name);

@@ -83,6 +83,8 @@ test("help texts written for = are translated into slash commands", () => {
   assert.equal(slashifyText("`=rephistorique @B`"), "`/rep historique @B`");
   assert.equal(slashifyText("`=pndia crée un rôle`"), "`/ia demande crée un rôle`");
   assert.equal(slashifyText("`=casino roulette 10 rouge`"), "`/casino roulette 10 rouge`");
+  assert.equal(slashifyText("`=play daft punk`"), "`/music player play daft punk`");
+  assert.equal(slashifyText("`=musicpanel`"), "`/music player panel`");
   assert.equal(slashifyText("`=inconnu`"), "`=inconnu`", "une commande personnalisée reste intacte");
   assert.equal(slashifyText("rien à changer"), "rien à changer");
   const payload = slashifyPayload({ content: "`=afk off`", embeds: [{ description: "`=guardian-review list`", fields: [{ name: "x", value: "`=solde`" }] }] });
