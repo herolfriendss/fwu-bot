@@ -305,9 +305,13 @@ function auditLog(guild, settingsForGuild, title, description, color = 0xe21d2f)
   void sendCentralLog(guild, settingsForGuild, embed).catch(() => record("central_log_error"));
 }
 
+// Text exactly as the member typed it ("+ban"), before the routing rewrites it to "=ban".
+const typedContent = new WeakMap();
+
 function auditPrefixUsage(message, category) {
-  const command = String(message.content ?? "").trim().split(/\s+/, 1)[0].slice(0, 40);
-  void logCommandUsage({ guildId: message.guild.id, userId: message.author.id, bot: RUNTIME.profile, command: `${OWN_PREFIX ?? "="}${command.replace(/^=/, "")}`, outcome: "ok", detail: category });
+  const typed = typedContent.get(message) ?? `${OWN_PREFIX ?? "="}${String(message.content ?? "").trim().replace(/^=/, "")}`;
+  const command = String(typed).trim().split(/\s+/, 1)[0].slice(0, 40);
+  void logCommandUsage({ guildId: message.guild.id, userId: message.author.id, bot: RUNTIME.profile, command, outcome: "ok", detail: category });
   auditLog(message.guild, settings[message.guild.id], `⚙️ ${category} — commande utilisée`,
     `Membre : <@${message.author.id}>\nCommande : \`${command}\`\nSalon : <#${message.channel.id}>`);
 }
@@ -525,6 +529,7 @@ async function handleMessageCreate(msg) {
   const prefixed = parsePrefixedMessage(msg.content, BOT_PREFIXES);
   const ownCommand = Boolean(prefixed && prefixed.owner === RUNTIME.profile);
   if (ownCommand) {
+    typedContent.set(msg, msg.content);
     msg.content = prefixed.canonical;
     prefixifyMessageReplies(msg, OWN_PREFIX);
   }

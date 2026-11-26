@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { readBoundedText } from "@/lib/http-body";
 import { economyReportSchema } from "@/lib/economy";
 
 export const Route = createFileRoute("/api/public/economy-snapshot")({ server: { handlers: {
@@ -8,8 +9,8 @@ export const Route = createFileRoute("/api/public/economy-snapshot")({ server: {
     if (!checkBotSecret(request)) return Response.json({ error: "unauthorized" }, { status: 401, headers });
 
     // Bounded payload: aggregates, display names and role names only.
-    const text = await request.text();
-    if (text.length > 1_000_000) return Response.json({ error: "snapshot too large" }, { status: 413, headers });
+    const text = await readBoundedText(request, 1_000_000);
+    if (text === null) return Response.json({ error: "snapshot too large" }, { status: 413, headers });
     let input: unknown;
     try { input = JSON.parse(text); } catch { return Response.json({ error: "invalid json" }, { status: 400, headers }); }
 

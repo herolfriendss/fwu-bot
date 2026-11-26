@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { readBoundedText } from "@/lib/http-body";
 
 const fail = (status: number, message: string) =>
   new Response(message, { status, headers: { "Content-Type": "text/plain", "Cache-Control": "no-store" } });
@@ -10,8 +11,9 @@ export const Route = createFileRoute("/api/public/discord-interactions")({
       // signature of the application, not with the owner session cookie.
       POST: async ({ request }) => {
         if (!(request.headers.get("content-type") ?? "").toLowerCase().startsWith("application/json")) return fail(415, "Expected application/json");
-        const body = await request.text();
-        if (body.length > 100_000) return fail(413, "Payload too large");
+        // Unauthenticated until the signature check: never buffer more than the limit.
+        const body = await readBoundedText(request, 100_000);
+        if (body === null) return fail(413, "Payload too large");
         const { getVerifyKey, verifySignature, handleInteraction, claimInteraction } = await import("@/lib/discord-interactions.server");
         const key = await getVerifyKey().catch(() => null);
         const signature = request.headers.get("x-signature-ed25519") ?? "";

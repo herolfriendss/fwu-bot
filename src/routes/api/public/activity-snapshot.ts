@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { readBoundedText } from "@/lib/http-body";
 import { activityReportSchema } from "@/lib/activity";
 
 // Written by the bot process serving the fwu domain, every 15 minutes (BOT_SYNC_SECRET bearer).
@@ -9,8 +10,8 @@ export const Route = createFileRoute("/api/public/activity-snapshot")({ server: 
     if (!checkBotSecret(request)) return Response.json({ error: "unauthorized" }, { status: 401, headers });
 
     // Bounded payload: aggregates and display names only (about 6 KB per guild).
-    const text = await request.text();
-    if (text.length > 1_000_000) return Response.json({ error: "snapshot too large" }, { status: 413, headers });
+    const text = await readBoundedText(request, 1_000_000);
+    if (text === null) return Response.json({ error: "snapshot too large" }, { status: 413, headers });
     let input: unknown;
     try { input = JSON.parse(text); } catch { return Response.json({ error: "invalid json" }, { status: 400, headers }); }
 

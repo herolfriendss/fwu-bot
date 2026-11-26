@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { readBoundedText } from "@/lib/http-body";
 import { runtimeReportSchema } from "@/lib/bot-status";
 
 export const Route = createFileRoute("/api/public/bot-status")({ server: { handlers: {
@@ -7,8 +8,8 @@ export const Route = createFileRoute("/api/public/bot-status")({ server: { handl
     const headers = { "Cache-Control": "no-store" };
     if (!checkBotSecret(request)) return Response.json({ error: "unauthorized" }, { status: 401, headers });
     // Only known event codes, never arbitrary logs, tokens or message contents.
-    const text = await request.text();
-    if (text.length > 12_000) return Response.json({ error: "report too large" }, { status: 413, headers });
+    const text = await readBoundedText(request, 12_000);
+    if (text === null) return Response.json({ error: "report too large" }, { status: 413, headers });
     let input: unknown;
     try { input = JSON.parse(text); } catch { return Response.json({ error: "invalid json" }, { status: 400, headers }); }
     const result = runtimeReportSchema.safeParse(input);

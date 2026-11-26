@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { readBoundedText } from "@/lib/http-body";
 import { BOT_MODULE_SETTINGS_KEYS, type BotModuleKey } from "@/lib/bot-settings";
 import { isDiscordSnowflake } from "@/lib/discord-ids";
 import { canConfigureGuildModuleSettings, isConfiguredPndOwner } from "@/lib/bot-sync-authorization";
@@ -38,13 +39,13 @@ export const Route = createFileRoute("/api/public/bot-sync")({
         const { checkBotSecret } = await import("@/lib/bot-settings.server");
         if (!checkBotSecret(request)) return json({ error: "unauthorized" }, 401);
         let body: { action?: unknown; guildId?: unknown; userId?: unknown; memoryEnabled?: unknown; roleId?: unknown; actorId?: unknown; intelligenceEnabled?: unknown; intelligenceChannelId?: unknown; applicationId?: unknown; name?: unknown; permissions?: unknown; prompt?: unknown; instructions?: unknown; author?: unknown; module?: unknown; settings?: unknown; changes?: unknown; expected?: unknown };
-        let rawBody: string;
+        let rawBody: string | null;
         try {
-          rawBody = await request.text();
+          rawBody = await readBoundedText(request, 256_000);
         } catch {
           return json({ error: "invalid body" }, 400);
         }
-        if (Buffer.byteLength(rawBody, "utf8") > 256_000) {
+        if (rawBody === null) {
           return json({ error: "request body too large" }, 413);
         }
         try {

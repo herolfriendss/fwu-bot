@@ -11,14 +11,14 @@
 
 | Application | Commandes propres | Communes | Total | Limite |
 |---|---:|---:|---:|---:|
-| FWU | 10 | 2 | 12/100 | OK |
+| Bot principal | 10 | 2 | 12/100 | OK |
 | GUARD | 15 | 2 | 17/100 | OK |
 | FDPDLAVOC | 7 | 2 | 9/100 | OK |
 | SUCK ME | 61 | 2 | 63/100 | OK |
 | LE FISC | 32 | 2 | 34/100 | OK |
 | Invest + | 2 | 2 | 4/100 | OK |
 
-## FWU
+## Bot principal
 
 - /tempmute
 - /unmute

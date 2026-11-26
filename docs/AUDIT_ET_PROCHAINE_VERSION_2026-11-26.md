@@ -38,20 +38,21 @@ Revue manuelle ciblée sur les zones à risque :
 | 6 | Basse | Modmail : la table anti-rafale gardait chaque expéditeur pour toujours, donc la mémoire grossissait sans limite. | Ménage des expéditeurs inactifs. Test ajouté. |
 | — | Outillage | ESLint en échec : `useSession` de TanStack côté serveur était pris pour un hook React, plus deux blocs `catch {}` vides. | `eslint.config.js` et commentaires. 0 erreur. |
 
-Commits : `f2e9208`, `e93e888`. Chaque nouveau test a d'abord été lancé sur l'ancien code (il échoue), puis sur le nouveau (il passe).
+Commits : `f2e9208`, `e93e888` (puis FWU V2 : `c762a09` et suivants). Chaque nouveau test a d'abord été lancé sur l'ancien code (il échoue), puis sur le nouveau (il passe).
 
-## 4. Constats non corrigés (à arbitrer)
+## 4. Suite des constats (mise à jour FWU V2, même jour)
 
-| Priorité | Constat | Recommandation |
-|---|---|---|
-| P1 | Environ 40 vérifications manuelles de `RECETTE_STAGING.md` ne sont pas cochées : DOG, MENOTTE, WAKEUP, Anti-Move, PV, rankall, sanctions, LOCKNAME, casino, transferts. Plusieurs sections du plan Assist+ attendent aussi une recette Discord (musique audible, DOG en vocal). | Faire la recette sur un bot et un serveur de test avant la nouvelle version. |
-| P1 | Les 26 tests de quotas partagés (`;mv`, `+kick`, `+ban`…) sont ignorés sans PostgreSQL. | Ajouter un service PostgreSQL à la CI pour qu'ils tournent. |
-| P2 | `eslint` ne tourne pas dans la CI (`.github/workflows/ci.yml`). | L'ajouter maintenant qu'il est à 0 erreur. |
-| P2 | `bot/index.js` fait 1 741 lignes. Une interaction traverse environ 50 `if (await handleX…)` dans un ordre fixe : le premier module qui répond gagne, et l'ordre est fragile. | Prochaine version : une table de routage par commande et par préfixe de `customId` (voir §6). |
-| P2 | LE FISC : un remboursement volontaire envoie seulement les intérêts au Trésor, mais un recouvrement forcé y envoie aussi le capital. | Décision produit : le capital doit-il aller au Trésor dans les deux cas ? |
-| P3 | Dans le journal central, une commande préfixée apparaît sous sa forme interne (`=ban`) au lieu de ce que le membre a tapé (`+ban`). | Cosmétique : journaliser le texte d'origine. |
-| P3 | Sans le partial `GuildMember`, un membre absent du cache peut produire un faux log « tous les rôles ajoutés ». | Ignorer le log quand l'ancien membre est partiel. |
-| P3 | Les routes `/api/public/*` lisent tout le corps de la requête avant de vérifier sa taille (requête déjà authentifiée par le secret). | Vérifier `Content-Length` d'abord. |
+| Constat | État |
+|---|---|
+| ~~Les 26 tests de quotas partagés ne tournent pas.~~ | **Erreur de l'audit** : la CI lance déjà un service PostgreSQL 16 (`SHARED_DATABASE_URL_TEST`). Ces tests ne sont ignorés qu'en local, sans base. |
+| ~~ESLint absent de la CI.~~ | **Erreur de l'audit** : la CI lintait les fichiers modifiés. Elle lint maintenant **tout le dépôt** (`npx eslint .`), propre depuis ce jour. |
+| Journal central : la commande apparaissait sous sa forme interne (`=ban`). | ✅ Corrigé : le journal montre le texte tapé (`+ban`). |
+| Faux log « rôles ajoutés » pour un membre hors cache. | ✅ Vérifié, pas de défaut : sans partial `GuildMember`, discord.js n'émet pas `guildMemberUpdate` pour un membre hors cache. |
+| Les routes `/api/public/*` lisaient tout le corps avant de vérifier sa taille. Les interactions Discord ne sont authentifiées qu'**après** cette lecture. | ✅ Corrigé : `src/lib/http-body.ts` refuse un `Content-Length` trop grand et coupe un corps envoyé par morceaux dès la limite (5 routes, 4 tests). |
+| « FWU » visible dans Discord. | ✅ FWU V2 : plus aucun « FWU » dans Discord, verrouillé par `bot/discord-branding.test.js`. |
+| 38 vérifications manuelles de `RECETTE_STAGING.md`. | ⏳ **À faire par toi** sur un bot et un serveur de test. Impossible depuis cet environnement. |
+| `bot/index.js` (1 741 lignes, environ 50 handlers enchaînés dans un ordre fragile). | ⏳ Non fait volontairement : refonte du routage à faire **après** la recette, pour que la recette puisse servir de référence. |
+| LE FISC : le capital d'un prêt va au Trésor seulement en cas de recouvrement forcé. | ⏳ **Décision produit attendue.** Le comportement actuel est conservé. |
 
 ## 5. Idées pour la prochaine version (recensées dans le dépôt)
 
@@ -112,7 +113,7 @@ Sources : `docs/architecture/FWU_MASTER_EVOLUTION_2026-11.md`, `docs/FWU_SERVER_
 
 Pour ces trois idées, il faut ta liste précise des fonctionnalités voulues avant de développer quoi que ce soit.
 
-## 6. Proposition de cadrage pour « la nouvelle version de tous les bots »
+## 6. Cadrage de FWU V2 et des versions suivantes
 
 Une évolution, pas une réécriture : c'est la règle du dépôt, et la base actuelle est saine.
 
@@ -123,4 +124,4 @@ Une évolution, pas une réécriture : c'est la règle du dépôt, et la base ac
 5. **Modules spécialisés**, dans l'ordre du plan d'évolution : GUARD, vocal, SUCK ME, économie, Invest +.
 6. **Idées ❓** une fois spécifiées.
 
-Décisions attendues de ta part : le numéro et le nom de la version (V6 ? « FWU 2 » ?), les priorités entre les blocs 4 et 5, la question du capital des prêts, et la spécification des trois idées ❓.
+Décidé le 26/11 : la version s'appelle **FWU V2** (`v2.0.0`), sans « FWU » dans Discord. Restent à décider : les priorités entre les blocs 4 et 5, le capital des prêts et la spécification des trois idées ❓.
