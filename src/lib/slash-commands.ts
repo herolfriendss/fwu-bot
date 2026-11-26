@@ -2574,6 +2574,30 @@ export const EXTRA_SLASH_COMMANDS: SlashCommandDef[] = [
     ],
   },
   {
+    name: "blr",
+    description: "OWNER, paliers 0 % et 1 % : BLR, plus aucun rôle au-dessus du rôle membre",
+    usage: "/blr poser membre [raison] [duree] · lever membre [restaurer] · liste · configurer role membre",
+    category: "Modération",
+    dmPermission: false,
+    requiresBotProcess: true,
+    options: [
+      sub("poser", "Retire tous les rôles (sauf membre) et pose le BLR", [
+        opt(6, "membre", "Membre visé", { required: true }),
+        opt(3, "raison", "Raison (visible dans les journaux du staff seulement)", { max_length: 300 }),
+        opt(3, "duree", "Durée : 30m, 12h, 7j ou « définitif »", { max_length: 20 }),
+      ]),
+      sub("lever", "Lève le BLR", [
+        opt(6, "membre", "Membre visé", { required: true }),
+        opt(5, "restaurer", "Rendre les anciens rôles qui passent la garde ?"),
+      ]),
+      sub("liste", "Membres BLR (staff)"),
+      sub("configurer", "OWNER : rôle BLR et rôle membre", [
+        opt(8, "role", "Rôle BLR (sans permission)", { required: true }),
+        opt(8, "membre", "Rôle membre (le seul gardé)", { required: true }),
+      ]),
+    ],
+  },
+  {
     name: "dossier",
     description: "Staff : affiche un dossier de sanction ou d'action sensible",
     usage: "/dossier numero",

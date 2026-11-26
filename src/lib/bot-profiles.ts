@@ -102,7 +102,7 @@ export const SLASH_COMMAND_OWNERS: Record<BotProfileId, readonly string[]> = {
     // outils staff (25/11) : /outils sticky|modmail
     "outils",
     // V2 (26/11) : journaux typés et dossiers
-    "logs", "dossier",
+    "logs", "dossier", "blr",
   ],
   fisc: [
     "balance", "daily", "work", "job", "bank", "history", "rob", "lottery", "pay", "leaderboard",
@@ -137,7 +137,7 @@ export const PREFIX_COMMAND_OWNERS: Record<BotProfileId, readonly string[]> = {
     "sysp", "rank", "addrole", "removerole", "rankall", "rolepanel", "staffhistory", "vocalpresence",
     "lockname", "unlockname", "locknamelist", "automation", "autorule", "knowledge",
     "dog", "undog", "doginfo", "doglist", "menotte", "unmenotte", "menotteinfo", "wakeup",
-    "anti-moove", "anti-move", "wouaf", "waouf", "dmall", "logs", "dossier",
+    "anti-moove", "anti-move", "wouaf", "waouf", "dmall", "logs", "dossier", "blr",
     // venues de FWU
     "ticket", "candidature", "candidatures", "ia", "pndia",
     "profil", "profile", "bio", "color", "couleur", "rep", "rephistorique", "rephistory", "toprep",

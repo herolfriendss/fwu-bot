@@ -153,6 +153,7 @@ describe("bot wiring", () => {
       read("bot/systems/marketplace/commands.js"),
       read("bot/systems/creator/commands.js"),
       read("bot/logs-commands.js"),
+      read("bot/blr-commands.js"),
     ]) {
       for (const name of commandNameChecks(source)) add(name);
     }

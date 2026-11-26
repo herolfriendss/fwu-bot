@@ -12,6 +12,7 @@ import { getAdminPlusRoleId } from "./systems/sysplus/role-config.js";
 import { recordSysPlusAudit } from "./systems/sysplus/audit.js";
 import { roleAssignmentDecision } from "./role-policy.js";
 import { assertRoleGrantable } from "./role-grant-guard.js";
+import { blrGrantRefusal } from "./blr.js";
 import { systemLogEmbed, sendCentralLog } from "./logs.js";
 import { herBotAvatar, themePanelEmbed } from "./theme.js";
 import { parsePndOwnerId } from "./pnd-owner-policy.js";
@@ -68,7 +69,7 @@ async function applyRole({ guild, actor, targetId, roleId, add, settings }) {
   const denied = hierarchyError(freshActor, target, role, botMember);
   if (denied) throw new Error(denied);
   // SYS+, ADMIN+, WHITELIST, rôles de palier et rôles à permissions sensibles : OWNER seulement.
-  await assertRoleGrantable(guild, role, { actorId: freshActor.id, settings, removal: !add });
+  await assertRoleGrantable(guild, role, { actorId: freshActor.id, settings, removal: !add, targetId: target.id });
   const hasRole = target.roles.cache.has(role.id);
   if (add && hasRole) return { changed: false, target, role };
   if (!add && !hasRole) return { changed: false, target, role };
@@ -100,7 +101,7 @@ async function buildRankAllPreview(guild, actorId, roleId, settings = null) {
   await assertRoleGrantable(guild, role, { automatic: true, settings });
   if (!botMember.permissions.has(P.ManageRoles)) throw new Error("Je dois avoir la permission Gérer les rôles.");
   const members = await guild.members.fetch();
-  const plan = planRankAll({ members: [...members.values()], role, guild, actor, botMember });
+  const plan = planRankAll({ members: [...members.values()], role, guild, actor, botMember, blocked: (member) => (blrGrantRefusal(guild.id, member.id, role) ? "membre BLR" : null) });
   if (!plan.eligible.length) throw new Error("Aucun membre éligible à cette attribution.");
   if (plan.eligible.length > RANKALL_MAX_MEMBERS) throw new Error(`Trop de membres concernés (${plan.eligible.length}). Plafond : ${RANKALL_MAX_MEMBERS}.`);
   const job = createRankAllPreview({ guildId: guild.id, actorId, roleId: role.id, eligibleCount: plan.eligible.length, skippedCount: plan.skipped.length });

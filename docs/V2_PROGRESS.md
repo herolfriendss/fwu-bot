@@ -72,3 +72,19 @@ sortant des 6 bots (réponses, panneaux, logs, éditions, webhooks) a ses couleu
 luminance (un embed sans couleur prend le blanc cassé du thème) et ses boutons bleus/verts/rouges passés en gris.
 La couche de réponses et les journaux typés utilisent directement une palette de gris (succès blanc → refus noir).
 Non modifié : images (bannières GIF, cartes, avatars), emojis colorés, site/tableau de bord.
+| 3 — BLR et garde « consciente de la personne » | fait | 1 083 tests (1 057 réussis, 26 ignorés), smoke 2 742/0, vitest 277, tsc/eslint OK |
+
+### Tâche 3 — BLR
+
+- `bot/blr.js` : état persistant (`blr_state` : raison, auteur, date, expiration, rôles retirés, dossier), configuration
+  par serveur (`blr_config` : rôle BLR, rôle membre), décisions pures (rôles autorisés : @everyone, membre, BLR, rôles gérés).
+- `bot/blr-shield.js` : crochet discord.js (`GuildMemberRoleManager.add`, `GuildMemberManager.addRole`, `GuildMemberManager.edit`)
+  → **aucun chemin du bot** ne peut donner un rôle de trop à un BLR (commandes, rankall, boutique, niveaux, réactions, CAPTCHA,
+  rôle automatique, automatisation, anniversaire, couleur, restaurations). Erreur `BLR_PROTECTED` affichée comme un refus.
+- `role-grant-guard.js` : option `targetId` (refus BLR même pour l'OWNER) ; `=rank`/`/rank` la passent ; rankall ignore les BLR
+  dans le plan et pendant le lot ; fin de quarantaine filtrée (`filterRolesForBlr`).
+- `bot/blr-commands.js` : `/blr poser|lever|liste|configurer` et `=blr …` (SUCK ME), OWNER + paliers 0/1 % ; cible jamais OWNER,
+  propriétaire ou bot ; hiérarchie centrale (`blr poser/lever` dans `HIERARCHY_TARGETS`) ; dossier et log typés ; réponse publique minimale.
+- Application réactive (SUCK ME) : `guildMemberUpdate` retire le rôle en trop, cherche l'auteur dans le journal d'audit et envoie
+  une alerte `blr_grant_attempt` (salon d'alertes, aucune sanction automatique) ; anti-boucle 5 corrections/min/membre ;
+  balayage au démarrage puis toutes les 10 min (BLR expirés levés sans restauration) ; retour d'un membre BLR → état remis.

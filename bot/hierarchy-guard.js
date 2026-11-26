@@ -52,6 +52,8 @@ export const HIERARCHY_TARGETS = Object.freeze({
   "pseudo reset": "membre",
   "voc expulser": "membre",
   "voc bloquer": "membre",
+  "blr poser": "membre",
+  "blr lever": "membre",
 });
 
 export const HIERARCHY_MESSAGES = Object.freeze({

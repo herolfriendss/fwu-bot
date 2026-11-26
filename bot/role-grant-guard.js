@@ -11,12 +11,13 @@
 //     (PND_OWNER_DISCORD_ID) seulement ;
 //   • les attributions automatiques (boutique, niveaux, réaction, CAPTCHA, rôle automatique,
 //     règles d'automatisation, anniversaire, couleur de pseudo) : personne, jamais.
-// Les restaurations (fin de quarantaine, DOG, rôle 0 % remis) ne passent pas par ici :
-// elles rendent au membre des rôles qu'il avait déjà.
+// Les restaurations (fin de quarantaine, DOG, rôle 0 % remis) ne passent pas par la garde
+// de privilège (le membre avait déjà ces rôles) mais restent soumises au BLR (blr-shield.js).
 import { PermissionFlagsBits as P } from "discord.js";
 import { parsePndOwnerId } from "./pnd-owner-policy.js";
 import { canUseModeration, loadRoleTiersStrict } from "./shared/tiers.js";
 import { getAdminPlusRoleId } from "./systems/sysplus/role-config.js";
+import { blrGrantRefusal } from "./blr.js";
 
 /** Permissions qui donnent un pouvoir sur les membres, les rôles ou le serveur. */
 export const PRIVILEGED_PERMISSIONS = Object.freeze([
@@ -115,8 +116,14 @@ export function protectedRoleReason({ role, guildId, tiers = new Map(), access =
  * `actorId` : membre derrière l'action ; seul l'OWNER configuré passe outre (sauf `automatic`).
  * Si les paliers sont illisibles (base centrale en panne, sans cache), on refuse par sécurité.
  */
-export async function roleGrantRefusal(guild, role, { actorId = null, settings = null, automatic = false, removal = false, env = process.env } = {}) {
+export async function roleGrantRefusal(guild, role, { actorId = null, settings = null, automatic = false, removal = false, targetId = null, env = process.env } = {}) {
   if (!guild?.id) return "Serveur introuvable.";
+  // V2 : la garde regarde aussi la personne qui reçoit. Un membre BLR ne reçoit rien
+  // au-dessus du rôle membre, même de l'OWNER (lever le BLR d'abord).
+  if (!removal && targetId) {
+    const blr = blrGrantRefusal(guild.id, targetId, role);
+    if (blr) return blr;
+  }
   const owner = parsePndOwnerId(env.PND_OWNER_DISCORD_ID);
   if (!automatic && owner && actorId === owner) {
     return role?.id && role.id !== guild.id && !role.managed ? null : "Ce rôle est protégé ou géré par une intégration.";
@@ -140,11 +147,11 @@ export async function assertRoleGrantable(guild, role, options = {}) {
  * Attributions automatiques : ne garde que les rôles donnables (ids). Un rôle protégé,
  * introuvable ou une base des paliers illisible → retiré de la liste, avec `onRefused(roleId, raison)`.
  */
-export async function filterGrantableRoleIds(guild, roleIds, { settings = null, onRefused = () => {} } = {}) {
+export async function filterGrantableRoleIds(guild, roleIds, { settings = null, onRefused = () => {}, targetId = null } = {}) {
   const allowed = [];
   for (const roleId of roleIds ?? []) {
     const role = guild?.roles?.cache?.get?.(roleId) ?? (await guild?.roles?.fetch?.(roleId).catch(() => null));
-    const reason = role ? await roleGrantRefusal(guild, role, { automatic: true, settings }) : "Rôle introuvable.";
+    const reason = role ? await roleGrantRefusal(guild, role, { automatic: true, settings, targetId }) : "Rôle introuvable.";
     if (reason) {
       try { onRefused(roleId, reason); } catch { /* le journal ne débloque jamais */ }
       continue;

@@ -1,4 +1,5 @@
 // FWU GUARD — slash commands: /antinuke, /automod, /casier, /quarantaine.
+import { filterRolesForBlr } from "../blr.js";
 import { EmbedBuilder, PermissionFlagsBits as P } from "discord.js";
 import { formatHistoryEntry, loadMemberHistory } from "../member-history.js";
 import { roleGrantRefusal } from "../role-grant-guard.js";
@@ -186,7 +187,8 @@ async function handleQuarantaine(interaction, settings) {
   }
   const row = db.prepare("SELECT saved_roles_json FROM guard_quarantine WHERE guild_id=? AND user_id=?").get(guild.id, user.id);
   if (!row) return "ℹ️ Ce membre n'est pas en quarantaine.";
-  const saved = JSON.parse(row.saved_roles_json).filter((id) => guild.roles.cache.has(id));
+  // Restauration filtrée par le BLR : un membre BLR ne retrouve que le rôle membre.
+  const saved = filterRolesForBlr(guild.id, user.id, JSON.parse(row.saved_roles_json).filter((id) => guild.roles.cache.has(id)));
   const roleId = quarantineRoleOf(guild.id, settings);
   if (roleId && member.roles.cache.has(roleId)) await member.roles.remove(roleId, `Fin de quarantaine par ${interaction.user.id}`);
   if (saved.length) await member.roles.add(saved, `Fin de quarantaine par ${interaction.user.id}`);

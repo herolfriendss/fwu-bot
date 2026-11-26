@@ -87,6 +87,8 @@ import { handleLiveInteraction, handleLiveMessage } from "./live-commands.js";
 import { SLASH_FOR_PREFIX, prefixifyPayload, slashifyPayload } from "./prefix-to-slash.js";
 import { handleDossierButton, installMessageReplyLayer, installReplyLayer } from "./reply-layer.js";
 import { installMonochromeTheme } from "./monochrome-theme.js";
+import { installBlrShield } from "./blr-shield.js";
+import { handleBlrInteraction, handleBlrMemberAdd, handleBlrMemberUpdate, handleBlrMessage, sweepBlr } from "./blr-commands.js";
 import { handleLogsInteraction, handleLogsMessage } from "./logs-commands.js";
 import { logEvent, startLogMaintenance } from "./log-events.js";
 import { activeSourceGuildIds } from "./logs-config.js";
@@ -339,6 +341,8 @@ function auditSlashUsage(interaction, category) {
 installOwnerShield({ report: () => record("owner_shield_blocked") });
 // Thème noir et blanc : embeds en niveaux de gris, boutons colorés en gris, pour tout message sortant.
 installMonochromeTheme();
+// BLR : aucun chemin du bot ne peut donner un rôle au-dessus du rôle membre à un membre BLR.
+installBlrShield({ report: () => record("blr_blocked") });
 const guardReport = (guild, { title, description, color }) => sendCentralLog(guild, settings[guild.id], systemLogEmbed({ category: "security", title, description, color }));
 const automod = createAutomod({ report: guardReport, record: (code) => record(code) });
 const client = new Client({
@@ -644,6 +648,7 @@ async function handleMessageCreate(msg) {
     if (runCmd("suckme") && await handleLiveMessage(msg, settings, { apiUrl: API, secret: BOT_SYNC_SECRET })) { auditPrefixUsage(msg, "Alertes LIVE"); return; }
     if (runCmd("suckme") && await handleDmAllMessage(msg, s)) { auditPrefixUsage(msg, "DM ALL"); return; }
     if (runCmd("suckme") && await handleLogsMessage(msg, s)) { auditPrefixUsage(msg, "Journaux"); return; }
+  if (runCmd("suckme") && await handleBlrMessage(msg, s)) { auditPrefixUsage(msg, "BLR"); return; }
   if (runCmd("suckme") && await handleDogCommand(msg, s)) { auditPrefixUsage(msg, "DOG"); return; }
     if (runCmd("suckme") && await handleLocknameMessage(msg, s)) { auditPrefixUsage(msg, "LOCKNAME"); return; }
     if (runCmd("suckme") && await handleKnowledgeMessage(msg)) { auditPrefixUsage(msg, "PND Knowledge"); return; }
@@ -836,6 +841,8 @@ async function guildGuardCleared(member, guildSettings) {
 
 client.on("guildMemberAdd", async (member) => {
   if (!guildAllowed(member.guild.id, ALLOWED_GUILDS)) return;
+  // Retour d'un membre BLR parti : état BLR remis depuis la base.
+  if (serves("suckme") && !isLogsHub(member.guild.id)) void handleBlrMemberAdd(member, { record }).catch(() => record("blr_error"));
   const s = settings[member.guild.id];
   const allDomains = gate.servesAll();
   // Blacklisted accounts are banned again before anything else (GUARD owns ban and the blacklist;
@@ -890,6 +897,8 @@ client.on("guildMemberRemove", async (member) => {
 
 client.on("guildMemberUpdate", (oldMember, newMember) => {
   if (!guildAllowed(newMember.guild.id, ALLOWED_GUILDS)) return;
+  // BLR : un rôle donné par un autre bot ou à la main est retiré aussitôt (SUCK ME seul agit).
+  if (serves("suckme") && !isLogsHub(newMember.guild.id)) void handleBlrMemberUpdate(oldMember, newMember, { settings: settings[newMember.guild.id], record }).catch(() => record("blr_error"));
   const logs = serves("fwu");
   const suckme = serves("suckme");
   const oldTimeout = oldMember.communicationDisabledUntilTimestamp ?? null;
@@ -1079,6 +1088,13 @@ async function reconcileDogLeashes() {
 }
 
 client.once("clientReady", () => {
+  // BLR : vérification de tous les BLR au démarrage (rôles donnés pendant une panne), puis
+  // expiration automatique (contrôle chaque minute).
+  if (serves("suckme")) {
+    const blrGuilds = () => ALLOWED_GUILDS.filter((guildId) => !isLogsHub(guildId));
+    void sweepBlr(client, { guildIds: blrGuilds(), record }).catch(() => record("blr_error"));
+    setInterval(() => { void sweepBlr(client, { guildIds: blrGuilds(), record }).catch(() => record("blr_error")); }, 10 * 60_000).unref?.();
+  }
   writeConnectedMarker();
   try { clearGatewayFailures(db, RUNTIME.profile); } catch { /* diagnostic only */ }
   if (!IS_FWU) tickDomainLease();
@@ -1617,6 +1633,7 @@ client.on("interactionCreate", (interaction) => {
     }
     if (await handleDossierButton(interaction, { settings: settings[interaction.guildId] })) return;
     if (await handleLogsInteraction(interaction, settings[interaction.guildId])) { auditSlashUsage(interaction, "Journaux"); return; }
+    if (await handleBlrInteraction(interaction, settings[interaction.guildId])) { auditSlashUsage(interaction, "BLR"); return; }
     if (await handleToolsInteraction(interaction, { client, guildAllowed: (id) => guildAllowed(id, ALLOWED_GUILDS) && !isLogsHub(id) })) { auditSlashUsage(interaction, "Outils staff"); return; }
     if (await handleResumeInteraction(interaction, settings[interaction.guildId])) { auditSlashUsage(interaction, "RESUME"); return; }
     if (await handleDmAllInteraction(interaction, settings[interaction.guildId])) return;
@@ -1715,7 +1732,7 @@ client.on("interactionCreate", (interaction) => {
     await handleVoiceInteraction(interaction, settings[interaction.guildId]);
     await handleSavedSlashCommand(interaction);
   }).catch(async (error) => {
-    if (error?.code === "OWNER_PROTECTED") {
+    if (error?.code === "OWNER_PROTECTED" || error?.code === "BLR_PROTECTED") {
       const payload = { content: error.message, ephemeral: true, allowedMentions: { parse: [] } };
       await (interaction.deferred || interaction.replied ? interaction.followUp(payload) : interaction.reply(payload)).catch(() => {});
       return;

@@ -43,7 +43,7 @@ export function dangerousRolePermissions(role) {
 }
 
 /** Pure plan: who would receive the role. Bots are always excluded. */
-export function planRankAll({ members, role, guild, actor, botMember }) {
+export function planRankAll({ members, role, guild, actor, botMember, blocked = () => null }) {
   const eligible = [];
   const skipped = [];
   let alreadyHolding = 0;
@@ -55,6 +55,12 @@ export function planRankAll({ members, role, guild, actor, botMember }) {
     }
     if (member.user?.bot) {
       bots += 1;
+      continue;
+    }
+    // V2 : un membre BLR est ignoré dans le plan (il ne peut recevoir aucun rôle).
+    const blockedReason = blocked(member);
+    if (blockedReason) {
+      skipped.push({ id: member.id, reason: blockedReason });
       continue;
     }
     const decision = roleAssignmentDecision({

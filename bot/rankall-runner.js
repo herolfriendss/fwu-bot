@@ -3,6 +3,7 @@ import { randomBytes } from "node:crypto";
 import { db } from "./database.js";
 import { roleAssignmentDecision } from "./role-policy.js";
 import { planRankAll, dangerousRolePermissions } from "./rankall-policy.js";
+import { blrGrantRefusal } from "./blr.js";
 
 export { planRankAll, dangerousRolePermissions };
 
@@ -241,6 +242,8 @@ export async function executeRankAllJob({
     try {
       const fresh = await guild.members.fetch({ user: member.id, force: true });
       if (!fresh || fresh.user?.bot || fresh.roles.cache.has(role.id)) continue;
+      // Devenu BLR pendant le lot : ignoré (le bouclier BLR refuserait de toute façon).
+      if (blrGrantRefusal(guild.id, fresh.id, role)) continue;
 
       // A rankall job can run for minutes. Re-read the live role object on every
       // iteration so a permission/position change during the batch cannot turn
