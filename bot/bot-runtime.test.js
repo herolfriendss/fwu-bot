@@ -9,6 +9,7 @@ import {
   enqueueRelayedLog,
   formatBotsDiagnostic,
   listDomainLeases,
+  liveDomainLease,
   parseDelegatedProfiles,
   prefixCommandOwner,
   releaseDomainLease,
@@ -180,6 +181,41 @@ test("domain leases: one holder at a time, FWU takes the domain back when the le
   guardTwin.release();
   assert.equal(fwu.serves("guard"), true);
   assert.equal(listDomainLeases(clock).filter((l) => l.live).length, 0);
+});
+
+test("FWU fails closed when it cannot read another bot's domain lease", () => {
+  db.exec("DELETE FROM bot_domain_leases");
+  let clock = 2_000_000;
+  let readUnavailable = false;
+  const now = () => clock;
+  const fwu = createDomainGate({
+    profile: "fwu",
+    holder: "fwu:read-only",
+    now,
+    cacheMs: 0,
+    readLease: (domain, at) => {
+      if (readUnavailable) throw new Error("SQLite temporarily unavailable");
+      return liveDomainLease(domain, at);
+    },
+  });
+  const guard = createDomainGate({ profile: "guard", holder: "guard:live", now, cacheMs: 0 });
+
+  assert.equal(guard.tick(), true);
+  assert.equal(fwu.serves("guard"), false, "FWU yields to the live specialist lease");
+
+  readUnavailable = true;
+  fwu.forgetCache();
+  assert.equal(fwu.serves("guard"), false, "unknown lease state must not cause duplicate handling");
+  assert.equal(fwu.servesAll(), false, "FWU cannot claim single-bot mode while any lease is unreadable");
+
+  readUnavailable = false;
+  fwu.forgetCache();
+  assert.equal(fwu.serves("guard"), false, "a restored read still sees the active lease");
+
+  guard.release();
+  fwu.forgetCache();
+  assert.equal(fwu.serves("guard"), true, "FWU resumes once the specialist lease is released");
+  assert.equal(listDomainLeases(clock).filter((lease) => lease.live).length, 0);
 });
 
 test("lease helpers are idempotent for the holder", () => {
