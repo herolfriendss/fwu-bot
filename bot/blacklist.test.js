@@ -65,6 +65,23 @@ test("add bans by ID, even an absent account, and is idempotent", async () => {
   assert.equal(again.alreadyListed, true);
 });
 
+test("a Discord lookup failure cannot be mistaken for an absent account", async () => {
+  reset();
+  const guild = makeGuild();
+  const originalFetch = guild.members.fetch;
+  guild.members.fetch = async (options) => {
+    if (options.user === HIGH) throw Object.assign(new Error("Discord rate limit"), { code: 429 });
+    return originalFetch(options);
+  };
+  const actor = makeMember(SYS, 5, [SYS_ROLE]);
+  await assert.rejects(
+    addToBlacklist({ guild, actor, userId: HIGH, reason: "test outage" }),
+    /Hiérarchie illisible.*Blacklist refusée par sécurité/,
+  );
+  assert.equal(isBlacklisted("g", HIGH), false, "no database entry is created");
+  assert.equal(guild.banned.length, 0, "no ban is attempted");
+});
+
 test("hierarchy and protected accounts are refused, nothing stored", async () => {
   reset();
   const guild = makeGuild();
