@@ -61,7 +61,16 @@ export async function addToBlacklist({ guild, actor, userId, reason = "", now = 
   if (userId === guild.ownerId || userId === pndOwnerId) throw new Error("Cette personne est protégée (propriétaire) : action refusée.");
   if (userId === guild.client?.user?.id) throw new Error("Je ne peux pas me blacklister moi-même.");
   const cleanReason = String(reason ?? "").trim().slice(0, 300);
-  const target = await guild.members.fetch({ user: userId, force: true }).catch(() => null);
+  let target;
+  try {
+    target = await guild.members.fetch({ user: userId, force: true });
+    if (!target) throw new Error("Member lookup returned no member");
+  } catch (error) {
+    // A ban by ID is allowed only when Discord explicitly confirms Unknown Member.
+    // Network failures, rate limits and other API errors must never skip hierarchy.
+    if (Number(error?.code ?? error?.rawError?.code) === 10007) target = null;
+    else throw new Error("Hiérarchie illisible : impossible de vérifier ce compte auprès de Discord. Blacklist refusée par sécurité.");
+  }
   if (target) {
     const bot = await guild.members.fetchMe();
     const decision = evaluateTargetHierarchy({ actor, target, bot, guildOwnerId: guild.ownerId, pndOwnerId, enforceActorRank: actor.id !== pndOwnerId });
