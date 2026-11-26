@@ -46,6 +46,17 @@ test("loans: ceiling, overdue penalty and automatic collection", () => {
   assert.deepEqual({ ...loan }, { owed: 1155 - 30, status: "defaulted", penalized: 1 });
 });
 
+test("forced collection: only interest and penalty reach the treasury, the principal is destroyed", () => {
+  const C = "900000000000000013";
+  setWallet(C, 5000);
+  db.prepare("INSERT INTO fisc_loans(guild_id,user_id,principal,owed,due_at,created_at) VALUES(?,?,?,?,?,?)").run(G, C, 1000, 1100, 1, 0);
+  const before = cfg.treasury(G);
+  assert.equal(f.runLoanCollection(10), 1155, "owed 1100 + 5 % penalty");
+  assert.equal(cfg.treasury(G) - before, 155, "interest 100 + penalty 55, never the 1000 principal");
+  const loan = db.prepare("SELECT owed, status FROM fisc_loans WHERE user_id=?").get(C);
+  assert.deepEqual({ ...loan }, { owed: 0, status: "repaid" });
+});
+
 test("duel resolution and payout", async () => {
   assert.equal(f.resolveDuel("pile", () => 0).challengerWins, true);
   const seq = [2, 2, 5, 1];

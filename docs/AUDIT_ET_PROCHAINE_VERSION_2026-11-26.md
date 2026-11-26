@@ -52,7 +52,7 @@ Commits : `f2e9208`, `e93e888` (puis FWU V2 : `c762a09` et suivants). Chaque nou
 | « FWU » visible dans Discord. | ✅ FWU V2 : plus aucun « FWU » dans Discord, verrouillé par `bot/discord-branding.test.js`. |
 | 38 vérifications manuelles de `RECETTE_STAGING.md`. | ⏳ **À faire par toi** sur un bot et un serveur de test. Impossible depuis cet environnement. |
 | `bot/index.js` (1 741 lignes, environ 50 handlers enchaînés dans un ordre fragile). | ⏳ Non fait volontairement : refonte du routage à faire **après** la recette, pour que la recette puisse servir de référence. |
-| LE FISC : le capital d'un prêt va au Trésor seulement en cas de recouvrement forcé. | ⏳ **Décision produit attendue.** Le comportement actuel est conservé. |
+| LE FISC : le capital d'un prêt va au Trésor seulement en cas de recouvrement forcé. | ✅ Décidé le 26/11 (décision 28) : le capital est toujours détruit, la caisse ne reçoit que les intérêts et la pénalité. |
 
 ## 5. Idées pour la prochaine version (recensées dans le dépôt)
 
@@ -124,4 +124,4 @@ Une évolution, pas une réécriture : c'est la règle du dépôt, et la base ac
 5. **Modules spécialisés**, dans l'ordre du plan d'évolution : GUARD, vocal, SUCK ME, économie, Invest +.
 6. **Idées ❓** une fois spécifiées.
 
-Décidé le 26/11 : la version s'appelle **FWU V2** (`v2.0.0`), sans « FWU » dans Discord. Restent à décider : les priorités entre les blocs 4 et 5, le capital des prêts et la spécification des trois idées ❓.
+Décidé le 26/11 : la version s'appelle **FWU V2** (`v2.0.0`), sans « FWU » dans Discord. Décidé ensuite le 26/11 : le bloc 4 passe avant le bloc 5 (décision 29) et le capital des prêts est toujours détruit (décision 28). Reste à fournir : la spécification des trois idées ❓.

@@ -47,6 +47,7 @@ Chaque choix se change sans toucher au code (variable d'environnement ou command
 | 5 | WAKEUP | Pause de 1,5 s entre deux salons, 60 s par auteur, 25 salons maximum. La cible reste dans le dernier salon. | `PND_WAKEUP_STEP_DELAY_MS`, `PND_WAKEUP_COOLDOWN_MS`. |
 | 10 | PV retiré à la main pendant l'arrêt du bot | Réappliqué au démarrage (la commande unpv reste possible et restaure l'état d'origine). | Utiliser unpv avant de modifier un salon à la main. |
 | 20 | Alertes LIVE | Réglables depuis Discord (`/live`, sur SUCK ME, OWNER et SYS+), avec un rôle mentionné à chaque annonce (ton choix du 23/11). Jamais @everyone. | `/live role @rôle` ou le site. |
+| 28 | Capital des prêts du FISC | Le prêt est créé à partir de rien et son capital est toujours détruit au remboursement. La caisse ne reçoit que les intérêts et la pénalité, que le remboursement soit volontaire ou forcé (choix du 26/11). | Rien. |
 
 ## Site et mises à jour
 
@@ -54,6 +55,7 @@ Chaque choix se change sans toucher au code (variable d'environnement ou command
 |---|---|---|---|
 | 26 | Enregistrement des réglages | Le site et `/setup` n'envoient que ce qui a changé, avec la valeur de départ. Si quelqu'un a modifié la même chose entre-temps, l'enregistrement est refusé (erreur 409) au lieu d'écraser. | Rien. |
 | 27 | `/maj` | Installe ce qui est publié sur `main`. Une branche de travail n'arrive sur le VPS qu'une fois fusionnée dans `main`. | Voir la PR de l'Éclaireur (versions numérotées). |
+| 29 | Ordre après la recette V2 | Le socle commun passe avant les modules spécialisés : routeur déclaratif, puis CENTRAL/API, INCIDENT CENTER et LAB, ensuite GUARD, vocal, SUCK ME, économie et Invest + (choix du 26/11). | Rien. |
 | 8 | Vieux documents | Les anciens rapports et audits sont rangés dans `docs/archives/` (25/11). Ils ne décrivent plus l'état actuel. | Rien. |
 
 ## Remplacées

@@ -161,7 +161,10 @@ export function runLoanCollection(now = Date.now()) {
       let owed = loan.owed;
       if (!loan.penalized) owed += Math.ceil((loan.owed * LOAN_RULES.penalty) / 100);
       const taken = seize(loan.guild_id, loan.user_id, owed, "loan_collected");
-      if (taken) changeTreasury(loan.guild_id, taken);
+      // Same rule as a voluntary repayment (decision 2026-11-26): interest and penalty are collected first
+      // and go to the treasury; the principal is destroyed, since the loan was created from nothing.
+      const interestShare = Math.min(taken, Math.max(0, owed - loan.principal));
+      if (interestShare > 0) changeTreasury(loan.guild_id, interestShare);
       collected += taken;
       const left = owed - taken;
       db.prepare("UPDATE fisc_loans SET owed=?, penalized=1, status=? WHERE id=?").run(left, left ? "defaulted" : "repaid", loan.id);
