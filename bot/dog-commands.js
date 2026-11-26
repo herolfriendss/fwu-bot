@@ -264,6 +264,7 @@ const leashFollowHistory = new Map();
 /** Tests only: reset the anti-loop counters. */
 export function forgetLeashFollowHistory() {
   leashFollowHistory.clear();
+  pendingLeashRetries?.clear?.();
 }
 
 function takeLeashFollowSlot(id, now = Date.now()) {
@@ -287,7 +288,24 @@ function takeLeashFollowSlot(id, now = Date.now()) {
  * leashed member's own Connect permission is deliberately not required.
  * Never throws: a refused or failed move returns false.
  */
-export async function enforceLeashVoice(guild, memberId) {
+const pendingLeashRetries = new Map();
+const TRANSIENT_MOVE_CODES = new Set([429, 500, 502, 503, 504]);
+
+function oldestFollowAge(id, now = Date.now()) {
+  const recent = (leashFollowHistory.get(id) ?? []).filter((at) => now - at < LEASH_FOLLOW_WINDOW_MS);
+  return recent.length ? now - Math.min(...recent) : LEASH_FOLLOW_WINDOW_MS;
+}
+
+/**
+ * Remet la personne en laisse dans le vocal de son maître.
+ * V2 (correction du suivi) :
+ *  • permission « Déplacer des membres » vérifiée aussi sur le salon du maître ;
+ *  • erreur passagère de Discord (limite de débit, 5xx) → un nouvel essai ;
+ *  • limite anti-boucle atteinte → un nouvel essai programmé à la fin de la fenêtre
+ *    (avant : la personne restait derrière jusqu'au prochain mouvement du maître) ;
+ *  • toute cause d'échec est signalée (`onBlocked`).
+ */
+export async function enforceLeashVoice(guild, memberId, { schedule = (fn, ms) => setTimeout(fn, ms).unref?.(), retryDelayMs = 1_500, onBlocked = () => {} } = {}) {
   if (!guild || !memberId) return false;
   const id = key(guild.id, memberId);
   const activeRun = enforcingVoiceMembers.get(id);
@@ -299,6 +317,7 @@ export async function enforceLeashVoice(guild, memberId) {
   const run = { rerun: false };
   enforcingVoiceMembers.set(id, run);
   let moved = false;
+  const blocked = (reason) => { try { onBlocked(reason); } catch { /* signalement seulement */ } };
 
   try {
     do {
@@ -318,14 +337,38 @@ export async function enforceLeashVoice(guild, memberId) {
       const sourcePermissions = targetChannel.permissionsFor(botMember);
       const destinationPermissions = ownerChannel.permissionsFor(botMember);
       if (!sourcePermissions?.has(PermissionFlagsBits.MoveMembers) ||
-          !destinationPermissions?.has([PermissionFlagsBits.ViewChannel, PermissionFlagsBits.Connect])) return moved;
-      if (!takeLeashFollowSlot(id)) return moved;
+          !destinationPermissions?.has([PermissionFlagsBits.ViewChannel, PermissionFlagsBits.Connect, PermissionFlagsBits.MoveMembers])) {
+        blocked("permission");
+        return moved;
+      }
+      if (!takeLeashFollowSlot(id)) {
+        blocked("rate_limited");
+        if (!pendingLeashRetries.has(id)) {
+          const delay = Math.max(1_000, LEASH_FOLLOW_WINDOW_MS - oldestFollowAge(id) + 250);
+          pendingLeashRetries.set(id, true);
+          schedule(async () => {
+            pendingLeashRetries.delete(id);
+            await enforceLeashVoice(guild, memberId, { schedule, retryDelayMs, onBlocked }).catch(() => false);
+          }, delay);
+        }
+        return moved;
+      }
 
-      try {
-        await target.voice.setChannel(ownerChannel, "DOG : retour dans le vocal du propriétaire");
-        moved = true;
-      } catch {
-        return moved; // permissions retirées entre-temps, membre parti, rate limit : on n'insiste pas
+      for (let attempt = 0; attempt < 2; attempt++) {
+        try {
+          await target.voice.setChannel(ownerChannel, "DOG : retour dans le vocal du propriétaire");
+          moved = true;
+          break;
+        } catch (error) {
+          const status = Number(error?.status ?? error?.httpStatus ?? 0);
+          const transient = TRANSIENT_MOVE_CODES.has(status) || (!error?.code && !status);
+          if (attempt === 0 && transient) {
+            await new Promise((resolve) => setTimeout(resolve, retryDelayMs));
+            continue;
+          }
+          blocked(Number(error?.code) === 50013 ? "permission" : "discord_error");
+          return moved; // permissions retirées, membre parti… : on n'insiste pas
+        }
       }
     } while (run.rerun);
 
@@ -336,7 +379,7 @@ export async function enforceLeashVoice(guild, memberId) {
 }
 
 /** Enforce the voice leash when either the leashed member or their owner moves. */
-export async function handleLeashVoiceState(oldState, newState) {
+export async function handleLeashVoiceState(oldState, newState, options = {}) {
   if (oldState.channelId === newState.channelId) return 0;
   const guild = newState.guild;
   if (!guild) return 0;
@@ -354,7 +397,7 @@ export async function handleLeashVoiceState(oldState, newState) {
 
   let moved = 0;
   for (const targetId of new Set(targets)) {
-    if (await enforceLeashVoice(guild, targetId)) moved++;
+    if (await enforceLeashVoice(guild, targetId, options)) moved++;
   }
   return moved;
 }

@@ -198,3 +198,62 @@ test("boucle de déplacements (quelqu'un la remet sans cesse ailleurs) : suivi s
   }
   assert.equal(moved, 6);
 });
+
+// V2 — correction du suivi : nouvel essai après la limite, erreur passagère retentée,
+// permission « Déplacer » vérifiée sur le salon du maître, cause signalée.
+test("V2 : salon du maître sans « Déplacer des membres » pour le bot → refus propre et cause signalée", async () => {
+  forgetLeashFollowHistory();
+  writeLeash({ "g:pet": { guildId: "g", memberId: "pet", ownerId: "master", ownerName: "Master", since: Date.now(), previousNickname: null, leashRoleId: "leash" } });
+  const env = fakeGuild({ botPerms: { b: [P.ViewChannel, P.Connect] } });
+  env.channel("a", "A");
+  env.channel("b", "B");
+  env.member("bot", null);
+  env.member("pet", "a");
+  env.member("master", "b");
+  const reasons = [];
+  assert.equal(await enforceLeashVoice(env.guild, "pet", { onBlocked: (r) => reasons.push(r) }), false);
+  assert.deepEqual(env.moves, []);
+  assert.deepEqual(reasons, ["permission"]);
+});
+
+test("V2 : erreur passagère (limite de débit Discord) → un nouvel essai, la personne suit", async () => {
+  forgetLeashFollowHistory();
+  const env = fakeGuild();
+  env.channel("a", "A");
+  env.channel("b", "B");
+  env.member("bot", null);
+  const pet = env.member("pet", "a");
+  env.member("master", "b");
+  let calls = 0;
+  const original = pet.voice.setChannel;
+  pet.voice.setChannel = async (target) => {
+    calls += 1;
+    if (calls === 1) throw Object.assign(new Error("rate limited"), { status: 429 });
+    return original.call(pet.voice, target);
+  };
+  assert.equal(await enforceLeashVoice(env.guild, "pet", { retryDelayMs: 1 }), true);
+  assert.equal(calls, 2);
+  assert.equal(pet._channelId, "b");
+});
+
+test("V2 : après la limite de 6 déplacements par minute, un nouvel essai est programmé (plus de membre laissé derrière)", async () => {
+  forgetLeashFollowHistory();
+  const env = fakeGuild();
+  env.channel("a", "A");
+  env.channel("b", "B");
+  env.member("bot", null);
+  const pet = env.member("pet", "a");
+  env.member("master", "b");
+  const scheduled = [];
+  const schedule = (fn, ms) => scheduled.push({ fn, ms });
+  for (let i = 0; i < 7; i++) {
+    pet._channelId = "a";
+    await enforceLeashVoice(env.guild, "pet", { schedule });
+  }
+  assert.equal(pet._channelId, "a", "7e déplacement refusé par la limite");
+  assert.equal(scheduled.length, 1);
+  assert.ok(scheduled[0].ms > 0 && scheduled[0].ms <= 61_000);
+  forgetLeashFollowHistory(); // la fenêtre est passée
+  await scheduled[0].fn();
+  assert.equal(pet._channelId, "b");
+});

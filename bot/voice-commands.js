@@ -425,11 +425,13 @@ async function prepareWakeup(guild, actorId, targetId, announcement, rawSettings
 }
 
 /** Runs the sequence, always releases the claim, then audits and logs one summary entry. */
-async function runWakeup(prepared) {
+async function runWakeup(prepared, { dryRun = false } = {}) {
   const { guild, actor, target, settings, channels, announcement, claim } = prepared;
   let summary;
   try {
-    summary = await runWakeupSequence({ target, actorId: actor.id, channels, announcement, reason: `WAKEUP demandé par ${actor.id}` });
+    summary = await runWakeupSequence({ target, actorId: actor.id, channels, announcement, reason: `WAKEUP demandé par ${actor.id}`, dryRun });
+    // Simulation (=wakeup test) : rien n'est déplacé, le délai de recharge n'est pas consommé.
+    if (dryRun) { claim.release(0); return summary; }
   } catch (error) {
     summary = { total: channels.length, visited: 0, failures: [{ channel: "séquence", reason: error instanceof Error ? error.message.slice(0, 120) : "erreur inattendue" }], dmFailed: 0, stopped: null };
   } finally {
@@ -472,10 +474,17 @@ export async function handleVoiceMessage(message, rawSettings) {
     if (command === "=wakeup") {
       const target = message.mentions.members.first();
       const parts = message.content.trim().split(/\s+/);
+      const dryRun = /^test$/i.test(parts[1] ?? "");
+      if (dryRun) parts.splice(1, 1);
       const targetId = target?.id ?? parts[1]?.match(/^<@!?(\d{5,25})>$/)?.[1];
       if (!targetId) throw new Error("Utilisation : `=wakeup @membre [message]`.");
-      const announcement = message.content.replace(/^=wakeup\s+/i, "").replace(/<@!?\d+>/g, "").trim();
+      const announcement = message.content.replace(/^=wakeup\s+(test\s+)?/i, "").replace(/<@!?\d+>/g, "").trim();
       const prepared = await prepareWakeup(message.guild, message.author.id, targetId, announcement, settings);
+      if (dryRun) {
+        const simulated = await runWakeup(prepared, { dryRun: true });
+        await message.reply({ content: formatWakeupSummary(targetId, simulated), allowedMentions: { parse: [] } }).catch(() => {});
+        return true;
+      }
       // One reply only: it is edited with the final count, never followed by a second status message.
       const progress = await message.reply({ content: `⏰ WAKEUP en cours sur <@${targetId}>… (${prepared.channels.length} salon(s))`, allowedMentions: { parse: [] } }).catch(() => null);
       const summary = await runWakeup(prepared);
@@ -546,7 +555,7 @@ export async function handleVoiceInteraction(interaction, rawSettings) {
     try {
       const user = interaction.options.getUser("membre", true);
       const prepared = await prepareWakeup(interaction.guild, interaction.user.id, user.id, interaction.options.getString("message"), rawSettings);
-      const summary = await runWakeup(prepared);
+      const summary = await runWakeup(prepared, { dryRun: interaction.options.getBoolean?.("test", false) === true });
       await interaction.editReply({ content: formatWakeupSummary(user.id, summary), allowedMentions: { parse: [] } });
     } catch (error) {
       await interaction.editReply({ content: `❌ ${error instanceof Error ? error.message : "WAKEUP impossible."}`, allowedMentions: { parse: [] } }).catch(() => {});

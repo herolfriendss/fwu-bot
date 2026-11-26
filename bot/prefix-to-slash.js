@@ -33,6 +33,7 @@ export const SLASH_FOR_PREFIX = Object.freeze({
   business: "business", invest: "invest",
   abonnement: "abonnement voir", abo: "abonnement voir",
   logs: "logs", dossier: "dossier", blr: "blr", piege: "piege", raid: "raid", scan: "scan", panic: "panic", guide: "guide voir", pourquoi: "pourquoi",
+  accessall: "accessall", mvall: "mvall", mvrole: "mvrole", pull: "pull", swap: "swap", muteall: "muteall", unmuteall: "unmuteall", vclear: "vclear", undo: "undo",
 });
 
 // Same-name commands keep their arguments ("=casino roulette" → "/casino roulette").

@@ -283,7 +283,7 @@ describe("PND command additions", () => {
 
   it("exposes WAKEUP without a destination: the bot walks the member through public voice channels", () => {
     const wakeup = SLASH_COMMANDS.find((item) => item.name === "wakeup");
-    expect(wakeup?.options?.map((option) => option.name)).toEqual(["membre", "message"]);
+    expect(wakeup?.options?.map((option) => option.name)).toEqual(["membre", "message", "test"]);
     expect(wakeup?.options?.some((option) => option.channel_types)).toBe(false);
     expect(wakeup?.requiresBotProcess).toBe(true);
   });

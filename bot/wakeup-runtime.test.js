@@ -81,6 +81,7 @@ function world({
   const target = member("400000000000000001", targetPosition);
   if (targetInVoice) target.voice.channelId = "origin";
   target.voice.setChannel = async (channel) => {
+    if (typeof channel === "string") { moves.push(channel); target.voice.channelId = channel; return; } // V2 : retour au salon d'origine
     if (failOn.includes(channel.id)) throw new Error("Missing Access");
     moves.push(channel.name);
     target.voice.channelId = channel.id;
@@ -173,8 +174,8 @@ test("prefix: visits every eligible public channel once, skips Owner/waiting/pri
   const w = world();
   const message = prefixMessage(w);
   await handleVoiceMessage(message, SETTINGS);
-  assert.deepEqual(w.moves, ["Général", "Détente", "Jeux"]);
-  assert.equal(w.dms.length, 3);
+  assert.deepEqual(w.moves, ["Général", "Détente", "Jeux", "origin"]);
+  assert.equal(w.dms.length, 1);
   assert.match(
     w.dms[0].content,
     /Réveille-toi, <@400000000000000001> ! C'est <@300000000000000001> qui te cherche\./,
@@ -189,7 +190,7 @@ test("slash: no destination option is read, one deferred reply is edited with th
   const w = world();
   const interaction = slashInteraction(w);
   assert.equal(await handleVoiceInteraction(interaction, SETTINGS), true);
-  assert.deepEqual(w.moves, ["Général", "Détente", "Jeux"]);
+  assert.deepEqual(w.moves, ["Général", "Détente", "Jeux", "origin"]);
   assert.equal(interaction.calls.defer, 1);
   assert.equal(interaction.calls.reply, 0);
   assert.equal(interaction.calls.edits.length, 1);
@@ -216,7 +217,7 @@ test("the catalogue exposes /wakeup without any channel option", async () => {
   const command = SLASH_COMMANDS.find((item) => item.name === "wakeup");
   assert.deepEqual(
     command.options.map((option) => option.name),
-    ["membre", "message"],
+    ["membre", "message", "test"],
   );
   assert.equal(
     command.options.find((option) => option.name === "membre").required,
@@ -305,11 +306,11 @@ test("an isolated move failure and closed DMs are reported in the edited reply w
   const w = world({ failOn: ["4"], dmFails: true });
   const message = prefixMessage(w);
   await handleVoiceMessage(message, SETTINGS);
-  assert.deepEqual(w.moves, ["Général", "Jeux"]);
+  assert.deepEqual(w.moves, ["Général", "Jeux", "origin"]);
   assert.equal(message.replies.length, 1);
   assert.match(message.edits[0].content, /2\/3/);
   assert.match(message.edits[0].content, /1 déplacement\(s\) en échec/);
-  assert.match(message.edits[0].content, /MP non reçu pour 2/);
+  assert.match(message.edits[0].content, /MP non reçu/);
 });
 
 test("the movement is audited once per sequence", async () => {
@@ -340,5 +341,5 @@ test("no eligible channel: refusal, nothing moved, cooldown not consumed", async
   );
   const w2 = world();
   await handleVoiceMessage(prefixMessage(w2), SETTINGS);
-  assert.equal(w2.moves.length, 3);
+  assert.equal(w2.moves.length, 4);
 });

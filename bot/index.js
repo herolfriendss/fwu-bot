@@ -12,7 +12,7 @@ const slashCommandsModule = await import((existsSync(sharedSlashCommands) ? shar
 const { SLASH_COMMANDS, slashCommandsByCategory, toDiscordCommand } = slashCommandsModule;
 const EXTRA_SLASH_COMMANDS = slashCommandsModule.EXTRA_SLASH_COMMANDS ?? [];
 import { resolvePrefixCommand } from "./prefix-commands.js";
-import { handleVoiceMessage, handleVoiceInteraction, handleMenotteVoiceState, reconcileVoiceMenottes, expireVoiceMenottes, forgetVoicePanels, reconcilePrivateVoiceLocks } from "./voice-commands.js";
+import { handleVoiceMessage, handleVoiceInteraction, handleMenotteVoiceState, reconcileVoiceMenottes, expireVoiceMenottes, forgetVoicePanels, reconcilePrivateVoiceLocks, unlockPrivateVoiceChannel } from "./voice-commands.js";
 import { handleAntiMoveVoiceState, primeAntiMoveAuditSnapshots } from "./anti-move.js";
 import { handleTier0Ban, handleTier0Kick, handleTier0MemberUpdate, handleTier0VoiceState, primeTier0Members } from "./tier0-shield.js";
 import { recoverInterruptedRankAllJobs } from "./rankall-runner.js";
@@ -90,6 +90,9 @@ import { installMonochromeTheme } from "./monochrome-theme.js";
 import { installBlrShield } from "./blr-shield.js";
 import { checkMfa, handleBotAdded, handleRoleDrift, handleTokenLeak, handleTrapPardon, handleWebhookCreated, isRaidActive, raidAutoExit, recordJoinForRaid, springBlrTrap } from "./guard/raid-protection.js";
 import { handleRaidInteraction, handleRaidPrefix } from "./guard/raid-commands.js";
+import { handleMassButton, handleMassInteraction, handleMassMessage } from "./voice-mass.js";
+import { handlePrivateVoiceOwnerState, resetAbandonedPrivateVoices } from "./voice-private-reset.js";
+import { handleAccessAllInteraction } from "./voice-move.js";
 import { LEARN_MORE_PREFIX, handleGuideInteraction, handleGuideMessage, startGuideRefresh } from "./permission-guide.js";
 import { handleBlrInteraction, handleBlrMemberAdd, handleBlrMemberUpdate, handleBlrMessage, sweepBlr } from "./blr-commands.js";
 import { handleLogsInteraction, handleLogsMessage } from "./logs-commands.js";
@@ -660,6 +663,7 @@ async function handleMessageCreate(msg) {
     }
   }
   if (runCmd("guard") && await handleRaidPrefix(msg, s)) { auditPrefixUsage(msg, "Anti-raid"); return; }
+  if (runCmd("fdpdlavoc") && await handleMassMessage(msg)) { auditPrefixUsage(msg, "Vocal de masse"); return; }
   if (runCmd("guard") && await handleGuardPrefixCommand(msg, s, { bot: RUNTIME.profile, record, audit: (title, description, color) => auditLog(msg.guild, s, title, description, color) })) { auditPrefixUsage(msg, "Administration GUARD"); return; }
   if (runCmd("fdpdlavoc") && await handleVoiceMoveCommand(msg, s, { bot: RUNTIME.profile, record, audit: (title, description, color) => auditLog(msg.guild, s, title, description, color) })) { auditPrefixUsage(msg, "Déplacement vocal"); return; }
   try {
@@ -973,7 +977,7 @@ client.on("voiceStateUpdate", (oldState, newState) => {
     details.channelId = oldState.channelId;
     void previewGuildAutomationRules(oldState.guild ?? newState.guild, "voice_leave", `voice:${newState.id}:${Date.now()}:leave`, details, client, record);
   }
-  handleLeashVoiceState(oldState, newState)
+  handleLeashVoiceState(oldState, newState, { onBlocked: (reason) => record(`dog_voice_${reason}`) })
     .then((moved) => { if (moved) record("dog_voice_returned"); })
     .catch(() => record("dog_voice_error"));
   void handleMenotteVoiceState(oldState, newState)
@@ -981,6 +985,8 @@ client.on("voiceStateUpdate", (oldState, newState) => {
     .catch(() => record("menotte_voice_error"));
   }
   if (!serves("fdpdlavoc")) return;
+  // Vocal privé : départ de la personne qui l'a rendu privé → permissions d'avant après 45 s.
+  try { handlePrivateVoiceOwnerState(oldState, newState, { unlock: unlockPrivateVoiceChannel, record }); } catch { record("pv_reset_error"); }
   const guildId = newState.guild?.id ?? oldState.guild?.id;
   const guildSettings = settings[guildId];
   const logTempVoice = (code) => {
@@ -1094,6 +1100,8 @@ async function reconcilePvLocks() {
     const result = await reconcilePrivateVoiceLocks(client, { isAllowedGuild: (gid) => guildAllowed(gid, ALLOWED_GUILDS) && !isLogsHub(gid) });
     if (result.deleted) record("pv_locks_pruned");
     if (result.relocked) record("pv_locks_restored");
+    // Aucun vocal privé abandonné ne reste bloqué après un redémarrage.
+    await resetAbandonedPrivateVoices(client, { unlock: unlockPrivateVoiceChannel, isAllowedGuild: (gid) => guildAllowed(gid, ALLOWED_GUILDS) && !isLogsHub(gid), record });
   } catch {
     record("pv_reconcile_error");
   }
@@ -1664,6 +1672,9 @@ client.on("interactionCreate", (interaction) => {
     if (await handleGuideInteraction(interaction, settings[interaction.guildId])) { auditSlashUsage(interaction, "Guide"); return; }
     if (await handleTrapPardon(interaction, { client, getSettings: (guildId) => settings[guildId] })) return;
     if (await handleRaidInteraction(interaction, settings[interaction.guildId])) { auditSlashUsage(interaction, "Anti-raid"); return; }
+    if (await handleMassButton(interaction)) return;
+    if (await handleMassInteraction(interaction)) { auditSlashUsage(interaction, "Vocal de masse"); return; }
+    if (await handleAccessAllInteraction(interaction, settings[interaction.guildId], { bot: RUNTIME.profile, audit: (title, description) => auditLog(interaction.guild, settings[interaction.guildId], title, description) })) { auditSlashUsage(interaction, "Vocal"); return; }
     if (await handleToolsInteraction(interaction, { client, guildAllowed: (id) => guildAllowed(id, ALLOWED_GUILDS) && !isLogsHub(id) })) { auditSlashUsage(interaction, "Outils staff"); return; }
     if (await handleResumeInteraction(interaction, settings[interaction.guildId])) { auditSlashUsage(interaction, "RESUME"); return; }
     if (await handleDmAllInteraction(interaction, settings[interaction.guildId])) return;

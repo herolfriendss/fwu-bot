@@ -204,8 +204,9 @@ function targetWith({ failOn = [], dmFails = false, leaveAfter = null } = {}) {
       channelId: "origin",
       setChannel: async (channel) => {
         if (failOn.includes(channel.id)) throw new Error("Missing Access");
-        moves.push(channel.id);
-        member.voice.channelId = channel.id;
+        const id = typeof channel === "string" ? channel : channel.id;
+        moves.push(id);
+        member.voice.channelId = id;
         if (leaveAfter !== null && moves.length === leaveAfter)
           member.voice.channelId = null;
       },
@@ -220,7 +221,7 @@ function targetWith({ failOn = [], dmFails = false, leaveAfter = null } = {}) {
 const channelsOf = (...ids) => ids.map((id) => ({ id, name: `Salon ${id}` }));
 const fast = { sleep: async () => {}, stepDelayMs: 0 };
 
-test("each channel is visited once, in order, with one DM per move", async () => {
+test("V2: each channel is visited once, in order, ONE DM at the start, then back to the original channel", async () => {
   const { member, moves, dms } = targetWith();
   const summary = await runWakeupSequence({
     target: member,
@@ -228,8 +229,9 @@ test("each channel is visited once, in order, with one DM per move", async () =>
     channels: channelsOf("a", "b", "c"),
     ...fast,
   });
-  assert.deepEqual(moves, ["a", "b", "c"]);
-  assert.equal(dms.length, 3);
+  assert.deepEqual(moves, ["a", "b", "c", "origin"]);
+  assert.equal(dms.length, 1);
+  assert.equal(summary.returned, true);
   assert.deepEqual(
     {
       total: summary.total,
@@ -250,8 +252,8 @@ test("a failed move is never announced and does not stop the sequence", async ()
     channels: channelsOf("a", "b", "c"),
     ...fast,
   });
-  assert.deepEqual(moves, ["a", "c"]);
-  assert.equal(dms.length, 2, "no DM for the failed move");
+  assert.deepEqual(moves, ["a", "c", "origin"]);
+  assert.equal(dms.length, 1, "a single DM, whatever the moves");
   assert.equal(summary.visited, 2);
   assert.equal(summary.failures.length, 1);
   assert.match(
@@ -268,9 +270,9 @@ test("closed DMs are counted but never interrupt the sequence", async () => {
     channels: channelsOf("a", "b"),
     ...fast,
   });
-  assert.deepEqual(moves, ["a", "b"]);
-  assert.equal(summary.dmFailed, 2);
-  assert.match(formatWakeupSummary("1", summary), /MP non reçu pour 2/);
+  assert.deepEqual(moves, ["a", "b", "origin"]);
+  assert.equal(summary.dmFailed, 1);
+  assert.match(formatWakeupSummary("1", summary), /MP non reçu/);
 });
 
 test("the sequence stops cleanly when the target leaves voice", async () => {
@@ -308,4 +310,13 @@ test("channels hidden from @everyone but open to the members' role (verification
   assert.deepEqual(names(eligibleWakeupChannels({ guild, target, bot, config: config({}) })), []);
   assert.deepEqual(names(eligibleWakeupChannels({ guild, target, bot, config: config({ verification: { roleId: verified.id } }) })), ["Routine rouge"]);
   assert.deepEqual(names(eligibleWakeupChannels({ guild, target, bot, config: config({ automation: { autoRoleIds: [verified.id] } }) })), ["Routine rouge"]);
+});
+
+test("V2: =wakeup test simulates the route without moving anyone", async () => {
+  const { member, moves, dms } = targetWith();
+  const summary = await runWakeupSequence({ target: member, actorId: "111", channels: channelsOf("a", "b"), dryRun: true, ...fast });
+  assert.deepEqual(moves, []);
+  assert.deepEqual(dms, []);
+  assert.deepEqual(summary.route, ["Salon a", "Salon b"]);
+  assert.match(formatWakeupSummary("1", summary), /Simulation/);
 });

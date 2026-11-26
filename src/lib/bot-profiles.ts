@@ -89,6 +89,8 @@ export const SLASH_COMMAND_OWNERS: Record<BotProfileId, readonly string[]> = {
   ],
   fdpdlavoc: [
     "voice", "voc", "music", "radio", "effet", "playlist", "dj",
+    // V2 (26/11) : vocal de masse
+    "accessall", "mvall", "mvrole", "pull", "swap", "muteall", "unmuteall", "vclear", "undo",
   ],
   suckme: [
     "sysp", "panel", "setup", "knowledge", "rank", "rankall", "removerole", "rolepanel",
@@ -132,6 +134,7 @@ export const PREFIX_COMMAND_OWNERS: Record<BotProfileId, readonly string[]> = {
   ],
   fdpdlavoc: [
     "pv", "unpv", "access", "unaccess", "panel", "demandevocal", "mv", "accessall",
+    "mvall", "mvrole", "pull", "swap", "muteall", "unmuteall", "vclear", "undo",
     "play", "p", "pause", "resume", "skip", "stop", "queue", "nowplaying", "np", "volume", "vol",
     "loop", "shuffle", "clearqueue", "remove", "join", "leave", "musicpanel", "radio",
   ],

@@ -14,10 +14,38 @@ import { openModerationGate } from "./shared/moderation-gate.js";
 import { logCommandUsage } from "./shared/audit.js";
 import { getAdminPlusRoleId } from "./systems/sysplus/role-config.js";
 import { parsePndOwnerId } from "./pnd-owner-policy.js";
+import { db } from "./database.js";
+
+// V2 : =accessall ouvre le vocal à tout le monde après une photo des permissions ;
+// =accessall annuler rend exactement les permissions d'avant.
+db.exec(`CREATE TABLE IF NOT EXISTS voice_accessall_snapshots (
+  channel_id TEXT PRIMARY KEY, guild_id TEXT NOT NULL, actor_id TEXT, overwrites_json TEXT NOT NULL, created_at INTEGER NOT NULL
+)`);
+
+export function serializeOverwrites(channel) {
+  return [...(channel.permissionOverwrites?.cache?.values?.() ?? [])].map((o) => ({ id: o.id, type: o.type, allow: String(o.allow?.bitfield ?? 0n), deny: String(o.deny?.bitfield ?? 0n) }));
+}
+export function saveAccessAllSnapshot(channel, actorId, now = Date.now()) {
+  db.prepare("INSERT OR IGNORE INTO voice_accessall_snapshots(channel_id, guild_id, actor_id, overwrites_json, created_at) VALUES (?,?,?,?,?)")
+    .run(channel.id, channel.guild.id, actorId, JSON.stringify(serializeOverwrites(channel)), now);
+}
+export function getAccessAllSnapshot(channelId) {
+  const row = db.prepare("SELECT * FROM voice_accessall_snapshots WHERE channel_id = ?").get(String(channelId));
+  return row ? { guildId: row.guild_id, overwrites: JSON.parse(row.overwrites_json) } : null;
+}
+/** Rend au salon ses permissions d'avant =accessall (set complet des overwrites). */
+export async function restoreAccessAll(channel, reason = "Retour aux permissions d'avant =accessall") {
+  const snapshot = getAccessAllSnapshot(channel.id);
+  if (!snapshot || snapshot.guildId !== channel.guild.id) return false;
+  await channel.permissionOverwrites.set(snapshot.overwrites.map((o) => ({ id: o.id, type: o.type, allow: BigInt(o.allow), deny: BigInt(o.deny) })), reason);
+  db.prepare("DELETE FROM voice_accessall_snapshots WHERE channel_id = ?").run(channel.id);
+  return true;
+}
 
 const P = PermissionFlagsBits;
 const MV = /^=mv(?=$|\s)\s*(\S+)?/i;
 const ACCESSALL = /^=accessall(?=$|\s)/i;
+const ACCESSALL_UNDO = /^=accessall\s+(annuler|retour|undo)\b/i;
 const ACCESSALL_MAX_MEMBERS = 99;
 
 /** "=mv <@1…>" / "=mv 1…" → { targetId } ; { invalid: "texte" } ; { missing: true } ; null (pas ;mv). */
@@ -110,6 +138,14 @@ async function handleAccessAll(message, settings, { bot, audit }) {
   const me = guild.members.me ?? await guild.members.fetchMe();
   if (!channel.permissionsFor(me)?.has(P.ManageRoles)) return say("⛔ Il me faut « Gérer les permissions » (Gérer les rôles) sur ce vocal.");
 
+  if (ACCESSALL_UNDO.test(String(message.content ?? "").trim())) {
+    const restored = await restoreAccessAll(channel).catch(() => false);
+    audit("🔒 Accès vocal : retour aux permissions d'avant", `Par : <@${author.id}>\nSalon : <#${channel.id}>`);
+    return say(restored ? `🔒 **${channel.name}** a retrouvé ses permissions d'avant \`=accessall\`.` : "ℹ️ Aucune ouverture à annuler sur ce vocal.");
+  }
+  // Photo AVANT toute modification (la première photo est conservée).
+  saveAccessAllSnapshot(channel, author.id);
+  await channel.permissionOverwrites.edit(guild.roles.everyone, { ViewChannel: true, Connect: true }, `;accessall par ${author.user?.tag ?? author.id} : vocal ouvert à tous`).catch(() => {});
   const members = [...channel.members.values()].filter((member) => !member.user.bot).slice(0, ACCESSALL_MAX_MEMBERS);
   let granted = 0;
   let already = 0;
@@ -128,7 +164,7 @@ async function handleAccessAll(message, settings, { bot, audit }) {
   await logCommandUsage({ guildId: guild.id, userId: author.id, bot, command: "accessall", outcome: failed.length && !granted ? "error" : "ok", detail: `${granted} accordé(s), ${already} déjà, ${failed.length} échec(s)` });
   audit("🔓 Accès vocal pour tous (;accessall)", `Par : <@${author.id}>\nSalon : <#${channel.id}>\nAccès accordés : **${granted}** · déjà présents : **${already}** · échecs : **${failed.length}**`);
   const extra = channel.members.size > ACCESSALL_MAX_MEMBERS ? ` (limité aux ${ACCESSALL_MAX_MEMBERS} premiers)` : "";
-  return say(`🔓 **${channel.name}** : ${granted} accès accordé(s), ${already} déjà présent(s)${failed.length ? `, ${failed.length} échec(s)` : ""}${extra}. Ils peuvent quitter et revenir même si le salon est verrouillé.`);
+  return say(`🔓 **${channel.name}** est ouvert à tout le monde : ${granted} accès accordé(s), ${already} déjà présent(s)${failed.length ? `, ${failed.length} échec(s)` : ""}${extra}. Retour aux permissions d'avant : \`=accessall annuler\`.`);
 }
 
 export async function handleVoiceMoveCommand(message, settings = null, { bot = "fdpdlavoc", audit = () => {} } = {}) {
@@ -143,4 +179,21 @@ export async function handleVoiceMoveCommand(message, settings = null, { bot = "
     return true;
   }
   return false;
+}
+
+/** /accessall [annuler] : même chemin que ;accessall (adaptateur message). */
+export async function handleAccessAllInteraction(interaction, settings = null, { bot = "fdpdlavoc", audit = () => {} } = {}) {
+  if (!interaction?.isChatInputCommand?.() || interaction.commandName !== "accessall" || !interaction.guild) return false;
+  const member = await interaction.guild.members.fetch({ user: interaction.user.id, force: true }).catch(() => interaction.member);
+  let answered = false;
+  const adapter = {
+    guild: interaction.guild,
+    member,
+    author: interaction.user,
+    content: interaction.options.getBoolean?.("annuler", false) ? "=accessall annuler" : "=accessall",
+    reply: async (payload) => { answered = true; return interaction.reply(payload); },
+  };
+  await handleAccessAll(adapter, settings, { bot, audit });
+  if (!answered) await interaction.reply({ content: "✅ Fait.", ephemeral: true }).catch(() => {});
+  return true;
 }

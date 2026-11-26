@@ -193,10 +193,12 @@ const defaultSleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 /**
  * Moves the target through each channel once, in order. A failed move or a
- * closed DM never stops the sequence, and a failed move is never announced:
- * the DM is only sent after Discord confirmed the move.
+ * closed DM never stops the sequence.
+ * V2 : a single DM at the start (no longer one per channel), then the member is
+ * brought back to the channel they were in; `dryRun` (=wakeup test) only lists the
+ * route, without moving or messaging anyone.
  *
- * @returns {{ total:number, visited:number, failures:{channel:string, reason:string}[], dmFailed:number, stopped:string|null }}
+ * @returns {{ total:number, visited:number, failures:{channel:string, reason:string}[], dmFailed:number, stopped:string|null, returned:boolean, route:string[], dryRun:boolean }}
  */
 export async function runWakeupSequence({
   target,
@@ -206,6 +208,7 @@ export async function runWakeupSequence({
   reason = "WAKEUP",
   sleep = defaultSleep,
   stepDelayMs = wakeupStepDelayMs(),
+  dryRun = false,
 }) {
   const summary = {
     total: channels.length,
@@ -213,12 +216,21 @@ export async function runWakeupSequence({
     failures: [],
     dmFailed: 0,
     stopped: null,
+    returned: false,
+    route: channels.map((channel) => channel.name),
+    dryRun,
   };
-  const directMessage = buildWakeupDirectMessage(
-    actorId,
-    target.id,
-    announcement,
-  );
+  if (dryRun) return summary;
+  const origin = target.voice?.channel ?? target.voice?.channelId ?? null;
+  const originId = typeof origin === "string" ? origin : origin?.id ?? null;
+  try {
+    await target.send({
+      content: buildWakeupDirectMessage(actorId, target.id, announcement),
+      allowedMentions: { parse: [] },
+    });
+  } catch {
+    summary.dmFailed += 1;
+  }
   for (const [index, channel] of channels.entries()) {
     if (!target.voice?.channelId) {
       summary.stopped = "la personne a quitté le vocal";
@@ -240,22 +252,28 @@ export async function runWakeupSequence({
       continue;
     }
     summary.visited += 1;
-    try {
-      await target.send({
-        content: directMessage,
-        allowedMentions: { parse: [] },
-      });
-    } catch {
-      summary.dmFailed += 1;
-    }
     if (stepDelayMs > 0 && index < channels.length - 1)
       await sleep(stepDelayMs);
+  }
+  // Retour au salon d'origine (si la personne est encore connectée et pas déjà dedans).
+  if (origin && target.voice?.channelId && target.voice.channelId !== originId) {
+    try {
+      await target.voice.setChannel(origin, `${reason} : retour au salon d'origine`);
+      summary.returned = true;
+    } catch {
+      summary.returned = false;
+    }
+  } else if (origin && target.voice?.channelId === originId) {
+    summary.returned = true;
   }
   return summary;
 }
 
 /** Final text used to edit the original reply: counts only, no status message under the panel. */
 export function formatWakeupSummary(targetId, summary) {
+  if (summary.dryRun) {
+    return `🧪 **WAKEUP — Simulation** pour <@${targetId}> (personne n'est déplacé) : ${summary.total} salon(s)\n${summary.route.slice(0, 25).map((name, i) => `${i + 1}. ${name}`).join("\n")}\nPuis retour au salon d'origine.`;
+  }
   const lines = [
     `⏰ **WAKEUP** terminé pour <@${targetId}> : **${summary.visited}/${summary.total}** salon(s) visité(s).`,
   ];
@@ -268,9 +286,8 @@ export function formatWakeupSummary(targetId, summary) {
     );
   }
   if (summary.dmFailed)
-    lines.push(
-      `✉️ MP non reçu pour ${summary.dmFailed} déplacement(s) (messages privés fermés).`,
-    );
+    lines.push("✉️ MP non reçu (messages privés fermés).");
+  if (summary.returned) lines.push("↩️ Retour au salon d'origine effectué.");
   if (summary.stopped)
     lines.push(`⏹️ Séquence interrompue : ${summary.stopped}.`);
   return lines.join("\n");

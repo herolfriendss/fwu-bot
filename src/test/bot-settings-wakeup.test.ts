@@ -41,10 +41,13 @@ describe("WAKEUP exclusion settings", () => {
 describe("/wakeup command definition", () => {
   it("only asks for the member and an optional message, never a destination channel", () => {
     const command = SLASH_COMMANDS.find((item) => item.name === "wakeup")!;
+    // V2 : option « test » (simulation du parcours), toujours aucun salon de destination.
     expect(command.options?.map((option) => option.name)).toEqual([
       "membre",
       "message",
+      "test",
     ]);
+    expect(command.options?.some((option) => option.type === 7)).toBe(false);
     expect(
       command.options
         ?.filter((option) => option.required)

@@ -121,3 +121,22 @@ Non modifié : images (bannières GIF, cartes, avatars), emojis colorés, site/t
 - `/guide voir` (menu de sections), `/guide publier`, `/pourquoi commande`, `=guide`, `=pourquoi` ; le bouton « En savoir plus » des refus est
   activé (`guide:why:<commande>` → explication privée, sur les 6 bots).
 - Test : le guide cite tous les rangs de la matrice, tous les paliers et toutes les sanctions sensibles ou à dossier du code.
+| 6 — Vocal | fait | 1 103 tests (1 077 réussis, 26 ignorés), smoke 2 804/0, vitest 277, tsc/eslint OK |
+
+### Tâche 6 — vocal
+
+- **DOG (cause trouvée et corrigée, `dog-commands.js`)** : (1) au-delà de 6 déplacements par minute, le suivi s'arrêtait sans nouvel
+  essai — la personne restait derrière jusqu'au prochain mouvement du maître ; un nouvel essai est désormais programmé à la fin de la
+  fenêtre ; (2) une erreur passagère de Discord (limite de débit, 5xx) n'était jamais retentée → un nouvel essai ; (3) la permission
+  « Déplacer des membres » n'était pas vérifiée sur le salon du maître et tous les échecs étaient silencieux → vérifiée, cause comptée
+  (`dog_voice_permission`, `dog_voice_rate_limited`, `dog_voice_discord_error` dans le diagnostic). À vérifier en staging : que SUCK ME a
+  bien « Déplacer des membres » sur les salons concernés (c'est lui qui déplace).
+- **WakeUp** : un seul MP au début, retour au salon d'origine à la fin, `=wakeup test @membre` / `/wakeup test:oui` simule le parcours
+  sans déplacer ni consommer la recharge.
+- **Vocal privé qui se réinitialise** (`voice-private-reset.js`) : départ de la personne qui l'a rendu privé → délai de grâce 45 s →
+  permissions d'avant (même chemin que `=unpv`), retour annule ; au démarrage, aucun vocal privé abandonné ne reste bloqué.
+  Les vocaux Join-to-Create ne sont pas touchés (leur propriété est déjà transférée).
+- **Masse** (`voice-mass.js`, FDPDLAVOC, slash + `;`) : `mvall`, `mvrole`, `pull`, `swap`, `muteall`, `unmuteall`, `vclear` (aperçu +
+  confirmation réservée à l'auteur, membres au-dessus et protégés Anti-Move ignorés, verrou de salon), `undo` (30 min).
+- **`accessall`** : photo des permissions puis vocal ouvert à tous ; `=accessall annuler` / `/accessall annuler:oui` rend exactement
+  les permissions d'avant. `/accessall` existe maintenant en slash.
