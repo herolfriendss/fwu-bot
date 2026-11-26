@@ -1,3 +1,4 @@
+import { resolveColor } from "./role-colors.js";
 export const CUSTOM_ROLE_LIMITS = Object.freeze({ perCreator: 1, perGuild: 25, minNameLength: 2, maxNameLength: 32 });
 
 export function normalizeCustomRoleName(value) {
@@ -12,9 +13,10 @@ export function normalizeCustomRoleName(value) {
 }
 
 export function normalizeCustomRoleColor(value) {
-  const color = String(value ?? "").trim();
-  if (!/^#[\da-f]{6}$/i.test(color)) throw new Error("La couleur doit être au format hexadécimal #RRGGBB.");
-  return color.toUpperCase();
+  // V2 : un nom de couleur (« rose », « bleu ciel ») vaut son code.
+  const color = resolveColor(value);
+  if (!color) throw new Error("Couleur inconnue : choisis-la dans le menu ou indique un code #RRGGBB.");
+  return color;
 }
 
 export function customRoleQuotaDecision({ creatorCount, guildCount }) {

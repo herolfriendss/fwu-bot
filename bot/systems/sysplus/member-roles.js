@@ -98,7 +98,7 @@ function memberRoleModal(action, actorId, memberId) {
   const modal = new ModalBuilder().setCustomId(`${MEMBER_ROLE_PREFIX}:modal:${action}:${actorId}:${memberId}`)
     .setTitle(action === "create" ? "Rôle perso du membre" : action === "rename" ? "Renommer le rôle perso" : "Couleur du rôle perso");
   if (action !== "color") modal.addComponents(new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("name").setLabel("Nom du rôle (2 à 32 caractères)").setStyle(TextInputStyle.Short).setRequired(true).setMaxLength(32)));
-  if (action !== "rename") modal.addComponents(new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("color").setLabel("Couleur (#RRGGBB, ex. #FF66CC)").setStyle(TextInputStyle.Short).setRequired(true).setMaxLength(7)));
+  if (action !== "rename") modal.addComponents(new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("color").setLabel("Couleur : nom (rose, bleu…) ou #RRGGBB").setStyle(TextInputStyle.Short).setRequired(true).setMaxLength(7)));
   return modal;
 }
 

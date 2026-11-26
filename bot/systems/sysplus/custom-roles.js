@@ -1,4 +1,5 @@
 import { respondInPlaceSafe } from "../../interaction-reply.js";
+import { colorName, colorPickerComponents, colorPreviewEmbed } from "./role-colors.js";
 import {
   ActionRowBuilder,
   ButtonBuilder,
@@ -179,7 +180,7 @@ function customRoleComponents(guild, selectedRole = null) {
 function roleModal({ action, actorId, roleId = null, title }) {
   const modal = new ModalBuilder().setCustomId(`${PREFIX}:modal:${action}:${actorId}${roleId ? `:${roleId}` : ""}`).setTitle(title);
   const name = new TextInputBuilder().setCustomId("name").setLabel("Nom du rôle (2 à 32 caractères)").setStyle(TextInputStyle.Short).setRequired(action !== "color").setMaxLength(32);
-  const color = new TextInputBuilder().setCustomId("color").setLabel("Couleur hexadécimale (#RRGGBB)").setStyle(TextInputStyle.Short).setRequired(action !== "rename").setMaxLength(7);
+  const color = new TextInputBuilder().setCustomId("color").setLabel("Couleur : nom (rose, bleu…) ou #RRGGBB").setStyle(TextInputStyle.Short).setRequired(action !== "rename").setMaxLength(7);
   if (action !== "color") modal.addComponents(new ActionRowBuilder().addComponents(name));
   if (action !== "rename") modal.addComponents(new ActionRowBuilder().addComponents(color));
   return modal;
@@ -292,6 +293,17 @@ export async function handleCustomRolesInteraction(interaction, settings = {}) {
       await interaction.update({ embeds: [customRolesEmbed(interaction.guild, role)], components: customRoleComponents(interaction.guild, role), allowedMentions: { parse: [] } });
       return true;
     }
+    // Menu des couleurs : aperçu en direct de la couleur choisie (rien n'est encore appliqué).
+    if (interaction.isStringSelectMenu?.() && interaction.customId.startsWith(`${PREFIX}:colormenu:`)) {
+      const roleId = interaction.customId.split(":")[3];
+      const hex = interaction.values[0];
+      await interaction.update({ embeds: [colorPreviewEmbed(hex, interaction.guild.roles.cache.get(roleId)?.name)], components: colorPickerComponents(`${PREFIX}:colormenu:${roleId}`, { selected: hex }).map((row) => row), allowedMentions: { parse: [] } });
+      return true;
+    }
+    if (interaction.isButton?.() && interaction.customId.startsWith(`${PREFIX}:colormenu:`)) {
+      const [, , , roleId, kind] = interaction.customId.split(":");
+      interaction.customId = kind === "apply" ? `${PREFIX}:colorapply:${roleId}:${interaction.customId.split(":").at(-1)}` : `${PREFIX}:colorfree:${roleId}`;
+    }
     if (interaction.isButton?.()) {
       const [, , action, roleId] = interaction.customId.split(":");
       if (action === "member") {
@@ -306,10 +318,21 @@ export async function handleCustomRolesInteraction(interaction, settings = {}) {
         await interaction.showModal(roleModal({ action, actorId: actor.id, title: "Créer un rôle personnalisé" }));
         return true;
       }
-      if (action === "rename" || action === "color") {
+      if (action === "rename" || action === "color" || action === "colorfree" || action === "colorapply") {
         const row = trackedRole.get(interaction.guild.id, roleId);
         if (!row || (row.created_by !== actor.id && actor.id !== (process.env.PND_OWNER_DISCORD_ID ?? "").trim())) throw new Error("Tu ne peux pas modifier ce rôle.");
-        await interaction.showModal(roleModal({ action, actorId: actor.id, roleId, title: action === "rename" ? "Renommer le rôle" : "Changer la couleur" }));
+        // V2 : la couleur se choisit dans un menu de 25 couleurs avec aperçu ; la saisie #RRGGBB reste possible.
+        if (action === "color") {
+          await interaction.update({ content: "", embeds: [colorPreviewEmbed("#9E9E9E", interaction.guild.roles.cache.get(roleId)?.name)], components: colorPickerComponents(`${PREFIX}:colormenu:${roleId}`), allowedMentions: { parse: [] } });
+          return true;
+        }
+        if (action === "colorapply") {
+          const hex = `#${interaction.customId.split(":").at(-1)}`;
+          const role = await editCustomRole({ guild: interaction.guild, actor, botMember, roleId, action: "color", color: hex });
+          await interaction.update({ content: `✅ Couleur de <@&${role.id}> : ${colorName(hex)} (${hex}).`, embeds: [colorPreviewEmbed(hex, role.name)], components: [], allowedMentions: { parse: [] } });
+          return true;
+        }
+        await interaction.showModal(roleModal({ action: action === "colorfree" ? "color" : action, actorId: actor.id, roleId, title: action === "rename" ? "Renommer le rôle" : "Couleur libre (#RRGGBB)" }));
         return true;
       }
       if (action === "delete") {

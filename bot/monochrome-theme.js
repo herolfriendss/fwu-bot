@@ -57,6 +57,8 @@ export function monochromeBody(body) {
   if (Array.isArray(body.embeds)) {
     for (const embed of body.embeds) {
       if (!embed || typeof embed !== "object") continue;
+      // Exception voulue : l'aperçu d'une couleur de rôle perso montre la vraie couleur.
+      if (embed.author?.name === "Aperçu de couleur") continue;
       embed.color = embed.color === undefined || embed.color === null ? MONO.default : toMonochrome(embed.color);
     }
   }

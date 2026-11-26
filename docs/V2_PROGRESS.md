@@ -140,3 +140,14 @@ Non modifié : images (bannières GIF, cartes, avatars), emojis colorés, site/t
   confirmation réservée à l'auteur, membres au-dessus et protégés Anti-Move ignorés, verrou de salon), `undo` (30 min).
 - **`accessall`** : photo des permissions puis vocal ouvert à tous ; `=accessall annuler` / `/accessall annuler:oui` rend exactement
   les permissions d'avant. `/accessall` existe maintenant en slash.
+| 7 — Rôles perso : couleur sans code | fait (page du site : non construite, voir ci-dessous) | 1 106 tests (1 080 réussis, 26 ignorés), smoke 2 804/0, vitest 277, tsc/eslint OK |
+
+### Tâche 7 — couleurs (`bot/systems/sysplus/role-colors.js`)
+
+- « Changer la couleur » ouvre un menu de 25 couleurs nommées ; le choix affiche un aperçu en direct (embed dans la vraie couleur,
+  seule exception voulue au thème noir et blanc) et un bouton « Appliquer » ; « Couleur libre (#RRGGBB) » ouvre la saisie.
+  Partout où une couleur se tape (`=rolepanel create Nom | rose`, `/rolepanel`, fenêtres de saisie), un nom de couleur est accepté.
+  Toujours zéro permission, quota inchangé.
+- Page du site avec sélecteur : **non construite**. Le site n'a qu'une session OWNER par mot de passe (`requireOwner`) ; une page pour
+  les membres demanderait une connexion Discord des membres, la vérification de leur quota et de la propriété du rôle côté serveur,
+  puis un relais vers le bot : ce n'est pas « simple à relier à l'authentification existante ».
