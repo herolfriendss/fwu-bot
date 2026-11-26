@@ -95,3 +95,21 @@ test("help texts written for = are translated into slash commands", () => {
   assert.equal(slashifyText("`=guardian-review resolve 4 cleared`"), "`/guildguard resolve 4 cleared`");
   assert.equal(payload.embeds[0].fields[0].value, "`/balance`");
 });
+
+// V2 — bot par bot, avec son préfixe : chaque commande slash d'un bot à préfixe est joignable
+// en préfixe (commande dédiée ou pont générique) et seulement sur ce bot. FWU : slash uniquement (décision 21).
+test("V2: every slash command of a prefixed bot answers with that bot's prefix, and only there", async () => {
+  const { SLASH_COMMAND_OWNERS, BRIDGED_PREFIX_COMMANDS, isBridgedPrefixCommand } = await import("./bot-runtime.js");
+  const prefixes = loadBotPrefixes({});
+  for (const [bot, names] of Object.entries(SLASH_COMMAND_OWNERS ?? {})) {
+    if (bot === "fwu") { assert.deepEqual(BRIDGED_PREFIX_COMMANDS.fwu, []); continue; }
+    for (const name of names) {
+      const parsed = parsePrefixedMessage(`${prefixes[bot]}${name}`, prefixes);
+      assert.equal(parsed?.owner, bot, `${prefixes[bot]}${name} doit répondre sur ${bot}`);
+      assert.ok(PREFIX_COMMAND_OWNERS[bot].includes(name) || isBridgedPrefixCommand(bot, name), `${bot} ${name}`);
+      for (const [other, prefix] of Object.entries(prefixes)) {
+        if (other !== bot && prefix && prefix !== prefixes[bot]) assert.notEqual(parsePrefixedMessage(`${prefix}${name}`, prefixes)?.owner, bot);
+      }
+    }
+  }
+});

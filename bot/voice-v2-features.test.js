@@ -153,3 +153,24 @@ test("accessall keeps the first snapshot and restores exactly the previous overw
   assert.equal(sets[0][0].deny, P.Connect);
   assert.equal(await move.restoreAccessAll(channel), false, "nothing left to restore");
 });
+
+test("pull, mvrole, unmuteall and vclear through the shared command core", async () => {
+  const w = world();
+  w.channel(A); w.channel(B);
+  const actor = w.member("200000000000000005", 10, A, { perms: [P.MoveMembers, P.MuteMembers] });
+  const far = w.member("300000000000000041", 1, B, { roles: ["800000000000000001"] });
+  const opts = { env, protectedCheck: () => false };
+  assert.match((await mass.runMassCommand(w.guild, actor, { kind: "pull", target: far.id }, opts)).content, /amené/);
+  assert.equal(far.voice.channelId, A);
+  // /mvrole : aperçu des membres du rôle connectés ailleurs que dans la cible.
+  const preview = await mass.runMassCommand(w.guild, actor, { kind: "mvrole", roleId: "800000000000000001", target: B }, opts);
+  assert.match(preview.content, /1\*\* membre/);
+  far.voice.serverMute = true;
+  const { plan } = mass.planMassAction(w.guild, actor, { kind: "unmuteall", source: A }, opts);
+  await mass.executeMassPlan(w.guild, actor, plan, { stepMs: 0 });
+  assert.equal(far.voice.serverMute, false);
+  const clear = mass.planMassAction(w.guild, actor, { kind: "vclear", source: A }, opts).plan;
+  await mass.executeMassPlan(w.guild, actor, clear, { stepMs: 0 });
+  assert.equal(far.voice.channelId, null);
+  assert.equal(actor.voice.channelId, A, "the author is never disconnected");
+});

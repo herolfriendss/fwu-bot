@@ -162,3 +162,16 @@ Non modifié : images (bannières GIF, cartes, avatars), emojis colorés, site/t
   les instructions ; le CAPTCHA réussi enregistre la vérification.
 - `/reglement` (brouillon et publication) et `/screening` embellis : en-tête, icône du serveur, parties numérotées, bannière,
   pied de page clair ; flux brouillon → validation → publication inchangé.
+| 9 — Préfixes et complétude | partiel (trous /setup et logs typés LE FISC restants) | 1 117 tests (1 091 réussis, 26 ignorés), smoke 2 804/0, vitest 277, tsc/eslint OK |
+
+### Tâche 9 — préfixes et complétude
+
+- Préfixe propre à chaque bot (réglage `bots.json`, inchangé). **FWU reste en slash uniquement** (décision 21 de `DECISIONS.md`).
+- `bot/prefix-slash-bridge.js` : toute commande slash d'un bot à préfixe répond aussi avec son préfixe (`+raid on`, `;mvall #a #b`,
+  `-impots …`, `=blr poser @m duree:7j raison…`) : sous-commandes et options lues dans le catalogue, `nom:valeur` possible, texte libre
+  en fin de ligne ; l'interaction simulée suit le même chemin que le slash (gel, hiérarchie, couche de réponses) ; réponses privées en
+  MP ; formulaire → renvoi vers la commande slash. `BRIDGED_PREFIX_COMMANDS` / `isBridgedPrefixCommand` dans `src/lib/bot-profiles.ts`.
+- `slash-parity.test.js` vérifie bot par bot, avec son préfixe, que chaque commande slash répond en préfixe sur ce bot seulement.
+- `docs/V2_COMPLETUDE.md` généré par `bot/scripts/completeness-matrix.mjs` : préfixe 135/135 (hors FWU), aide 145/145.
+  Trous restants signalés par la matrice : réglages dans `/setup` (6 commandes sur 145 y ont un réglage), journaux typés absents de la
+  plupart des commandes de LE FISC et d'une partie de SUCK ME, ~30 commandes sans test qui les cite.

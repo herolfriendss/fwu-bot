@@ -82,7 +82,8 @@ import { handleVoicePresenceMessage, reconcileActiveVoiceSessions, trackVoiceSta
 import { handleStaffMemberHistoryMessage } from "./staff-audit.js";
 import { captureGuildInviteSnapshot, resolveMemberInvite, recordMemberInvite, recordInviteLifecycle } from "./invite-attribution.js";
 import { addCentralLogObserver, setCentralLogRelay, systemLogEmbed, sendCentralLog } from "./logs.js";
-import { BOT_PROFILES, LEASE_RENEW_MS, createDomainGate, enqueueRelayedLog, loadBotPrefixes, parsePrefixedMessage, resolveBotRuntime, slashCommandOwner, slashRegistrationPlan, takeRelayedLogs, requeueRelayedLog, countLostRelayedLogs, formatRelayLossLine } from "./bot-runtime.js";
+import { BOT_PROFILES, LEASE_RENEW_MS, createDomainGate, enqueueRelayedLog, loadBotPrefixes, parsePrefixedMessage, resolveBotRuntime, slashCommandOwner, slashRegistrationPlan, takeRelayedLogs, requeueRelayedLog, countLostRelayedLogs, formatRelayLossLine, isBridgedPrefixCommand } from "./bot-runtime.js";
+import { runPrefixAsSlash } from "./prefix-slash-bridge.js";
 import { handleLiveInteraction, handleLiveMessage } from "./live-commands.js";
 import { SLASH_FOR_PREFIX, prefixifyPayload, slashifyPayload } from "./prefix-to-slash.js";
 import { enableLearnMore, handleDossierButton, installMessageReplyLayer, installReplyLayer } from "./reply-layer.js";
@@ -748,6 +749,13 @@ async function handleMessageCreate(msg) {
         return;
       }
     }
+    // V2 : toute autre commande slash de ce bot fonctionne avec son préfixe (pont générique).
+    if (ownCommand && await runPrefixAsSlash(msg, {
+      catalogue: [...SLASH_COMMANDS, ...EXTRA_SLASH_COMMANDS],
+      ownsCommand: (name) => isBridgedPrefixCommand(RUNTIME.profile, name),
+      dispatch: (fake) => { client.emit("interactionCreate", fake); },
+      prefix: OWN_PREFIX ?? "=",
+    }).catch(() => false)) { auditPrefixUsage(msg, "Commande slash en préfixe"); return; }
     // AI mentions and keywords: FWU answers alone, never to another bot's command.
     if (!serves("fwu") || prefixed) return;
     // 3. IA quand on mentionne le bot

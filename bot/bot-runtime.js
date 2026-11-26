@@ -23,6 +23,8 @@ export const {
   BOT_PROFILE_IDS,
   DEFAULT_PREFIXES,
   PREFIX_COMMAND_OWNERS,
+  BRIDGED_PREFIX_COMMANDS,
+  isBridgedPrefixCommand,
   SHARED_SLASH_COMMANDS,
   isBotProfileId,
   parseDelegatedProfiles,

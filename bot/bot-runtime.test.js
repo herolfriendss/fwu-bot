@@ -90,7 +90,8 @@ test("prefix ownership follows the first word only (canonical = form)", () => {
   assert.equal(prefixCommandOwner("=pv"), "fdpdlavoc");
   assert.equal(prefixCommandOwner("=pay @x 10"), "fisc");
   assert.equal(prefixCommandOwner("=guardian-review list"), "guard");
-  assert.equal(prefixCommandOwner("=playlist"), null, "pas de correspondance partielle");
+  assert.equal(prefixCommandOwner("=plays"), null, "pas de correspondance partielle");
+  assert.equal(prefixCommandOwner("=playlist"), "fdpdlavoc", "V2 : /playlist répond aussi en préfixe (pont)");
   assert.equal(prefixCommandOwner("bonjour"), null);
   assert.equal(prefixCommandOwner("=macommande"), null, "commandes personnalisées : aucun propriétaire intégré");
 });
