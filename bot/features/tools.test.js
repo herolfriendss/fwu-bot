@@ -176,6 +176,15 @@ test("a first DM asks which server, then the button opens a staff thread with th
   const clientWithThread = fakeClient({ guilds: [guild], channels: { "th-new": thread } });
   assert.equal(await mm.handleModmailDm({ ...dm, content: "Encore moi" }, { client: clientWithThread, guildAllowed: () => true }), "relayed");
   assert.match(threadMsgs[2].embeds[0].toJSON().description, /Encore moi/);
+
+  // Bloqué par le staff pendant la conversation : plus rien n'est relayé, la conversation est close.
+  mm.blockModmail(G, u, "staff");
+  const blockedReplies = [];
+  assert.equal(await mm.handleModmailDm({ ...dm, content: "Toujours là", reply: async (p) => { blockedReplies.push(p); } }, { client: clientWithThread, guildAllowed: () => true }), "none");
+  assert.equal(threadMsgs.length, 3, "aucun message relayé après le blocage");
+  assert.match(blockedReplies[0], /ne reçoit plus/);
+  assert.equal(mm.openTicketOf(u), null);
+  mm.unblockModmail(G, u);
 });
 
 test("the chooser refuses a server the bot should not serve and an expired pending message", async () => {

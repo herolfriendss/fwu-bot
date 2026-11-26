@@ -183,6 +183,12 @@ export async function handleModmailDm(message, { client, guildAllowed }) {
   }
 
   const ticket = openTicketOf(message.author.id);
+  // Blocked by the staff while a conversation was open: stop relaying and close it.
+  if (ticket && isModmailBlocked(ticket.guild_id, message.author.id)) {
+    closeTicket(ticket.id, client.user?.id ?? "bot");
+    await message.reply("Le staff de ce serveur ne reçoit plus tes messages : la conversation est close.").catch(() => {});
+    return "none";
+  }
   if (ticket?.thread_id) {
     const thread = await client.channels.fetch(ticket.thread_id).catch(() => null);
     if (!thread?.isTextBased?.()) {
