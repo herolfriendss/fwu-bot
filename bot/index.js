@@ -88,6 +88,8 @@ import { SLASH_FOR_PREFIX, prefixifyPayload, slashifyPayload } from "./prefix-to
 import { handleDossierButton, installMessageReplyLayer, installReplyLayer } from "./reply-layer.js";
 import { installMonochromeTheme } from "./monochrome-theme.js";
 import { installBlrShield } from "./blr-shield.js";
+import { checkMfa, handleBotAdded, handleRoleDrift, handleTokenLeak, handleTrapPardon, handleWebhookCreated, isRaidActive, raidAutoExit, recordJoinForRaid, springBlrTrap } from "./guard/raid-protection.js";
+import { handleRaidInteraction, handleRaidPrefix } from "./guard/raid-commands.js";
 import { handleBlrInteraction, handleBlrMemberAdd, handleBlrMemberUpdate, handleBlrMessage, sweepBlr } from "./blr-commands.js";
 import { handleLogsInteraction, handleLogsMessage } from "./logs-commands.js";
 import { logEvent, startLogMaintenance } from "./log-events.js";
@@ -111,7 +113,7 @@ import { handleWebhookInteraction } from "./webhooks.js";
 import { handlePanelSetupInteraction } from "./systems/setup/panel-setup.js";
 import { getPndPrivilegedIds } from "./pnd-owner-policy.js";
 import { checkInteractionHierarchy, checkPrefixHierarchy, prefixTargetId } from "./hierarchy-guard.js";
-import { createAntiNuke, registerBotIdentity } from "./guard/anti-nuke.js";
+import { createAntiNuke, fwuBotIds, registerBotIdentity } from "./guard/anti-nuke.js";
 import { createAutomod } from "./guard/automod.js";
 import { handleShieldInteraction, checkHoneypotMessage } from "./guard/shield-commands.js";
 import { runAutoconfig } from "./autoconfig.js";
@@ -525,6 +527,14 @@ client.on("roleDelete", (role) => { if (guardWatch(role.guild)) void antiNuke.ro
 client.on("guildBanAdd", (ban) => { if (guardWatch(ban.guild)) void antiNuke.ban(ban).catch(() => record("antinuke_error")); });
 client.on("guildMemberRemove", async (member) => { if (guardWatch(member.guild)) void antiNuke.memberRemove(member).catch(() => record("antinuke_error")); });
 client.on("webhooksUpdate", (channel) => { if (guardWatch(channel.guild)) void antiNuke.webhooksUpdate(channel).catch(() => record("antinuke_error")); });
+// V2 GUARD : webhook créé hors écosystème → signalé ; dérive de permissions d'un rôle → alerte typée.
+client.on("webhooksUpdate", (channel) => { if (guardWatch(channel.guild)) void handleWebhookCreated(channel, { settings: settings[channel.guild.id], trustedIds: new Set([client.user?.id, ...fwuBotIds()].filter(Boolean)) }).catch(() => record("antinuke_error")); });
+client.on("roleUpdate", (oldRole, newRole) => { if (guardWatch(newRole.guild)) void handleRoleDrift(oldRole, newRole, { settings: settings[newRole.guild.id] }).catch(() => record("antinuke_error")); });
+client.on("guildMemberAdd", (member) => {
+  if (!guardWatch(member.guild)) return;
+  void recordJoinForRaid(member, { settings: settings[member.guild.id] }).catch(() => record("guild_guard_error"));
+  if (member.user?.bot && !fwuBotIds().has(member.id)) void handleBotAdded(member, { settings: settings[member.guild.id] }).catch(() => record("guild_guard_error"));
+});
 
 // A prefix command runs on behalf of its author, like a slash command: the OWNER shield's
 // rank rule (owner-shield.js) then applies to "+ban", "=rank"… exactly as to their slash form.
@@ -570,6 +580,12 @@ async function handleMessageCreate(msg) {
   }
   if (serves("fwu")) recordAnalyticsMetric(msg.guild.id, "messages");
   // GUARD trap channel: anyone writing there is handled and the message is gone.
+  // V2 GUARD : token de bot posté → supprimé et signalé ; salon piège BLR.
+  if (serves("guard")) {
+    if (await handleTokenLeak(msg, { settings: s }).catch(() => false)) { record("guild_guard_log"); return; }
+    const trapped = await springBlrTrap(msg, s).catch(() => null);
+    if (trapped) { record("guild_guard_quarantine"); return; }
+  }
   if (serves("guard")) {
     const caught = await checkHoneypotMessage(msg, s).catch(() => null);
     if (caught) {
@@ -640,6 +656,7 @@ async function handleMessageCreate(msg) {
       return;
     }
   }
+  if (runCmd("guard") && await handleRaidPrefix(msg, s)) { auditPrefixUsage(msg, "Anti-raid"); return; }
   if (runCmd("guard") && await handleGuardPrefixCommand(msg, s, { bot: RUNTIME.profile, record, audit: (title, description, color) => auditLog(msg.guild, s, title, description, color) })) { auditPrefixUsage(msg, "Administration GUARD"); return; }
   if (runCmd("fdpdlavoc") && await handleVoiceMoveCommand(msg, s, { bot: RUNTIME.profile, record, audit: (title, description, color) => auditLog(msg.guild, s, title, description, color) })) { auditPrefixUsage(msg, "Déplacement vocal"); return; }
   try {
@@ -1090,6 +1107,11 @@ async function reconcileDogLeashes() {
 client.once("clientReady", () => {
   // BLR : vérification de tous les BLR au démarrage (rôles donnés pendant une panne), puis
   // expiration automatique (contrôle chaque minute).
+  // GUARD : double authentification non exigée → alerte ; sortie automatique du mode raid.
+  if (serves("guard")) {
+    for (const guild of client.guilds.cache.values()) if (guardWatch(guild)) void checkMfa(guild, { settings: settings[guild.id] }).catch(() => {});
+    setInterval(() => { void raidAutoExit(client, { getSettings: (guildId) => settings[guildId] }).catch(() => record("guild_guard_error")); }, 60_000).unref?.();
+  }
   if (serves("suckme")) {
     const blrGuilds = () => ALLOWED_GUILDS.filter((guildId) => !isLogsHub(guildId));
     void sweepBlr(client, { guildIds: blrGuilds(), record }).catch(() => record("blr_error"));
@@ -1600,7 +1622,7 @@ client.on("interactionCreate", (interaction) => {
   slashifyInteractionReplies(interaction);
   runAsActor(interaction.user?.id, async () => {
     if (interaction.guildId && (!guildAllowed(interaction.guildId, ALLOWED_GUILDS)
-      || (isLogsHub(interaction.guildId) && !interaction.customId?.startsWith("moderation:appeal-review:")))) return;
+      || (isLogsHub(interaction.guildId) && !interaction.customId?.startsWith("moderation:appeal-review:") && !interaction.customId?.startsWith("trap:pardon:")))) return;
     // A slash command is handled only by the bot that owns its domain. Buttons
     // and menus always come back to the bot that posted them: no filter needed.
     // Gel d'urgence du staff : commandes du staff refusées (sauf owner), sur les 5 bots.
@@ -1634,6 +1656,8 @@ client.on("interactionCreate", (interaction) => {
     if (await handleDossierButton(interaction, { settings: settings[interaction.guildId] })) return;
     if (await handleLogsInteraction(interaction, settings[interaction.guildId])) { auditSlashUsage(interaction, "Journaux"); return; }
     if (await handleBlrInteraction(interaction, settings[interaction.guildId])) { auditSlashUsage(interaction, "BLR"); return; }
+    if (await handleTrapPardon(interaction, { client, getSettings: (guildId) => settings[guildId] })) return;
+    if (await handleRaidInteraction(interaction, settings[interaction.guildId])) { auditSlashUsage(interaction, "Anti-raid"); return; }
     if (await handleToolsInteraction(interaction, { client, guildAllowed: (id) => guildAllowed(id, ALLOWED_GUILDS) && !isLogsHub(id) })) { auditSlashUsage(interaction, "Outils staff"); return; }
     if (await handleResumeInteraction(interaction, settings[interaction.guildId])) { auditSlashUsage(interaction, "RESUME"); return; }
     if (await handleDmAllInteraction(interaction, settings[interaction.guildId])) return;

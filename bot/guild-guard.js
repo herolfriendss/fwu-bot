@@ -4,6 +4,7 @@
 // processus Oracle ne fait ensuite qu’appliquer l’action (expulsion, rôle de
 // quarantaine ou journalisation). Aucune donnée d’un serveur n’est lue par un
 // autre : les réglages et les compteurs sont indexés par identifiant de serveur.
+import { isRaidActive } from "./guard/raid-protection.js";
 import { parsePndOwnerId } from "./pnd-owner-policy.js";
 import { roleGrantRefusal } from "./role-grant-guard.js";
 import { EmbedBuilder, PermissionFlagsBits } from "discord.js";
@@ -65,7 +66,8 @@ export async function handleGuildGuardJoin(member, guard, record = () => {}) {
   recent.push(now);
   joinTracker.set(guild.id, recent);
 
-  const raidMode = raidTriggered(recent, now, windowMs, Number(guard.raidJoinThreshold ?? 0));
+  // V2 : le mode raid persistant (GUARD, /raid) applique aussi la politique des comptes récents.
+  const raidMode = raidTriggered(recent, now, windowMs, Number(guard.raidJoinThreshold ?? 0)) || isRaidActive(guild.id);
   if (raidMode && !raidNotified.has(guild.id)) {
     raidNotified.add(guild.id);
     record("guild_guard_raid");

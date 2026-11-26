@@ -172,7 +172,7 @@ export function archiveRawLog(guildId, category, embed, now = Date.now()) {
  * envoi par catégorie (alertes graves → salon d'alertes + rôle de garde).
  * Retourne { caseNumber, delivered, duplicate }.
  */
-export async function logEvent(guild, settings, event, { send = sendCentralLog, now = Date.now() } = {}) {
+export async function logEvent(guild, settings, event, { send = sendCentralLog, now = Date.now(), components = [] } = {}) {
   if (!guild?.id) return { caseNumber: null, delivered: false, duplicate: false };
   const e = normalizeLogEvent(event);
   const key = dedupKey(guild.id, e);
@@ -187,7 +187,7 @@ export async function logEvent(guild, settings, event, { send = sendCentralLog, 
   const users = [e.actorId, e.targetId].filter(Boolean);
   let delivered = false;
   try {
-    delivered = Boolean(await send(guild, settings, embed, [], [], users, { category, archived: true, mentionRoleIds: role ? [role] : [] }));
+    delivered = Boolean(await send(guild, settings, embed, [], components, users, { category, archived: true, mentionRoleIds: role ? [role] : [] }));
   } catch {
     delivered = false;
   }

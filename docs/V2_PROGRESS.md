@@ -88,3 +88,24 @@ Non modifié : images (bannières GIF, cartes, avatars), emojis colorés, site/t
 - Application réactive (SUCK ME) : `guildMemberUpdate` retire le rôle en trop, cherche l'auteur dans le journal d'audit et envoie
   une alerte `blr_grant_attempt` (salon d'alertes, aucune sanction automatique) ; anti-boucle 5 corrections/min/membre ;
   balayage au démarrage puis toutes les 10 min (BLR expirés levés sans restauration) ; retour d'un membre BLR → état remis.
+| 4 — Anti-raid et protections | fait (CAPTCHA en mode raid : partiel) | 1 089 tests (1 063 réussis, 26 ignorés), smoke 2 760/0, vitest 277, tsc/eslint OK |
+
+### Tâche 4 — anti-raid (`bot/guard/raid-protection.js`, `bot/guard/raid-commands.js`, GUARD)
+
+- **Piège** : `/piege configurer|retirer|liste` (+ `+piege`), plusieurs salons appâts. Un non-exempté (staff, SYS+, ADMIN+,
+  WHITELIST, bots, OWNER, propriétaire exemptés) qui y écrit passe en BLR (pose automatique), ses messages de la dernière heure
+  sont supprimés (15 salons au plus), alerte typée `trap_caught` avec bouton « 🕊️ Pardon » (staff du serveur source, y compris
+  depuis le hub) → BLR levé avec restauration filtrée. L'ancien piège `/bouclier piege` reste disponible.
+- **Mode raid** : détection d'afflux (`/raid seuils`, défaut 10 arrivées / 30 s), invitations fermées (`guild.disableInvites`),
+  comptes récents mis en quarantaine par GuildGuard pendant le mode raid, alerte `raid_on`, `/raid on|off|etat` et `+raid on/off`,
+  sortie automatique après la période calme (mode automatique uniquement).
+- **Anti-nuke** : le plafond par personne et par fenêtre (suppressions de rôles/salons, bans, exclusions, webhooks) avec retrait des
+  rôles dangereux existait déjà (`guard/anti-nuke.js`, réglable par `/antinuke`) ; il émet maintenant une alerte typée.
+- **Dérive de permissions** (`roleUpdate`), **bot ajouté**, **webhook créé hors écosystème** : alertes typées avec l'auteur du
+  journal d'audit (signalement, pas de blocage automatique).
+- **Token de bot** posté : message supprimé, alerte (le token n'est jamais recopié).
+- **A2F** : alerte au démarrage si la double authentification n'est pas exigée.
+- `/scan` (+ `+scan`) : score /100 et constats (permissions de @everyone, rôles Admin, bots tiers Admin, A2F, niveau de vérification…).
+- `/panic` (+ `+panic`) : verrouillage existant (`startLockdown`) + mode raid manuel.
+- Partiel : le CAPTCHA n'est pas encore rendu obligatoire en mode raid (seule la quarantaine des comptes récents s'applique) ;
+  `isRaidActive` est exposé pour la refonte du panneau de vérification (tâche 8).

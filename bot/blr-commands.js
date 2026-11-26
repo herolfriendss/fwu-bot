@@ -126,17 +126,18 @@ export async function sweepBlr(client, { guildIds = null, record = () => {} } = 
 }
 
 /** Pose un BLR. Retourne { ok, message, caseNumber }. */
-export async function setBlr({ guild, actor, target, reason = null, durationText = null, settings = null, env = process.env, now = Date.now() }) {
+export async function setBlr({ guild, actor, target, reason = null, durationText = null, settings = null, env = process.env, now = Date.now(), automatic = false }) {
   const config = getBlrConfig(guild.id);
   if (!config.blrRoleId || !config.memberRoleId) return { ok: false, message: "⚠️ BLR non configuré : `/blr configurer role membre` (OWNER)." };
-  if (!(await canManageBlr(actor, { env }))) return { ok: false, message: "⛔ Seuls l'OWNER et les paliers 0 % et 1 % peuvent poser un BLR." };
+  // automatic : protection du bot (salon piège), sans membre derrière l'action.
+  if (!automatic && !(await canManageBlr(actor, { env }))) return { ok: false, message: "⛔ Seuls l'OWNER et les paliers 0 % et 1 % peuvent poser un BLR." };
   const refusal = blrTargetRefusal(target, guild, env);
   if (refusal) return { ok: false, message: refusal };
   let durationMs;
   try { durationMs = parseBlrDuration(durationText); } catch (error) { return { ok: false, message: `⚠️ ${error.message}` }; }
   const saved = [...target.roles.cache.values()].filter((role) => role.id !== guild.id && !role.managed && role.id !== config.blrRoleId && role.id !== config.memberRoleId).map((role) => role.id);
   const { caseNumber } = await logEvent(guild, settings, {
-    category: "moderation", action: "blr_set", severity: "warning", actorId: actor.id, targetId: target.id, reason,
+    category: "moderation", action: "blr_set", severity: "warning", actorId: automatic ? null : actor.id, targetId: target.id, reason,
     details: `Durée : ${durationMs ? `${Math.round(durationMs / 60_000)} min` : "définitive"}\nRôles retirés : ${saved.length}`,
   });
   recordBlr({ guildId: guild.id, userId: target.id, reason, actorId: actor.id, expiresAt: durationMs ? now + durationMs : null, savedRoles: saved, caseNumber }, now);
