@@ -36,5 +36,10 @@ export default tseslint.config(
       "@typescript-eslint/no-unused-vars": "off",
     },
   },
+  {
+    // TanStack Start's server `useSession` is a plain async helper, not a React hook.
+    files: ["src/lib/*.server.ts", "src/routes/api/**/*.ts"],
+    rules: { "react-hooks/rules-of-hooks": "off" },
+  },
   eslintConfigPrettier,
 );

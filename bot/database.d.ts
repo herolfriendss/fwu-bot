@@ -1,3 +1,5 @@
+// SQLite rows are untyped: callers narrow them where they read them.
+/* eslint-disable @typescript-eslint/no-explicit-any */
 export const db: {
   prepare(sql: string): {
     get(...params: unknown[]): any;

@@ -121,8 +121,20 @@ export function relayBody(message) {
 }
 
 const bursts = new Map();
+let lastBurstSweep = 0;
+/** Oublie les membres sans MP récent : sans ce ménage, la table grandit à chaque nouvel expéditeur. */
+function sweepBursts(now) {
+  if (now - lastBurstSweep < MODMAIL_BURST.windowMs) return;
+  lastBurstSweep = now;
+  for (const [userId, list] of bursts) {
+    if (!list.some((t) => now - t < MODMAIL_BURST.windowMs)) bursts.delete(userId);
+  }
+}
+/** Nombre de membres suivis (tests). */
+export const trackedBurstCount = () => bursts.size;
 /** Pur (état en mémoire) : au plus 5 MP relayés par 30 s et par membre. */
 export function allowBurst(userId, now = Date.now()) {
+  sweepBursts(now);
   const list = (bursts.get(userId) ?? []).filter((t) => now - t < MODMAIL_BURST.windowMs);
   if (list.length >= MODMAIL_BURST.max) { bursts.set(userId, list); return false; }
   list.push(now);

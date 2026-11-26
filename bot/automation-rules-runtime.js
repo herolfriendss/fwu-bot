@@ -12,7 +12,21 @@ function eventIdentity(member) {
   };
 }
 
+/**
+ * Never rejects: called without await on every message, join and voice event. A SQLite
+ * error (base verrouillée, disque plein…) must not become an unhandled rejection — ten of
+ * them in ten minutes make process-guard restart the bot.
+ */
 export async function previewGuildAutomationRules(guild, type, eventId, details, client, record = () => {}) {
+  try {
+    return await previewGuildAutomationRulesUnsafe(guild, type, eventId, details, client, record);
+  } catch {
+    record("automation_preview_error");
+    return 0;
+  }
+}
+
+async function previewGuildAutomationRulesUnsafe(guild, type, eventId, details, client, record) {
   if (!guild?.id || !eventId || !client) return 0;
   const approvalChannelId = getAutomationApprovalChannel(guild.id);
   if (!approvalChannelId) return 0;
@@ -58,6 +72,15 @@ export function buildAutomationEventFromMember(member) {
 
 /** Generate one stable approval preview per scheduled interval and rule. */
 export async function previewScheduledAutomationRules(client, allowedGuildIds, now = Date.now(), record = () => {}) {
+  try {
+    return await previewScheduledAutomationRulesUnsafe(client, allowedGuildIds, now, record);
+  } catch {
+    record("automation_preview_error");
+    return 0;
+  }
+}
+
+async function previewScheduledAutomationRulesUnsafe(client, allowedGuildIds, now, record) {
   const allowed = new Set(Array.isArray(allowedGuildIds) ? allowedGuildIds : []);
   let posted = 0;
   for (const guild of client.guilds.cache.values()) {

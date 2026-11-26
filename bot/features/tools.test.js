@@ -123,6 +123,15 @@ test("burst limit: five relays per 30 seconds", () => {
   assert.equal(mm.allowBurst(u, t + 31_000), true);
 });
 
+test("burst limit: idle senders are forgotten (no unbounded memory growth)", () => {
+  const t = 9_000_000_000_000;
+  for (let i = 0; i < 50; i++) mm.allowBurst(`idle-${i}`, t);
+  assert.ok(mm.trackedBurstCount() >= 50);
+  // One window later, a new message sweeps every sender without recent activity.
+  mm.allowBurst("fresh", t + mm.MODMAIL_BURST.windowMs + 1);
+  assert.equal(mm.trackedBurstCount(), 1);
+});
+
 function fakeClient({ guilds = [], channels = {}, users = {} } = {}) {
   return {
     user: { id: "bot" },

@@ -82,3 +82,15 @@ test("rule events are not delivered without an approval destination", async () =
   assert.equal(await previewGuildAutomationRules(guild, "member_join", "join-event-2", { memberId: "777777" }, {}, () => {}), 0);
   assert.equal(guild.sent.length, 0);
 });
+
+test("automation previews never reject: a storage or Discord failure is recorded instead", async () => {
+  const guild = makeGuild();
+  const channelCommand = makeMessage(guild, "=autorule channel 222222");
+  await handleAutomationRulesMessage(channelCommand);
+  await handleAutomationRulesMessage(makeMessage(guild, "=autorule create member_join | Welcome | message 333333 | Bienvenue !"));
+  // A synchronous throw before the per-rule loop used to escape as an unhandled rejection.
+  guild.channels.fetch = () => { throw new Error("boom"); };
+  const codes = [];
+  assert.equal(await previewGuildAutomationRules(guild, "member_join", "join-event-3", { memberId: "777777" }, {}, (code) => codes.push(code)), 0);
+  assert.deepEqual(codes, ["automation_preview_error"]);
+});

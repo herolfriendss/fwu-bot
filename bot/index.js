@@ -1080,7 +1080,9 @@ client.once("clientReady", () => {
   // LE FISC jobs: weekly wealth tax and overdue loans (hourly checks).
   setInterval(() => {
     if (!serves("fisc")) return;
-    try { runWealthTax(communityGuilds().map((g) => g.id)); runLoanCollection(); } catch { record("fisc_job_error"); }
+    // Independent jobs: a failing wealth tax must not block overdue loan collection (and vice versa).
+    try { runWealthTax(communityGuilds().map((g) => g.id)); } catch { record("fisc_job_error"); }
+    try { runLoanCollection(); } catch { record("fisc_job_error"); }
   }, 60 * 60_000).unref?.();
   // Invest + jobs: reminders before the due date, then expirations (every 5 minutes).
   setInterval(() => {
@@ -1119,7 +1121,11 @@ client.once("clientReady", () => {
   const analyticsTimer = setInterval(() => flushAnalyticsMetrics(), 60_000);
   analyticsTimer.unref?.();
   if (serves("fwu")) try { if (recoverInterruptedPndIntelligenceActions()) record("pnd_intelligence_interrupted_actions_marked_unknown"); } catch { record("pnd_intelligence_recovery_error"); }
-  const intelligenceExpiryTimer = setInterval(() => { if (serves("fwu")) expirePendingPndIntelligenceActions(); }, 60_000);
+  // Synchronous SQLite call inside a timer: an exception here would be uncaught and stop the process.
+  const intelligenceExpiryTimer = setInterval(() => {
+    if (!serves("fwu")) return;
+    try { expirePendingPndIntelligenceActions(); } catch { record("pnd_intelligence_recovery_error"); }
+  }, 60_000);
   intelligenceExpiryTimer.unref?.();
   const guardianRetentionTimer = setInterval(() => {
     if (!serves("guard")) return;
@@ -1220,8 +1226,8 @@ client.once("clientReady", () => {
 
   void reportStatus();
   if (serves("fisc")) void reportEconomy();
-  if (serves("fwu")) void checkLiveAlerts(client, settings, record);
-  const liveAlertsTimer = setInterval(() => { if (serves("fwu")) void checkLiveAlerts(client, settings, record); }, 60_000);
+  if (serves("fwu")) void checkLiveAlerts(client, settings, record).catch(() => record("live_alert_feed_error"));
+  const liveAlertsTimer = setInterval(() => { if (serves("fwu")) void checkLiveAlerts(client, settings, record).catch(() => record("live_alert_feed_error")); }, 60_000);
   liveAlertsTimer.unref?.();
   const economyTimer = setInterval(() => { if (serves("fisc")) void reportEconomy(); }, 5 * 60_000);
   economyTimer.unref?.();
