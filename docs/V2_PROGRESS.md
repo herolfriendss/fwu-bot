@@ -185,7 +185,7 @@ Non modifié : images (bannières GIF, cartes, avatars), emojis colorés, site/t
 - `/presence definir|retirer|description` (SUCK ME, `=presence …` par le pont) : statut d'un des 6 bots sans fichier (table partagée),
   durée facultative ; description « À propos » appliquée par chaque bot avec son propre jeton.
 - Limites Discord respectées : un texte, un type d'activité, une pastille — pas d'image ni de bouton.
-| 11 — Nouvelles commandes (SYS+, FDPDLAVOC, SUCK ME, LE FISC, FWU, smash or pass) | non fait (quota) | — |
+| 11 — Nouvelles commandes | partiel : smash or pass fait ; notes du staff déjà présentes (`/sysp suivi notes`) ; le reste à faire | 1 127 tests (1 101 réussis, 26 ignorés), smoke 2 832/0, vitest 277, tsc/eslint OK |
 | 12 — Stabilité | fait | 1 122 tests (1 096 réussis, 26 ignorés), smoke 2 820/0, vitest 277, tsc/eslint OK |
 
 ### Tâche 12 — stabilité (`bot/stability.js`)
@@ -197,3 +197,15 @@ Non modifié : images (bannières GIF, cartes, avatars), emojis colorés, site/t
 - Tests de scénario : `stability.test.js`, plus ceux des tâches précédentes (BLR qui reçoit un rôle, propriétaire qui quitte son vocal,
   piège, mode raid, DOG, WakeUp…). `RECETTE_STAGING.md` : 13 nouveaux points à tester à la main.
 - `public/downloads/bot-oracle.zip` régénéré (497 fichiers, aucun `.env`, données ni dépendances).
+
+### Tâche 11 (suite, 27/11) — smash or pass (`bot/features/smash.js`, SUCK ME, `/smash` et `=smash`)
+
+Inscription volontaire avec confirmation de majorité, désinscription à tout moment (profil, votes et signalements effacés), votes
+anonymes (compteurs seulement), chaque profil vu une fois par votant, signalement ; 3 signalements suspendent le profil en attendant
+le staff (`/smash retablir` ou `/smash retirer`), avec alerte typée. Personne ne peut être noté sans s'être inscrit.
+
+### Automatisation
+
+- Agent quotidien « vérification et correction des bugs » créé (tâche planifiée, 3 h 13 heure de Paris, nouvelle session à chaque
+  exécution) : `scripts/verify-all.sh`, correction au plus juste avec test, avance rapide de `main` seulement.
+- Mise à jour automatique du VPS chaque nuit à 5 h (voir `docs/VERSIONS_ET_MAJ.md`), après un premier `/maj lancer`.

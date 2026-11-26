@@ -2575,6 +2575,22 @@ export const EXTRA_SLASH_COMMANDS: SlashCommandDef[] = [
     ],
   },
   {
+    name: "smash",
+    description: "Smash or pass entre membres inscrits (majeurs, votes anonymes)",
+    usage: "/smash inscrire majeur · jouer · score · desinscrire · retirer membre · retablir membre",
+    category: "Communauté",
+    dmPermission: false,
+    requiresBotProcess: true,
+    options: [
+      sub("inscrire", "Participer (réservé aux personnes majeures)", [opt(5, "majeur", "Je confirme avoir 18 ans ou plus", { required: true })]),
+      sub("jouer", "Noter des profils (votes anonymes)"),
+      sub("score", "Ton score (compteurs seulement)"),
+      sub("desinscrire", "Quitter le jeu : profil et votes effacés"),
+      sub("retirer", "Staff : retirer un profil", [opt(6, "membre", "Membre", { required: true })]),
+      sub("retablir", "Staff : rétablir un profil suspendu après signalements", [opt(6, "membre", "Membre", { required: true })]),
+    ],
+  },
+  {
     name: "stabilite",
     description: "OWNER/admins : couper une commande défaillante ou mettre un bot en maintenance",
     usage: "/stabilite commande-off commande [raison] · commande-on commande · maintenance-on bot [raison] · maintenance-off bot · etat",
