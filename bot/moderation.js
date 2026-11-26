@@ -198,7 +198,7 @@ async function submitSanctionAppeal(interaction) {
   const embed = new EmbedBuilder().setColor(0xf59e0b).setTitle("🛡️ Appel de sanction")
     .setDescription(`Dossier #${appeal.case_id} · appel #${appealId}\nMembre : <@${appeal.appellant_id}>\nSanction : **${appeal.action}**\nMotif initial : ${(appeal.sanction_reason || "Non renseigné").slice(0, 500)}\n\n**Demande**\n${appeal.body.slice(0, 1_000)}\n\nUne décision acceptée n’annule pas automatiquement une sanction Discord.`)
     .setTimestamp(new Date(appeal.submitted_at));
-  const delivered = await sendToLogsHub(interaction.client, sourceGuild, embed.toJSON(), "Modération — Appel sanction", [reviewRow.toJSON()]).catch(() => false);
+  const delivered = await sendToLogsHub(interaction.client, sourceGuild, embed.toJSON(), "Modération — Appel sanction", [reviewRow.toJSON()], [], { category: "moderation" }).catch(() => false);
   await interaction.reply({ content: delivered ? "✅ Ton appel a été transmis à l’équipe de modération. La sanction reste active pendant son examen." : "✅ Ton appel est enregistré. Le journal central est indisponible ; le staff devra consulter la base de modération.", ephemeral: true });
 }
 
@@ -516,7 +516,7 @@ async function submitVerificationChallenge(interaction, settings) {
     db.prepare("DELETE FROM verification_challenges WHERE guild_id=? AND user_id=?").run(guild.id, interaction.user.id);
     const embed = new EmbedBuilder().setColor(0x22c55e).setTitle("✅ CAPTCHA réussi")
       .setDescription(`<@${interaction.user.id}> a terminé la vérification.`).setTimestamp(new Date());
-    await sendCentralLog(guild, settings, embed).catch(() => {});
+    await sendCentralLog(guild, settings, embed, [], [], [], { category: "verification" }).catch(() => {});
     await interaction.reply({ content: "✅ Vérification réussie, bienvenue sur le serveur !", ephemeral: true });
   } catch {
     await respondInPlaceSafe(interaction, { content: "Impossible d’attribuer le rôle. Vérifie la hiérarchie des rôles.", ephemeral: true });

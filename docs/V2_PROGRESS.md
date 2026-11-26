@@ -37,3 +37,29 @@ Environnement : Node 22.23 (le dépôt annonce Node ≥ 24 ; tout passe néanmoi
 - Une édition texte n'écrase jamais un panneau déjà affiché ; les boutons et menus gardent la visibilité demandée.
 - Bouton « En savoir plus » prêt (`enableLearnMore`), masqué jusqu'au guide (tâche 5).
 - Tests : `reply-layer.test.js` (12), `interaction-reply-audit.test.js` (échoue si une commande sensible montre ses détails ou si une réponse reste en texte brut).
+| 2 — Refonte des logs | partiel (voir ci-dessous) | 1 069 tests (1 043 réussis, 26 ignorés), smoke 2 734/0, vitest 277, tsc/eslint OK |
+
+### Tâche 2 — logs typés
+
+Fait :
+- `bot/log-events.js` : événements typés (`category`, `action`, `severity`, acteur, cible, dossier), format unique
+  (acteur, action, cible, dossier, lien ; couleur par bot et par gravité), dossiers numérotés par serveur (`log_cases`),
+  déduplication 60 s, copie en base de **tous** les logs (`log_archive`, y compris les anciens appels non typés),
+  recherche, chronologie, purge selon la conservation, résumé quotidien/hebdomadaire (`startLogMaintenance`).
+- Alertes : `critical` ou actions graves (raid, tentative de rang sur un BLR, anti-nuke, dérive de permissions, bot ajouté,
+  webhook, token…) → salon `logs-alertes` (facultatif : repli sur `logs-securite`) + mention du rôle de garde. L'anti-nuke émet déjà son alerte typée.
+- Routage par catégorie : `sendCentralLog`/`sendToLogsHub` lisent la catégorie (option ou `systemLogEmbed({ category })`),
+  transportée par le relais. Tous les appels des modules déclarent leur catégorie (test `logs-coverage.test.js`).
+- File durable : un log du bot principal que le hub n'a pas pu recevoir est remis en file (3 essais, puis compté perdu) ;
+  compteur des logs perdus dans `/status` et `/logs statut`.
+- Configuration en base (`bot/logs-config.js`, `/logs hub|source-ajouter|source-activer|source-retirer|alertes|conservation|resume`, OWNER) :
+  hub et sources lus en base → variables d'environnement → valeurs historiques (migration sans perte). Un jeu de salons
+  généré par source (fin du jeu « MZ » recopié) ; MZ ne peut pas être activé depuis `/logs`.
+- `/logs statut|rechercher|chronologie`, `/dossier <numéro>` (staff), préfixes `=logs`, `=dossier` (SUCK ME ; réponse en MP).
+- Correction : chaque sanction apparaissait deux fois dans le hub (`moderation-actions.js` envoyait au hub en plus de `sendCentralLog`).
+
+Reste (partiel) :
+- Le journal d'audit générique d'`index.js` (`auditLog`, titres variables) utilise encore le routage par titre : il ne pourra
+  être supprimé qu'après typage de ses ≈40 appelants.
+- Les modules émettent encore des embeds libres via `systemLogEmbed` (catégorie typée, mais pas encore action/gravité/dossier) ;
+  les nouvelles fonctions (BLR, piège, mode raid…) utilisent `logEvent`.

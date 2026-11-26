@@ -2540,6 +2540,48 @@ export const EXTRA_SLASH_COMMANDS: SlashCommandDef[] = [
       sub("etat", "Affiche la configuration de l'écran d'adhésion"),
     ],
   },
+  {
+    name: "logs",
+    description: "Staff : journaux typés (recherche, chronologie) ; OWNER : configuration du hub",
+    usage: "/logs statut · rechercher · chronologie · hub · source-ajouter · source-activer · source-retirer · alertes · conservation · resume",
+    category: "Administration & sécurité",
+    dmPermission: false,
+    requiresBotProcess: true,
+    options: [
+      sub("statut", "Hub, serveurs sources, logs en attente et logs perdus"),
+      sub("rechercher", "Cherche dans la copie en base des journaux", [
+        opt(6, "membre", "Membre concerné (acteur ou cible)"),
+        opt(3, "action", "Code d'action (ban, warn, blr_set…)", { max_length: 40 }),
+        opt(3, "periode", "Période : 1h, 7j, 30j…", { max_length: 10 }),
+      ]),
+      sub("chronologie", "Chronologie d'un membre", [opt(6, "membre", "Membre", { required: true })]),
+      sub("hub", "OWNER : serveur qui reçoit les journaux", [opt(3, "serveur", "ID du serveur hub", { required: true, max_length: 20 })]),
+      sub("source-ajouter", "OWNER : ajoute un serveur source (un jeu de salons par source)", [
+        opt(3, "serveur", "ID du serveur source", { required: true, max_length: 20 }),
+        opt(3, "nom", "Nom court (préfixe des salons, ex. mz)", { required: true, max_length: 12 }),
+        opt(3, "libelle", "Libellé affiché", { max_length: 60 }),
+      ]),
+      sub("source-activer", "OWNER : active ou coupe une source", [
+        opt(3, "serveur", "ID du serveur source", { required: true, max_length: 20 }),
+        opt(5, "actif", "Activer ?", { required: true }),
+      ]),
+      sub("source-retirer", "OWNER : retire un serveur source", [opt(3, "serveur", "ID du serveur source", { required: true, max_length: 20 })]),
+      sub("alertes", "OWNER : rôle du hub prévenu pour les alertes graves (vide = aucun)", [opt(3, "role", "ID du rôle dans le hub", { max_length: 20 })]),
+      sub("conservation", "OWNER : durée de conservation de la copie en base", [opt(4, "jours", "7 à 730 jours", { required: true, min_value: 7, max_value: 730 })]),
+      sub("resume", "OWNER : résumé automatique des journaux", [
+        opt(3, "frequence", "Fréquence", { required: true, choices: [{ name: "Quotidien", value: "daily" }, { name: "Hebdomadaire", value: "weekly" }, { name: "Désactivé", value: "off" }] }),
+      ]),
+    ],
+  },
+  {
+    name: "dossier",
+    description: "Staff : affiche un dossier de sanction ou d'action sensible",
+    usage: "/dossier numero",
+    category: "Modération",
+    dmPermission: false,
+    requiresBotProcess: true,
+    options: [opt(4, "numero", "Numéro du dossier", { required: true, min_value: 1 })],
+  },
 ];
 
 const slashRootNames = SLASH_COMMANDS.map((command) => command.name);

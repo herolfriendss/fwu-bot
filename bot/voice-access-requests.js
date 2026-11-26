@@ -76,7 +76,7 @@ export async function publishVoiceAccessEntryPoint(channel, botMember) {
 }
 
 function logAccessEvent(client, guild, title, description, color = 0xe21d2f) {
-  const embed = systemLogEmbed({ title, description, color });
+  const embed = systemLogEmbed({ category: "voice", title, description, color });
   void sendToLogsHub(client, guild, embed, title).catch(() => {});
 }
 

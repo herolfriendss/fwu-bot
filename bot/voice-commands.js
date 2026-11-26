@@ -244,7 +244,7 @@ async function handleMenotteMessage(message, command, rawSettings) {
     if (!row) throw new Error("Ce membre n'est pas menotté.");
     db.prepare("DELETE FROM voice_menottes WHERE guild_id=? AND member_id=?").run(message.guild.id, target.id);
     auditMenotte(message.guild.id, message.author.id, "unmenotte", target.id, row.channel_id);
-    await sendCentralLog(message.guild, normalizeSettings(rawSettings), systemLogEmbed({ title: "🔓 MENOTTE — membre libéré", description: `Acteur : <@${message.author.id}>\nCible : <@${target.id}>` })).catch(() => {});
+    await sendCentralLog(message.guild, normalizeSettings(rawSettings), systemLogEmbed({ category: "dog", title: "🔓 MENOTTE — membre libéré", description: `Acteur : <@${message.author.id}>\nCible : <@${target.id}>` })).catch(() => {});
     await message.reply({ content: `🔓 **${target.displayName}** est libéré.`, allowedMentions: { parse: [] } });
     return true;
   }
@@ -286,7 +286,7 @@ async function handleMenotteMessage(message, command, rawSettings) {
     throw new Error(`Je n'ai pas réussi à déplacer ce membre : ${error.message}`);
   }
   auditMenotte(message.guild.id, message.author.id, "menotte", target.id, voiceChannel.id);
-  await sendCentralLog(message.guild, normalizeSettings(rawSettings), systemLogEmbed({ title: "🔒 MENOTTE — membre immobilisé", description: `Acteur : <@${message.author.id}>\nCible : <@${target.id}>\nSalon : <#${voiceChannel.id}>` })).catch(() => {});
+  await sendCentralLog(message.guild, normalizeSettings(rawSettings), systemLogEmbed({ category: "dog", title: "🔒 MENOTTE — membre immobilisé", description: `Acteur : <@${message.author.id}>\nCible : <@${target.id}>\nSalon : <#${voiceChannel.id}>` })).catch(() => {});
   await message.reply({
     content: `🔒 **${target.displayName}** est menotté au salon <#${voiceChannel.id}>${expiresAt ? ` jusqu’à <t:${Math.floor(expiresAt / 1000)}:R>` : " sans limite de durée"}. S'il le quitte ou le rejoint plus tard, le bot le ramènera ici.`,
     allowedMentions: { parse: [] },
@@ -342,6 +342,7 @@ export async function expireVoiceMenottes(client, settingsByGuild = {}) {
     if (actorId) auditMenotte(row.guild_id, actorId, "menotte.expire", row.member_id, row.channel_id);
     if (guild) {
       await sendCentralLog(guild, normalizeSettings(settingsByGuild[row.guild_id]), systemLogEmbed({
+        category: "dog",
         title: "⌛ MENOTTE — durée écoulée",
         description: `Membre libéré automatiquement : <@${row.member_id}>\nSalon d’origine : <#${row.channel_id}>`,
       })).catch(() => {});
@@ -440,6 +441,7 @@ async function runWakeup(prepared) {
     console.error("WAKEUP audit failed:", error.message);
   }
   await sendCentralLog(guild, settings, systemLogEmbed({
+    category: "voice",
     title: "⏰ WAKEUP — séquence terminée",
     description: `Acteur : <@${actor.id}>\nMembre : <@${target.id}>\nSalons visités : ${summary.visited}/${summary.total}\nÉchecs : ${summary.failures.length}${announcement ? `\nMessage : ${announcement}` : ""}`,
   })).catch(() => {});

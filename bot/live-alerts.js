@@ -158,6 +158,7 @@ export async function checkLiveAlerts(client, settings, record = () => {}) {
             // Mark only after successful publication so transient Discord errors retry next cycle.
             markSeen.run(guild.id, creator.id, item.id, Date.now());
             await sendCentralLog(guild, settings[guild.id], systemLogEmbed({
+              category: "system",
               title: "🔴 Alerte LIVE publiée",
               description: `Créateur : **${creator.displayName}** (${creator.platform})\nSalon : <#${channel.id}>\nDirect : ${item.link}`,
             })).catch(() => {});

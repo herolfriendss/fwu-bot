@@ -140,6 +140,7 @@ export async function runBlacklistAction({ guild, actor, action, userId = null, 
     await gate.succeed(result.banned ? "banni" : "non banni");
     recordSysPlusAudit(guild.id, actor.id, "blacklist.add", userId, { reason: String(reason ?? "").slice(0, 300), banned: result.banned });
     await sendCentralLog(guild, settings, systemLogEmbed({
+      category: "moderation",
       title: "⛔ Blacklist — compte ajouté",
       description: `Compte : <@${userId}> (\`${userId}\`)\nPar : <@${actor.id}>\nRaison : ${reason || "non précisée"}\nBanni : ${result.banned ? "oui" : "non (permission Bannir manquante)"}`,
       color: 0xef4444,
@@ -154,6 +155,7 @@ export async function runBlacklistAction({ guild, actor, action, userId = null, 
     recordSysPlusAudit(guild.id, actor.id, "blacklist.remove", userId, { unban });
     const unbanText = unban === "unbanned" ? "Débanni" : unban === "not_banned" ? "N'était plus banni" : "Débannissement impossible (permission « Bannir des membres » ?)";
     await sendCentralLog(guild, settings, systemLogEmbed({
+      category: "moderation",
       title: "✅ Blacklist — compte retiré",
       description: `Compte : <@${userId}> (\`${userId}\`)\nPar : <@${actor.id}>\n${unbanText}.`,
       color: 0x22c55e,

@@ -45,7 +45,7 @@ function openTicketsFor(guildId, userId) {
 }
 
 async function sendTicketLog(guild, settings, embed) {
-  await sendCentralLog(guild, settings, embed, [settings?.tickets?.logChannelId]).catch(() => {});
+  await sendCentralLog(guild, settings, embed, [settings?.tickets?.logChannelId], [], [], { category: "tickets" }).catch(() => {});
 }
 
 function ticketLogEmbed(guild, interaction, action, ticket, extra = []) {

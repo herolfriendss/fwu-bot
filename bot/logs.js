@@ -35,11 +35,27 @@ export function addCentralLogObserver(observer) {
   return () => centralLogObservers.delete(observer);
 }
 
-export async function sendCentralLog(guild, settings, embed, fallbackChannelIds = [], components = [], allowedUserIds = [], { skipObservers = false } = {}) {
+/**
+ * Options V2 : `category` (routage typé ; à défaut, déduite du titre une fois, à la source),
+ * `archived` (copie en base déjà faite), `noQueue` (pas de remise en file : nouvel essai du
+ * relais), `mentionRoleIds` (staff de garde prévenu pour une alerte grave).
+ */
+export async function sendCentralLog(guild, settings, embed, fallbackChannelIds = [], components = [], allowedUserIds = [], { skipObservers = false, category = null, archived = false, noQueue = false, mentionRoleIds = [] } = {}) {
   if (!guild || !embed) return false;
+  const hubModule = await import("./logs-hub.js").catch(() => null);
+  const explicit = category ?? embed?.logCategory ?? null;
+  const resolvedCategory = hubModule?.LOG_CATEGORY_KEYS?.includes(explicit)
+    ? explicit
+    : hubModule?.logChannelKey?.(embed?.title ?? embed?.data?.title ?? "") ?? null;
+  if (!archived) {
+    try {
+      const { archiveRawLog } = await import("./log-events.js");
+      archiveRawLog(guild.id, resolvedCategory, embed);
+    } catch { /* la copie en base ne bloque jamais un log */ }
+  }
   if (centralLogRelay) {
     try {
-      return Boolean(centralLogRelay({ guild, embed, fallbackChannelIds, components, allowedUserIds }));
+      return Boolean(centralLogRelay({ guild, embed, fallbackChannelIds, components, allowedUserIds, category: resolvedCategory, mentionRoleIds }));
     } catch {
       return false;
     }
@@ -50,22 +66,32 @@ export async function sendCentralLog(guild, settings, embed, fallbackChannelIds 
     try { observer(guild, typeof embed?.toJSON === "function" ? embed.toJSON() : embed); } catch { /* never block a log */ }
   }
   let delivered = false;
+  let hubDelivered = false;
 
   // All module logs also try the isolated central Logs Hub. This closes the gap
   // where direct module calls only reached a legacy local channel.
-  if (guild.client) {
+  if (guild.client && hubModule) {
     try {
-      const { sendToLogsHub } = await import("./logs-hub.js");
-      delivered = await sendToLogsHub(
+      hubDelivered = await hubModule.sendToLogsHub(
         guild.client,
         guild,
         embed,
         embed.title ?? "",
         components,
         allowedUserIds,
-      ) || delivered;
+        { category: resolvedCategory, mentionRoleIds },
+      );
+      delivered = hubDelivered || delivered;
     } catch {
       // Keep local logging available when the hub is not provisioned/reachable.
+    }
+    // File durable : hub injoignable pour un serveur source → nouvel essai (3 au plus,
+    // puis compté comme perdu, visible dans /status et /logs statut).
+    if (!hubDelivered && !noQueue && hubModule.isActiveSourceGuild?.(guild.id)) {
+      try {
+        const { enqueueRelayedLog } = await import("./bot-runtime.js");
+        enqueueRelayedLog({ guildId: guild.id, sourceProfile: "fwu", embed, fallbackChannelIds: [], components, allowedUserIds, category: resolvedCategory, mentionRoleIds, hubOnly: true });
+      } catch { /* jamais bloquant */ }
     }
   }
 
@@ -84,18 +110,24 @@ export async function sendCentralLog(guild, settings, embed, fallbackChannelIds 
   return true;
 }
 
-export function systemLogEmbed({ title, description, color = 0xe21d2f, fields = [] }) {
+/** Catégorie typée portée par un embed (non sérialisée vers Discord). */
+export function withLogCategory(embed, category) {
+  if (embed && typeof embed === "object" && category) Object.defineProperty(embed, "logCategory", { value: category, enumerable: false, configurable: true });
+  return embed;
+}
+
+export function systemLogEmbed({ title, description, color = 0xe21d2f, fields = [], category = null }) {
   const normalizedFields = Array.isArray(fields) ? fields.slice(0, 25).map((field) => ({
     name: clean(field?.name || "Détail", 256),
     value: clean(field?.value || "—", MAX_FIELD_VALUE),
     inline: field?.inline === true,
   })) : [];
-  return {
+  return withLogCategory({
     color,
     title: clean(title || "Événement", 256),
     ...(description ? { description: clean(description, 4000) } : {}),
     ...(normalizedFields.length ? { fields: normalizedFields } : {}),
     timestamp: new Date().toISOString(),
     footer: { text: "Journal centralisé" },
-  };
+  }, category);
 }

@@ -398,3 +398,28 @@ export function formatCoverageSummary(matrix = LOG_EVENT_MATRIX) {
     ...gaps,
   ].join("\n");
 }
+
+/**
+ * V2 — routage typé : appels de journal qui n'indiquent pas leur catégorie (ils
+ * retombent sur le routage par titre, transitoire). Seul le journal d'audit générique
+ * d'index.js (auditLog, titres variables) reste autorisé à s'en servir.
+ * `sources` : { chemin: code }.
+ */
+export const TITLE_ROUTING_ALLOWED = Object.freeze(["index.js:auditLog"]);
+
+export function untypedLogCalls(sources) {
+  const out = [];
+  for (const [path, code] of Object.entries(sources)) {
+    const lines = code.split("\n");
+    lines.forEach((line, index) => {
+      if (!/\b(sendCentralLog|sendToLogsHub)\(/.test(line) || /export (async )?function/.test(line)) return;
+      const window = lines.slice(index, index + 6).join("\n");
+      if (/category\s*:|logCategory|withLogCategory|item\.category/.test(window)) return;
+      // Embeds construits plus haut avec systemLogEmbed({ category … }).
+      const before = lines.slice(Math.max(0, index - 6), index).join("\n");
+      if (/systemLogEmbed\(\{[\s\S]*category:/.test(before)) return;
+      out.push(`${path}:${index + 1}`);
+    });
+  }
+  return out;
+}

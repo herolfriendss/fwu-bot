@@ -245,13 +245,16 @@ function toPlain(value) {
 }
 
 /** Dedicated bots hand their log embeds to FWU, which owns the Logs Hub. */
-export function enqueueRelayedLog({ guildId, sourceProfile, embed, fallbackChannelIds = [], components = [], allowedUserIds = [] }, now = Date.now()) {
+export function enqueueRelayedLog({ guildId, sourceProfile, embed, fallbackChannelIds = [], components = [], allowedUserIds = [], category = null, mentionRoleIds = [], hubOnly = false }, now = Date.now()) {
   if (!guildId || !embed) return false;
   const payload = JSON.stringify({
     embed: toPlain(embed),
     fallbackChannelIds: fallbackChannelIds.filter(Boolean).slice(0, 5),
     components: components.map(toPlain).slice(0, 5),
     allowedUserIds: allowedUserIds.filter(Boolean).slice(0, 10),
+    category: typeof category === "string" ? category.slice(0, 40) : null,
+    mentionRoleIds: (mentionRoleIds ?? []).filter(Boolean).slice(0, 3),
+    hubOnly: hubOnly === true,
   });
   transaction(() => {
     db.prepare("INSERT INTO bot_log_outbox(guild_id, source_profile, payload, created_at) VALUES (?, ?, ?, ?)")
@@ -279,6 +282,9 @@ export function requeueRelayedLog(item, now = Date.now()) {
     fallbackChannelIds: item.fallbackChannelIds ?? [],
     components: item.components ?? [],
     allowedUserIds: item.allowedUserIds ?? [],
+    category: item.category ?? null,
+    mentionRoleIds: item.mentionRoleIds ?? [],
+    hubOnly: item.hubOnly === true,
   });
   db.prepare("INSERT INTO bot_log_outbox(guild_id, source_profile, payload, created_at, attempts, next_try_at) VALUES (?, ?, ?, ?, ?, ?)")
     .run(String(item.guildId), String(item.sourceProfile ?? "fwu"), payload, Number(item.createdAt ?? now), attempts, now + RELAY_RETRY_BASE_MS * 2 ** (attempts - 1));

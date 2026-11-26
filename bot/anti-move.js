@@ -168,6 +168,7 @@ export async function handleAntiMoveVoiceState(oldState, newState, rawSettings =
   if (!destinationChannelId) {
     recordSysPlusAudit(guild.id, bot.id, "anti_move.disconnect_detected", memberId, { actorId: audit.actorId, fromChannelId: oldState.channelId });
     void sendCentralLog(guild, rawSettings, systemLogEmbed({
+      category: "voice",
       title: "🛡️ ANTI-MOVE — déconnexion forcée",
       description: `Membre protégé : <@${memberId}>\nAuteur identifié : <@${audit.actorId}>\nSalon quitté : <#${oldState.channelId}>\nDiscord ne permet pas de reconnecter un membre : aucune restauration possible.`,
       color: 0xf59e0b,
@@ -184,6 +185,7 @@ export async function handleAntiMoveVoiceState(oldState, newState, rawSettings =
       loopWarnings.set(historyKey, Date.now());
       recordSysPlusAudit(guild.id, bot.id, "anti_move.loop_stopped", memberId, { actorId: audit.actorId });
       void sendCentralLog(guild, rawSettings, systemLogEmbed({
+        category: "voice",
         title: "🛡️ ANTI-MOVE — restauration suspendue",
         description: `Membre protégé : <@${memberId}>\nAuteur répété : <@${audit.actorId}>\nTrop de déplacements en 60 s : le bot arrête de restaurer pour éviter une boucle. Intervention humaine requise.`,
         color: 0xdc2626,
@@ -201,6 +203,7 @@ export async function handleAntiMoveVoiceState(oldState, newState, rawSettings =
     await current.voice.setChannel(oldState.channelId, `Anti-Move : déplacement individuel protégé (acteur ${audit.actorId})`);
   } catch (error) {
     void sendCentralLog(guild, rawSettings, systemLogEmbed({
+      category: "voice",
       title: "🛡️ ANTI-MOVE — restauration impossible",
       description: `Membre protégé : <@${memberId}>\nAuteur identifié : <@${audit.actorId}>\nDiscord a refusé le retour dans <#${oldState.channelId}> (permissions ou salon plein).`,
       color: 0xdc2626,
@@ -214,6 +217,7 @@ export async function handleAntiMoveVoiceState(oldState, newState, rawSettings =
     action: audit.action,
   });
   void sendCentralLog(guild, rawSettings, systemLogEmbed({
+    category: "voice",
     title: "🛡️ ANTI-MOVE — déplacement bloqué",
     description: `Membre protégé : <@${memberId}>\nAuteur identifié : <@${audit.actorId}>\nRetour dans : <#${oldState.channelId}>`,
     color: 0x16a34a,

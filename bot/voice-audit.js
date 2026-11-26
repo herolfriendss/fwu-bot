@@ -37,7 +37,7 @@ async function findVoiceAuditActor(guild, memberId, botId, now = Date.now(), des
 }
 
 function publishVoiceLog(client, guild, { title, description, color = 0xe21d2f }) {
-  void sendToLogsHub(client, guild, systemLogEmbed({ title, description, color }), title).catch(() => {});
+  void sendToLogsHub(client, guild, systemLogEmbed({ category: "voice", title, description, color }), title, [], [], { category: "voice" }).catch(() => {});
 }
 
 /** Track only channel presence metadata. No voice/audio payload is accessed or stored. */

@@ -51,6 +51,7 @@ function sanctionTypeLabel(type) {
 
 async function auditConfig(guild, settings, actorId, title, before, after) {
   await sendCentralLog(guild, settings, systemLogEmbed({
+    category: "staff",
     title: `⚙️ ${title}`,
     description: `Par : <@${actorId}>\n**Avant**\n${describeValue(before)}\n**Après**\n${describeValue(after)}`,
     color: 0x6d28d9,

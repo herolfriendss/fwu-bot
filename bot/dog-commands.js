@@ -541,7 +541,7 @@ export async function handleDogCommand(message, guildSettings = null) {
           console.error("DOG whitelist exception audit failed:", error.message);
         }
       }
-      await sendCentralLog(message.guild, guildSettings, systemLogEmbed({ title: "🦮 DOG — laisse attribuée", description: `Acteur : <@${message.author.id}>\nCible : <@${target.id}>\nLaisses actives : ${leashCount}` })).catch(() => {});
+      await sendCentralLog(message.guild, guildSettings, systemLogEmbed({ category: "dog", title: "🦮 DOG — laisse attribuée", description: `Acteur : <@${message.author.id}>\nCible : <@${target.id}>\nLaisses actives : ${leashCount}` })).catch(() => {});
       await message.reply({
         content: `🦮 **${target.user.username}** est maintenant en laisse par **${ownerName}** (${leashCount}).${returnedToOwner ? " Il a été ramené dans ton salon vocal." : ""}`,
         allowedMentions: { parse: [] },
@@ -609,7 +609,7 @@ export async function handleDogCommand(message, guildSettings = null) {
     });
     return true;
   }
-  await sendCentralLog(message.guild, guildSettings, systemLogEmbed({ title: "🦴 DOG — laisse retirée", description: `Acteur : <@${message.author.id}>\nCible : <@${target.id}>` })).catch(() => {});
+  await sendCentralLog(message.guild, guildSettings, systemLogEmbed({ category: "dog", title: "🦴 DOG — laisse retirée", description: `Acteur : <@${message.author.id}>\nCible : <@${target.id}>` })).catch(() => {});
   await message.reply({
     content: `🦴 La laisse de **${target.user.username}** a été retirée. Son ancien surnom a été restauré.`,
     allowedMentions: { parse: [] },
@@ -732,7 +732,7 @@ export async function handleUndogAllInteraction(interaction, guildSettings = nul
     return true;
   }
   try { recordSysPlusAudit(interaction.guild.id, interaction.user.id, "dog.undog_all", null, { scope, ...r }); } catch { /* audit is best effort */ }
-  await sendCentralLog(interaction.guild, guildSettings, systemLogEmbed({ title: "🦴 DOG — laisses retirées en masse", description: `Acteur : <@${interaction.user.id}>\nPortée : ${scope}\nLibérées : ${r.released} · membres partis : ${r.forgotten} · anciennes laisses : ${r.orphans} · anciens serveurs : ${r.oldServers} · échecs : ${r.failed}` })).catch(() => {});
+  await sendCentralLog(interaction.guild, guildSettings, systemLogEmbed({ category: "dog", title: "🦴 DOG — laisses retirées en masse", description: `Acteur : <@${interaction.user.id}>\nPortée : ${scope}\nLibérées : ${r.released} · membres partis : ${r.forgotten} · anciennes laisses : ${r.orphans} · anciens serveurs : ${r.oldServers} · échecs : ${r.failed}` })).catch(() => {});
   const lines = [
     "🦴 **Laisses DOG retirées**",
     scope !== "anciens" ? `• Sur ce serveur : **${r.released}** libérée(s), **${r.forgotten}** supprimée(s) (membres partis).` : null,

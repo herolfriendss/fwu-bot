@@ -49,7 +49,7 @@ export async function handleWebhookInteraction(interaction, settings = {}, recor
       const stateLabel = enabled ? "activée" : "désactivée";
       const scopeLabel = id ? `pour **${findWebhook.get(id, guild.id).name}**` : "pour tous les webhooks de ce serveur";
       record(enabled ? "webhook_animation_enabled" : "webhook_animation_disabled");
-      await sendCentralLog(guild, settings, systemLogEmbed({ title: "🎞️ Animation des webhooks modifiée", description: `Acteur : <@${interaction.user.id}>\nÉtat : **${stateLabel}**\nPortée : ${scopeLabel}` })).catch(() => {});
+      await sendCentralLog(guild, settings, systemLogEmbed({ category: "webhooks", title: "🎞️ Animation des webhooks modifiée", description: `Acteur : <@${interaction.user.id}>\nÉtat : **${stateLabel}**\nPortée : ${scopeLabel}` })).catch(() => {});
       await interaction.reply({ content: `✅ Animation ${stateLabel} ${scopeLabel}.`, ephemeral: true });
       return true;
     }
@@ -68,7 +68,7 @@ export async function handleWebhookInteraction(interaction, settings = {}, recor
         throw error;
       }
       record("webhook_created");
-      await sendCentralLog(guild, settings, systemLogEmbed({ title: "🔗 Webhook créé", description: `Acteur : <@${interaction.user.id}>\nSalon : <#${channel.id}>\nNom : **${name}**` })).catch(() => {});
+      await sendCentralLog(guild, settings, systemLogEmbed({ category: "webhooks", title: "🔗 Webhook créé", description: `Acteur : <@${interaction.user.id}>\nSalon : <#${channel.id}>\nNom : **${name}**` })).catch(() => {});
       await interaction.reply({ content: `✅ Webhook **${name}** créé dans <#${channel.id}>. Son secret est chiffré dans la base locale et ne sera jamais affiché.`, ephemeral: true });
       return true;
     }
@@ -91,7 +91,7 @@ export async function handleWebhookInteraction(interaction, settings = {}, recor
       if (target) await target.delete("Suppression via le bot");
       removeWebhook.run(id, guild.id);
       record("webhook_deleted");
-      await sendCentralLog(guild, settings, systemLogEmbed({ title: "🗑️ Webhook supprimé", description: `Acteur : <@${interaction.user.id}>\nWebhook : \`${id}\`\nSalon : <#${row.channel_id}>` })).catch(() => {});
+      await sendCentralLog(guild, settings, systemLogEmbed({ category: "webhooks", title: "🗑️ Webhook supprimé", description: `Acteur : <@${interaction.user.id}>\nWebhook : \`${id}\`\nSalon : <#${row.channel_id}>` })).catch(() => {});
       await interaction.reply({ content: "🗑️ Webhook supprimé du bot et de Discord s'il existe encore.", ephemeral: true });
       return true;
     }
@@ -107,13 +107,13 @@ export async function handleWebhookInteraction(interaction, settings = {}, recor
         const sent = await hook.send({ embeds: [branded], allowedMentions: { parse: [] } });
         db.prepare("UPDATE managed_webhooks SET last_message_id=? WHERE id=? AND guild_id=?").run(sent.id, id, guild.id);
         record("webhook_message_published");
-        await sendCentralLog(guild, settings, systemLogEmbed({ title: "📢 Publication Webhook", description: `Acteur : <@${interaction.user.id}>\nWebhook : **${row.name}**\nSalon : <#${row.channel_id}>\nMessage : \`${sent.id}\`\nAnimation : ${row.animation_enabled ? "activée" : "désactivée"}` })).catch(() => {});
+        await sendCentralLog(guild, settings, systemLogEmbed({ category: "webhooks", title: "📢 Publication Webhook", description: `Acteur : <@${interaction.user.id}>\nWebhook : **${row.name}**\nSalon : <#${row.channel_id}>\nMessage : \`${sent.id}\`\nAnimation : ${row.animation_enabled ? "activée" : "désactivée"}` })).catch(() => {});
         await interaction.reply({ content: `✅ Message publié dans <#${row.channel_id}>${row.animation_enabled ? " avec la bannière animée" : " sans animation"}.`, ephemeral: true });
       } else if (action === "edit") {
         if (!row.last_message_id) throw new Error("Ce webhook n'a encore aucun message à modifier.");
         await hook.editMessage(row.last_message_id, { embeds: [branded], allowedMentions: { parse: [] } });
         record("webhook_message_edited");
-        await sendCentralLog(guild, settings, systemLogEmbed({ title: "✏️ Message Webhook modifié", description: `Acteur : <@${interaction.user.id}>\nWebhook : **${row.name}**\nSalon : <#${row.channel_id}>\nMessage : \`${row.last_message_id}\`` })).catch(() => {});
+        await sendCentralLog(guild, settings, systemLogEmbed({ category: "webhooks", title: "✏️ Message Webhook modifié", description: `Acteur : <@${interaction.user.id}>\nWebhook : **${row.name}**\nSalon : <#${row.channel_id}>\nMessage : \`${row.last_message_id}\`` })).catch(() => {});
         await interaction.reply({ content: `✅ Dernier message modifié dans <#${row.channel_id}>.`, ephemeral: true });
       }
     } finally { hook.destroy(); }

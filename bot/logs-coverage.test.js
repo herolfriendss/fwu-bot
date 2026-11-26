@@ -72,3 +72,24 @@ test("summary lists the non-covered events with a reason", () => {
   assert.match(summary, /non couverts/);
   assert.match(summary, /messageCreate/);
 });
+
+test("V2: every central log call declares its category (title routing only for the generic audit log)", async () => {
+  const { readdirSync, statSync } = await import("node:fs");
+  const { join, relative } = await import("node:path");
+  const { untypedLogCalls } = await import("./logs-coverage.js");
+  const root = new URL(".", import.meta.url).pathname;
+  const sources = {};
+  const walk = (dir) => {
+    for (const name of readdirSync(dir)) {
+      if (["node_modules", "data", "fixtures", "scripts"].includes(name)) continue;
+      const path = join(dir, name);
+      if (statSync(path).isDirectory()) walk(path);
+      else if (name.endsWith(".js") && !name.endsWith(".test.js") && !["logs.js", "logs-hub.js", "logs-coverage.js"].includes(name)) sources[relative(root, path)] = readFileSync(path, "utf8");
+    }
+  };
+  walk(root);
+  const untyped = untypedLogCalls(sources);
+  // index.js : auditLog (titres variables, routage par titre transitoire).
+  assert.deepEqual(untyped.filter((call) => !call.startsWith("index.js:")), []);
+  assert.ok(untyped.length <= 1, untyped.join(", "));
+});

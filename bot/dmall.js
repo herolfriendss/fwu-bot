@@ -302,7 +302,7 @@ export async function handleDmAllInteraction(interaction, settings = {}) {
     const title = result.status === "stopped" ? `⏹️ **DM ALL arrêté** (${result.processed}/${result.total})` : "✅ **DM ALL terminé**";
     const summary = `${title}\nEnvoyés : **${result.sent}**\nMP fermés ou refusés : **${result.failed}**${job.roleId ? `\nRôle ciblé : <@&${job.roleId}>` : ""}`;
     recordSysPlusAudit(interaction.guild.id, interaction.user.id, "owner.dmall", null, { jobId, roleId: job.roleId, sent: result.sent, failed: result.failed, status: result.status, length: job.message.length });
-    await sendCentralLog(interaction.guild, settings, systemLogEmbed({ title: "📨 DM ALL envoyé par le propriétaire", description: `Acteur : <@${interaction.user.id}>\n${summary}\nContenu non enregistré dans les logs.` })).catch(() => {});
+    await sendCentralLog(interaction.guild, settings, systemLogEmbed({ category: "staff", title: "📨 DM ALL envoyé par le propriétaire", description: `Acteur : <@${interaction.user.id}>\n${summary}\nContenu non enregistré dans les logs.` })).catch(() => {});
     await editInPlace(interaction, { content: summary, embeds: [], components: [], allowedMentions: { parse: [] } });
   } catch (error) {
     // Never leave a job "running": it would block every later DM ALL on this server.

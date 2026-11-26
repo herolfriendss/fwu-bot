@@ -49,7 +49,7 @@ export function guardLogEmbed({ guild, member, action, reason, guard, ageDays })
 }
 
 async function sendGuardLog(guild, guard, embed) {
-  await sendCentralLog(guild, { logs: guard?.logs }, embed, [guard?.logChannelId]).catch(() => {});
+  await sendCentralLog(guild, { logs: guard?.logs }, embed, [guard?.logChannelId], [], [], { category: "security" }).catch(() => {});
 }
 
 /**

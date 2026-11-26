@@ -101,6 +101,7 @@ async function executeAction(guild, action, resources) {
 async function logAction(guild, requesterId, actorId, action, result) {
   const title = result.ok ? "🧠 PND Intelligence — action exécutée" : "⚠️ PND Intelligence — action échouée";
   const embed = systemLogEmbed({
+    category: "ai",
     title,
     description: `Demandeur : <@${requesterId}>\nValidateur : <@${actorId}>\nAction : ${action.type}\nRésultat : ${result.message}`,
     color: result.ok ? 0x22c55e : 0xef4444,

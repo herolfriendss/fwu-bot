@@ -792,7 +792,7 @@ export async function handleEconomyMessage(message, guildSettings = null) {
       const paidTax = transferTax(gid, amount);
       await safeReply(message, `💸 ${mention(uid)} a envoyé **${format(amount)}** à ${mention(target.id)}${paidTax ? ` (dont **${format(paidTax)}** d'impôt versé à la caisse du serveur)` : ""}. Solde restant : **${format(senderBalance)}**.`);
       for (const signal of detectTransferSignals({ guildId: gid, senderId: uid, recipientId: target.id })) {
-        void sendCentralLog(message.guild, guildSettings, systemLogEmbed({ title: "🚩 Économie PND — transfert suspect", description: `${describeSignal(signal)}\nAucune sanction automatique : vérification humaine (\`/sysp diagnostic economie\`).`, color: 0xf59e0b })).catch(() => {});
+        void sendCentralLog(message.guild, guildSettings, systemLogEmbed({ category: "economy", title: "🚩 Économie PND — transfert suspect", description: `${describeSignal(signal)}\nAucune sanction automatique : vérification humaine (\`/sysp diagnostic economie\`).`, color: 0xf59e0b })).catch(() => {});
       }
     } else if (command === "=pnd") {
       if (!isConfiguredPndOwner(uid, process.env.PND_OWNER_DISCORD_ID, gid)) throw new Error("Cette commande est réservée au propriétaire PND configuré.");

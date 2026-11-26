@@ -349,7 +349,7 @@ export async function handleCasinoMessage(message) {
       const colorLabel = result.outcome.color === "red" ? "rouge" : result.outcome.color === "black" ? "noir" : "vert";
       const { sendToLogsHub } = await import("./logs-hub.js");
       const { systemLogEmbed } = await import("./logs.js");
-      void sendToLogsHub(message.client, message.guild, systemLogEmbed({ title: "🎡 PND Casino — Roulette", description: `Joueur : <@${uid}>\nMise : ${formatPnd(bet)}\nChoix : ${rawChoice}\nRésultat : ${result.outcome.number} ${colorLabel}\nRetour : ${formatPnd(result.payout)}\nNet : ${net >= 0 ? "+" : ""}${formatPnd(net)}` }), "PND Casino — Roulette").catch(() => {});
+      void sendToLogsHub(message.client, message.guild, systemLogEmbed({ category: "casino", title: "🎡 PND Casino — Roulette", description: `Joueur : <@${uid}>\nMise : ${formatPnd(bet)}\nChoix : ${rawChoice}\nRésultat : ${result.outcome.number} ${colorLabel}\nRetour : ${formatPnd(result.payout)}\nNet : ${net >= 0 ? "+" : ""}${formatPnd(net)}` }), "PND Casino — Roulette").catch(() => {});
       await message.reply({ content: `🎡 **PND Roulette**\nLa bille tombe sur **${result.outcome.number} ${colorLabel}**.\n${net > 0 ? `✅ Gain net : **+${formatPnd(net)}**` : net === 0 ? "➖ Mise récupérée." : `❌ Perte : **${formatPnd(bet)}**.`}\nRetour : **${formatPnd(result.payout)}**.`, allowedMentions: { parse: [] } });
       return true;
     }
@@ -358,7 +358,7 @@ export async function handleCasinoMessage(message) {
       const net = result.payout - bet;
       const { sendToLogsHub } = await import("./logs-hub.js");
       const { systemLogEmbed } = await import("./logs.js");
-      void sendToLogsHub(message.client, message.guild, systemLogEmbed({ title: "🎰 PND Casino — Slots", description: `Joueur : <@${uid}>\nMise : ${formatPnd(bet)}\nRésultat : ${result.outcome.symbols.join(" ")}\nRetour : ${formatPnd(result.payout)}\nNet : ${net >= 0 ? "+" : ""}${formatPnd(net)}` }), "PND Casino — Slots").catch(() => {});
+      void sendToLogsHub(message.client, message.guild, systemLogEmbed({ category: "casino", title: "🎰 PND Casino — Slots", description: `Joueur : <@${uid}>\nMise : ${formatPnd(bet)}\nRésultat : ${result.outcome.symbols.join(" ")}\nRetour : ${formatPnd(result.payout)}\nNet : ${net >= 0 ? "+" : ""}${formatPnd(net)}` }), "PND Casino — Slots").catch(() => {});
       await message.reply({ content: `🎰 **PND Slots**\n${result.outcome.symbols.join("  │  ")}\n${result.outcome.label}\n${net > 0 ? `✅ Gain net : **+${formatPnd(net)}**` : net === 0 ? "➖ Mise récupérée." : `❌ Perte : **${formatPnd(bet)}**.`}\nRetour : **${formatPnd(result.payout)}**.`, allowedMentions: { parse: [] } });
       return true;
     }

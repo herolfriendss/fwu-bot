@@ -75,7 +75,7 @@ async function applyRole({ guild, actor, targetId, roleId, add, settings }) {
   if (add) await target.roles.add(role, `Gestion des rôles par ${actor.id}`);
   else await target.roles.remove(role, `Gestion des rôles par ${actor.id}`);
   recordSysPlusAudit(guild.id, actor.id, add ? "role.add" : "role.remove", target.id, { roleId: role.id, roleName: role.name });
-  await sendCentralLog(guild, settings, systemLogEmbed({ title: add ? "🎭 Rôle attribué" : "🎭 Rôle retiré", description: `Acteur : <@${actor.id}>\nCible : <@${target.id}>\nRôle : <@&${role.id}>` })).catch(() => {});
+  await sendCentralLog(guild, settings, systemLogEmbed({ category: "permissions", title: add ? "🎭 Rôle attribué" : "🎭 Rôle retiré", description: `Acteur : <@${actor.id}>\nCible : <@${target.id}>\nRôle : <@&${role.id}>` })).catch(() => {});
   return { changed: true, target, role };
 }
 
@@ -180,7 +180,7 @@ async function handleRankAllButton(interaction, settings) {
     await editRankAllMessage(interaction, { content: `↩️ Annulation en cours : retrait de <@&${role.id}> à ${job.assigned.length} membre(s)…`, components: [], allowedMentions: { parse: [] } });
     const result = await undoRankAllJob({ job, guild: interaction.guild, role });
     recordSysPlusAudit(interaction.guild.id, interaction.user.id, "role.rankall_undo", null, { jobId, roleId: role.id, removed: result.removed, failed: result.failed });
-    await sendCentralLog(interaction.guild, settings, systemLogEmbed({ title: "↩️ Attribution générale annulée", description: `Acteur : <@${interaction.user.id}>\nRôle : <@&${role.id}>\nRetirés : **${result.removed}**\nDéjà retirés : **${result.skipped}**\nÉchecs : **${result.failed}**` })).catch(() => {});
+    await sendCentralLog(interaction.guild, settings, systemLogEmbed({ category: "permissions", title: "↩️ Attribution générale annulée", description: `Acteur : <@${interaction.user.id}>\nRôle : <@&${role.id}>\nRetirés : **${result.removed}**\nDéjà retirés : **${result.skipped}**\nÉchecs : **${result.failed}**` })).catch(() => {});
     await editRankAllMessage(interaction, { content: result.alreadyUndone ? "ℹ️ Cette attribution a déjà été annulée." : `↩️ **Annulation terminée**\nRôle : <@&${role.id}>\nRetirés : **${result.removed}**\nDéjà retirés : **${result.skipped}**\nÉchecs : **${result.failed}**`, components: [], allowedMentions: { parse: [] } });
     return true;
   }
@@ -218,7 +218,7 @@ async function handleRankAllButton(interaction, settings) {
     });
     recordSysPlusAudit(interaction.guild.id, interaction.user.id, "role.rankall", null, { jobId, roleId: role.id, roleName: role.name, assigned: result.assigned, failed: result.failed, status: result.status });
     const title = result.status === "stopped" ? `⏹️ **Attribution arrêtée** (${result.processed}/${result.total})` : "✅ **Attribution terminée**";
-    await sendCentralLog(interaction.guild, settings, systemLogEmbed({ title: "🎭 Attribution générale de rôle", description: `Acteur : <@${interaction.user.id}>\n${rankAllSummary(title, role, result, plan.skipped.length)}` })).catch(() => {});
+    await sendCentralLog(interaction.guild, settings, systemLogEmbed({ category: "permissions", title: "🎭 Attribution générale de rôle", description: `Acteur : <@${interaction.user.id}>\n${rankAllSummary(title, role, result, plan.skipped.length)}` })).catch(() => {});
     const undoRow = result.assigned
       ? [new ActionRowBuilder().addComponents(new ButtonBuilder().setCustomId(`rankall:undo:${jobId}`).setLabel("Annuler l'attribution (15 min)").setStyle(ButtonStyle.Secondary))]
       : [];

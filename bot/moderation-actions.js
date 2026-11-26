@@ -7,7 +7,6 @@
 //   4. dossier local (appels), historique central, MP au membre, logs.
 import { EmbedBuilder, PermissionFlagsBits } from "discord.js";
 import { sendCentralLog } from "./logs.js";
-import { sendToLogsHub } from "./logs-hub.js";
 import { parsePndOwnerId } from "./pnd-owner-policy.js";
 import { evaluateTargetHierarchy } from "./target-hierarchy-policy.js";
 import { getStaffSupervisorId } from "./staff-hierarchy.js";
@@ -89,16 +88,17 @@ function sanctionEmbed({ guild, command, actor, targetId, targetTag, reason, dur
 
 async function sendLogs(guild, settings, embed, supervisorId) {
   const allowedUserIds = supervisorId ? [supervisorId] : [];
+  // sendCentralLog publie déjà dans le hub (catégorie typée) : l'ancien envoi direct
+  // au hub en plus faisait apparaître chaque sanction deux fois.
   await Promise.allSettled([
-    sendToLogsHub(guild.client, guild, embed.toJSON(), "Modération — sanction", [], allowedUserIds),
-    sendCentralLog(guild, settings, embed, [settings?.moderation?.logChannelId], [], allowedUserIds),
+    sendCentralLog(guild, settings, embed, [settings?.moderation?.logChannelId], [], allowedUserIds, { category: "moderation" }),
   ]);
 }
 
 async function logQuotaRefusal(guild, settings, actor, command, message) {
   const embed = new EmbedBuilder().setColor(0xf59e0b).setTitle("⏳ Quota de modération — refus")
     .setDescription(`Modérateur : <@${actor.id}>\nCommande : \`${command}\`\n${message}`).setTimestamp(new Date());
-  await sendCentralLog(guild, settings, embed).catch(() => {});
+  await sendCentralLog(guild, settings, embed, [], [], [], { category: "moderation" }).catch(() => {});
 }
 
 /**

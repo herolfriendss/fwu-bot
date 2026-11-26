@@ -1,9 +1,12 @@
 // FWU — read-only central log verification and routing.
+// V2 : le hub et les serveurs sources viennent de logs-config.js (base, réglés par /logs).
+// Les constantes ci-dessous ne sont plus que les valeurs historiques de repli.
 import { buildLogAllowedMentions } from "./logs.js";
-export const LOGS_HUB_GUILD_ID = "1570484435239833701";
-export const ACTIVE_SOURCE_GUILD_IDS = Object.freeze(["1562643485981544559"]);
+import { LEGACY_LOGS_DEFAULTS, activeSourceGuildIds, logSources, logsHubGuildId, sourceForGuild } from "./logs-config.js";
+export const LOGS_HUB_GUILD_ID = LEGACY_LOGS_DEFAULTS.hubGuildId;
+export const ACTIVE_SOURCE_GUILD_IDS = Object.freeze(LEGACY_LOGS_DEFAULTS.sources.filter((s) => s.enabled).map((s) => s.guildId));
 // Deliberately not activated yet: second source server is kept out of the allowlist.
-export const RESERVED_SOURCE_GUILD_ID = "1505904703563894814";
+export const RESERVED_SOURCE_GUILD_ID = LEGACY_LOGS_DEFAULTS.sources.find((s) => s.slug === "mz").guildId;
 
 export const LOG_CHANNELS = Object.freeze([
   { category: "ADMINISTRATION", name: "logs-staff", key: "staff" },
@@ -25,22 +28,32 @@ export const LOG_CHANNELS = Object.freeze([
   { category: "INTELLIGENCE", name: "logs-intelligence", key: "ai" },
   { category: "SYSTÈMES", name: "logs-bot", key: "system" },
   { category: "SYSTÈMES", name: "logs-erreurs", key: "errors" },
+  // V2 : alertes graves (raid, BLR, anti-nuke, dérive de permissions). Facultatif : tant
+  // qu'il n'existe pas, les alertes vont dans logs-securite.
+  { category: "SÉCURITÉ", name: "logs-alertes", key: "alerts", optional: true },
 ]);
 
-const MZ_LOG_CHANNELS = Object.freeze(
-  LOG_CHANNELS.map((item) => ({
-    ...item,
-    category: `MZ — ${item.category}`,
-    key: `mz_${item.key}`,
-    name: `mz-${item.name}`,
-    source: "mz",
-  })),
+/** Catégories de logs valides (routage typé). */
+export const LOG_CATEGORY_KEYS = Object.freeze(LOG_CHANNELS.map((item) => item.key));
+
+/**
+ * Un jeu de salons par serveur source (plus de jeu « MZ » recopié à la main) :
+ * la source principale garde les noms historiques, les autres sont préfixées.
+ */
+export function logChannelSetFor(slug, primary = slug === "pnd") {
+  return LOG_CHANNELS.map((item) => (primary
+    ? { ...item, source: slug }
+    : { ...item, category: `${slug.toUpperCase()} — ${item.category}`, key: `${slug}_${item.key}`, name: `${slug}-${item.name}`, source: slug }));
+}
+
+/** Salons de toutes les sources configurées. */
+export function allLogChannels() {
+  return logSources().flatMap((source) => logChannelSetFor(source.slug, source.primary));
+}
+
+export const ALL_LOG_CHANNELS = Object.freeze(
+  LEGACY_LOGS_DEFAULTS.sources.flatMap((source) => logChannelSetFor(source.slug, source.primary)),
 );
-
-export const ALL_LOG_CHANNELS = Object.freeze([
-  ...LOG_CHANNELS.map((item) => ({ ...item, source: "pnd" })),
-  ...MZ_LOG_CHANNELS,
-]);
 
 export const LOG_ROLES = Object.freeze([
   { name: "Logs Owner", color: 0x8b5cf6 },
@@ -58,14 +71,29 @@ export const MZ_LOG_ROLES = Object.freeze(
   })),
 );
 
+function isPrimarySource(source) {
+  if (source === "pnd") return true;
+  return Boolean(logSources().find((item) => item.slug === source)?.primary);
+}
+
+/** Rôles de lecture d'une source : noms historiques pour la principale, préfixés sinon. */
+export function logRolesForSource(source) {
+  if (isPrimarySource(source)) return LOG_ROLES;
+  if (source === "mz") return MZ_LOG_ROLES;
+  const prefix = String(source).toUpperCase();
+  return LOG_ROLES.map((role) => ({ ...role, name: `${prefix} ${role.name}` }));
+}
+
 export function logRolesForCategory(categoryName, source = "pnd") {
-  const plainName = source === "mz" ? String(categoryName).replace(/^MZ — /, "") : String(categoryName);
-  const allRoles = source === "mz" ? MZ_LOG_ROLES : LOG_ROLES;
+  const primary = isPrimarySource(source);
+  const prefix = String(source).toUpperCase();
+  const plainName = primary ? String(categoryName) : String(categoryName).replace(new RegExp(`^${prefix} — `), "");
+  const allRoles = logRolesForSource(source);
   const names = ["Logs Owner", "Logs Admin"];
   if (["MODERATION", "VOCAL", "SÉCURITÉ", "SUPPORT"].includes(plainName)) names.push("Logs Modération");
   if (plainName === "ECONOMIE") names.push("Logs Économie");
   if (plainName === "RECRUTEMENT") names.push("Logs Recrutement");
-  return allRoles.filter((role) => names.includes(source === "mz" ? role.name.replace(/^MZ /, "") : role.name));
+  return allRoles.filter((role) => names.includes(primary ? role.name : role.name.replace(new RegExp(`^${prefix} `), "")));
 }
 
 // Explicit routes are checked first: keyword heuristics below misrouted
@@ -109,10 +137,10 @@ export function logChannelKey(title = "") {
 }
 
 export function isLogsHub(guildId) {
-  return guildId === LOGS_HUB_GUILD_ID;
+  return guildId === logsHubGuildId();
 }
 export function isActiveSourceGuild(guildId) {
-  return ACTIVE_SOURCE_GUILD_IDS.includes(guildId);
+  return activeSourceGuildIds().includes(guildId);
 }
 export function allowedRuntimeGuild(guildId) {
   return isLogsHub(guildId) || isActiveSourceGuild(guildId);
@@ -120,34 +148,38 @@ export function allowedRuntimeGuild(guildId) {
 
 /** Prevent an allowlist entry from activating MZ until its separate opt-in is explicit. */
 export function filterInactiveSourceGuilds(guildIds, mzEnabled = false) {
+  const reserved = new Set(logSources().filter((source) => source.slug === "mz").map((source) => source.guildId));
   return [...new Set(guildIds)].filter(
-    (guildId) => guildId !== RESERVED_SOURCE_GUILD_ID || mzEnabled === true,
+    (guildId) => !reserved.has(guildId) || mzEnabled === true,
   );
 }
 
 export function logSourceForGuild(guildId) {
-  if (isActiveSourceGuild(guildId)) return "pnd";
-  if (guildId === RESERVED_SOURCE_GUILD_ID) return "mz";
-  return null;
+  const source = sourceForGuild(guildId);
+  if (!source) return null;
+  return source.enabled || source.slug === "mz" ? source.slug : null;
 }
 
-export function logChannelForGuild(guildId, title = "") {
+/**
+ * Salon du hub pour un log. `category` (routage typé, V2) est prioritaire ; le titre
+ * (`logChannelKey`) ne sert plus que de secours pour les anciens appels.
+ */
+export function logChannelForGuild(guildId, title = "", category = null) {
   const source = logSourceForGuild(guildId);
   if (!source) return null;
-  const key = logChannelKey(title);
-  return (
-    ALL_LOG_CHANNELS.find(
-      (item) => item.source === source && item.key === (source === "mz" ? `mz_${key}` : key),
-    ) ?? null
-  );
+  const key = LOG_CATEGORY_KEYS.includes(category) ? category : logChannelKey(title);
+  const primary = isPrimarySource(source);
+  return logChannelSetFor(source, primary).find((item) => item.key === (primary ? key : `${source}_${key}`)) ?? null;
 }
 
 export function hasIsolatedLogPermissions(category, source) {
-  if (!category?.guild || !["pnd", "mz"].includes(source)) return false;
+  const known = new Set(["pnd", "mz", ...logSources().map((item) => item.slug)]);
+  if (!category?.guild || !known.has(source)) return false;
   const everyone = category.guild.roles.everyone;
   if (!everyone || category.permissionsFor(everyone)?.has("ViewChannel") !== false) return false;
-  const sourceRoles = source === "mz" ? MZ_LOG_ROLES : LOG_ROLES;
-  const otherSourceRoles = source === "mz" ? LOG_ROLES : MZ_LOG_ROLES;
+  const sourceRoles = logRolesForSource(source);
+  const otherSourceRoles = [...known].filter((slug) => slug !== source).flatMap((slug) => logRolesForSource(slug))
+    .filter((role) => !sourceRoles.some((own) => own.name === role.name));
   const ownRoles = logRolesForCategory(category.name, source);
   const bot = category.guild.members.me;
   const ownRoleIds = new Set(
@@ -190,12 +222,12 @@ export function hasIsolatedLogPermissions(category, source) {
  * categories, roles or permission overwrites.
  */
 export function inspectLogsHub(guild) {
-  if (!guild || guild.id !== LOGS_HUB_GUILD_ID)
+  if (!guild || guild.id !== logsHubGuildId())
     throw new Error("Serveur central de logs incorrect.");
 
   // Only allowlisted source guilds and their exact existing log categories are considered healthy.
-  const activeSources = new Set(ACTIVE_SOURCE_GUILD_IDS.map(logSourceForGuild).filter(Boolean));
-  const requiredChannels = ALL_LOG_CHANNELS.filter((spec) => activeSources.has(spec.source));
+  const activeSources = new Set(activeSourceGuildIds().map(logSourceForGuild).filter(Boolean));
+  const requiredChannels = allLogChannels().filter((spec) => activeSources.has(spec.source) && !spec.optional);
   const channels = new Map();
   const missing = [];
   for (const spec of requiredChannels) {
@@ -226,12 +258,7 @@ export function inspectLogsHub(guild) {
   };
 }
 
-export async function sendToLogsHub(client, sourceGuild, embed, title = "", components = [], allowedUserIds = []) {
-  if (!client || !sourceGuild || sourceGuild.id === LOGS_HUB_GUILD_ID) return false;
-  const spec = logChannelForGuild(sourceGuild.id, title || embed?.title || "");
-  if (!spec) return false;
-  const hub = client.guilds.cache.get(LOGS_HUB_GUILD_ID);
-  if (!hub) return false;
+function findHubChannel(hub, spec) {
   const channel = hub.channels.cache.find(
     (c) => c.name === spec.name && c.isTextBased() && c.parent?.name === spec.category,
   );
@@ -241,16 +268,40 @@ export async function sendToLogsHub(client, sourceGuild, embed, title = "", comp
     channel.permissionsLocked !== true ||
     !hasIsolatedLogPermissions(channel.parent, spec.source)
   )
-    return false;
-  const payload = structuredClone(embed);
+    return null;
+  return channel;
+}
+
+export async function sendToLogsHub(client, sourceGuild, embed, title = "", components = [], allowedUserIds = [], { category = null, mentionRoleIds = [] } = {}) {
+  const hubId = logsHubGuildId();
+  if (!client || !sourceGuild || sourceGuild.id === hubId) return false;
+  category ??= embed?.logCategory ?? null;
+  const spec = logChannelForGuild(sourceGuild.id, title || embed?.title || "", category);
+  if (!spec) return false;
+  const hub = client.guilds.cache.get(hubId);
+  if (!hub) return false;
+  let channel = findHubChannel(hub, spec);
+  // Salon d'alertes absent : repli sur logs-securite (aucune alerte perdue).
+  if (!channel && spec.optional) {
+    const fallback = logChannelForGuild(sourceGuild.id, "", "security");
+    channel = fallback ? findHubChannel(hub, fallback) : null;
+    if (channel) spec.source = fallback.source;
+  }
+  if (!channel) return false;
+  const payload = structuredClone(typeof embed?.toJSON === "function" ? embed.toJSON() : embed);
+  const source = sourceForGuild(sourceGuild.id);
   payload.footer = {
-    text: `${spec.source.toUpperCase()} • ${sourceGuild.name} (${sourceGuild.id})`,
+    text: `${(source?.slug ?? spec.source).toUpperCase()} • ${sourceGuild.name} (${sourceGuild.id})`,
   };
   payload.timestamp ??= new Date().toISOString();
+  const allowedMentions = buildLogAllowedMentions(allowedUserIds);
+  const roles = mentionRoleIds.filter((id) => /^\d{17,20}$/.test(String(id)));
+  if (roles.length) allowedMentions.roles = roles;
   await channel.send({
+    ...(roles.length ? { content: roles.map((id) => `<@&${id}>`).join(" ") } : {}),
     embeds: [payload],
     components,
-    allowedMentions: buildLogAllowedMentions(allowedUserIds),
+    allowedMentions,
   });
   return true;
 }

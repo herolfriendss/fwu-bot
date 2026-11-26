@@ -82,10 +82,13 @@ import { handleVoicePresenceMessage, reconcileActiveVoiceSessions, trackVoiceSta
 import { handleStaffMemberHistoryMessage } from "./staff-audit.js";
 import { captureGuildInviteSnapshot, resolveMemberInvite, recordMemberInvite, recordInviteLifecycle } from "./invite-attribution.js";
 import { addCentralLogObserver, setCentralLogRelay, systemLogEmbed, sendCentralLog } from "./logs.js";
-import { BOT_PROFILES, LEASE_RENEW_MS, createDomainGate, enqueueRelayedLog, loadBotPrefixes, parsePrefixedMessage, resolveBotRuntime, slashCommandOwner, slashRegistrationPlan, takeRelayedLogs, requeueRelayedLog, countLostRelayedLogs } from "./bot-runtime.js";
+import { BOT_PROFILES, LEASE_RENEW_MS, createDomainGate, enqueueRelayedLog, loadBotPrefixes, parsePrefixedMessage, resolveBotRuntime, slashCommandOwner, slashRegistrationPlan, takeRelayedLogs, requeueRelayedLog, countLostRelayedLogs, formatRelayLossLine } from "./bot-runtime.js";
 import { handleLiveInteraction, handleLiveMessage } from "./live-commands.js";
 import { SLASH_FOR_PREFIX, prefixifyPayload, slashifyPayload } from "./prefix-to-slash.js";
 import { handleDossierButton, installMessageReplyLayer, installReplyLayer } from "./reply-layer.js";
+import { handleLogsInteraction, handleLogsMessage } from "./logs-commands.js";
+import { logEvent, startLogMaintenance } from "./log-events.js";
+import { activeSourceGuildIds } from "./logs-config.js";
 import { enforceBlacklistOnJoin, handleBlacklistInteraction, handleBlacklistMessage, isBlacklisted } from "./blacklist.js";
 import { handleDmAllInteraction, handleDmAllMessage, recoverInterruptedDmAllJobs } from "./dmall.js";
 import { handleResumeInteraction, handleResumeMessage, pruneResumeEvents, recordResumeEvent } from "./resume.js";
@@ -170,8 +173,8 @@ if (IS_FWU) gate.tick();
 if (!IS_FWU) {
   setInterval(() => { tickDomainLease(); }, LEASE_RENEW_MS).unref?.();
   // Dedicated bots hand their logs to FWU (Logs Hub owner, RESUME source).
-  setCentralLogRelay(({ guild, embed, fallbackChannelIds, components, allowedUserIds }) => enqueueRelayedLog({
-    guildId: guild.id, sourceProfile: RUNTIME.profile, embed, fallbackChannelIds, components, allowedUserIds,
+  setCentralLogRelay(({ guild, embed, fallbackChannelIds, components, allowedUserIds, category, mentionRoleIds }) => enqueueRelayedLog({
+    guildId: guild.id, sourceProfile: RUNTIME.profile, embed, fallbackChannelIds, components, allowedUserIds, category, mentionRoleIds,
   }));
 } else {
   addCentralLogObserver((guild, embed) => {
@@ -333,7 +336,7 @@ function auditSlashUsage(interaction, category) {
 
 // Nobody can touch the OWNER, whatever the path (commands, panels, jobs, automatic protections).
 installOwnerShield({ report: () => record("owner_shield_blocked") });
-const guardReport = (guild, { title, description, color }) => sendCentralLog(guild, settings[guild.id], systemLogEmbed({ title, description, color }));
+const guardReport = (guild, { title, description, color }) => sendCentralLog(guild, settings[guild.id], systemLogEmbed({ category: "security", title, description, color }));
 const automod = createAutomod({ report: guardReport, record: (code) => record(code) });
 const client = new Client({
   intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildVoiceStates, GatewayIntentBits.GuildMessages, GatewayIntentBits.GuildMessageReactions, GatewayIntentBits.GuildInvites, GatewayIntentBits.MessageContent, GatewayIntentBits.GuildMembers, GatewayIntentBits.GuildModeration, GatewayIntentBits.GuildWebhooks, GatewayIntentBits.DirectMessages],
@@ -502,6 +505,8 @@ const antiNuke = createAntiNuke({
   client, report: guardReport, record: (code) => record(code),
   // S5 : chaque attaque bloquée ouvre (ou complète) un incident SYS+.
   onTriggered: async (guild, { executorId, action, outcome }) => {
+    // V2 : alerte typée (salon d'alertes + staff de garde) en plus du rapport GUARD.
+    void logEvent(guild, settings[guild.id], { category: "security", action: "antinuke", severity: "critical", actorId: executorId, details: `${action} — mesure : ${outcome}`, bot: RUNTIME.profile }).catch(() => record("central_log_error"));
     const result = recordGuardIncident({ guildId: guild.id, botId: client.user.id, kind: "nuke", detail: `${action} par ${executorId}, mesure : ${outcome}` });
     const notice = autoIncidentNotice(result);
     if (notice) await guardReport(guild, { title: "📋 Incident SYS+", description: notice, color: 0xf59e0b });
@@ -635,7 +640,8 @@ async function handleMessageCreate(msg) {
     if (runCmd("guard") && await handleBlacklistMessage(msg, s)) { auditPrefixUsage(msg, "Blacklist"); return; }
     if (runCmd("suckme") && await handleLiveMessage(msg, settings, { apiUrl: API, secret: BOT_SYNC_SECRET })) { auditPrefixUsage(msg, "Alertes LIVE"); return; }
     if (runCmd("suckme") && await handleDmAllMessage(msg, s)) { auditPrefixUsage(msg, "DM ALL"); return; }
-    if (runCmd("suckme") && await handleDogCommand(msg, s)) { auditPrefixUsage(msg, "DOG"); return; }
+    if (runCmd("suckme") && await handleLogsMessage(msg, s)) { auditPrefixUsage(msg, "Journaux"); return; }
+  if (runCmd("suckme") && await handleDogCommand(msg, s)) { auditPrefixUsage(msg, "DOG"); return; }
     if (runCmd("suckme") && await handleLocknameMessage(msg, s)) { auditPrefixUsage(msg, "LOCKNAME"); return; }
     if (runCmd("suckme") && await handleKnowledgeMessage(msg)) { auditPrefixUsage(msg, "PND Knowledge"); return; }
     if (runCmd("suckme") && await handleTicketsMessage(msg, s, { apiUrl: API, secret: BOT_SYNC_SECRET, record })) { auditPrefixUsage(msg, "Tickets"); return; }
@@ -950,6 +956,7 @@ client.on("voiceStateUpdate", (oldState, newState) => {
     if (!guild || !guildSettings?.logs?.channelId) return;
     const labels = { temp_voice_created: "Salon vocal temporaire créé", temp_voice_deleted: "Salon vocal temporaire supprimé", temp_voice_transferred: "Propriété transférée (propriétaire parti)", temp_voice_error: "Erreur Join-to-Create" };
     void sendCentralLog(guild, guildSettings, systemLogEmbed({
+      category: "voice",
       title: `🎙️ Join-to-Create — ${labels[code] ?? code}`,
       description: `Événement : \`${code}\`\nMembre : <@${newState.id}>`,
       color: code === "temp_voice_error" ? 0xef4444 : 0xe21d2f,
@@ -1188,7 +1195,7 @@ client.once("clientReady", () => {
           const guild = client.guilds.cache.get(item.guildId);
           if (!guild) { countLostRelayedLogs("serveur_absent"); continue; }
           // Un nouvel essai ne repasse pas par RESUME : il l'a déjà enregistré au premier.
-          const delivered = await sendCentralLog(guild, settings[guild.id], item.embed, item.fallbackChannelIds, item.components, item.allowedUserIds, { skipObservers: item.attempts > 0 }).catch(() => false);
+          const delivered = await sendCentralLog(guild, item.hubOnly ? null : settings[guild.id], item.embed, item.hubOnly ? [] : item.fallbackChannelIds, item.components, item.allowedUserIds, { skipObservers: item.attempts > 0 || item.hubOnly === true, archived: true, noQueue: true, category: item.category ?? null, mentionRoleIds: item.mentionRoleIds ?? [] }).catch(() => false);
           if (!delivered) { record("central_log_error"); requeueRelayedLog(item); }
         }
       })().catch(() => record("log_relay_error")).finally(() => { relaying = false; });
@@ -1406,7 +1413,7 @@ async function handleCoreSlashInteraction(interaction) {
     const seconds = Math.max(0, Math.floor((Date.now() - Date.parse(startedAt)) / 1000));
     const uptime = `${Math.floor(seconds / 86400)}j ${Math.floor(seconds / 3600) % 24}h ${Math.floor(seconds / 60) % 60}min`;
     await interaction.reply({
-      content: `🟢 **${BOT_LABEL} est en ligne**\nConnexion Discord : ${client.isReady() ? "Connecté" : "Déconnecté"}\nSynchronisation : ${lastSync ? "Opérationnelle" : "En attente"}\nTemps de fonctionnement : ${uptime}`,
+      content: `🟢 **${BOT_LABEL} est en ligne**\nConnexion Discord : ${client.isReady() ? "Connecté" : "Déconnecté"}\nSynchronisation : ${lastSync ? "Opérationnelle" : "En attente"}\nTemps de fonctionnement : ${uptime}\n${formatRelayLossLine()}`,
       ephemeral: true,
     });
     return true;
@@ -1606,6 +1613,7 @@ client.on("interactionCreate", (interaction) => {
       return;
     }
     if (await handleDossierButton(interaction, { settings: settings[interaction.guildId] })) return;
+    if (await handleLogsInteraction(interaction, settings[interaction.guildId])) { auditSlashUsage(interaction, "Journaux"); return; }
     if (await handleToolsInteraction(interaction, { client, guildAllowed: (id) => guildAllowed(id, ALLOWED_GUILDS) && !isLogsHub(id) })) { auditSlashUsage(interaction, "Outils staff"); return; }
     if (await handleResumeInteraction(interaction, settings[interaction.guildId])) { auditSlashUsage(interaction, "RESUME"); return; }
     if (await handleDmAllInteraction(interaction, settings[interaction.guildId])) return;
@@ -1736,6 +1744,7 @@ if (IS_FWU) startUsageRetention({ record });
 startFreezeRefresh(() => ALLOWED_GUILDS.filter((guildId) => !isLogsHub(guildId)));
 if (IS_FWU) startFreezeExpiry({ client, bot: RUNTIME.profile, record, audit: (guild, title, description) => auditLog(guild, settings[guild.id], title, description, 0x38bdf8) });
 if (IS_FWU) startNotesRetention({ record });
+if (IS_FWU) startLogMaintenance({ client, record, sources: () => activeSourceGuildIds().filter((guildId) => guildAllowed(guildId, ALLOWED_GUILDS)) });
 startStaffAbuseAlerts({ client, bot: RUNTIME.profile, getSettings: (guildId) => settings[guildId], record, audit: (guild, title, description) => auditLog(guild, settings[guild.id], title, description, 0xef4444) });
 await sync();
 setInterval(sync, 60_000);
