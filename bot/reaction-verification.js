@@ -1,4 +1,6 @@
-import { EmbedBuilder, PermissionFlagsBits } from "discord.js";
+import { PermissionFlagsBits } from "discord.js";
+import { buildRaidCaptchaNotice, buildVerificationPanel, buildWelcomeEmbed, recordVerification, verificationStatus } from "./verification-panel.js";
+import { isRaidActive } from "./guard/raid-protection.js";
 import { assertRoleGrantable } from "./role-grant-guard.js";
 import { db } from "./database.js";
 
@@ -27,6 +29,15 @@ export async function handleReactionVerificationCommand(message) {
       throw new Error("La permission Gérer le serveur est nécessaire.");
     }
 
+    // État de vérification d'un membre (staff : Gérer le serveur, vérifié plus haut).
+    const statusMatch = content.match(/^=verification\s+etat\s+<@!?(\d{17,20})>/i);
+    if (statusMatch) {
+      const row = db.prepare("SELECT role_id FROM reaction_verification_panels WHERE guild_id=?").get(message.guild.id);
+      const target = await message.guild.members.fetch(statusMatch[1]).catch(() => null);
+      const { text } = verificationStatus(message.guild.id, statusMatch[1], { hasRole: row && target ? target.roles.cache.has(row.role_id) : null });
+      await message.reply({ content: `**Vérification de <@${statusMatch[1]}>**\n${text}`, allowedMentions: { parse: [] } });
+      return true;
+    }
     if (/^=verification\s+off$/i.test(content)) {
       db.prepare("DELETE FROM reaction_verification_panels WHERE guild_id=?")
         .run(message.guild.id);
@@ -78,22 +89,8 @@ export async function handleReactionVerificationCommand(message) {
       throw new Error("Le salon doit être visible et lisible par @everyone avant vérification.");
     }
 
-    const embed = new EmbedBuilder()
-      .setColor(0xdc2626)
-      .setTitle("🛡️ RÈGLEMENT & ACCÈS PND")
-      .setDescription(
-        "Bienvenue sur **PND** !\n\n" +
-        "Avant de découvrir le serveur, prends quelques instants pour lire et accepter les règles suivantes."
-      )
-      .addFields(
-        { name: "01 · Respect", value: "Respecte chaque membre. Les insultes, le harcèlement et les discriminations ne sont pas acceptés." },
-        { name: "02 · Communication", value: "Pas de spam, flood, raid ou publicité non autorisée." },
-        { name: "03 · Contenus", value: "Les contenus illégaux, dangereux ou contraires aux règles de Discord sont interdits." },
-        { name: "04 · Vie du serveur", value: "Utilise les salons appropriés et respecte les consignes du staff." },
-        { name: "05 · Sanctions", value: "Le non-respect du règlement peut entraîner une sanction ou une exclusion." }
-      )
-      .setFooter({ text: "PND • Réagis avec ✅ pour accepter le règlement et accéder au serveur." })
-      .setTimestamp();
+    // V2 : panneau refait (bannière, étapes visibles, nom du serveur, CAPTCHA en mode raid).
+    const embed = buildVerificationPanel({ guildName: message.guild.name, raid: isRaidActive(message.guild.id) });
 
     const sent = await channel.send({
       embeds: [embed],
@@ -180,6 +177,14 @@ export async function handleReactionVerificationReaction(reaction, user) {
     throw new Error("Permission Gérer les rôles ou hiérarchie insuffisante.");
   }
 
-  await member.roles.add(role, "Acceptation du règlement PND par réaction ✅");
+  // Mode raid : l'acceptation ne suffit plus, le CAPTCHA devient obligatoire.
+  if (isRaidActive(guild.id)) {
+    recordVerification(guild.id, member.id, "pending_captcha", "réaction");
+    await member.send?.({ embeds: [buildRaidCaptchaNotice(guild.name, config.channel_id)], allowedMentions: { parse: [] } })?.catch?.(() => {});
+    return true;
+  }
+  await member.roles.add(role, "Acceptation du règlement par réaction ✅");
+  recordVerification(guild.id, member.id, "verified", "réaction");
+  await member.send?.({ embeds: [buildWelcomeEmbed(guild.name, member.id)], allowedMentions: { parse: [] } })?.catch?.(() => {});
   return true;
 }

@@ -3,6 +3,7 @@
 // Les avertissements, le journal et l’éligibilité sont stockés localement dans
 // SQLite, toujours par serveur. Les permissions Discord sont revérifiées à chaque
 // commande ; aucune sanction ne peut viser un rôle supérieur au bot.
+import { recordVerification } from "./verification-panel.js";
 import { updateModuleSettings } from "./module-settings.js";
 import { assertRoleGrantable, roleGrantRefusal } from "./role-grant-guard.js";
 import { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder, ModalBuilder, PermissionFlagsBits, TextInputBuilder, TextInputStyle } from "discord.js";
@@ -513,6 +514,7 @@ async function submitVerificationChallenge(interaction, settings) {
       return interaction.reply({ content: "Le rôle de vérification est protégé (accès, palier ou permissions sensibles) : préviens le staff.", ephemeral: true });
     }
     await freshMember.roles.add(role, "CAPTCHA validé");
+    recordVerification(guild.id, freshMember.id, "verified", "CAPTCHA");
     db.prepare("DELETE FROM verification_challenges WHERE guild_id=? AND user_id=?").run(guild.id, interaction.user.id);
     const embed = new EmbedBuilder().setColor(0x22c55e).setTitle("✅ CAPTCHA réussi")
       .setDescription(`<@${interaction.user.id}> a terminé la vérification.`).setTimestamp(new Date());

@@ -151,3 +151,14 @@ Non modifié : images (bannières GIF, cartes, avatars), emojis colorés, site/t
 - Page du site avec sélecteur : **non construite**. Le site n'a qu'une session OWNER par mot de passe (`requireOwner`) ; une page pour
   les membres demanderait une connexion Discord des membres, la vérification de leur quota et de la propriété du rôle côté serveur,
   puis un relais vers le bot : ce n'est pas « simple à relier à l'authentification existante ».
+| 8 — Vérification et règlement | fait | 1 110 tests (1 084 réussis, 26 ignorés), smoke 2 804/0, vitest 277, tsc/eslint OK |
+
+### Tâche 8 — vérification et règlement
+
+- `bot/verification-panel.js` : panneau refait (bannière « verification », nom du serveur au lieu de « PND », étapes ① règlement
+  ② acceptation ③ CAPTCHA), message de bienvenue en MP à la fin, état consultable par le staff (`=verification etat @membre`),
+  journal `verification_log` (réaction, CAPTCHA).
+- **Mode raid** (complète la tâche 4) : la réaction n'attribue plus le rôle, le membre est mis « en attente du CAPTCHA » et reçoit
+  les instructions ; le CAPTCHA réussi enregistre la vérification.
+- `/reglement` (brouillon et publication) et `/screening` embellis : en-tête, icône du serveur, parties numérotées, bannière,
+  pied de page clair ; flux brouillon → validation → publication inchangé.

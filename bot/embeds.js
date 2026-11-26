@@ -3,6 +3,7 @@
 //   /reglement generer|apercu|publier      /screening configurer|synchroniser|etat
 // Réservé aux admins (palier 5 % ou plus haut). Tout est stocké dans la base
 // centrale ; le règlement n'est publié qu'après validation par un admin.
+import { applyBanner } from "./banners.js";
 import { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder, ModalBuilder, PermissionFlagsBits, TextInputBuilder, TextInputStyle } from "discord.js";
 import { roleGrantRefusal } from "./role-grant-guard.js";
 import { SharedDbUnavailableError, isConnectionError, sharedQuery } from "./shared/db.js";
@@ -248,9 +249,9 @@ async function handleEmbedModal(interaction, { bot, audit }) {
 
 function rulesPreview(draft) {
   const pages = rulesToEmbedPages(draft.rules);
-  const embeds = pages.slice(0, 9).map((page, index) => new EmbedBuilder().setColor(0x6d28d9)
-    .setTitle(index === 0 ? "📜 Brouillon de règlement" : "📜 Suite")
-    .setDescription(page));
+  const embeds = pages.slice(0, 9).map((page, index) => new EmbedBuilder().setColor(0xbdbdbd)
+    .setTitle(index === 0 ? "📝 Brouillon de règlement — à relire" : `📝 Brouillon — partie ${index + 1}`)
+    .setDescription(index === 0 ? `*Rien n'est publié avant ta validation.*\n\n${page}`.slice(0, 4096) : page));
   embeds.at(-1)?.setFooter({ text: `Brouillon #${draft.id} · ${draft.rules.length} règles · statut : ${draft.status}` });
   const buttons = draft.status === "draft" ? [new ActionRowBuilder().addComponents(
     new ButtonBuilder().setCustomId(`rules:approve:${draft.id}`).setLabel("Valider").setEmoji("✅").setStyle(ButtonStyle.Success),
@@ -276,9 +277,17 @@ async function createDraft(guild, actorId, consignes, count) {
 
 async function publishRules(guild, channel, draft, actorId) {
   const pages = rulesToEmbedPages(draft.rules);
-  const embeds = pages.slice(0, 10).map((page, index) => new EmbedBuilder().setColor(0x6d28d9)
-    .setTitle(index === 0 ? `📜 Règlement de ${guild.name}` : "📜 Règlement (suite)").setDescription(page));
-  embeds.at(-1)?.setFooter({ text: "En restant sur ce serveur, tu acceptes ce règlement." }).setTimestamp(new Date());
+  // V2 : règlement embelli (en-tête, icône du serveur, bannière, pied de page clair).
+  const icon = guild.iconURL?.({ size: 128 }) ?? null;
+  const embeds = pages.slice(0, 10).map((page, index) => {
+    const embed = new EmbedBuilder().setColor(0xf0f0f0)
+      .setTitle(index === 0 ? `📜 Règlement de ${guild.name}` : `📜 Règlement — partie ${index + 1}`)
+      .setDescription(index === 0 ? `*Merci de lire ces règles avant de participer.*\n\n${page}`.slice(0, 4096) : page);
+    if (index === 0 && icon) embed.setThumbnail(icon);
+    return embed;
+  });
+  applyBanner(embeds.at(-1), "verification");
+  embeds.at(-1)?.setFooter({ text: `${draft.rules.length} règles · en restant sur ce serveur, tu acceptes ce règlement.` }).setTimestamp(new Date());
   const sent = await channel.send({ embeds, allowedMentions: { parse: [] } });
   await sharedQuery(
     "UPDATE rules_drafts SET status = 'published', published_channel_id = $2, published_message_id = $3, reviewed_by = COALESCE(reviewed_by, $4), reviewed_at = COALESCE(reviewed_at, now()) WHERE id = $1",
@@ -376,8 +385,15 @@ async function handleScreeningCommand(interaction, { bot, audit }) {
     if (!channel.permissionsFor?.(me)?.has([PermissionFlagsBits.SendMessages, PermissionFlagsBits.EmbedLinks])) return reply(interaction, `⛔ Il me faut Envoyer des messages et Intégrer des liens dans <#${channel.id}>.`);
     await interaction.deferReply({ ephemeral: true });
     const pages = rulesToEmbedPages(draft.rules);
-    const embeds = pages.slice(0, 10).map((page, index) => new EmbedBuilder().setColor(0x6d28d9)
-      .setTitle(index === 0 ? `🚪 Bienvenue sur ${guild.name}` : "Règlement (suite)").setDescription(page));
+    // V2 : écran d'adhésion embelli (étapes, icône, bannière).
+    const embeds = pages.slice(0, 10).map((page, index) => {
+      const embed = new EmbedBuilder().setColor(0xf0f0f0)
+        .setTitle(index === 0 ? `🚪 Bienvenue sur ${guild.name}` : `📜 Règlement — partie ${index + 1}`)
+        .setDescription(index === 0 ? `**① Lis le règlement · ② Clique sur « J'accepte » · ③ Profite du serveur**\n\n${page}`.slice(0, 4096) : page);
+      if (index === 0 && guild.iconURL?.()) embed.setThumbnail(guild.iconURL({ size: 128 }));
+      return embed;
+    });
+    applyBanner(embeds.at(-1), "verification");
     embeds.at(-1)?.setFooter({ text: "Clique sur « J'accepte » pour accéder au serveur." });
     const sent = await channel.send({
       embeds,
