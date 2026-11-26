@@ -358,3 +358,16 @@ Restaurations hors garde (R) : fin de quarantaine, sens inverse du transfert, d�
 | `staff-freeze-gate.js:48` | `const timer = setInterval(tick, REFRESH_MS);` |
 | `systems/sysplus/freeze-commands.js:102` | `const timer = setInterval(() => { void run(); }, 60_000);` |
 | `systems/sysplus/staff-notes.js:67` | `const timer = setInterval(run, 24 * 3600_000);` |
+
+## 7. Revue des dérogations du code V2 (27/11/2026)
+
+Corrigées (une permission ou un rang ouvrait plus que la règle) :
+- Bouton « Pardon » du piège : un modérateur pouvait lever un BLR → réservé à l'OWNER et aux paliers 0 % / 1 %, comme `/blr lever`.
+- Actions vocales de masse (`mvall`, `mvrole`, `pull`, `swap`, `muteall`, `unmuteall`, `vclear`, `undo`) : la seule permission Discord
+  suffisait (contournement des rangs et des quotas de `;mv`) → il faut en plus SYS+ ou ADMIN+ (ou Administrateur, propriétaire, OWNER) ;
+  le rang ne remplace jamais la permission Discord.
+- Écrans privés : `/abonnement` (données personnelles) et `/stabilite` ajoutés à `PRIVATE_COMMANDS`.
+
+Dérogations voulues et conservées (documentées) : `/piege`, `/raid`, `/scan`, `/panic`, `/guide configurer`, `/presence`, `/stabilite`
+ouverts à l'Administrateur Discord (même règle que `/bouclier`) ; « Voir le dossier », `/logs rechercher` et `/dossier` ouverts aux
+modérateurs Discord et aux SYS+/ADMIN+ ; configuration des journaux et du BLR réservée à l'OWNER.

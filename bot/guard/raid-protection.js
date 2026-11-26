@@ -10,7 +10,7 @@ import { db } from "../database.js";
 import { parsePndOwnerId } from "../pnd-owner-policy.js";
 import { logEvent } from "../log-events.js";
 import { privilegedPermissionNames } from "../role-grant-guard.js";
-import { setBlr, liftBlr } from "../blr-commands.js";
+import { canManageBlr, setBlr, liftBlr } from "../blr-commands.js";
 import { isBlr } from "../blr.js";
 import { lockdownState, startLockdown } from "./shield.js";
 
@@ -103,8 +103,8 @@ export async function handleTrapPardon(interaction, { client, getSettings = () =
   const guild = client?.guilds?.cache?.get?.(guildId);
   if (!guild) { await interaction.reply({ content: "⚠️ Serveur source introuvable.", ephemeral: true }).catch(() => {}); return true; }
   const clicker = await guild.members.fetch({ user: interaction.user.id, force: true }).catch(() => null);
-  const staff = clicker && (isGuardAdmin(clicker, env) || clicker.permissions?.has?.(P.ModerateMembers) || clicker.permissions?.has?.(P.BanMembers));
-  if (!staff) { await interaction.reply({ content: "⛔ Le pardon est réservé au staff du serveur concerné.", ephemeral: true }).catch(() => {}); return true; }
+  // Lever un BLR reste réservé à l'OWNER et aux paliers 0 % et 1 % (aucune dérogation par le bouton).
+  if (!clicker || !(await canManageBlr(clicker, { env }))) { await interaction.reply({ content: "⛔ Le pardon (levée du BLR) est réservé à l'OWNER et aux paliers 0 % et 1 %.", ephemeral: true }).catch(() => {}); return true; }
   const target = await guild.members.fetch(userId).catch(() => null);
   const result = await liftBlr({ guild, actorId: clicker.id, target, targetId: userId, restore: true, reason: "Pardon (salon piège)", settings: getSettings(guildId), env });
   await interaction.reply({ content: result.ok ? `🕊️ Pardon accordé à <@${userId}> : ${result.message}` : result.message, ephemeral: true, allowedMentions: { parse: [] } }).catch(() => {});

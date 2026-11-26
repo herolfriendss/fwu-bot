@@ -40,19 +40,26 @@ echo "Node utilisé : $(command -v node || echo introuvable) $(node -v 2>/dev/nu
 # neutral environment instead of the bot's own.
 unset NODE_ENV
 
+# --auto : lancé périodiquement par SUCK ME (mise à jour automatique) ; ne fait rien si
+# la version visée (commit de main ou version publiée) est déjà installée.
+AUTO=""
+if [[ "${1:-}" == "--auto" ]]; then AUTO="1"; shift; fi
 WANTED="${1:-}"
 if [[ -n "$WANTED" && ! "$WANTED" =~ ^v[0-9]{1,4}\.[0-9]{1,4}\.[0-9]{1,4}$ ]]; then
   echo "Version invalide : $WANTED (format attendu : v1.2.0)."; exit 2
 fi
 INSTALLED_FILE="$DATA/version-installee"
+COMMIT_FILE="$DATA/commit-installe"
 
 status() { printf '{"state":"%s","step":"%s","at":%s}\n' "$1" "$2" "$(date +%s)" > "$STATUS.tmp" && mv "$STATUS.tmp" "$STATUS"; }
 
 exec 9>"$DATA/maj.lock"
 if ! flock -n 9; then echo "Une mise à jour est déjà en cours."; exit 3; fi
-exec >>"$LOG" 2>&1
-echo
-echo "===== Mise à jour FWU du $(date '+%d/%m/%Y %H:%M:%S') ====="
+# En mode automatique, un contrôle sans nouveauté n'écrit rien dans le journal.
+if [[ -n "$AUTO" ]]; then exec >/dev/null 2>&1; fi
+[[ -z "$AUTO" ]] && exec >>"$LOG" 2>&1
+[[ -z "$AUTO" ]] && echo
+[[ -z "$AUTO" ]] && echo "===== Mise à jour FWU du $(date '+%d/%m/%Y %H:%M:%S') ====="
 fail() { echo "❌ $1"; status failed "$1"; exit 1; }
 
 [[ -s "$TOKEN_FILE" ]] || fail "Aucun jeton GitHub sur le VPS (relance FWU-MAJ-COMPLETE.sh une fois depuis un ordinateur)."
@@ -62,7 +69,7 @@ trap 'rm -rf "$WORK"' EXIT
 # The token goes through curl's stdin config, never on the command line.
 gh_api() { printf 'header = "Authorization: Bearer %s"\n' "$(tr -d '\r\n' < "$TOKEN_FILE")" | curl -fsSL -K - -H "Accept: application/vnd.github+json" "$@"; }
 
-status running "Recherche de la dernière version"
+[[ -z "$AUTO" ]] && status running "Recherche de la dernière version"
 echo "==> Version"
 if [[ -n "$WANTED" ]]; then
   REF="$WANTED"
@@ -79,6 +86,18 @@ print(t if re.fullmatch(r"v\d{1,4}\.\d{1,4}\.\d{1,4}", t or "") else "")')"
   fi
 fi
 INSTALLED="$(tr -d '[:space:]' < "$INSTALLED_FILE" 2>/dev/null || true)"
+# Commit visé (main ou version publiée) : sert à ne réinstaller que s'il y a du nouveau.
+TARGET_COMMIT="$(gh_api "https://api.github.com/repos/$REPO_SLUG/commits/$REF" 2>/dev/null | python3 -I -c 'import json,sys
+try: print(json.load(sys.stdin).get("sha","")[:40])
+except Exception: print("")' || true)"
+INSTALLED_COMMIT="$(tr -d '[:space:]' < "$COMMIT_FILE" 2>/dev/null || true)"
+if [[ -n "$AUTO" ]]; then
+  if [[ -z "$TARGET_COMMIT" || "$TARGET_COMMIT" == "$INSTALLED_COMMIT" ]]; then exit 0; fi
+  # Du nouveau : à partir d'ici, tout est journalisé comme une mise à jour manuelle.
+  exec >>"$LOG" 2>&1
+  echo
+  echo "===== Mise à jour automatique FWU du $(date '+%d/%m/%Y %H:%M:%S') ====="
+fi
 echo "Installée : ${INSTALLED:-inconnue} · visée : $REF"
 if [[ -z "$WANTED" && "$REF" != "main" && "$REF" == "$INSTALLED" ]]; then
   echo "✅ Déjà à jour ($REF)."
@@ -170,5 +189,6 @@ pm2 ls --no-color || true
 [[ -z "$rolled" ]] || fail "Ancienne version remise pour :$rolled${broken:+ · en erreur :$broken} (détails : /maj etat)"
 [[ -z "$broken" ]] || fail "Bots en erreur :$broken"
 printf '%s\n' "$REF" > "$INSTALLED_FILE"
+[[ -n "$TARGET_COMMIT" ]] && printf '%s\n' "$TARGET_COMMIT" > "$COMMIT_FILE"
 echo "✅ Mise à jour terminée."
 status done "Terminée ($REF · $(basename "$REPO"))"

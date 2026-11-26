@@ -9,6 +9,7 @@ import { ChannelType, PermissionFlagsBits as P } from "discord.js";
 const directory = mkdtempSync(join(tmpdir(), "fwu-voice-v2-"));
 process.env.HER_DB_PATH = join(directory, "runtime.sqlite");
 const env = { PND_OWNER_DISCORD_ID: "900000000000000009" };
+const SETTINGS = { sysPlus: { roleId: "800000000000000099" } };
 const A = "710000000000000001";
 const B = "710000000000000002";
 
@@ -28,7 +29,8 @@ function world() {
     channels.set(id, c);
     return c;
   };
-  const member = (id, position, channelId = null, { perms = [], roles = [] } = {}) => {
+  const member = (id, position, channelId = null, { perms = [], roles: baseRoles = [] } = {}) => {
+    const roles = perms.length ? [...baseRoles, "800000000000000099"] : baseRoles; // le staff de test est SYS+
     const m = {
       id, guild, user: { id, bot: false },
       roles: { highest: { position }, cache: new Set(roles) },
@@ -60,7 +62,7 @@ test("mvall: preview counts eligible members, skips higher and Anti-Move protect
   w.member("300000000000000003", 50, A); // au-dessus
   w.member("300000000000000004", 1, A); // protégé
   const protectedCheck = (guildId, id) => id === "300000000000000004";
-  const { plan } = mass.planMassAction(w.guild, actor, { kind: "mvall", source: A, target: B }, { env, protectedCheck });
+  const { plan } = mass.planMassAction(w.guild, actor, { kind: "mvall", source: A, target: B }, { env, settings: SETTINGS, protectedCheck });
   assert.equal(plan.members.length, 2);
   assert.deepEqual(plan.skipped, { higher: 1, protected: 1, bots: 0 });
   const preview = mass.previewPayload(w.guild, actor, plan);
@@ -69,7 +71,7 @@ test("mvall: preview counts eligible members, skips higher and Anti-Move protect
   const result = await mass.executeMassPlan(w.guild, actor, plan, { stepMs: 0 });
   assert.equal(result.done, 2);
   assert.equal(w.guild.members.cache.get("300000000000000001").voice.channelId, B);
-  const undo = await mass.undoLastMass(w.guild, actor, { env, stepMs: 0 });
+  const undo = await mass.undoLastMass(w.guild, actor, { env, settings: SETTINGS, stepMs: 0 });
   assert.match(undo, /2 membre/);
   assert.equal(w.guild.members.cache.get("300000000000000001").voice.channelId, A);
 });
@@ -81,10 +83,10 @@ test("mass actions need the right Discord permission; the preview button is boun
   assert.match(mass.planMassAction(w.guild, nobody, { kind: "mvall", source: A, target: B }, { env }).error, /permission/);
   const actor = w.member("200000000000000003", 10, A, { perms: [P.MoveMembers] });
   w.member("300000000000000009", 1, A);
-  const { plan } = mass.planMassAction(w.guild, actor, { kind: "mvall", source: A, target: B }, { env, protectedCheck: () => false });
+  const { plan } = mass.planMassAction(w.guild, actor, { kind: "mvall", source: A, target: B }, { env, settings: SETTINGS, protectedCheck: () => false });
   const id = mass.previewPayload(w.guild, actor, plan).components[0].components[0].custom_id;
   const replies = [];
-  await mass.handleMassButton({ customId: id, user: { id: "someone-else" }, isButton: () => true, reply: async (p) => replies.push(p) }, { env });
+  await mass.handleMassButton({ customId: id, user: { id: "someone-else" }, isButton: () => true, reply: async (p) => replies.push(p) }, { env, settings: SETTINGS });
   assert.match(replies[0].content, /pas pour toi/);
 });
 
@@ -93,13 +95,13 @@ test("muteall then undo restores the previous mute state; swap exchanges channel
   w.channel(A); w.channel(B);
   const actor = w.member("200000000000000004", 10, A, { perms: [P.MuteMembers, P.MoveMembers] });
   const x = w.member("300000000000000011", 1, A);
-  const { plan } = mass.planMassAction(w.guild, actor, { kind: "muteall", source: A }, { env, protectedCheck: () => false });
+  const { plan } = mass.planMassAction(w.guild, actor, { kind: "muteall", source: A }, { env, settings: SETTINGS, protectedCheck: () => false });
   await mass.executeMassPlan(w.guild, actor, plan, { stepMs: 0 });
   assert.equal(x.voice.serverMute, true);
-  await mass.undoLastMass(w.guild, actor, { env, stepMs: 0 });
+  await mass.undoLastMass(w.guild, actor, { env, settings: SETTINGS, stepMs: 0 });
   assert.equal(x.voice.serverMute, false);
   const y = w.member("300000000000000012", 1, B);
-  assert.match(await mass.swapMembers(w.guild, actor, x.id, y.id, { env, protectedCheck: () => false }), /échangé/);
+  assert.match(await mass.swapMembers(w.guild, actor, x.id, y.id, { env, settings: SETTINGS, protectedCheck: () => false }), /échangé/);
   assert.equal(x.voice.channelId, B);
   assert.equal(y.voice.channelId, A);
 });
@@ -159,7 +161,7 @@ test("pull, mvrole, unmuteall and vclear through the shared command core", async
   w.channel(A); w.channel(B);
   const actor = w.member("200000000000000005", 10, A, { perms: [P.MoveMembers, P.MuteMembers] });
   const far = w.member("300000000000000041", 1, B, { roles: ["800000000000000001"] });
-  const opts = { env, protectedCheck: () => false };
+  const opts = { env, settings: SETTINGS, protectedCheck: () => false };
   assert.match((await mass.runMassCommand(w.guild, actor, { kind: "pull", target: far.id }, opts)).content, /amené/);
   assert.equal(far.voice.channelId, A);
   // /mvrole : aperçu des membres du rôle connectés ailleurs que dans la cible.
@@ -173,4 +175,13 @@ test("pull, mvrole, unmuteall and vclear through the shared command core", async
   await mass.executeMassPlan(w.guild, actor, clear, { stepMs: 0 });
   assert.equal(far.voice.channelId, null);
   assert.equal(actor.voice.channelId, A, "the author is never disconnected");
+});
+
+test("no bypass: the Discord permission alone is not enough for mass voice actions (SYS+ or ADMIN+ required)", () => {
+  const moveOnly = { id: "200000000000000077", guild: { ownerId: "1" }, permissions: { has: (bit) => bit === P.MoveMembers }, roles: { cache: { has: () => false } } };
+  assert.equal(mass.canUseMassVoice(moveOnly, "mvall", env, SETTINGS), false);
+  const sysplus = { ...moveOnly, roles: { cache: { has: (r) => r === "800000000000000099" } } };
+  assert.equal(mass.canUseMassVoice(sysplus, "mvall", env, SETTINGS), true);
+  const rankNoPerm = { ...sysplus, permissions: { has: () => false } };
+  assert.equal(mass.canUseMassVoice(rankNoPerm, "mvall", env, SETTINGS), false, "the rank never replaces the Discord permission");
 });

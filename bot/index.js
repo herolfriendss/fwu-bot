@@ -130,7 +130,7 @@ import { communityAutoconfig, handleCommunityInteraction, handleLevelMessage, ru
 import { handleFiscInteraction, runLoanCollection, runWealthTax } from "./features/fisc.js";
 import { handleModmailDm, handleToolsInteraction, onStickyChannelMessage } from "./features/tools-commands.js";
 import { handleVersusInteraction, runVersusExpiry } from "./features/versus.js";
-import { announceUpdateResult, handleSelfUpdateInteraction } from "./features/self-update.js";
+import { announceUpdateResult, handleSelfUpdateInteraction, startAutoUpdate } from "./features/self-update.js";
 import { handleSuckmeInteraction, ladderOf, runAnnouncements, runTempRoles, saveLadder } from "./features/suckme.js";
 import { armSlowCommandWatchdog } from "./interaction-watchdog.js";
 import { STAFF_ONLY_MESSAGE, isServerStaff } from "./server-staff.js";
@@ -679,7 +679,7 @@ async function handleMessageCreate(msg) {
     }
   }
   if (runCmd("guard") && await handleRaidPrefix(msg, s)) { auditPrefixUsage(msg, "Anti-raid"); return; }
-  if (runCmd("fdpdlavoc") && await handleMassMessage(msg)) { auditPrefixUsage(msg, "Vocal de masse"); return; }
+  if (runCmd("fdpdlavoc") && await handleMassMessage(msg, s)) { auditPrefixUsage(msg, "Vocal de masse"); return; }
   if (runCmd("guard") && await handleGuardPrefixCommand(msg, s, { bot: RUNTIME.profile, record, audit: (title, description, color) => auditLog(msg.guild, s, title, description, color) })) { auditPrefixUsage(msg, "Administration GUARD"); return; }
   if (runCmd("fdpdlavoc") && await handleVoiceMoveCommand(msg, s, { bot: RUNTIME.profile, record, audit: (title, description, color) => auditLog(msg.guild, s, title, description, color) })) { auditPrefixUsage(msg, "Déplacement vocal"); return; }
   try {
@@ -1185,6 +1185,8 @@ client.once("clientReady", () => {
   setInterval(() => { if (serves("fwu")) void runBirthdays(communityGuilds()).catch(() => record("birthdays_error")); }, 5 * 60_000).unref?.();
   // SUCK ME: tell the OWNER how the last /maj ended (checked every 2 minutes).
   setInterval(() => { if (serves("suckme")) void announceUpdateResult(client).catch(() => {}); }, 2 * 60_000).unref?.();
+  // V2 : mise à jour automatique (nuit, seulement s'il y a du nouveau sur main) ; FWU_AUTO_UPDATE=off pour la couper.
+  if (RUNTIME.profile === "suckme") startAutoUpdate({ record });
   // SUCK ME animation: question of the day, checked every 5 minutes (Paris time).
   setInterval(() => { if (serves("suckme")) void runQotd(communityGuilds()).catch(() => record("qotd_error")); }, 5 * 60_000).unref?.();
   // SUCK ME jobs: expired temporary roles and scheduled announcements (every minute).
@@ -1718,8 +1720,8 @@ client.on("interactionCreate", (interaction) => {
     if (await handlePresenceInteraction(interaction)) { auditSlashUsage(interaction, "Statut"); return; }
     if (await handleTrapPardon(interaction, { client, getSettings: (guildId) => settings[guildId] })) return;
     if (await handleRaidInteraction(interaction, settings[interaction.guildId])) { auditSlashUsage(interaction, "Anti-raid"); return; }
-    if (await handleMassButton(interaction)) return;
-    if (await handleMassInteraction(interaction)) { auditSlashUsage(interaction, "Vocal de masse"); return; }
+    if (await handleMassButton(interaction, { settings: settings[interaction.guildId] })) return;
+    if (await handleMassInteraction(interaction, settings[interaction.guildId])) { auditSlashUsage(interaction, "Vocal de masse"); return; }
     if (await handleAccessAllInteraction(interaction, settings[interaction.guildId], { bot: RUNTIME.profile, audit: (title, description) => auditLog(interaction.guild, settings[interaction.guildId], title, description) })) { auditSlashUsage(interaction, "Vocal"); return; }
     if (await handleToolsInteraction(interaction, { client, guildAllowed: (id) => guildAllowed(id, ALLOWED_GUILDS) && !isLogsHub(id) })) { auditSlashUsage(interaction, "Outils staff"); return; }
     if (await handleResumeInteraction(interaction, settings[interaction.guildId])) { auditSlashUsage(interaction, "RESUME"); return; }

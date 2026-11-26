@@ -72,3 +72,14 @@ test("/maj lancer version : seule une version numérotée est transmise au scrip
   await m.handleSelfUpdateInteraction(etat, { spawnFn });
   assert.match(etat.replies[0].content, /Version installée : \*\*v1\.3\.0\*\*/);
 });
+
+test("V2: automatic update runs once a night at the chosen Paris hour, never while an update runs, and can be turned off", async () => {
+  const { autoUpdateDue } = await import("./self-update.js");
+  const at5 = new Date("2026-11-27T04:10:00Z"); // 5 h 10 à Paris (UTC+1)
+  assert.equal(autoUpdateDue({ now: at5, env: {} }), "2026-11-27");
+  assert.equal(autoUpdateDue({ now: at5, env: {}, lastRunDay: "2026-11-27" }), false, "une fois par nuit");
+  assert.equal(autoUpdateDue({ now: new Date("2026-11-27T12:00:00Z"), env: {} }), false, "hors de l'heure");
+  assert.equal(autoUpdateDue({ now: at5, env: { FWU_AUTO_UPDATE: "off" } }), false);
+  assert.equal(autoUpdateDue({ now: at5, env: {}, status: { state: "running", at: Math.floor(at5.getTime() / 1000) } }), false);
+  assert.equal(autoUpdateDue({ now: new Date("2026-11-27T21:30:00Z"), env: { FWU_AUTO_UPDATE_HOUR: "22" } }), "2026-11-27");
+});

@@ -25,11 +25,15 @@ const pending = new Map();
 const pause = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 /** OWNER, propriétaire, ou « Déplacer des membres » (mute : « Rendre muet », vclear : « Déplacer »). */
-export function canUseMassVoice(member, kind, env = process.env) {
+export function canUseMassVoice(member, kind, env = process.env, settings = null) {
   if (!member?.id) return false;
   if (member.id === parsePndOwnerId(env.PND_OWNER_DISCORD_ID) || member.id === member.guild?.ownerId) return true;
+  if (member.permissions?.has?.(P.Administrator)) return true;
   const need = kind === "muteall" || kind === "unmuteall" ? P.MuteMembers : P.MoveMembers;
-  return Boolean(member.permissions?.has?.(P.Administrator) || member.permissions?.has?.(need));
+  if (!member.permissions?.has?.(need)) return false;
+  // Pas de dérogation par la seule permission Discord : il faut aussi un rang staff (SYS+ ou ADMIN+).
+  const ranks = [settings?.sysPlus?.roleId, settings?.adminPlus?.roleId].filter(Boolean);
+  return ranks.some((roleId) => member.roles?.cache?.has?.(roleId));
 }
 
 /** Membres qu'une action de masse peut toucher : pas de bot, pas l'auteur, en dessous de lui, pas protégé Anti-Move. */
@@ -67,9 +71,10 @@ function voiceChannel(guild, raw) {
 }
 
 /** Construit le plan (sans rien modifier). Retourne { error } ou { plan }. */
-export function planMassAction(guild, actor, request, { env = process.env, protectedCheck } = {}) {
+export function planMassAction(guild, actor, request, options = {}) {
+  const { env = process.env, protectedCheck } = options;
   const { kind } = request;
-  if (!canUseMassVoice(actor, kind, env)) return { error: "⛔ Il te faut la permission Discord adaptée (Déplacer / Rendre muet des membres)." };
+  if (!canUseMassVoice(actor, kind, env, options.settings)) return { error: "⛔ Réservé au staff (SYS+ ou ADMIN+) disposant de la permission Discord adaptée (Déplacer / Rendre muet des membres)." };
   const own = actor.voice?.channel ?? null;
   const opts = { guildId: guild.id, env, protectedCheck };
   if (kind === "mvall") {
@@ -128,10 +133,10 @@ export async function executeMassPlan(guild, actor, plan, { stepMs = 300, now = 
 }
 
 /** =undo : annule la dernière action de masse (déplacements remis, mutes rétablis). */
-export async function undoLastMass(guild, actor, { env = process.env, now = Date.now(), stepMs = 300 } = {}) {
+export async function undoLastMass(guild, actor, { env = process.env, now = Date.now(), stepMs = 300, settings = null } = {}) {
   const last = lastUndo(guild.id, now);
   if (!last) return "ℹ️ Aucune action de masse à annuler (30 minutes au plus).";
-  if (!canUseMassVoice(actor, last.kind, env)) return "⛔ Permission insuffisante pour annuler.";
+  if (!canUseMassVoice(actor, last.kind, env, settings)) return "⛔ Permission insuffisante pour annuler.";
   let done = 0;
   for (const entry of last.payload) {
     const member = guild.members?.cache?.get?.(entry.memberId) ?? await guild.members?.fetch?.(entry.memberId).catch(() => null);
@@ -172,8 +177,8 @@ export function previewPayload(guild, actor, plan, now = Date.now()) {
 }
 
 /** =swap @a @b : échange les salons de deux membres (pas d'aperçu, annulable). */
-export async function swapMembers(guild, actor, aId, bId, { env = process.env, protectedCheck = isAntiMoveProtected, now = Date.now() } = {}) {
-  if (!canUseMassVoice(actor, "swap", env)) return "⛔ Il te faut « Déplacer des membres ».";
+export async function swapMembers(guild, actor, aId, bId, { env = process.env, protectedCheck = isAntiMoveProtected, now = Date.now(), settings = null } = {}) {
+  if (!canUseMassVoice(actor, "swap", env, settings)) return "⛔ Il te faut « Déplacer des membres ».";
   const [a, b] = await Promise.all([aId, bId].map((id) => guild.members.fetch(id).catch(() => null)));
   if (!a?.voice?.channel || !b?.voice?.channel) return "⚠️ Les deux membres doivent être en vocal.";
   const { eligible } = eligibleMembers([a, b], actor, { guildId: guild.id, env, protectedCheck });
@@ -186,8 +191,8 @@ export async function swapMembers(guild, actor, aId, bId, { env = process.env, p
 }
 
 /** =pull @membre : amène le membre dans ton salon vocal. */
-export async function pullMember(guild, actor, targetId, { env = process.env, protectedCheck = isAntiMoveProtected } = {}) {
-  if (!canUseMassVoice(actor, "pull", env)) return "⛔ Il te faut « Déplacer des membres ».";
+export async function pullMember(guild, actor, targetId, { env = process.env, protectedCheck = isAntiMoveProtected, settings = null } = {}) {
+  if (!canUseMassVoice(actor, "pull", env, settings)) return "⛔ Il te faut « Déplacer des membres ».";
   if (!actor.voice?.channel) return "⚠️ Rejoins d'abord un salon vocal.";
   const target = await guild.members.fetch(targetId).catch(() => null);
   if (!target?.voice?.channel) return "⚠️ Ce membre n'est pas en vocal.";
@@ -208,7 +213,7 @@ export async function runMassCommand(guild, actor, request, options = {}) {
 }
 
 /** Boutons d'aperçu (auteur seulement ; la permission est revérifiée au clic). */
-export async function handleMassButton(interaction, { env = process.env } = {}) {
+export async function handleMassButton(interaction, { env = process.env, settings = null } = {}) {
   if (!interaction?.isButton?.() || !String(interaction.customId ?? "").startsWith("vmass:")) return false;
   const [, action, id] = interaction.customId.split(":");
   const entry = pending.get(id);
@@ -217,14 +222,14 @@ export async function handleMassButton(interaction, { env = process.env } = {}) 
   pending.delete(id);
   if (action === "cancel") { await interaction.update({ content: "❌ Action annulée.", components: [] }).catch(() => {}); return true; }
   const actor = await interaction.guild.members.fetch({ user: interaction.user.id, force: true }).catch(() => null);
-  if (!actor || !canUseMassVoice(actor, entry.plan.kind, env)) { await interaction.update({ content: "⛔ Permission retirée entre-temps.", components: [] }).catch(() => {}); return true; }
+  if (!actor || !canUseMassVoice(actor, entry.plan.kind, env, settings)) { await interaction.update({ content: "⛔ Permission retirée entre-temps.", components: [] }).catch(() => {}); return true; }
   await interaction.update({ content: "⏳ En cours…", components: [] }).catch(() => {});
   const { done, failed } = await executeMassPlan(interaction.guild, actor, entry.plan);
   await interaction.editReply({ content: `✅ ${done} membre(s) traité(s)${failed ? `, ${failed} échec(s)` : ""}. Annulable avec \`/undo\` pendant 30 min.` }).catch(() => {});
   return true;
 }
 
-export async function handleMassInteraction(interaction) {
+export async function handleMassInteraction(interaction, settings = null) {
   if (!interaction?.isChatInputCommand?.() || !MASS_COMMANDS.has(interaction.commandName) || !interaction.guild) return false;
   const o = interaction.options;
   const actor = await interaction.guild.members.fetch({ user: interaction.user.id, force: true }).catch(() => interaction.member);
@@ -234,13 +239,13 @@ export async function handleMassInteraction(interaction) {
     target: interaction.commandName === "pull" ? o.getUser?.("membre", false)?.id : o.getChannel?.("cible", false)?.id ?? null,
     roleId: o.getRole?.("role", false)?.id ?? null,
     a: o.getUser?.("membre_a", false)?.id ?? null, b: o.getUser?.("membre_b", false)?.id ?? null,
-  });
+  }, { settings });
   await interaction.reply({ ...payload, allowedMentions: { parse: [] } });
   return true;
 }
 
 /** =mvall #a #b · =mvrole @r #b · =pull @m · =swap @a @b · =muteall [#s] · =unmuteall [#s] · =vclear [#s] · =undo */
-export async function handleMassMessage(message) {
+export async function handleMassMessage(message, settings = null) {
   const match = String(message?.content ?? "").trim().match(/^=(mvall|mvrole|pull|swap|muteall|unmuteall|vclear|undo)\b\s*(.*)$/i);
   if (!match || !message.guild || !message.member) return false;
   const kind = match[1].toLowerCase();
@@ -255,6 +260,6 @@ export async function handleMassMessage(message) {
     roleId, a: users[0], b: users[1],
   };
   const actor = await message.guild.members.fetch({ user: message.author.id, force: true }).catch(() => message.member);
-  await message.reply({ ...(await runMassCommand(message.guild, actor, request)), allowedMentions: { parse: [] } }).catch(() => {});
+  await message.reply({ ...(await runMassCommand(message.guild, actor, request, { settings })), allowedMentions: { parse: [] } }).catch(() => {});
   return true;
 }

@@ -47,6 +47,7 @@ export const PRIVATE_COMMANDS = Object.freeze(new Set([
   "automation", "webhook", "investadmin", "maj", "quota", "sanction-type", "embed", "reglement",
   "screening", "ia", "confession", "antinuke", "automod", "guildguard", "bouclier", "sysp",
   "candidature", "rappel", "live", "dmall", "logs", "dossier", "piege", "guide-config", "presence",
+  "abonnement", "stabilite",
 ]));
 
 /**

@@ -22,10 +22,10 @@ const MEMBER_ROLE = "500000000000000002";
 const VIP = "500000000000000003";
 blr.setBlrConfig(GUILD_ID, { blrRoleId: BLR_ROLE, memberRoleId: MEMBER_ROLE });
 const { setRoleTiersForTests } = await import("../shared/tiers.js");
-setRoleTiersForTests(GUILD_ID, []);
+setRoleTiersForTests(GUILD_ID, [["600000000000000001", 1]]);
 
 function makeGuild() {
-  const roles = new Map([[GUILD_ID, { id: GUILD_ID, permissions: 0n }], [BLR_ROLE, { id: BLR_ROLE, permissions: 0n }], [MEMBER_ROLE, { id: MEMBER_ROLE, permissions: 0n }], [VIP, { id: VIP, permissions: 0n }]]);
+  const roles = new Map([[GUILD_ID, { id: GUILD_ID, permissions: 0n }], [BLR_ROLE, { id: BLR_ROLE, permissions: 0n }], [MEMBER_ROLE, { id: MEMBER_ROLE, permissions: 0n }], [VIP, { id: VIP, permissions: 0n }], ["600000000000000001", { id: "600000000000000001", name: "Palier 1", permissions: 0n }]]);
   const deleted = [];
   const channel = { id: "700000000000000001", type: ChannelType.GuildText, messages: { fetch: async () => new Map([["m1", { id: "m1", author: { id: "300000000000000003" }, createdTimestamp: Date.now() }]]) }, bulkDelete: async (ids) => { deleted.push(...ids); return { size: ids.length }; } };
   return { id: GUILD_ID, ownerId: "100000000000000002", roles: { cache: roles }, channels: { cache: new Map([[channel.id, channel]]) }, members: { me: { id: "bot" } }, client: { user: { id: "bot" } }, deleted, mfaLevel: 0, verificationLevel: 1, explicitContentFilter: 0 };
@@ -60,19 +60,22 @@ test("trap: a non-exempt writer becomes BLR, loses recent messages; staff, SYS+,
   assert.equal(await R.springBlrTrap({ ...message, channelId: "other" }, null, { env }), null, "ordinary channels untouched");
 });
 
-test("pardon lifts the BLR with restoration, staff of the source server only", async () => {
+test("pardon lifts the BLR with restoration, OWNER and tiers 0/1 only (no moderator bypass)", async () => {
   const guild = makeGuild();
   const target = makeMember(guild, "300000000000000013", [GUILD_ID, MEMBER_ROLE, BLR_ROLE]);
   blr.recordBlr({ guildId: GUILD_ID, userId: target.id, savedRoles: [VIP] });
-  const staff = makeMember(guild, "200000000000000002", [], (bit) => bit === P.ModerateMembers);
+  const staff = makeMember(guild, "200000000000000002", ["600000000000000001"]); // palier 1 %
+  const moderator = makeMember(guild, "200000000000000004", [], (bit) => bit === P.ModerateMembers);
   const nobody = makeMember(guild, "200000000000000003", []);
-  const members = new Map([[target.id, target], [staff.id, staff], [nobody.id, nobody]]);
+  const members = new Map([[target.id, target], [staff.id, staff], [nobody.id, nobody], [moderator.id, moderator]]);
   guild.members.fetch = async (arg) => members.get(typeof arg === "string" ? arg : arg.user) ?? null;
   const client = { guilds: { cache: new Map([[GUILD_ID, guild]]) } };
   const replies = [];
   const click = (userId) => ({ customId: `trap:pardon:${GUILD_ID}:${target.id}`, user: { id: userId }, isButton: () => true, reply: async (p) => replies.push(p) });
   await R.handleTrapPardon(click(nobody.id), { client, env });
-  assert.match(replies[0].content, /réservé au staff/);
+  assert.match(replies[0].content, /paliers 0 % et 1 %/);
+  await R.handleTrapPardon(click(moderator.id), { client, env });
+  assert.match(replies[1].content, /paliers 0 % et 1 %/, "un simple modérateur ne lève pas un BLR");
   assert.equal(blr.isBlr(GUILD_ID, target.id), true);
   await R.handleTrapPardon(click(staff.id), { client, env });
   assert.equal(blr.isBlr(GUILD_ID, target.id), false);
