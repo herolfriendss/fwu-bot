@@ -1,0 +1,48 @@
+name: FWU dependency security audit
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  schedule:
+    - cron: "17 8 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: fwu-dependency-audit-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  audit:
+    name: npm audit (${{ matrix.name }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: dashboard
+            directory: .
+            lockfile: package-lock.json
+          - name: bot
+            directory: bot
+            lockfile: bot/package-lock.json
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up Node.js 24
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: ${{ matrix.lockfile }}
+
+      - name: Install locked dependencies
+        run: npm ci --prefix "${{ matrix.directory }}"
+
+      - name: Fail on high or critical dependency advisories
+        run: npm audit --prefix "${{ matrix.directory }}" --audit-level=high
