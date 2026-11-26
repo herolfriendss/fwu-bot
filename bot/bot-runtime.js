@@ -192,7 +192,7 @@ export function listDomainLeases(now = Date.now()) {
  * Domain gate for one process. `serves(domain)` is cheap (cached) and safe to
  * call on every event.
  */
-export function createDomainGate({ profile, holder = `${profile}:${process.pid}:${randomUUID().slice(0, 8)}`, now = () => Date.now(), ttlMs = LEASE_TTL_MS, cacheMs = 2_000 } = {}) {
+export function createDomainGate({ profile, holder = `${profile}:${process.pid}:${randomUUID().slice(0, 8)}`, now = () => Date.now(), ttlMs = LEASE_TTL_MS, cacheMs = 2_000, readLease = liveDomainLease } = {}) {
   if (!isBotProfileId(profile)) throw new Error(`Profil inconnu : ${profile}`);
   let held = false;
   const cache = new Map();
@@ -201,12 +201,14 @@ export function createDomainGate({ profile, holder = `${profile}:${process.pid}:
     const at = now();
     const cached = cache.get(domain);
     if (cached && at - cached.at < cacheMs) return cached.value;
-    let value = false;
+    // null = lease state is unknown; FWU must not take over until it can verify
+    // that no dedicated process owns the domain.
+    let value = null;
     try {
-      const lease = liveDomainLease(domain, at);
+      const lease = readLease(domain, at);
       value = Boolean(lease && lease.holder !== holder);
     } catch {
-      value = false; // A read error must never silence FWU: it stays the fallback.
+      value = null;
     }
     cache.set(domain, { at, value });
     return value;
@@ -228,12 +230,12 @@ export function createDomainGate({ profile, holder = `${profile}:${process.pid}:
       held = false;
     },
     serves(domain) {
-      if (profile === "fwu") return domain === "fwu" || !foreignLease(domain);
+      if (profile === "fwu") return domain === "fwu" || foreignLease(domain) === false;
       return domain === profile && held;
     },
     /** True when this process handles every domain: the historical single-bot mode. */
     servesAll() {
-      return profile === "fwu" && BOT_PROFILE_IDS.every((domain) => domain === "fwu" || !foreignLease(domain));
+      return profile === "fwu" && BOT_PROFILE_IDS.every((domain) => domain === "fwu" || foreignLease(domain) === false);
     },
     forgetCache() { cache.clear(); },
   };
