@@ -2574,6 +2574,32 @@ export const EXTRA_SLASH_COMMANDS: SlashCommandDef[] = [
     ],
   },
   {
+    name: "guide",
+    description: "Guide des permissions : rangs, paliers, quotas, sanctions",
+    usage: "/guide voir · configurer public [staff] [role_staff] · publier",
+    category: "Général",
+    dmPermission: false,
+    requiresBotProcess: true,
+    options: [
+      sub("voir", "Affiche le guide avec un menu de sections"),
+      sub("configurer", "Admins : salons du guide (public, et staff réservé à un rôle)", [
+        opt(7, "public", "Salon public du guide", { required: true, channel_types: [0] }),
+        opt(7, "staff", "Salon du guide staff", { channel_types: [0] }),
+        opt(8, "role_staff", "Rôle qui voit le guide staff"),
+      ]),
+      sub("publier", "Admins : republie le guide maintenant"),
+    ],
+  },
+  {
+    name: "pourquoi",
+    description: "Explique pourquoi une commande t'est refusée ou permise",
+    usage: "/pourquoi commande",
+    category: "Général",
+    dmPermission: false,
+    requiresBotProcess: true,
+    options: [opt(3, "commande", "Commande (ex. ban, rank, blr poser)", { required: true, max_length: 60 })],
+  },
+  {
     name: "piege",
     description: "Admins : salons appâts — qui y écrit (hors staff) passe en BLR",
     usage: "/piege configurer salon · retirer salon · liste",

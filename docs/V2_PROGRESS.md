@@ -109,3 +109,15 @@ Non modifié : images (bannières GIF, cartes, avatars), emojis colorés, site/t
 - `/panic` (+ `+panic`) : verrouillage existant (`startLockdown`) + mode raid manuel.
 - Partiel : le CAPTCHA n'est pas encore rendu obligatoire en mode raid (seule la quarantaine des comptes récents s'applique) ;
   `isRaidActive` est exposé pour la refonte du panneau de vérification (tâche 8).
+| 5 — Guide des permissions | fait | 1 093 tests (1 067 réussis, 26 ignorés), smoke 2 768/0, vitest 277, tsc/eslint OK |
+
+### Tâche 5 — guide (`bot/permission-guide.js`, SUCK ME)
+
+- Embeds générés depuis `permission-matrix.js`, `TIER_LABELS`, les quotas exacts (`listQuotas`), les types de tempmute et les rôles
+  SYS+/ADMIN+/WHITELIST ; « Mis à jour le … » ; réédition sur place quand le contenu change (contrôle toutes les 30 min, empreinte du contenu).
+- Salon public : rangs, paliers et quotas exacts, SYS+/ADMIN+/WHITELIST, sanctions (warn, tempmute + durées, kick, ban, blacklist, BLR, DOG,
+  menottes, quarantaine), vocal privé et rôle perso. Salon staff réservé au rôle choisi (`/guide configurer public staff role_staff`) : matrice
+  complète, quotas, procédures.
+- `/guide voir` (menu de sections), `/guide publier`, `/pourquoi commande`, `=guide`, `=pourquoi` ; le bouton « En savoir plus » des refus est
+  activé (`guide:why:<commande>` → explication privée, sur les 6 bots).
+- Test : le guide cite tous les rangs de la matrice, tous les paliers et toutes les sanctions sensibles ou à dossier du code.

@@ -85,11 +85,12 @@ import { addCentralLogObserver, setCentralLogRelay, systemLogEmbed, sendCentralL
 import { BOT_PROFILES, LEASE_RENEW_MS, createDomainGate, enqueueRelayedLog, loadBotPrefixes, parsePrefixedMessage, resolveBotRuntime, slashCommandOwner, slashRegistrationPlan, takeRelayedLogs, requeueRelayedLog, countLostRelayedLogs, formatRelayLossLine } from "./bot-runtime.js";
 import { handleLiveInteraction, handleLiveMessage } from "./live-commands.js";
 import { SLASH_FOR_PREFIX, prefixifyPayload, slashifyPayload } from "./prefix-to-slash.js";
-import { handleDossierButton, installMessageReplyLayer, installReplyLayer } from "./reply-layer.js";
+import { enableLearnMore, handleDossierButton, installMessageReplyLayer, installReplyLayer } from "./reply-layer.js";
 import { installMonochromeTheme } from "./monochrome-theme.js";
 import { installBlrShield } from "./blr-shield.js";
 import { checkMfa, handleBotAdded, handleRoleDrift, handleTokenLeak, handleTrapPardon, handleWebhookCreated, isRaidActive, raidAutoExit, recordJoinForRaid, springBlrTrap } from "./guard/raid-protection.js";
 import { handleRaidInteraction, handleRaidPrefix } from "./guard/raid-commands.js";
+import { LEARN_MORE_PREFIX, handleGuideInteraction, handleGuideMessage, startGuideRefresh } from "./permission-guide.js";
 import { handleBlrInteraction, handleBlrMemberAdd, handleBlrMemberUpdate, handleBlrMessage, sweepBlr } from "./blr-commands.js";
 import { handleLogsInteraction, handleLogsMessage } from "./logs-commands.js";
 import { logEvent, startLogMaintenance } from "./log-events.js";
@@ -345,6 +346,8 @@ installOwnerShield({ report: () => record("owner_shield_blocked") });
 installMonochromeTheme();
 // BLR : aucun chemin du bot ne peut donner un rôle au-dessus du rôle membre à un membre BLR.
 installBlrShield({ report: () => record("blr_blocked") });
+// Refus : bouton « En savoir plus » vers le guide des permissions (/pourquoi).
+enableLearnMore((path) => `${LEARN_MORE_PREFIX}${String(path ?? "").slice(0, 80)}`);
 const guardReport = (guild, { title, description, color }) => sendCentralLog(guild, settings[guild.id], systemLogEmbed({ category: "security", title, description, color }));
 const automod = createAutomod({ report: guardReport, record: (code) => record(code) });
 const client = new Client({
@@ -666,6 +669,7 @@ async function handleMessageCreate(msg) {
     if (runCmd("suckme") && await handleDmAllMessage(msg, s)) { auditPrefixUsage(msg, "DM ALL"); return; }
     if (runCmd("suckme") && await handleLogsMessage(msg, s)) { auditPrefixUsage(msg, "Journaux"); return; }
   if (runCmd("suckme") && await handleBlrMessage(msg, s)) { auditPrefixUsage(msg, "BLR"); return; }
+  if (runCmd("suckme") && await handleGuideMessage(msg, s)) { auditPrefixUsage(msg, "Guide"); return; }
   if (runCmd("suckme") && await handleDogCommand(msg, s)) { auditPrefixUsage(msg, "DOG"); return; }
     if (runCmd("suckme") && await handleLocknameMessage(msg, s)) { auditPrefixUsage(msg, "LOCKNAME"); return; }
     if (runCmd("suckme") && await handleKnowledgeMessage(msg)) { auditPrefixUsage(msg, "PND Knowledge"); return; }
@@ -1112,6 +1116,7 @@ client.once("clientReady", () => {
     for (const guild of client.guilds.cache.values()) if (guardWatch(guild)) void checkMfa(guild, { settings: settings[guild.id] }).catch(() => {});
     setInterval(() => { void raidAutoExit(client, { getSettings: (guildId) => settings[guildId] }).catch(() => record("guild_guard_error")); }, 60_000).unref?.();
   }
+  if (serves("suckme")) startGuideRefresh({ client, getSettings: (guildId) => settings[guildId], guildIds: () => ALLOWED_GUILDS.filter((guildId) => !isLogsHub(guildId)), record });
   if (serves("suckme")) {
     const blrGuilds = () => ALLOWED_GUILDS.filter((guildId) => !isLogsHub(guildId));
     void sweepBlr(client, { guildIds: blrGuilds(), record }).catch(() => record("blr_error"));
@@ -1656,6 +1661,7 @@ client.on("interactionCreate", (interaction) => {
     if (await handleDossierButton(interaction, { settings: settings[interaction.guildId] })) return;
     if (await handleLogsInteraction(interaction, settings[interaction.guildId])) { auditSlashUsage(interaction, "Journaux"); return; }
     if (await handleBlrInteraction(interaction, settings[interaction.guildId])) { auditSlashUsage(interaction, "BLR"); return; }
+    if (await handleGuideInteraction(interaction, settings[interaction.guildId])) { auditSlashUsage(interaction, "Guide"); return; }
     if (await handleTrapPardon(interaction, { client, getSettings: (guildId) => settings[guildId] })) return;
     if (await handleRaidInteraction(interaction, settings[interaction.guildId])) { auditSlashUsage(interaction, "Anti-raid"); return; }
     if (await handleToolsInteraction(interaction, { client, guildAllowed: (id) => guildAllowed(id, ALLOWED_GUILDS) && !isLogsHub(id) })) { auditSlashUsage(interaction, "Outils staff"); return; }

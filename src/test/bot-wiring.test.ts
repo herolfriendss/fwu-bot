@@ -155,6 +155,7 @@ describe("bot wiring", () => {
       read("bot/logs-commands.js"),
       read("bot/blr-commands.js"),
       read("bot/guard/raid-commands.js"),
+      read("bot/permission-guide.js"),
     ]) {
       for (const name of commandNameChecks(source)) add(name);
     }
