@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # FWU — read-only VPS security inspection for Oracle Linux.
-# Usage: sudo bash deploy/oracle/security-audit.sh
+# Usage: bash deploy/oracle/security-audit.sh (run as the Unix user that owns PM2, usually opc)
 # Override paths with FWU_HOME / FWU_PROJECT_DIR.
 # This script never changes files, services, firewall rules, databases or PM2 state.
 set -uo pipefail
@@ -48,6 +48,10 @@ if command -v firewall-cmd >/dev/null 2>&1; then
     firewall-cmd --list-all 2>&1 || warn "firewalld is active but its rules could not be read."
   else
     warn "firewalld is not running (state: ${state:-unknown})."
+    if command -v nft >/dev/null 2>&1; then
+      info "Checking nftables directly because firewalld is not active."
+      nft list ruleset 2>&1 | sed -n '1,100p' || warn "Could not read nftables rules (root may be required)."
+    fi
   fi
 elif command -v nft >/dev/null 2>&1; then
   info "firewalld is absent; nftables is available."
@@ -88,6 +92,19 @@ for service in firewalld fail2ban dnf-automatic.timer; do
     printf '%-22s not installed / no unit\n' "$service"
   fi
 done
+
+section "Pending security updates (read-only check)"
+if command -v dnf >/dev/null 2>&1; then
+  UPDATE_OUTPUT="$(dnf -q check-update --security 2>&1)"
+  UPDATE_CODE=$?
+  case "$UPDATE_CODE" in
+    0) info "No pending security updates reported by DNF." ;;
+    100) warn "DNF reports security updates available; review before applying."; printf '%s\\n' "$UPDATE_OUTPUT" | sed -n '1,30p' ;;
+    *) warn "Could not check DNF security updates (exit $UPDATE_CODE)."; printf '%s\\n' "$UPDATE_OUTPUT" | sed -n '1,10p' ;;
+  esac
+else
+  unknown "dnf is unavailable"
+fi
 
 section "Runtime versions and disk"
 printf 'Node: '; command -v node >/dev/null 2>&1 && node --version || echo "not in PATH"
