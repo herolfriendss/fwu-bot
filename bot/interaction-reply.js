@@ -57,9 +57,9 @@ export async function reportInteractionFailure(interaction) {
     // A deferred component (deferUpdate) points at a panel: never overwrite it,
     // tell only the clicking member. A deferred command gets its placeholder replaced.
     if (interaction.isMessageComponent?.() || interaction.isModalSubmit?.()) {
-      return interaction.followUp({ content: INTERACTION_FAILURE_TEXT, ephemeral: true }).catch(() => null);
+      return interaction.followUp({ content: `❌ ${INTERACTION_FAILURE_TEXT}`, ephemeral: true }).catch(() => null);
     }
     return interaction.editReply({ content: `❌ ${INTERACTION_FAILURE_TEXT}` }).catch(() => null);
   }
-  return interaction.reply({ content: INTERACTION_FAILURE_TEXT, ephemeral: true }).catch(() => null);
+  return interaction.reply({ content: `❌ ${INTERACTION_FAILURE_TEXT}`, ephemeral: true }).catch(() => null);
 }

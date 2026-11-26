@@ -84,7 +84,8 @@ import { captureGuildInviteSnapshot, resolveMemberInvite, recordMemberInvite, re
 import { addCentralLogObserver, setCentralLogRelay, systemLogEmbed, sendCentralLog } from "./logs.js";
 import { BOT_PROFILES, LEASE_RENEW_MS, createDomainGate, enqueueRelayedLog, loadBotPrefixes, parsePrefixedMessage, resolveBotRuntime, slashCommandOwner, slashRegistrationPlan, takeRelayedLogs, requeueRelayedLog, countLostRelayedLogs } from "./bot-runtime.js";
 import { handleLiveInteraction, handleLiveMessage } from "./live-commands.js";
-import { prefixifyPayload, slashifyPayload } from "./prefix-to-slash.js";
+import { SLASH_FOR_PREFIX, prefixifyPayload, slashifyPayload } from "./prefix-to-slash.js";
+import { handleDossierButton, installMessageReplyLayer, installReplyLayer } from "./reply-layer.js";
 import { enforceBlacklistOnJoin, handleBlacklistInteraction, handleBlacklistMessage, isBlacklisted } from "./blacklist.js";
 import { handleDmAllInteraction, handleDmAllMessage, recoverInterruptedDmAllJobs } from "./dmall.js";
 import { handleResumeInteraction, handleResumeMessage, pruneResumeEvents, recordResumeEvent } from "./resume.js";
@@ -103,7 +104,7 @@ import { checkLiveAlerts } from "./live-alerts.js";
 import { handleWebhookInteraction } from "./webhooks.js";
 import { handlePanelSetupInteraction } from "./systems/setup/panel-setup.js";
 import { getPndPrivilegedIds } from "./pnd-owner-policy.js";
-import { checkInteractionHierarchy, checkPrefixHierarchy } from "./hierarchy-guard.js";
+import { checkInteractionHierarchy, checkPrefixHierarchy, prefixTargetId } from "./hierarchy-guard.js";
 import { createAntiNuke, registerBotIdentity } from "./guard/anti-nuke.js";
 import { createAutomod } from "./guard/automod.js";
 import { handleShieldInteraction, checkHoneypotMessage } from "./guard/shield-commands.js";
@@ -481,9 +482,19 @@ function pruneSpamState(now) {
 
 /** Replies of a prefix command show this bot's prefix instead of the canonical "=". */
 function prefixifyMessageReplies(msg, prefix) {
-  if (!prefix || prefix === "=" || typeof msg.reply !== "function") return;
-  const original = msg.reply;
-  msg.reply = (payload, ...rest) => original.call(msg, prefixifyPayload(payload, prefix), ...rest);
+  if (typeof msg.reply !== "function") return;
+  // Même couche de réponses que les commandes slash, avec le chemin slash équivalent
+  // (sensible → public minimal + dossier ; refus → supprimé après 10 s).
+  const words = String(msg.content ?? "").trim().split(/\s+/);
+  const slashPath = (SLASH_FOR_PREFIX[(words[0] ?? "").replace(/^=/, "").toLowerCase()] ?? "").split(" ").filter(Boolean);
+  const nextWord = /^[a-z-]+$/i.test(words[1] ?? "") ? words[1].toLowerCase() : null;
+  installMessageReplyLayer(msg, {
+    bot: RUNTIME.profile,
+    commandName: slashPath[0] ?? null,
+    subcommand: slashPath.slice(1).join(" ") || nextWord,
+    targetId: prefixTargetId(msg.content),
+    transform: (payload) => prefixifyPayload(payload, prefix),
+  });
 }
 
 // GUARD anti-nuke: destructive actions in bulk are reverted and their author neutralised.
@@ -1553,12 +1564,9 @@ async function handleSavedSlashCommand(interaction) {
 }
 
 /** Every answer to a slash command points to slash commands, never to the former "=" ones. */
+// Couche de réponses centrale (reply-layer.js) : visibilité, embed, suppression des refus.
 function slashifyInteractionReplies(interaction) {
-  for (const method of ["reply", "editReply", "followUp", "update"]) {
-    const original = interaction[method];
-    if (typeof original !== "function") continue;
-    interaction[method] = (payload, ...rest) => original.call(interaction, slashifyPayload(payload), ...rest);
-  }
+  installReplyLayer(interaction, { bot: RUNTIME.profile, transform: slashifyPayload });
 }
 
 client.on("interactionCreate", (interaction) => {
@@ -1597,6 +1605,7 @@ client.on("interactionCreate", (interaction) => {
       await interaction.reply({ content: hierarchyRefusal, ephemeral: true, allowedMentions: { parse: [] } }).catch(() => {});
       return;
     }
+    if (await handleDossierButton(interaction, { settings: settings[interaction.guildId] })) return;
     if (await handleToolsInteraction(interaction, { client, guildAllowed: (id) => guildAllowed(id, ALLOWED_GUILDS) && !isLogsHub(id) })) { auditSlashUsage(interaction, "Outils staff"); return; }
     if (await handleResumeInteraction(interaction, settings[interaction.guildId])) { auditSlashUsage(interaction, "RESUME"); return; }
     if (await handleDmAllInteraction(interaction, settings[interaction.guildId])) return;
