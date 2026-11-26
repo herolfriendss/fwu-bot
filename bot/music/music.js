@@ -658,3 +658,12 @@ export async function handleMusicExtrasInteraction(interaction) {
   }
   return true;
 }
+
+/** V2 — titre en cours (statut riche de FDPDLAVOC) : le premier serveur qui joue quelque chose. */
+export function currentlyPlayingTitle() {
+  for (const state of queues.values()) {
+    const title = state?.current?.title ?? state?.current?.name ?? null;
+    if (title) return String(title).slice(0, 80);
+  }
+  return null;
+}

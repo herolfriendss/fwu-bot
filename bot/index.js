@@ -1,6 +1,8 @@
 // Bot Discord 24h/24 — à lancer sur ton VPS. Les réglages viennent du site (onglet « Bot 24h/24 »).
 import { Client, GatewayIntentBits, Partials, PermissionFlagsBits, REST } from "discord.js";
-import { startPresence } from "./presence.js";
+import { applyBotDescription, handlePresenceInteraction, startPresence } from "./presence.js";
+import { currentlyPlayingTitle } from "./music/music.js";
+import { jackpotAmount } from "./casino/store.js";
 import { buildActivitySnapshot } from "./activity-snapshot.js";
 import { existsSync } from "node:fs";
 // The dashboard and the Oracle bot share one command definition file. In the
@@ -1146,7 +1148,17 @@ client.once("clientReady", () => {
   // FWU community jobs: voice XP (1 min), reminders (30 s), birthdays (5 min).
   const communityGuilds = () => [...client.guilds.cache.values()].filter((g) => guildAllowed(g.id, ALLOWED_GUILDS) && !isLogsHub(g.id));
   // Statut riche : chaque bot affiche sa propre rotation (réglable dans bots.json).
-  startPresence(client, { profile: RUNTIME.profile, label: BOT_LABEL, prefix: OWN_PREFIX, guilds: communityGuilds, onError: () => record("presence_error") });
+  startPresence(client, {
+    profile: RUNTIME.profile, label: BOT_LABEL, prefix: OWN_PREFIX, guilds: communityGuilds, onError: () => record("presence_error"),
+    // Statut qui réagit : mode raid (GUARD), musique en cours (FDPDLAVOC), cagnotte (LE FISC).
+    events: () => ({
+      raidActive: communityGuilds().some((guild) => isRaidActive(guild.id)),
+      nowPlaying: serves("fdpdlavoc") ? currentlyPlayingTitle() : null,
+      jackpot: serves("fisc") ? communityGuilds().reduce((max, guild) => Math.max(max, Number(jackpotAmount(guild.id) ?? 0)), 0) : null,
+    }),
+  });
+  const descriptionTimer = setInterval(() => { void applyBotDescription(client, RUNTIME.profile).catch(() => record("presence_error")); }, 60_000);
+  descriptionTimer.unref?.();
   // One-time automatic configuration (channels, roles, staff ladder) once leases are settled.
   setTimeout(() => {
     void runAutoconfig(communityGuilds(), (domain) => serves(domain) && (IS_FWU ? domain === "fwu" : domain !== "fwu"), { ...communityAutoconfig, ladder: ladderOf, saveLadder }, (guild, line) => {
@@ -1678,6 +1690,7 @@ client.on("interactionCreate", (interaction) => {
     if (await handleLogsInteraction(interaction, settings[interaction.guildId])) { auditSlashUsage(interaction, "Journaux"); return; }
     if (await handleBlrInteraction(interaction, settings[interaction.guildId])) { auditSlashUsage(interaction, "BLR"); return; }
     if (await handleGuideInteraction(interaction, settings[interaction.guildId])) { auditSlashUsage(interaction, "Guide"); return; }
+    if (await handlePresenceInteraction(interaction)) { auditSlashUsage(interaction, "Statut"); return; }
     if (await handleTrapPardon(interaction, { client, getSettings: (guildId) => settings[guildId] })) return;
     if (await handleRaidInteraction(interaction, settings[interaction.guildId])) { auditSlashUsage(interaction, "Anti-raid"); return; }
     if (await handleMassButton(interaction)) return;

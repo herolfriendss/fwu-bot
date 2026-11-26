@@ -175,3 +175,13 @@ Non modifié : images (bannières GIF, cartes, avatars), emojis colorés, site/t
 - `docs/V2_COMPLETUDE.md` généré par `bot/scripts/completeness-matrix.mjs` : préfixe 135/135 (hors FWU), aide 145/145.
   Trous restants signalés par la matrice : réglages dans `/setup` (6 commandes sur 145 y ont un réglage), journaux typés absents de la
   plupart des commandes de LE FISC et d'une partie de SUCK ME, ~30 commandes sans test qui les cite.
+| 10 — Présence riche | fait | 1 119 tests (1 093 réussis, 26 ignorés), smoke 2 810/0, vitest 277, tsc/eslint OK |
+
+### Tâche 10 — présence (`bot/presence.js`)
+
+- Statut qui réagit (contrôle toutes les 30 s, la rotation garde son rythme) : maintenance (tâche 12) > statut posé par `/presence` >
+  GUARD « 🚨 Mode raid » (pastille « ne pas déranger ») > FDPDLAVOC « Écoute <titre en cours> » > LE FISC « 💰 Cagnotte : … ».
+- Statuts saisonniers ajoutés à la rotation (fêtes de fin d'année, nouvel an, Saint-Valentin, Halloween, fête de la musique).
+- `/presence definir|retirer|description` (SUCK ME, `=presence …` par le pont) : statut d'un des 6 bots sans fichier (table partagée),
+  durée facultative ; description « À propos » appliquée par chaque bot avec son propre jeton.
+- Limites Discord respectées : un texte, un type d'activité, une pastille — pas d'image ni de bouton.

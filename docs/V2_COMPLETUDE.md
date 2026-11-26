@@ -13,7 +13,7 @@ Logs typés : le module qui la traite journalise avec une catégorie. Tests : la
 | Bot principal | 10 | slash seul (décision 21) | 10/10 | 0/10 | 7/10 | 10/10 |
 | GUARD | 19 | 19/19 | 19/19 | 1/19 | 8/19 | 19/19 |
 | FDPDLAVOC | 16 | 16/16 | 16/16 | 1/16 | 9/16 | 14/16 |
-| SUCK ME | 66 | 66/66 | 66/66 | 4/66 | 20/66 | 49/66 |
+| SUCK ME | 67 | 67/67 | 67/67 | 4/67 | 20/67 | 50/67 |
 | LE FISC | 32 | 32/32 | 32/32 | 0/32 | 1/32 | 20/32 |
 | Invest + | 2 | 2/2 | 2/2 | 0/2 | 0/2 | 2/2 |
 
@@ -132,6 +132,7 @@ Logs typés : le module qui la traite journalise avec une catégorie. Tests : la
 | SUCK ME | `/blr` | ✅ | ✅ dédié | ✅ | ▫️ | ✅ | ✅ |
 | SUCK ME | `/guide` | ✅ | ✅ dédié | ✅ | ▫️ | ▫️ | ✅ |
 | SUCK ME | `/pourquoi` | ✅ | ✅ dédié | ✅ | ▫️ | ▫️ | ✅ |
+| SUCK ME | `/presence` | ✅ | ✅ pont | ✅ | ▫️ | ▫️ | ✅ |
 | LE FISC | `/balance` | ✅ | ✅ dédié | ✅ | ▫️ | ▫️ | ✅ |
 | LE FISC | `/daily` | ✅ | ✅ dédié | ✅ | ▫️ | ▫️ | ✅ |
 | LE FISC | `/work` | ✅ | ✅ dédié | ✅ | ▫️ | ▫️ | ✅ |

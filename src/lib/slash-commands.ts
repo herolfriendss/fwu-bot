@@ -2575,6 +2575,30 @@ export const EXTRA_SLASH_COMMANDS: SlashCommandDef[] = [
     ],
   },
   {
+    name: "presence",
+    description: "OWNER/admins : statut d'un bot sans modifier de fichier, ou sa description",
+    usage: "/presence definir bot texte [type] [statut] [duree] · retirer bot · description bot texte",
+    category: "Administration & sécurité",
+    dmPermission: false,
+    requiresBotProcess: true,
+    options: [
+      sub("definir", "Impose un statut (prioritaire sur la rotation)", [
+        opt(3, "bot", "Bot", { required: true, choices: [{ name: "Bot principal", value: "fwu" }, { name: "GUARD", value: "guard" }, { name: "FDPDLAVOC", value: "fdpdlavoc" }, { name: "SUCK ME", value: "suckme" }, { name: "LE FISC", value: "fisc" }, { name: "Invest +", value: "investplus" }] }),
+        opt(3, "texte", "Texte affiché (120 caractères)", { required: true, max_length: 120 }),
+        opt(3, "type", "Type d'activité", { choices: [{ name: "Statut personnalisé", value: "custom" }, { name: "Joue à", value: "playing" }, { name: "Regarde", value: "watching" }, { name: "Écoute", value: "listening" }, { name: "Participe à", value: "competing" }] }),
+        opt(3, "statut", "Pastille", { choices: [{ name: "En ligne", value: "online" }, { name: "Absent", value: "idle" }, { name: "Ne pas déranger", value: "dnd" }] }),
+        opt(3, "duree", "Durée : 30m, 2h, 1j (vide = jusqu'au retrait)", { max_length: 10 }),
+      ]),
+      sub("retirer", "Rétablit le statut automatique", [
+        opt(3, "bot", "Bot", { required: true, choices: [{ name: "Bot principal", value: "fwu" }, { name: "GUARD", value: "guard" }, { name: "FDPDLAVOC", value: "fdpdlavoc" }, { name: "SUCK ME", value: "suckme" }, { name: "LE FISC", value: "fisc" }, { name: "Invest +", value: "investplus" }] }),
+      ]),
+      sub("description", "Texte « À propos » du bot", [
+        opt(3, "bot", "Bot", { required: true, choices: [{ name: "Bot principal", value: "fwu" }, { name: "GUARD", value: "guard" }, { name: "FDPDLAVOC", value: "fdpdlavoc" }, { name: "SUCK ME", value: "suckme" }, { name: "LE FISC", value: "fisc" }, { name: "Invest +", value: "investplus" }] }),
+        opt(3, "texte", "Description (400 caractères)", { required: true, max_length: 400 }),
+      ]),
+    ],
+  },
+  {
     name: "accessall",
     description: "Ouvre ton vocal à tout le monde (photo des permissions) ; annuler = retour",
     usage: "/accessall [annuler]",

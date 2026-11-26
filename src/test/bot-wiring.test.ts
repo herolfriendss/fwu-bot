@@ -158,6 +158,7 @@ describe("bot wiring", () => {
       read("bot/permission-guide.js"),
       read("bot/voice-mass.js"),
       read("bot/voice-move.js"),
+      read("bot/presence.js"),
     ]) {
       for (const name of commandNameChecks(source)) add(name);
     }

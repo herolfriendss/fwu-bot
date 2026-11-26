@@ -71,3 +71,28 @@ test("startPresence applies a status right away and survives an error", () => {
   stop2();
   assert.equal(errors, 1);
 });
+
+test("V2: event-driven presence: maintenance > /presence > raid (GUARD) > music (FDPDLAVOC) > jackpot (LE FISC)", async () => {
+  const { eventPresence, seasonalActivity } = await import("./presence.js");
+  assert.match(eventPresence("guard", { raidActive: true }).activity.text, /Mode raid/);
+  assert.equal(eventPresence("guard", { raidActive: true }).status, "dnd");
+  assert.equal(eventPresence("fwu", { raidActive: true }), null, "only GUARD shows the raid");
+  assert.deepEqual(eventPresence("fdpdlavoc", { nowPlaying: "Lofi" }).activity, { type: "listening", text: "Lofi" });
+  assert.match(eventPresence("fisc", { jackpot: 12345 }).activity.text, /Cagnotte : 12\s345/);
+  assert.match(eventPresence("guard", { raidActive: true, override: { type: "custom", text: "Hello", status: "online" } }).activity.text, /Hello/);
+  assert.match(eventPresence("guard", { raidActive: true, maintenance: "mise à jour" }).activity.text, /Maintenance : mise à jour/);
+  assert.match(seasonalActivity(new Date(2026, 11, 25)).text, /Noël/);
+  assert.equal(seasonalActivity(new Date(2026, 4, 3)), null);
+});
+
+test("V2: /presence sets an override without touching any file, admins only", async () => {
+  const { runPresenceCommand, presenceOverride } = await import("./presence.js");
+  const admin = { id: "1", guild: { ownerId: "2" }, permissions: { has: () => true } };
+  const nobody = { id: "3", guild: { ownerId: "2" }, permissions: { has: () => false } };
+  assert.match(await runPresenceCommand({ member: nobody, sub: "definir", bot: "guard", text: "x" }, { env: {} }), /Réservé/);
+  assert.match(await runPresenceCommand({ member: admin, sub: "definir", bot: "guard", text: "Tournoi ce soir", type: "playing", duration: "2h" }, { env: {} }), /✅/);
+  assert.deepEqual(presenceOverride("guard"), { type: "playing", text: "Tournoi ce soir", status: "online" });
+  assert.match(await runPresenceCommand({ member: admin, sub: "retirer", bot: "guard" }, { env: {} }), /automatique/);
+  assert.equal(presenceOverride("guard"), null);
+  assert.match(await runPresenceCommand({ member: admin, sub: "definir", bot: "guard", text: "{inconnu}" }, { env: {} }), /variable inconnue/);
+});

@@ -10,6 +10,53 @@
 import { existsSync, readFileSync } from "node:fs";
 import { ActivityType } from "discord.js";
 import { botsConfigPath } from "./bot-runtime.js";
+import { db } from "./database.js";
+
+// V2 : statut changé sans toucher aux fichiers (/presence, table partagée par les 6 bots).
+db.exec(`CREATE TABLE IF NOT EXISTS presence_overrides (
+  profile TEXT PRIMARY KEY, type TEXT NOT NULL, text TEXT NOT NULL, status TEXT NOT NULL, expires_at INTEGER, set_by TEXT, updated_at INTEGER NOT NULL
+)`);
+
+export function setPresenceOverride(profile, { type, text, status = "online", durationMs = null, setBy = null }, now = Date.now()) {
+  const [checked] = validatePresence({ status, interval: 60, activities: [{ type, text }] }).activities;
+  db.prepare(`INSERT INTO presence_overrides(profile, type, text, status, expires_at, set_by, updated_at) VALUES (?,?,?,?,?,?,?)
+    ON CONFLICT(profile) DO UPDATE SET type = excluded.type, text = excluded.text, status = excluded.status, expires_at = excluded.expires_at, set_by = excluded.set_by, updated_at = excluded.updated_at`)
+    .run(profile, checked.type, checked.text, status, durationMs ? now + durationMs : null, setBy, now);
+}
+export function clearPresenceOverride(profile) {
+  db.prepare("DELETE FROM presence_overrides WHERE profile = ?").run(profile);
+}
+export function presenceOverride(profile, now = Date.now()) {
+  const row = db.prepare("SELECT * FROM presence_overrides WHERE profile = ?").get(profile);
+  if (!row || (row.expires_at && row.expires_at <= now)) return null;
+  return { type: row.type, text: row.text, status: row.status };
+}
+
+/** Statuts saisonniers (ajoutés à la rotation pendant la période). */
+export function seasonalActivity(date = new Date()) {
+  const m = date.getMonth() + 1;
+  const d = date.getDate();
+  if (m === 12 && d >= 1 && d <= 31) return { type: "custom", text: d >= 24 && d <= 26 ? "🎄 Joyeux Noël !" : "❄️ Bonnes fêtes de fin d'année" };
+  if (m === 1 && d <= 7) return { type: "custom", text: "🎆 Bonne année !" };
+  if (m === 2 && d === 14) return { type: "custom", text: "💘 Joyeuse Saint-Valentin" };
+  if (m === 10 && d >= 25) return { type: "custom", text: "🎃 Joyeux Halloween" };
+  if (m === 6 && d === 21) return { type: "custom", text: "🎶 Fête de la musique" };
+  return null;
+}
+
+/**
+ * Pur : statut imposé par un événement, du plus prioritaire au moins prioritaire :
+ * maintenance, statut posé par /presence, mode raid (GUARD), musique en cours (FDPDLAVOC),
+ * cagnotte (LE FISC). Discord n'affiche qu'un texte, un type d'activité et un statut.
+ */
+export function eventPresence(profile, { maintenance = null, override = null, raidActive = false, nowPlaying = null, jackpot = null } = {}) {
+  if (maintenance) return { status: "idle", activity: { type: "custom", text: `🛠️ Maintenance${maintenance === true ? "" : ` : ${String(maintenance).slice(0, 80)}`}` } };
+  if (override) return { status: override.status, activity: { type: override.type, text: override.text } };
+  if (profile === "guard" && raidActive) return { status: "dnd", activity: { type: "custom", text: "🚨 Mode raid" } };
+  if (profile === "fdpdlavoc" && nowPlaying) return { status: "online", activity: { type: "listening", text: nowPlaying } };
+  if (profile === "fisc" && Number(jackpot) > 0) return { status: "idle", activity: { type: "custom", text: `💰 Cagnotte : ${Number(jackpot).toLocaleString("fr-FR")}` } };
+  return null;
+}
 
 export const PRESENCE_TYPES = Object.freeze({
   playing: ActivityType.Playing,
@@ -122,17 +169,74 @@ export function presenceAt(config, tick, values) {
  * Lance la rotation. `guilds()` donne les serveurs à compter (Logs Hub exclu).
  * Renvoie une fonction d'arrêt.
  */
-export function startPresence(client, { profile, label, prefix, guilds, env = process.env, warn = console.warn, onError = () => {} }) {
+export function startPresence(client, { profile, label, prefix, guilds, env = process.env, warn = console.warn, onError = () => {}, events = () => ({}) }) {
   const config = loadPresence(profile, { env, warn });
-  let tick = 0;
+  const startedAt = Date.now();
   const apply = () => {
     try {
+      // La rotation garde son rythme (intervalle réglé) même si le contrôle est plus fréquent.
+      const tick = Math.floor((Date.now() - startedAt) / (config.interval * 1000));
       const values = { ...presenceStats(guilds()), prefixe: prefix ?? "/", bot: label };
-      client.user?.setPresence(presenceAt(config, tick++, values));
+      const forced = eventPresence(profile, { ...events(), override: presenceOverride(profile) });
+      if (forced) {
+        client.user?.setPresence(presenceAt({ status: forced.status, activities: [forced.activity] }, 0, values));
+        return;
+      }
+      const seasonal = seasonalActivity();
+      const rotation = seasonal ? { ...config, activities: [...config.activities, seasonal] } : config;
+      client.user?.setPresence(presenceAt(rotation, tick, values));
     } catch { onError(); }
   };
   apply();
-  const timer = setInterval(apply, config.interval * 1000);
+  // Les événements (raid, musique) sont vus en moins de 30 s, quel que soit l'intervalle de rotation.
+  const timer = setInterval(apply, Math.min(config.interval, 30) * 1000);
   timer.unref?.();
   return () => clearInterval(timer);
+}
+
+// ---- description du bot (texte « À propos » de l'application) ----
+db.exec(`CREATE TABLE IF NOT EXISTS presence_descriptions (profile TEXT PRIMARY KEY, text TEXT NOT NULL, applied_text TEXT, updated_at INTEGER NOT NULL)`);
+
+export function setBotDescription(profile, text, now = Date.now()) {
+  const clean = String(text ?? "").trim().slice(0, 400);
+  if (!clean) throw new Error("Description vide.");
+  db.prepare(`INSERT INTO presence_descriptions(profile, text, applied_text, updated_at) VALUES (?, ?, NULL, ?)
+    ON CONFLICT(profile) DO UPDATE SET text = excluded.text, updated_at = excluded.updated_at`).run(profile, clean, now);
+}
+
+/** Chaque bot applique lui-même sa description (seul son propre jeton le permet). */
+export async function applyBotDescription(client, profile) {
+  const row = db.prepare("SELECT text, applied_text FROM presence_descriptions WHERE profile = ?").get(profile);
+  if (!row || row.text === row.applied_text || !client?.application?.edit) return false;
+  await client.application.edit({ description: row.text });
+  db.prepare("UPDATE presence_descriptions SET applied_text = ? WHERE profile = ?").run(row.text, profile);
+  return true;
+}
+
+const PROFILE_CHOICES = ["fwu", "guard", "fdpdlavoc", "suckme", "fisc", "investplus"];
+
+/** /presence et =presence : OWNER ou Administrateur. */
+export async function runPresenceCommand({ member, sub, bot, type = "custom", text = null, status = "online", duration = null }, { env = process.env } = {}) {
+  const owner = String(env.PND_OWNER_DISCORD_ID ?? "").trim();
+  const allowed = member?.id === owner || member?.id === member?.guild?.ownerId || member?.permissions?.has?.(8n);
+  if (!allowed) return "⛔ Réservé à l'OWNER et aux administrateurs.";
+  if (!PROFILE_CHOICES.includes(bot)) return `⚠️ Bot inconnu : ${PROFILE_CHOICES.join(", ")}.`;
+  try {
+    if (sub === "retirer") { clearPresenceOverride(bot); return "✅ Statut automatique rétabli."; }
+    if (sub === "description") { setBotDescription(bot, text); return "✅ Description enregistrée : le bot l'applique dans la minute."; }
+    const match = String(duration ?? "").match(/^(\d{1,4})\s*(m|min|h|j)$/i);
+    const durationMs = match ? Number(match[1]) * (/^h$/i.test(match[2]) ? 3_600_000 : /^j$/i.test(match[2]) ? 86_400_000 : 60_000) : null;
+    setPresenceOverride(bot, { type, text, status, durationMs, setBy: member.id });
+    return `✅ Statut défini${durationMs ? ` pour ${duration}` : ""}. Discord n'affiche qu'un texte, un type d'activité et un statut (pas d'image ni de bouton).`;
+  } catch (error) {
+    return `❌ ${error?.message ?? "Statut invalide."}`;
+  }
+}
+
+export async function handlePresenceInteraction(interaction) {
+  if (!interaction?.isChatInputCommand?.() || interaction.commandName !== "presence") return false;
+  const o = interaction.options;
+  const content = await runPresenceCommand({ member: interaction.member, sub: o.getSubcommand(), bot: o.getString("bot", true), type: o.getString("type", false) ?? "custom", text: o.getString("texte", false), status: o.getString("statut", false) ?? "online", duration: o.getString("duree", false) });
+  await interaction.reply({ content, ephemeral: true, allowedMentions: { parse: [] } });
+  return true;
 }
