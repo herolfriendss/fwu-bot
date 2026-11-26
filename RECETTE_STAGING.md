@@ -85,3 +85,19 @@ Coche chaque ligne. Si une ligne échoue, note l'heure et la commande, puis envo
 - [ ] Protocole complet dans `docs/recettes/musique-radio-discord.md`.
 
 **Quand tout est coché : la version est prête pour la production (étape 4 de `MISE_EN_PRODUCTION.md`).**
+
+## FWU V2 — points à tester à la main (bot et serveur de staging, jamais le jeton de production)
+
+1. **Réponses** : une commande refusée (ex. `/ban` sur un membre au-dessus) affiche un refus public qui disparaît après 10 s, avec « En savoir plus » ; `/ban` réussi n'affiche que « 🚫 @membre a été banni » et « Voir le dossier » répond en privé au staff seulement.
+2. **Thème** : embeds et boutons en noir et blanc sur les 6 bots ; seul l'aperçu de couleur d'un rôle perso est en couleur.
+3. **Logs** : `/logs statut`, une sanction arrive une seule fois dans `logs-sanctions` avec un numéro de dossier ; `/dossier <n>` ; couper le hub puis le rétablir : le log arrive après reprise ; « logs perdus » visible dans `/status`.
+4. **BLR** : `/blr configurer`, `/blr poser` (palier 1 %), puis tenter de donner un rôle au membre (à la main dans Discord, par un autre bot, par `=rank`, par rankall) → retiré aussitôt, alerte avec l'auteur ; départ/retour du membre → BLR remis ; `/blr lever restaurer:oui`.
+5. **Piège** : `/piege configurer #appât`, un compte test y écrit → BLR, messages supprimés, alerte « Pardon » (cliquer depuis le hub) → rôles rendus.
+6. **Mode raid** : `/raid seuils 3 30 5`, faire rejoindre 3 comptes → invitations fermées, comptes récents en quarantaine, panneau de vérification demande le CAPTCHA ; sortie automatique après 5 min de calme ; `/panic` puis `/bouclier deverrouiller` + `/raid off`.
+7. **Alertes** : donner Administrateur à un rôle (dérive), ajouter un bot, créer un webhook, poster un faux token → alertes dans `logs-alertes` (ou `logs-securite`).
+8. **Guide** : `/guide configurer`, modifier un quota → le guide se met à jour (≤ 30 min) ; `/pourquoi ban`.
+9. **Vocal** : DOG — le maître change 8 fois de salon en 1 min → la personne en laisse revient au bout de la minute ; vocal privé — le propriétaire quitte → permissions d'avant après ~45 s, une coupure courte ne déclenche rien ; `=wakeup test @m` ; `;mvall`, `;undo`, `;accessall` puis `;accessall annuler`.
+10. **Rôles perso** : « Changer la couleur » → menu de 25 couleurs, aperçu, « Appliquer ».
+11. **Préfixes** : `+raid etat`, `;mvall #a #b`, `-impots …`, `=blr poser @m duree:7j raison` répondent ; la même commande avec le préfixe d'un autre bot ne fait rien.
+12. **Présence** : GUARD passe en « 🚨 Mode raid » pendant un raid ; FDPDLAVOC affiche le titre en cours ; `/presence definir`.
+13. **Stabilité** : `/stabilite commande-off casino` → refus clair sur le bot concerné ; `/stabilite maintenance-on bot:guard` → message de maintenance et statut « 🛠️ Maintenance ».

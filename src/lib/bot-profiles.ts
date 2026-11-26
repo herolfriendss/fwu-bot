@@ -106,7 +106,7 @@ export const SLASH_COMMAND_OWNERS: Record<BotProfileId, readonly string[]> = {
     // outils staff (25/11) : /outils sticky|modmail
     "outils",
     // V2 (26/11) : journaux typés et dossiers
-    "logs", "dossier", "blr", "guide", "pourquoi", "presence",
+    "logs", "dossier", "blr", "guide", "pourquoi", "presence", "stabilite",
   ],
   fisc: [
     "balance", "daily", "work", "job", "bank", "history", "rob", "lottery", "pay", "leaderboard",

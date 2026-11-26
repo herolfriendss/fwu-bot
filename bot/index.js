@@ -91,6 +91,7 @@ import { SLASH_FOR_PREFIX, prefixifyPayload, slashifyPayload } from "./prefix-to
 import { enableLearnMore, handleDossierButton, installMessageReplyLayer, installReplyLayer } from "./reply-layer.js";
 import { installMonochromeTheme } from "./monochrome-theme.js";
 import { installBlrShield } from "./blr-shield.js";
+import { createErrorWatch, maintenanceState, runToolCommand, stabilityRefusal } from "./stability.js";
 import { checkMfa, handleBotAdded, handleRoleDrift, handleTokenLeak, handleTrapPardon, handleWebhookCreated, isRaidActive, raidAutoExit, recordJoinForRaid, springBlrTrap } from "./guard/raid-protection.js";
 import { handleRaidInteraction, handleRaidPrefix } from "./guard/raid-commands.js";
 import { handleMassButton, handleMassInteraction, handleMassMessage } from "./voice-mass.js";
@@ -223,7 +224,17 @@ function record(code) {
   if (events.length > 50) events.shift();
   // No raw errors, tokens, message content or member data in reports.
   console.log(`[bot] ${code}`);
+  // V2 : une erreur qui se répète (5 en 5 min) part en alerte dans le salon d'alertes.
+  if (String(code).endsWith("_error")) repeatedErrorWatch(code);
 }
+const repeatedErrorWatch = createErrorWatch({
+  onAlert: (code, count) => {
+    for (const guild of client.guilds.cache.values()) {
+      if (isLogsHub(guild.id) || !guildAllowed(guild.id, ALLOWED_GUILDS)) continue;
+      void logEvent(guild, settings[guild.id], { category: "errors", action: "repeated_errors", severity: "critical", details: `${BOT_LABEL} : code \`${code}\` ${count} fois en 5 minutes.`, bot: RUNTIME.profile }).catch(() => {});
+    }
+  },
+});
 registerHealthProvider(() => ({ events: [...events], lastSync, startedAt }));
 // S1 : les actions SYS+ qui changent des droits partent aussi au Logs Hub (le bot qui agit publie).
 setSysPlusAuditObserver(({ guildId, actorId, action, targetId }) => {
@@ -579,6 +590,8 @@ async function handleMessageCreate(msg) {
   if (ownCommand) {
     const refusal = await freezeRefusal({ guildId: msg.guild.id, member: msg.member, prefixed: true, settings });
     if (refusal) { await msg.reply({ content: refusal, allowedMentions: { parse: [] } }).catch(() => {}); return; }
+    const stop = stabilityRefusal({ profile: RUNTIME.profile, command: prefixed.word, userId: msg.author.id });
+    if (stop) { await msg.reply({ content: stop, allowedMentions: { parse: [] } }).catch(() => {}); return; }
     // Same hierarchy rule as slash commands ("=dog @x", "=wakeup @x"…), fail closed.
     const hierarchyRefusal = await checkPrefixHierarchy(msg, prefixed.canonical).catch(() => "⛔ Hiérarchie des rôles illisible : action refusée par sécurité.");
     if (hierarchyRefusal) {
@@ -1152,6 +1165,7 @@ client.once("clientReady", () => {
     profile: RUNTIME.profile, label: BOT_LABEL, prefix: OWN_PREFIX, guilds: communityGuilds, onError: () => record("presence_error"),
     // Statut qui réagit : mode raid (GUARD), musique en cours (FDPDLAVOC), cagnotte (LE FISC).
     events: () => ({
+      maintenance: maintenanceState(RUNTIME.profile) ? (maintenanceState(RUNTIME.profile).message ?? true) : null,
       raidActive: communityGuilds().some((guild) => isRaidActive(guild.id)),
       nowPlaying: serves("fdpdlavoc") ? currentlyPlayingTitle() : null,
       jackpot: serves("fisc") ? communityGuilds().reduce((max, guild) => Math.max(max, Number(jackpotAmount(guild.id) ?? 0)), 0) : null,
@@ -1659,6 +1673,17 @@ client.on("interactionCreate", (interaction) => {
     // A slash command is handled only by the bot that owns its domain. Buttons
     // and menus always come back to the bot that posted them: no filter needed.
     // Gel d'urgence du staff : commandes du staff refusées (sauf owner), sur les 5 bots.
+    // V2 : mode maintenance du bot et commandes coupées par le staff (l'OWNER passe toujours).
+    if (interaction.isChatInputCommand?.() && interaction.commandName !== "stabilite") {
+      const stop = stabilityRefusal({ profile: RUNTIME.profile, command: interaction.commandName, userId: interaction.user?.id });
+      if (stop) { await interaction.reply({ content: stop, ephemeral: true, allowedMentions: { parse: [] } }).catch(() => {}); return; }
+    }
+    if (interaction.isChatInputCommand?.() && interaction.commandName === "stabilite") {
+      const o = interaction.options;
+      const content = runToolCommand({ member: interaction.member, sub: o.getSubcommand(), command: o.getString("commande", false), reason: o.getString("raison", false), profile: o.getString("bot", false) ?? RUNTIME.profile });
+      await interaction.reply({ content, ephemeral: true, allowedMentions: { parse: [] } }).catch(() => {});
+      return;
+    }
     if (interaction.isChatInputCommand?.() && interaction.guildId) {
       const definition = SLASH_COMMANDS.find((c) => c.name === interaction.commandName);
       const refusal = await freezeRefusal({ guildId: interaction.guildId, member: interaction.member, commandName: interaction.commandName, category: definition?.category ?? "", settings });

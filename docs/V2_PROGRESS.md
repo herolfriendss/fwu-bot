@@ -185,3 +185,15 @@ Non modifié : images (bannières GIF, cartes, avatars), emojis colorés, site/t
 - `/presence definir|retirer|description` (SUCK ME, `=presence …` par le pont) : statut d'un des 6 bots sans fichier (table partagée),
   durée facultative ; description « À propos » appliquée par chaque bot avec son propre jeton.
 - Limites Discord respectées : un texte, un type d'activité, une pastille — pas d'image ni de bouton.
+| 11 — Nouvelles commandes (SYS+, FDPDLAVOC, SUCK ME, LE FISC, FWU, smash or pass) | non fait (quota) | — |
+| 12 — Stabilité | fait | 1 122 tests (1 096 réussis, 26 ignorés), smoke 2 820/0, vitest 277, tsc/eslint OK |
+
+### Tâche 12 — stabilité (`bot/stability.js`)
+
+- `/stabilite commande-off|commande-on|maintenance-on|maintenance-off|etat` (SUCK ME, `=stabilite …`) : une commande coupée l'est sur
+  les 6 bots sans redémarrage (slash et préfixe), message clair ; maintenance par bot (message aux membres + statut « 🛠️ Maintenance »).
+  L'OWNER passe toujours ; `/stabilite` ne peut pas être coupée.
+- Erreur répétée (même code `*_error` 5 fois en 5 min) → alerte typée `repeated_errors` dans le salon d'alertes (une par fenêtre).
+- Tests de scénario : `stability.test.js`, plus ceux des tâches précédentes (BLR qui reçoit un rôle, propriétaire qui quitte son vocal,
+  piège, mode raid, DOG, WakeUp…). `RECETTE_STAGING.md` : 13 nouveaux points à tester à la main.
+- `public/downloads/bot-oracle.zip` régénéré (497 fichiers, aucun `.env`, données ni dépendances).

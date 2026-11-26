@@ -2575,6 +2575,21 @@ export const EXTRA_SLASH_COMMANDS: SlashCommandDef[] = [
     ],
   },
   {
+    name: "stabilite",
+    description: "OWNER/admins : couper une commande défaillante ou mettre un bot en maintenance",
+    usage: "/stabilite commande-off commande [raison] · commande-on commande · maintenance-on bot [raison] · maintenance-off bot · etat",
+    category: "Administration & sécurité",
+    dmPermission: false,
+    requiresBotProcess: true,
+    options: [
+      sub("commande-off", "Coupe une commande sur les 6 bots sans redémarrer", [opt(3, "commande", "Nom de la commande", { required: true, max_length: 32 }), opt(3, "raison", "Raison affichée", { max_length: 200 })]),
+      sub("commande-on", "Rétablit une commande", [opt(3, "commande", "Nom de la commande", { required: true, max_length: 32 })]),
+      sub("maintenance-on", "Met un bot en maintenance (message clair aux membres)", [opt(3, "bot", "Bot", { required: true, choices: [{ name: "Bot principal", value: "fwu" }, { name: "GUARD", value: "guard" }, { name: "FDPDLAVOC", value: "fdpdlavoc" }, { name: "SUCK ME", value: "suckme" }, { name: "LE FISC", value: "fisc" }, { name: "Invest +", value: "investplus" }] }), opt(3, "raison", "Message", { max_length: 200 })]),
+      sub("maintenance-off", "Termine la maintenance d'un bot", [opt(3, "bot", "Bot", { required: true, choices: [{ name: "Bot principal", value: "fwu" }, { name: "GUARD", value: "guard" }, { name: "FDPDLAVOC", value: "fdpdlavoc" }, { name: "SUCK ME", value: "suckme" }, { name: "LE FISC", value: "fisc" }, { name: "Invest +", value: "investplus" }] })]),
+      sub("etat", "Commandes coupées et maintenance"),
+    ],
+  },
+  {
     name: "presence",
     description: "OWNER/admins : statut d'un bot sans modifier de fichier, ou sa description",
     usage: "/presence definir bot texte [type] [statut] [duree] · retirer bot · description bot texte",
