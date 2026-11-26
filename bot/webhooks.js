@@ -5,11 +5,10 @@ import { EmbedBuilder, PermissionFlagsBits, WebhookClient } from "discord.js";
 import { db } from "./database.js";
 import { isSysPlus } from "./systems/sysplus/permissions.js";
 import { sendCentralLog, systemLogEmbed } from "./logs.js";
-import { encryptWebhookToken, decryptWebhookToken, parseWebhookEncryptionKey } from "./webhooks-crypto.js";
+import { encryptWebhookTokenWithHexKey, decryptWebhookTokenWithHexKey } from "./webhooks-crypto.js";
 import { HER_THEME_FOOTER, herBotAvatar, themePanelEmbed } from "./theme.js";
 
 const KEY = process.env.WEBHOOK_ENCRYPTION_KEY ?? "";
-function encryptionKey() { return parseWebhookEncryptionKey(KEY); }
 
 const findWebhook = db.prepare("SELECT * FROM managed_webhooks WHERE id=? AND guild_id=?");
 const insertWebhook = db.prepare("INSERT INTO managed_webhooks(id,guild_id,channel_id,name,encrypted_token,created_by,created_at) VALUES(?,?,?,?,?,?,?)");
@@ -22,7 +21,7 @@ function canManage(guild, member, settings) {
   return isSysPlus(member, settings?.sysPlus?.roleId);
 }
 function webhookClient(row) {
-  return new WebhookClient({ id: row.id, token: decryptWebhookToken(row.encrypted_token) });
+  return new WebhookClient({ id: row.id, token: decryptWebhookTokenWithHexKey(row.encrypted_token, KEY) });
 }
 
 export async function handleWebhookInteraction(interaction, settings = {}, record = () => {}) {
@@ -62,7 +61,7 @@ export async function handleWebhookInteraction(interaction, settings = {}, recor
       if (!channel.permissionsFor(bot)?.has(PermissionFlagsBits.ManageWebhooks)) throw new Error("Le bot doit avoir Gérer les webhooks dans ce salon.");
       const created = await channel.createWebhook({ name, reason: `Webhook FWU créé par ${interaction.user.tag}` });
       try {
-        insertWebhook.run(created.id, guild.id, channel.id, name, encryptWebhookToken(created.token), interaction.user.id, Date.now());
+        insertWebhook.run(created.id, guild.id, channel.id, name, encryptWebhookTokenWithHexKey(created.token, KEY), interaction.user.id, Date.now());
       } catch (error) {
         await created.delete("Échec de sauvegarde sécurisée du webhook").catch(() => {});
         throw error;
