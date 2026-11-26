@@ -425,7 +425,7 @@ async function handleAiMemoryInteraction(interaction) {
       setAiMemoryConsent(interaction.guildId, interaction.user.id, enabled);
       if (!enabled) await clearAiMemory(interaction.guildId, interaction.user.id);
       await interaction.editReply(enabled
-        ? "✅ Ton consentement est enregistré. FWU pourra utiliser les 12 derniers messages de contexte, pendant 30 jours maximum. Tu peux désactiver ou effacer ta mémoire à tout moment avec `/ia memoire` ou `/ia oublier`."
+        ? "✅ Ton consentement est enregistré. Le bot pourra utiliser les 12 derniers messages de contexte, pendant 30 jours maximum. Tu peux désactiver ou effacer ta mémoire à tout moment avec `/ia memoire` ou `/ia oublier`."
         : "🛑 Mémoire désactivée pour toi et historique effacé pour ce serveur.");
       if (interaction.guild) auditLog(interaction.guild, settings[interaction.guildId], enabled ? "🤖 IA — consentement mémoire activé" : "🤖 IA — consentement mémoire retiré", `Membre : <@${interaction.user.id}>`);
       return true;
@@ -1383,7 +1383,7 @@ async function handleCoreSlashInteraction(interaction) {
     const seconds = Math.max(0, Math.floor((Date.now() - Date.parse(startedAt)) / 1000));
     const uptime = `${Math.floor(seconds / 86400)}j ${Math.floor(seconds / 3600) % 24}h ${Math.floor(seconds / 60) % 60}min`;
     await interaction.reply({
-      content: `🟢 **${IS_FWU ? "FWU" : BOT_LABEL} est en ligne**\nConnexion Discord : ${client.isReady() ? "Connecté" : "Déconnecté"}\nSynchronisation : ${lastSync ? "Opérationnelle" : "En attente"}\nTemps de fonctionnement : ${uptime}`,
+      content: `🟢 **${BOT_LABEL} est en ligne**\nConnexion Discord : ${client.isReady() ? "Connecté" : "Déconnecté"}\nSynchronisation : ${lastSync ? "Opérationnelle" : "En attente"}\nTemps de fonctionnement : ${uptime}`,
       ephemeral: true,
     });
     return true;
@@ -1397,8 +1397,8 @@ async function handleCoreSlashInteraction(interaction) {
     const otherBots = Object.values(BOT_PROFILES).filter((profile) => profile.id !== RUNTIME.profile && !serves(profile.id));
     await interaction.reply({
       content: IS_FWU && !otherBots.length
-        ? "🤖 **Commandes de FWU**"
-        : `🤖 **Commandes de ${BOT_LABEL}**${otherBots.length ? `\nAutres bots FWU : ${otherBots.map((profile) => `**${profile.label}** (${profile.summary})`).join(" · ")}` : ""}`.slice(0, 2000),
+        ? "🤖 **Commandes du bot principal**"
+        : `🤖 **Commandes de ${BOT_LABEL}**${otherBots.length ? `\nAutres bots : ${otherBots.map((profile) => `**${profile.label}** (${profile.summary})`).join(" · ")}` : ""}`.slice(0, 2000),
       embeds,
       ephemeral: true,
     });
@@ -1652,7 +1652,7 @@ client.on("interactionCreate", (interaction) => {
     if (await handleShieldInteraction(interaction)) { auditSlashUsage(interaction, "Bouclier"); return; }
     if (await handleQuestInteraction(interaction)) { auditSlashUsage(interaction, "Quêtes"); return; }
     if (await handleClanInteraction(interaction)) { auditSlashUsage(interaction, "Clans & saisons"); return; }
-    if (await handleOverviewInteraction(interaction)) { auditSlashUsage(interaction, "Profil FWU"); return; }
+    if (await handleOverviewInteraction(interaction)) { auditSlashUsage(interaction, "Profil membre"); return; }
     if (await handleConfessionInteraction(interaction)) { auditSlashUsage(interaction, "Confessions"); return; }
     if (await handleInvestPlusInteraction(interaction, settings[interaction.guildId])) { auditSlashUsage(interaction, "Invest +"); return; }
     if (await handleAnimationInteraction(interaction)) { auditSlashUsage(interaction, "Animation"); return; }

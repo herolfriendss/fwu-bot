@@ -4,7 +4,9 @@
 // FWU ecosystem: one identity, each bot signs its own messages ("FWU • GUARD").
 // PND_<BOT>_COLOR (#rrggbb) and PND_<BOT>_FOOTER (e.g. PND_GUARD_COLOR) in the
 // shared bot/.env let the owner restyle one bot without code.
-const PROFILE_SIGNATURES = Object.freeze({ fwu: "FWU", guard: "FWU • GUARD", fdpdlavoc: "FWU • FDPDLAVOC", suckme: "FWU • SUCK ME", fisc: "FWU • LE FISC", investplus: "FWU • Invest +" });
+// Decision 2026-11-26 (FWU V2): no product name in Discord. Dedicated bots sign with their own
+// name, the main bot signs nothing (an empty footer is omitted).
+const PROFILE_SIGNATURES = Object.freeze({ fwu: "", guard: "GUARD", fdpdlavoc: "FDPDLAVOC", suckme: "SUCK ME", fisc: "LE FISC", investplus: "Invest +" });
 
 export function themeColorFrom(value, fallback = 0xe21d2f) {
   const match = /^#?([0-9a-f]{6})$/i.exec(String(value ?? "").trim());
@@ -17,7 +19,7 @@ export function themeFooterFrom(env = process.env) {
   const profile = profileOf(env);
   const custom = String(env[`PND_${profile.toUpperCase()}_FOOTER`] ?? "").trim().slice(0, 60);
   if (custom) return custom;
-  return PROFILE_SIGNATURES[profile] ?? "FWU";
+  return PROFILE_SIGNATURES[profile] ?? "";
 }
 
 export function themeColorForProfile(env = process.env) {
@@ -90,7 +92,7 @@ export function herBotAvatar(guild) {
 export function brandEmbed(embed) {
   if (!embed.data?.color) embed.setColor(HER_THEME_COLOR);
   const previousFooter = embed.data?.footer?.text;
-  const footer = previousFooter ? `${previousFooter} · ${HER_THEME_FOOTER}` : HER_THEME_FOOTER;
-  embed.setFooter({ text: footer.slice(0, 2048) });
+  const footer = [previousFooter, HER_THEME_FOOTER].filter(Boolean).join(" · ");
+  if (footer) embed.setFooter({ text: footer.slice(0, 2048) });
   return embed;
 }

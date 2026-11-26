@@ -72,8 +72,8 @@ async function applyRole({ guild, actor, targetId, roleId, add, settings }) {
   const hasRole = target.roles.cache.has(role.id);
   if (add && hasRole) return { changed: false, target, role };
   if (!add && !hasRole) return { changed: false, target, role };
-  if (add) await target.roles.add(role, `FWU role manager par ${actor.id}`);
-  else await target.roles.remove(role, `FWU role manager par ${actor.id}`);
+  if (add) await target.roles.add(role, `Gestion des rôles par ${actor.id}`);
+  else await target.roles.remove(role, `Gestion des rôles par ${actor.id}`);
   recordSysPlusAudit(guild.id, actor.id, add ? "role.add" : "role.remove", target.id, { roleId: role.id, roleName: role.name });
   await sendCentralLog(guild, settings, systemLogEmbed({ title: add ? "🎭 Rôle attribué" : "🎭 Rôle retiré", description: `Acteur : <@${actor.id}>\nCible : <@${target.id}>\nRôle : <@&${role.id}>` })).catch(() => {});
   return { changed: true, target, role };
@@ -84,7 +84,7 @@ function isPndOwner(userId) {
   return Boolean(owner && owner === userId);
 }
 
-const RANKALL_DENIED = "⛔ Commande réservée au propriétaire configuré de FWU.";
+const RANKALL_DENIED = "⛔ Commande réservée au propriétaire configuré des bots.";
 
 /** Shared preview for =rankall and /rankall. Throws user-facing errors; mutates nothing on Discord. */
 async function buildRankAllPreview(guild, actorId, roleId, settings = null) {
@@ -336,7 +336,7 @@ export async function handleRoleInteraction(interaction, settings = {}) {
       return true;
     }
     if (interaction.commandName === "rolepanel") {
-      const embed = themePanelEmbed(new EmbedBuilder().setTitle("🌙 Gestion des rôles — FWU").setDescription("Choisis un membre, puis un rôle. Tu pourras ensuite l'ajouter ou le retirer. Les permissions et la hiérarchie sont revérifiées à chaque action."), { thumbnailUrl: herBotAvatar(interaction.guild) });
+      const embed = themePanelEmbed(new EmbedBuilder().setTitle("🌙 Gestion des rôles").setDescription("Choisis un membre, puis un rôle. Tu pourras ensuite l'ajouter ou le retirer. Les permissions et la hiérarchie sont revérifiées à chaque action."), { thumbnailUrl: herBotAvatar(interaction.guild) });
       await interaction.reply({ embeds: [embed], components: panelRows(), ephemeral: true });
       return true;
     }
@@ -372,14 +372,14 @@ export async function handleRoleInteraction(interaction, settings = {}) {
   try {
     if (action === "member" && (interaction.isUserSelectMenu())) {
       const memberId = interaction.values[0];
-      const panel = themePanelEmbed(new EmbedBuilder().setTitle("🌙 Gestion des rôles — FWU").setDescription(`Membre sélectionné : <@${memberId}>. Choisis maintenant un rôle.`), { thumbnailUrl: herBotAvatar(interaction.guild) });
+      const panel = themePanelEmbed(new EmbedBuilder().setTitle("🌙 Gestion des rôles").setDescription(`Membre sélectionné : <@${memberId}>. Choisis maintenant un rôle.`), { thumbnailUrl: herBotAvatar(interaction.guild) });
       await interaction.update({ content: null, embeds: [panel], components: panelRows(memberId), allowedMentions: { parse: [] } });
       return true;
     }
     if (action === "role" && interaction.isRoleSelectMenu()) {
       const memberId = a;
       const roleId = interaction.values[0];
-      const panel = themePanelEmbed(new EmbedBuilder().setTitle("🌙 Gestion des rôles — FWU").setDescription(`Membre : <@${memberId}>\nRôle : <@&${roleId}>\nChoisis l'action à effectuer.`), { thumbnailUrl: herBotAvatar(interaction.guild) });
+      const panel = themePanelEmbed(new EmbedBuilder().setTitle("🌙 Gestion des rôles").setDescription(`Membre : <@${memberId}>\nRôle : <@&${roleId}>\nChoisis l'action à effectuer.`), { thumbnailUrl: herBotAvatar(interaction.guild) });
       await interaction.update({ content: null, embeds: [panel], components: panelRows(memberId, roleId), allowedMentions: { parse: [] } });
       return true;
     }

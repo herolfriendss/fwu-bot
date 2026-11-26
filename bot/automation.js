@@ -37,7 +37,7 @@ export async function handleAutomationJoin(member, settings, record = () => {}) 
     const grantable = await filterGrantableRoleIds(member.guild, plan.applicable, { settings, onRefused: () => record("automation_autorole_protected") });
     for (const roleId of grantable) {
       try {
-        await member.roles.add(roleId, "Rôle automatique FWU");
+        await member.roles.add(roleId, "Rôle automatique");
         touched = true;
         record("automation_autorole_applied");
       } catch {

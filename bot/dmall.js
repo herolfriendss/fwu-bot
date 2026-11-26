@@ -23,7 +23,7 @@ export const DMALL_MAX_MEMBERS = envNumber("PND_DMALL_MAX_MEMBERS", 1_000, 1);
 export const DMALL_STEP_DELAY_MS = envNumber("PND_DMALL_STEP_DELAY_MS", 1_500);
 export const DMALL_COOLDOWN_MS = envNumber("PND_DMALL_COOLDOWN_MS", 60 * 60_000);
 export const DMALL_MAX_LENGTH = 1_800;
-export const DMALL_DENIED = "⛔ DM ALL est strictement réservé au propriétaire de FWU.";
+export const DMALL_DENIED = "⛔ DM ALL est strictement réservé au propriétaire configuré des bots.";
 
 db.exec(`CREATE TABLE IF NOT EXISTS dmall_jobs (
   job_id TEXT PRIMARY KEY, guild_id TEXT NOT NULL, actor_id TEXT NOT NULL, role_id TEXT,
@@ -137,7 +137,7 @@ export function buildDmAllEmbed(guildName, message) {
     color: HER_THEME_COLOR,
     title: `📨 Message de ${String(guildName ?? "ton serveur").slice(0, 200)}`,
     description: message,
-    footer: { text: HER_THEME_FOOTER },
+    ...(HER_THEME_FOOTER ? { footer: { text: HER_THEME_FOOTER } } : {}),
   };
 }
 

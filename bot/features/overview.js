@@ -97,7 +97,7 @@ export function overviewEmbed(overview, { username, avatarUrl = null }) {
   const embed = new EmbedBuilder()
     .setColor(0xe21d2f)
     .setTitle(`Profil de ${username}`)
-    .setFooter({ text: "FWU · tout ce que les cinq bots savent de toi" });
+    .setFooter({ text: "Tout ce que les bots savent de toi" });
   if (avatarUrl) embed.setThumbnail(avatarUrl);
 
   embed.addFields({
@@ -184,9 +184,9 @@ export function panelView(now = Date.now()) {
   const bots = botPresence(now);
   const embed = new EmbedBuilder()
     .setColor(0xe21d2f)
-    .setTitle("FWU — les cinq bots")
+    .setTitle("Les bots du serveur")
     .setDescription("Chaque bot tient son domaine. Ils partagent la même mémoire : une sanction, un niveau ou une mise comptent partout.")
-    .setFooter({ text: "FWU · /moi pour ton profil complet" });
+    .setFooter({ text: "/moi pour ton profil complet" });
   for (const bot of bots) {
     embed.addFields({
       name: `${bot.online ? "🟢" : "🔴"} ${bot.label}`,

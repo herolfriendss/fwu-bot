@@ -161,7 +161,7 @@ export function buildResumeEmbed(summary, { reason = "", ended = false } = {}) {
     description: lines.join("\n"),
     color: summary.important.some((row) => row.severity === "high") ? 0xdc2626 : 0xe21d2f,
     fields,
-    footer: { text: "FWU • RESUME · détails complets dans le Logs Hub" },
+    footer: { text: "RESUME · détails complets dans le Logs Hub" },
   };
 }
 

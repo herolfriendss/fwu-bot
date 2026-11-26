@@ -59,7 +59,7 @@ test("add bans by ID, even an absent account, and is idempotent", async () => {
   const absent = "100000000000000077";
   const first = await addToBlacklist({ guild, actor, userId: absent, reason: "raid" });
   assert.deepEqual({ added: first.added, banned: first.banned, present: first.present }, { added: true, banned: true, present: false });
-  assert.match(guild.banned[0].opts.reason, /FWU blacklist .*raid/);
+  assert.match(guild.banned[0].opts.reason, /^Blacklist .*raid/);
   assert.equal(isBlacklisted("g", absent), true);
   const again = await addToBlacklist({ guild, actor, userId: absent, reason: "raid 2" });
   assert.equal(again.alreadyListed, true);

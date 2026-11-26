@@ -23,7 +23,7 @@ const MAX_STACK_MS = 30 * DAY;
 
 /** The shop. `kind` is what the other bots check for. */
 export const PERKS = Object.freeze([
-  { kind: "xp_boost", emoji: "⚡", label: "Boost d'XP", description: "+50 % d'XP gagné", price: 15_000, durationMs: DAY, bot: "FWU" },
+  { kind: "xp_boost", emoji: "⚡", label: "Boost d'XP", description: "+50 % d'XP gagné", price: 15_000, durationMs: DAY, bot: "Bot principal" },
   { kind: "anti_vol", emoji: "🛡️", label: "Protection anti-vol", description: "Personne ne peut te voler de PND", price: 10_000, durationMs: 2 * DAY, bot: "LE FISC" },
   { kind: "couleur", emoji: "🎨", label: "Couleur de pseudo", description: "Ta couleur rien qu'à toi", price: 25_000, durationMs: 7 * DAY, bot: "SUCK ME" },
   { kind: "dj", emoji: "🎧", label: "Droit DJ", description: "Contrôle de la musique sans rôle DJ", price: 20_000, durationMs: DAY, bot: "FDPDLAVOC" },

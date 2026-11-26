@@ -116,9 +116,9 @@ export const SLASH_COMMANDS: SlashCommandDef[] = [
   // ── Général ────────────────────────────────────────────────────────────────
   { name: "aide", description: "Affiche la liste des commandes du bot", usage: "/aide", category: "Général" },
   {
-    name: "ia", description: "Gère ta mémoire de conversation avec FWU", usage: "/ia memoire etat:activer|desactiver · /ia oublier", category: "Général", dmPermission: false, requiresBotProcess: true,
+    name: "ia", description: "Gère ta mémoire de conversation avec le bot", usage: "/ia memoire etat:activer|desactiver · /ia oublier", category: "Général", dmPermission: false, requiresBotProcess: true,
     options: [
-      sub("memoire", "Choisis si FWU peut conserver le contexte de tes conversations", [
+      sub("memoire", "Choisis si le bot peut conserver le contexte de tes conversations", [
         opt(3, "etat", "Ton choix de consentement", { required: true, choices: [
           { name: "Activer la mémoire pour moi", value: "on" },
           { name: "Désactiver la mémoire pour moi", value: "off" },
@@ -515,7 +515,7 @@ export const SLASH_COMMANDS: SlashCommandDef[] = [
       sub("logs-couverture", "Matrice de couverture des événements du Logs Hub"),
       sub("matrice", "Matrice des permissions par niveau (calculée depuis le code)"),
       sub("economie", "Intégrité du grand livre PND et signaux de fraude"),
-      sub("bots", "Bots FWU : quel bot traite chaque domaine en ce moment"),
+      sub("bots", "Bots : quel bot traite chaque domaine en ce moment"),
       sub("installation", "Bilan : permissions et place du rôle de chaque bot, base centrale, sauvegarde"),
       sub("gel", "Owner : suspend toutes les commandes du staff sur les 5 bots, pour une durée", [
         opt(3, "duree", "Durée : 30m, 2h, 1j (7 jours maximum)", { required: true, max_length: 20 }),
@@ -633,7 +633,7 @@ export const SLASH_COMMANDS: SlashCommandDef[] = [
         opt(7, "salon", "Salon textuel", { required: true, channel_types: [0] }),
         opt(3, "nom", "Nom du webhook", { required: true, max_length: 80 }),
       ]),
-      sub("list", "Liste les webhooks gérés par FWU"),
+      sub("list", "Liste les webhooks gérés par le bot"),
       sub("delete", "Supprime un webhook géré", [
         opt(3, "id", "Identifiant du webhook", { required: true, max_length: 25 }),
       ]),
@@ -1489,7 +1489,7 @@ export const SLASH_COMMANDS: SlashCommandDef[] = [
 
     {
     name: "panel",
-    description: "Ouvre le centre de contrôle FWU",
+    description: "Ouvre le centre de contrôle",
     usage: "/panel",
     category: "Général",
     dmPermission: false,
@@ -2310,7 +2310,7 @@ export const EXTRA_SLASH_COMMANDS: SlashCommandDef[] = [
   },
   {
     name: "maj",
-    description: "OWNER : met à jour FWU et les 4 bots depuis GitHub, sans ordinateur",
+    description: "OWNER : met à jour les 5 bots depuis GitHub, sans ordinateur",
     usage: "/maj lancer [version] · /maj etat",
     category: "SYS+",
     dmPermission: false,
@@ -2496,7 +2496,7 @@ export const EXTRA_SLASH_COMMANDS: SlashCommandDef[] = [
         opt(3, "nom", "Embed", { required: true, autocomplete: true, max_length: 32 }),
         opt(7, "salon", "Salon cible (par défaut : salon de la dernière publication)", { channel_types: [0, 5] }),
       ]),
-      sub("importer", "Reprend un embed déjà publié par FWU pour pouvoir l'éditer", [
+      sub("importer", "Reprend un embed déjà publié par le bot pour pouvoir l'éditer", [
         opt(3, "lien", "Lien du message", { required: true, max_length: 200 }),
         opt(3, "nom", "Identifiant à lui donner", { required: true, max_length: 32 }),
       ]),

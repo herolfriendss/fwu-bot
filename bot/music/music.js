@@ -113,7 +113,7 @@ function buildPanel(state) {
   const track = state.current;
   const embed = brandEmbed(new EmbedBuilder()
     .setColor(0xe21d2f)
-    .setTitle("🎵 FWU — Musique")
+    .setTitle("🎵 Musique")
     .setDescription(track
       ? `**${track.title}**\n${track.artist ? `Artiste : ${track.artist}\n` : ""}Durée : ${formatDuration(track.duration)}\nDemandé par : ${track.requesterId === "radio" ? "Radio PND" : `<@${track.requesterId}>`}`
       : "Aucune musique en cours.")
@@ -348,7 +348,7 @@ export async function handleRadioMessage(message) {
       radioConfigs = configs;
       await saveRadioConfigs();
       await startRadioWithRetry(message.guild, configs[message.guild.id], [track]);
-      await message.reply({ content: `✅ Radio FWU lancée dans **${channel.name}**. Le flux reprendra après une interruption et au redémarrage du bot.`, allowedMentions: { parse: [] } });
+      await message.reply({ content: `✅ Radio lancée dans **${channel.name}**. Le flux reprendra après une interruption et au redémarrage du bot.`, allowedMentions: { parse: [] } });
     } else if (action === "start") {
       if (!config?.streamUrl) throw new Error("Configure d’abord la radio avec `=radio set #salon URL_HTTPS_AUTORISÉE`.");
       await startRadioWithRetry(message.guild, config);

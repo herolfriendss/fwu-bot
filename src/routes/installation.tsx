@@ -6,8 +6,8 @@ import { ArrowLeft, Download, FileKey } from "lucide-react";
 
 export const Route = createFileRoute("/installation")({
   head: () => ({ meta: [
-    { title: "Installation du bot — FWU" }, { name: "description", content: "Préparez le fichier de configuration du bot Discord FWU pour Oracle." },
-    { property: "og:title", content: "Installation du bot — FWU" }, { property: "og:description", content: "Préparation privée de l’installation du bot sur Oracle." },
+    { title: "Installation du bot — FWU V2" }, { name: "description", content: "Préparez le fichier de configuration du bot Discord FWU pour Oracle." },
+    { property: "og:title", content: "Installation du bot — FWU V2" }, { property: "og:description", content: "Préparation privée de l’installation du bot sur Oracle." },
     { property: "og:type", content: "website" }, { name: "twitter:card", content: "summary" },
   ] }), loader: () => getBotConnection(), component: InstallationPage,
 });

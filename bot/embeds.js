@@ -405,7 +405,7 @@ async function handleScreeningCommand(interaction, { bot, audit }) {
       return reply(interaction, [
         "⚠️ Discord refuse que les bots modifient le Membership Screening natif (fonction non documentée pour les bots).",
         "Deux solutions :",
-        "• `/screening configurer` : écran d'adhésion par bouton, géré entièrement par FWU ;",
+        "• `/screening configurer` : écran d'adhésion par bouton, géré entièrement par le bot ;",
         "• ou copie ces règles dans *Paramètres du serveur → Sécurité → Accès / Règles* :",
         "```",
         draft.rules.slice(0, 16).map((rule, index) => `${index + 1}. ${rule.title} : ${rule.description}`).join("\n").slice(0, 1500),
@@ -427,7 +427,7 @@ async function handleScreeningAccept(interaction, { bot }) {
   const refused = screeningRole ? await roleGrantRefusal(guild, screeningRole, { automatic: true }) : "Rôle introuvable.";
   if (refused) return reply(interaction, "❌ Le rôle de l'écran d'adhésion est protégé ou introuvable : préviens le staff.");
   try {
-    await member.roles.add(config.role_id, "Règlement accepté (écran d'adhésion FWU)");
+    await member.roles.add(config.role_id, "Règlement accepté (écran d'adhésion)");
   } catch {
     return reply(interaction, "❌ Je n'arrive pas à te donner l'accès (permissions du bot). Préviens le staff.");
   }

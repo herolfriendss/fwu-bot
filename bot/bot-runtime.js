@@ -107,7 +107,7 @@ export const RELAY_LOSS_LABELS = Object.freeze({
   trop_vieux: "plus de 24 h sans être publiés",
   file_pleine: "file pleine (plus de 5 000)",
   envoi_refuse: `non publiés après ${RELAY_MAX_ATTEMPTS} essais`,
-  serveur_absent: "serveur d'origine inconnu de FWU",
+  serveur_absent: "serveur d'origine inconnu du bot principal",
 });
 
 /** Compte des logs relayés perdus, par raison (jamais leur contenu). */
@@ -325,7 +325,7 @@ export function pendingRelayedLogs() {
 /** Read-only overview for /sysp diagnostic bots. */
 export function formatBotsDiagnostic(now = Date.now()) {
   const leases = new Map(listDomainLeases(now).map((lease) => [lease.domain, lease]));
-  const lines = ["**Bots FWU — qui traite quoi en ce moment** (lecture seule)"];
+  const lines = ["**Bots — qui traite quoi en ce moment** (lecture seule)"];
   for (const id of BOT_PROFILE_IDS) {
     const profile = BOT_PROFILES[id];
     if (id === "fwu") {
@@ -338,7 +338,7 @@ export function formatBotsDiagnostic(now = Date.now()) {
       ? `🟢 **${profile.label}**${optional} — en ligne, renouvelé <t:${Math.floor(lease.renewedAt / 1000)}:R>`
       : profile.optional
         ? `⚪ **${profile.label}**${optional} — non démarré : aucun domaine Invest + actif pour le moment.`
-        : `⚪ **${profile.label}** — non démarré ou arrêté : **FWU reprend les événements de ce domaine**${lease ? ` (dernier signe <t:${Math.floor(lease.renewedAt / 1000)}:R>)` : ""}. Les commandes propres à ce bot restent indisponibles.`);
+        : `⚪ **${profile.label}** — non démarré ou arrêté : **le bot principal reprend les événements de ce domaine**${lease ? ` (dernier signe <t:${Math.floor(lease.renewedAt / 1000)}:R>)` : ""}. Les commandes propres à ce bot restent indisponibles.`);
   }
   // Connection failures recorded by the silent-crash guard (bot/gateway-watchdog.js).
   let failures = [];
@@ -350,6 +350,6 @@ export function formatBotsDiagnostic(now = Date.now()) {
       : `🟠 **${label}** — ${failure.failures} échec(s) de connexion à Discord (${failure.reason}) <t:${Math.floor(failure.at / 1000)}:R>, nouvel essai en cours.`);
   }
   const pending = pendingRelayedLogs();
-  lines.push(pending > 50 ? `🟧 ${pending} logs en attente de publication par FWU : vérifie que FWU est en ligne.` : `🟢 Logs relayés en attente : ${pending}.`);
+  lines.push(pending > 50 ? `🟧 ${pending} logs en attente de publication par le bot principal : vérifie qu'il est en ligne.` : `🟢 Logs relayés en attente : ${pending}.`);
   return lines.join("\n");
 }

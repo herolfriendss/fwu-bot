@@ -20,7 +20,7 @@ export type BotProfile = {
 export const BOT_PROFILES: Record<BotProfileId, BotProfile> = {
   fwu: {
     id: "fwu",
-    label: "FWU",
+    label: "Bot principal",
     tokenEnv: "DISCORD_TOKEN",
     guildAllowlistEnv: "V4_ALLOWED_GUILD_IDS",
     summary: "Modération staff (tempmute, warn, sanctions, quotas) et embeds — slash uniquement",

@@ -139,13 +139,13 @@ async function neutralize(guild, executorId) {
   if (!member) return "absent du serveur";
   const me = guild.members.me ?? await guild.members.fetchMe();
   if (member.user?.bot) {
-    if (member.kickable) { await member.kick("Anti-nuke FWU : actions destructrices en masse"); return "bot expulsé"; }
+    if (member.kickable) { await member.kick("Anti-nuke : actions destructrices en masse"); return "bot expulsé"; }
     return "bot non expulsable (rôle trop haut)";
   }
   const dangerous = [...member.roles.cache.values()].filter((role) => role.id !== guild.id && !role.managed
     && role.position < me.roles.highest.position && DANGEROUS_PERMISSIONS.some((flag) => role.permissions.has(flag)));
   if (!dangerous.length) return "aucun rôle dangereux retirable";
-  await member.roles.remove(dangerous, "Anti-nuke FWU : actions destructrices en masse");
+  await member.roles.remove(dangerous, "Anti-nuke : actions destructrices en masse");
   return `${dangerous.length} rôle(s) dangereux retiré(s)`;
 }
 
@@ -168,7 +168,7 @@ export function createAntiNuke({ client, report = async () => {}, record = () =>
     handled.add(key);
     setTimeout(() => handled.delete(key), config.windowSeconds * 1000).unref?.();
     const outcome = already ? "déjà neutralisé" : await neutralize(guild, executor.id).catch(() => "neutralisation impossible");
-    const restored = await restore(guild, already ? [item] : recent.filter(Boolean), "Anti-nuke FWU : restauration");
+    const restored = await restore(guild, already ? [item] : recent.filter(Boolean), "Anti-nuke : restauration");
     tracker.clear(guild.id, executor.id);
     record("antinuke_triggered");
     try { await onTriggered(guild, { executorId: executor.id, action: NUKE_ACTIONS[action].label, outcome, restored }); } catch { /* l'incident ne bloque jamais la défense */ }

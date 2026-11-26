@@ -37,7 +37,7 @@ export function buildWelcomePayload(member, settings, now = Date.now()) {
       { name: "Membre", value: `#${Math.max(1, Number(guild.memberCount) || 1)}`, inline: true },
       { name: "Compte créé", value: createdAt ? `<t:${Math.floor(createdAt / 1000)}:R>` : "Date indisponible", inline: true },
     )
-    .setFooter({ text: "FWU • Bienvenue" })
+    .setFooter({ text: "Bienvenue" })
     .setTimestamp(new Date(now));
   return { embeds: [embed], allowedMentions: { parse: [], users: [member.id] } };
 }
@@ -59,6 +59,6 @@ export function buildDeparturePayload(member, settings, now = Date.now()) {
     .addFields(
       { name: "Membre", value: `#${Math.max(0, Number(guild.memberCount) || 0)}`, inline: true },
       { name: "A rejoint", value: joinedAt ? `<t:${Math.floor(joinedAt / 1000)}:R>` : "Date indisponible", inline: true },
-    ).setFooter({ text: "FWU • Départ" }).setTimestamp(new Date(now));
+    ).setFooter({ text: "Départ" }).setTimestamp(new Date(now));
   return { channelId, payload: { embeds: [embed], allowedMentions: { parse: [], users: [member.id] } } };
 }

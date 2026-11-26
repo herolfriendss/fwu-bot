@@ -198,7 +198,7 @@ export async function handleAntiMoveVoiceState(oldState, newState, rawSettings =
   const current = await guild.members.fetch({ user: memberId, force: true }).catch(() => member);
   if ((current?.voice?.channelId ?? null) !== destinationChannelId) return false;
   try {
-    await current.voice.setChannel(oldState.channelId, `FWU Anti-Move : déplacement individuel protégé (acteur ${audit.actorId})`);
+    await current.voice.setChannel(oldState.channelId, `Anti-Move : déplacement individuel protégé (acteur ${audit.actorId})`);
   } catch (error) {
     void sendCentralLog(guild, rawSettings, systemLogEmbed({
       title: "🛡️ ANTI-MOVE — restauration impossible",

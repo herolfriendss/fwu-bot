@@ -102,6 +102,6 @@ export function buildSysPlusIncidentReport(guildId, incidentId, { now = Date.now
     `## Chronologie des actions auditées (${rows.length}${rows.length === 200 ? ", tronquée" : ""})`,
     ...(rows.length ? rows.map((row) => `- ${iso(Number(row.created_at))} · \`${row.action}\` · acteur ${row.actor_id}${row.target_id ? ` · cible ${row.target_id}` : ""}`) : ["_Aucune action auditée pendant cette période._"]),
     "",
-    "_Rapport généré par FWU. Identifiants Discord bruts, aucun contenu de message._",
+    "_Rapport généré automatiquement. Identifiants Discord bruts, aucun contenu de message._",
   ].join("\n");
 }

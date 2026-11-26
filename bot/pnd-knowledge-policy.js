@@ -3,7 +3,7 @@ export const KNOWLEDGE_TOPICS = Object.freeze([
     key: "permissions",
     label: "Permissions & hiérarchie",
     title: "Permissions du serveur",
-    content: "**Owner PND** : propriétaire unique de FWU.\n**Cofondateurs** : rôle de confiance distinct, sans statut Owner.\n**SYS+** : accès aux outils SYS+ prévus, sans héritage automatique des scopes ADMIN+.\n**ADMIN+** : accès limité aux scopes explicitement activés.\n**WHITELIST** : exemption interne de certaines limites uniquement.\n\nLes permissions natives Discord, la hiérarchie des rôles et les contrôles de chaque module restent obligatoires.",
+    content: "**Owner PND** : propriétaire unique des bots.\n**Cofondateurs** : rôle de confiance distinct, sans statut Owner.\n**SYS+** : accès aux outils SYS+ prévus, sans héritage automatique des scopes ADMIN+.\n**ADMIN+** : accès limité aux scopes explicitement activés.\n**WHITELIST** : exemption interne de certaines limites uniquement.\n\nLes permissions natives Discord, la hiérarchie des rôles et les contrôles de chaque module restent obligatoires.",
   },
   {
     key: "recruitment",
@@ -33,7 +33,7 @@ export const KNOWLEDGE_TOPICS = Object.freeze([
     key: "sysplus",
     label: "Guide SYS+",
     title: "Guide SYS+",
-    content: "SYS+ donne accès à des outils privilégiés définis par FWU. SYS+ ne signifie pas ADMIN+ : les scopes administratifs sont configurés séparément. Les permissions Discord et la hiérarchie des rôles restent applicables.\n\nLes actions sensibles sont journalisées lorsqu'un module le prévoit.",
+    content: "SYS+ donne accès à des outils privilégiés définis par les bots. SYS+ ne signifie pas ADMIN+ : les scopes administratifs sont configurés séparément. Les permissions Discord et la hiérarchie des rôles restent applicables.\n\nLes actions sensibles sont journalisées lorsqu'un module le prévoit.",
   },
 ]);
 

@@ -68,7 +68,7 @@ export async function handleSelfUpdateInteraction(interaction, { spawnFn = spawn
     return true;
   }
   if (!existsSync(SCRIPT())) {
-    await interaction.reply({ content: "❌ La mise à jour automatique n'est pas encore installée sur le VPS. Fais une dernière mise à jour depuis un ordinateur (FWU-MAJ-COMPLETE.sh) et colle le jeton GitHub quand il est demandé.", ephemeral: true });
+    await interaction.reply({ content: "❌ La mise à jour automatique n'est pas encore installée sur le VPS. Fais une dernière mise à jour depuis un ordinateur (script de mise à jour complète) et colle le jeton GitHub quand il est demandé.", ephemeral: true });
     return true;
   }
   if (!canStartUpdate(status)) {
@@ -83,7 +83,7 @@ export async function handleSelfUpdateInteraction(interaction, { spawnFn = spawn
   }
   launchUpdate(spawnFn, SCRIPT(), version);
   const target = version ? `la version **${version}**` : "la dernière version publiée (ou main s'il n'y en a pas encore)";
-  await interaction.reply({ content: `🚀 Mise à jour lancée vers ${target} : FWU et le site, puis les 4 bots (10 à 30 min). Les bots vont redémarrer chacun leur tour : c'est normal.\nSuis l'avancement avec \`/maj etat\`. Je t'enverrai le résultat en message privé.`, ephemeral: true });
+  await interaction.reply({ content: `🚀 Mise à jour lancée vers ${target} : le bot principal et le site, puis les 4 autres bots (10 à 30 min). Les bots vont redémarrer chacun leur tour : c'est normal.\nSuis l'avancement avec \`/maj etat\`. Je t'enverrai le résultat en message privé.`, ephemeral: true });
   return true;
 }
 
@@ -95,6 +95,6 @@ export async function announceUpdateResult(client, dir = DATA()) {
   if (!ownerId) return false;
   try { writeFileSync(`${dir}/maj-status.json`, JSON.stringify({ ...status, announced: true })); } catch { return false; }
   const user = await client.users.fetch(ownerId).catch(() => null);
-  await user?.send(status.state === "done" ? `✅ Mise à jour FWU terminée : ${status.step}. Ferme et rouvre Discord pour voir les nouvelles commandes.` : `❌ Mise à jour FWU échouée : ${status.step}\nDétails : \`/maj etat\`.`).catch(() => {});
+  await user?.send(status.state === "done" ? `✅ Mise à jour terminée : ${status.step}. Ferme et rouvre Discord pour voir les nouvelles commandes.` : `❌ Mise à jour échouée : ${status.step}\nDétails : \`/maj etat\`.`).catch(() => {});
   return true;
 }

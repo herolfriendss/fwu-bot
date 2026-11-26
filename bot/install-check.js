@@ -53,7 +53,7 @@ export function formatInstallationReport({ bots, extraLines = [] }) {
         lines.push(`⚪ **${bot.label}** : facultatif, non installé sur ce serveur.`);
       } else {
         missingBots += 1;
-        lines.push(`🟠 **${bot.label}** : absent. FWU peut reprendre les événements de son domaine, mais les commandes propres à cette application sont indisponibles sur ce serveur.`);
+        lines.push(`🟠 **${bot.label}** : absent. Le bot principal peut reprendre les événements de son domaine, mais les commandes propres à cette application sont indisponibles sur ce serveur.`);
       }
       continue;
     }
@@ -137,7 +137,7 @@ export async function buildInstallationReport(guild, {
     .filter((lease) => lease.domain !== "fwu" && !lease.live && !BOT_PROFILES[lease.domain]?.optional)
     .map((lease) => BOT_PROFILES[lease.domain]?.label ?? lease.domain);
   const leaseLine = stale.length
-    ? `🟧 Domaines principaux repris par FWU (bot arrêté) : ${stale.join(", ")}.`
+    ? `🟧 Domaines principaux repris par le bot principal (bot arrêté) : ${stale.join(", ")}.`
     : "🟢 Verrous des bots principaux : aucun arrêt détecté.";
   const optionalProfiles = BOT_PROFILE_IDS.filter((id) => BOT_PROFILES[id]?.optional);
   const optionalLine = optionalProfiles

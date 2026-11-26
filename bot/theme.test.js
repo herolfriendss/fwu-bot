@@ -41,7 +41,8 @@ test("panel branding applies the violet accent and GIF only when animation is en
   themePanelEmbed(embed);
   assert.deepEqual(calls[0], ["color", HER_THEME_COLOR]);
   assert.deepEqual(calls[1], ["image", "https://dashboard.example.test/media/her-v5-city-loop.gif"]);
-  assert.deepEqual(calls[2], ["footer", { text: HER_THEME_FOOTER }]);
+  // The main bot signs nothing: an empty footer is omitted (Discord rejects empty footer text).
+  assert.equal(calls.some(([kind]) => kind === "footer"), Boolean(HER_THEME_FOOTER));
   calls.length = 0;
   themePanelEmbed(embed, { animated: false });
   assert.equal(calls.some(([kind]) => kind === "image"), false);
@@ -64,13 +65,13 @@ test("both generated LIVE announcement banners are stored as animated GIF assets
   }
 });
 
-test("each FWU bot signs its messages, owner can restyle without code", async () => {
+test("each dedicated bot signs with its own name only, owner can restyle without code", async () => {
   const { themeFooterFrom, themeColorFrom, themeColorForProfile } = await import("./theme.js");
-  assert.equal(themeFooterFrom({}), "FWU");
-  assert.equal(themeFooterFrom({ PND_BOT_PROFILE: "guard" }), "FWU • GUARD");
-  assert.equal(themeFooterFrom({ PND_BOT_PROFILE: "fisc" }), "FWU • LE FISC");
+  assert.equal(themeFooterFrom({}), "");
+  assert.equal(themeFooterFrom({ PND_BOT_PROFILE: "guard" }), "GUARD");
+  assert.equal(themeFooterFrom({ PND_BOT_PROFILE: "fisc" }), "LE FISC");
   assert.equal(themeFooterFrom({ PND_BOT_PROFILE: "suckme", PND_SUCKME_FOOTER: "SUCK ME" }), "SUCK ME");
-  assert.equal(themeFooterFrom({ PND_SUCKME_FOOTER: "x" }), "FWU", "le réglage d'un bot ne touche pas FWU");
+  assert.equal(themeFooterFrom({ PND_SUCKME_FOOTER: "x" }), "", "le réglage d'un bot ne touche pas le bot principal");
   assert.equal(themeColorForProfile({ PND_BOT_PROFILE: "guard", PND_GUARD_COLOR: "#dc2626" }), 0xdc2626);
   assert.equal(themeColorForProfile({ PND_GUARD_COLOR: "#dc2626" }), 0xe21d2f);
   assert.equal(themeColorFrom("#22c55e"), 0x22c55e);

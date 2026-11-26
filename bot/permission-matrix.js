@@ -13,7 +13,7 @@ import { parsePndOwnerId } from "./pnd-owner-policy.js";
  * drift from the code. ADMIN+ cells reflect the guild's current scope toggles.
  */
 export const MATRIX_TIERS = Object.freeze([
-  { key: "owner", label: "OWNER FWU" },
+  { key: "owner", label: "OWNER" },
   { key: "guildOwner", label: "Propriétaire Discord" },
   { key: "sysplus", label: "SYS+" },
   { key: "adminplus", label: "ADMIN+" },

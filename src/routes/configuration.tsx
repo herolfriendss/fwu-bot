@@ -30,9 +30,9 @@ const overviewQuery = queryOptions({ queryKey: ["discord", "overview"], queryFn:
 export const Route = createFileRoute("/configuration")({
   head: () => ({
     meta: [
-      { title: "Configuration — FWU" },
+      { title: "Configuration — FWU V2" },
       { name: "description", content: "Analyses du serveur, profil, salons, rôles, membres, modération et annonces de vos bots Discord FWU." },
-      { property: "og:title", content: "Configuration — FWU" },
+      { property: "og:title", content: "Configuration — FWU V2" },
       { property: "og:description", content: "Configuration et statistiques des serveurs de votre bot Discord." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },

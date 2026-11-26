@@ -10,9 +10,9 @@ import { Button } from "@/components/ui/button";
 const overviewQuery = queryOptions({ queryKey: ["discord", "overview"], queryFn: () => getOverview(), staleTime: 60_000 });
 export const Route = createFileRoute("/admin")({
   head: () => ({ meta: [
-    { title: "Administration vocale — FWU" },
+    { title: "Administration vocale — FWU V2" },
     { name: "description", content: "Gérez les rôles autorisés aux commandes /panel et /pv de votre bot Discord." },
-    { property: "og:title", content: "Administration vocale — FWU" },
+    { property: "og:title", content: "Administration vocale — FWU V2" },
     { property: "og:description", content: "Administration propriétaire des accès aux commandes vocales Discord." },
     { property: "og:type", content: "website" }, { name: "twitter:card", content: "summary" },
   ] }),

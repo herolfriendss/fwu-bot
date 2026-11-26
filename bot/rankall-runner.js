@@ -275,7 +275,7 @@ export async function executeRankAllJob({
       }
       await fresh.roles.add(
         currentRole,
-        `FWU rankall ${job.id} confirmé par ${actor.id}`,
+        `Rankall ${job.id} confirmé par ${actor.id}`,
       );
       assigned.push(fresh.id);
     } catch {
@@ -367,7 +367,7 @@ export async function undoRankAllJob({
         continue;
       }
       // Undo only takes back what this job added: a system step, not a rank-checked action.
-      await runAsActor(null, () => member.roles.remove(role, `FWU rankall ${job.id} annulé`));
+      await runAsActor(null, () => member.roles.remove(role, `Rankall ${job.id} annulé`));
       removed += 1;
     } catch {
       failed += 1;

@@ -13,8 +13,8 @@ const botsQuery = queryOptions({ queryKey: ["fwu-dedicated-bots"], queryFn: () =
 export const Route = createFileRoute("/statut")({
   ssr: false,
   head: () => ({ meta: [
-    { title: "Statut des bots — FWU" }, { name: "description", content: "Connexion Discord, dernière synchronisation et journal du bot hébergé sur Oracle." },
-    { property: "og:title", content: "Statut des bots — FWU" }, { property: "og:description", content: "Suivi privé de la connexion et des événements du bot Discord." },
+    { title: "Statut des bots — FWU V2" }, { name: "description", content: "Connexion Discord, dernière synchronisation et journal du bot hébergé sur Oracle." },
+    { property: "og:title", content: "Statut des bots — FWU V2" }, { property: "og:description", content: "Suivi privé de la connexion et des événements du bot Discord." },
     { property: "og:type", content: "website" }, { name: "twitter:card", content: "summary" },
   ] }),
   loader: ({ context }) => context.queryClient.ensureQueryData(statusQuery), component: StatusPage,

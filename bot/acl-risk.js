@@ -189,7 +189,7 @@ export function analyzeGuildAcl({
       add(
         "info",
         "tier.administrator",
-        `Le rôle ${label} « ${role.name} » a la permission Administrateur : les contrôles fins de FWU deviennent sans effet face aux permissions natives.`,
+        `Le rôle ${label} « ${role.name} » a la permission Administrateur : les contrôles fins des bots deviennent sans effet face aux permissions natives.`,
         { roleId },
       );
   }
@@ -299,7 +299,7 @@ export function normalizeGuildForAcl(
 
 export function formatAclReport(findings, { limit = 15 } = {}) {
   if (!findings.length)
-    return "✅ Aucune ACL risquée détectée par les règles de FWU.";
+    return "✅ Aucune ACL risquée détectée par les règles des bots.";
   const icon = { critical: "🟥", high: "🟧", medium: "🟨", info: "🟦" };
   const counts = Object.fromEntries(
     Object.keys(SEVERITY_ORDER).map((s) => [

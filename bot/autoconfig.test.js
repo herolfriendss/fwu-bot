@@ -36,7 +36,7 @@ test("runs once: reuses, creates what is missing, fills only empty settings", as
   const serves = (d) => d !== "guard";
   await runAutoconfig([guild], serves, store);
   assert.equal(settings.suggestion_channel, "s1");
-  assert.deepEqual(created, ["✨ FWU", "⭐・niveaux", "🎂・anniversaires", "🎂 Anniversaire"]);
+  assert.deepEqual(created, ["✨ Bots", "⭐・niveaux", "🎂・anniversaires", "🎂 Anniversaire"]);
   assert.deepEqual(ladder, ["helper", "mod"]);
   assert.ok(autoconfigValue("g", "fwu:levels"));
   created.length = 0;

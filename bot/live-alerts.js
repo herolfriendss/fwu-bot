@@ -108,7 +108,7 @@ export function buildLiveAlertEmbed(creator, item, animated = true) {
     title: `🔴 ${String(creator.displayName || "Créateur").slice(0, 240)} est en LIVE !`,
     description: `${String(item.title || "Nouveau direct").slice(0, 1_500)}\n\n[Regarder le direct](${item.link})`.slice(0, 4_096),
     url: item.link,
-    footer: { text: HER_THEME_FOOTER },
+    ...(HER_THEME_FOOTER ? { footer: { text: HER_THEME_FOOTER } } : {}),
     timestamp: new Date().toISOString(),
     ...(imageUrl ? { image: { url: imageUrl } } : {}),
   };

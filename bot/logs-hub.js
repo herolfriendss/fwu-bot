@@ -244,7 +244,7 @@ export async function sendToLogsHub(client, sourceGuild, embed, title = "", comp
     return false;
   const payload = structuredClone(embed);
   payload.footer = {
-    text: `FWU • ${spec.source.toUpperCase()} • ${sourceGuild.name} (${sourceGuild.id})`,
+    text: `${spec.source.toUpperCase()} • ${sourceGuild.name} (${sourceGuild.id})`,
   };
   payload.timestamp ??= new Date().toISOString();
   await channel.send({

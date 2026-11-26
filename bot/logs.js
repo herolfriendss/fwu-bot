@@ -92,10 +92,10 @@ export function systemLogEmbed({ title, description, color = 0xe21d2f, fields = 
   })) : [];
   return {
     color,
-    title: clean(title || "Événement FWU", 256),
+    title: clean(title || "Événement", 256),
     ...(description ? { description: clean(description, 4000) } : {}),
     ...(normalizedFields.length ? { fields: normalizedFields } : {}),
     timestamp: new Date().toISOString(),
-    footer: { text: "FWU • Journal centralisé" },
+    footer: { text: "Journal centralisé" },
   };
 }

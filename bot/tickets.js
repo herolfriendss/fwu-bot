@@ -77,7 +77,7 @@ function ticketButtons() {
 
 function panelEmbed(settings, guild) {
   return themePanelEmbed(new EmbedBuilder()
-    .setTitle("🌙 Support FWU")
+    .setTitle("🌙 Support")
     .setDescription(settings?.tickets?.supportRoleId
       ? "Besoin d’aide ? Clique sur le bouton ci-dessous. Un membre du staff te répondra."
       : "Besoin d’aide ? Clique sur le bouton ci-dessous pour ouvrir un ticket privé.")

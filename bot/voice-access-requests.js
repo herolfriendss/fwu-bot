@@ -134,7 +134,7 @@ export async function handleVoiceAccessRequestMessage(message, rawSettings = {})
   const config = db.prepare(`SELECT owner_user_id FROM voice_private_channels
     WHERE guild_id=? AND channel_id=? AND active=1`).get(message.guild.id, channel.id);
   if (!config) {
-    await message.reply({ content: "Cette vocale n'est pas enregistrée comme privée par FWU. Son propriétaire doit d'abord la verrouiller avec `=pv`.", allowedMentions: { parse: [] } });
+    await message.reply({ content: "Cette vocale n'est pas enregistrée comme privée par le bot. Son propriétaire doit d'abord la verrouiller avec `=pv`.", allowedMentions: { parse: [] } });
     return true;
   }
 

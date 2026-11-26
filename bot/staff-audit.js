@@ -91,7 +91,7 @@ export async function handleStaffMemberHistoryMessage(message, { settings = {}, 
     }
     return `• <t:${Math.floor(entry.occurredAt / 1000)}:f> — **${entry.action}** (${entry.type}) par ${actor}${entry.channelId ? ` · <#${entry.channelId}>` : ""}`;
   });
-  const content = `📚 **Historique staff — <@${targetId}>**\n${lines.length ? lines.join("\n") : "Aucun événement conservé."}\n\nHistorique limité aux événements observés et conservés par FWU.`;
+  const content = `📚 **Historique staff — <@${targetId}>**\n${lines.length ? lines.join("\n") : "Aucun événement conservé."}\n\nHistorique limité aux événements observés et conservés par le bot.`;
   await message.reply({ content: content.slice(0, 1900), allowedMentions: { parse: [] } });
   return true;
 }

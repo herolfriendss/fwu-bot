@@ -8,9 +8,9 @@ import { formatPnd } from "@/lib/economy";
 export const Route = createFileRoute("/serveur/$guildId")({
   ssr: false,
   head: () => ({ meta: [
-    { title: "Le serveur — FWU" },
+    { title: "Le serveur — FWU V2" },
     { name: "description", content: "Membres, bots, classement et commandes du serveur." },
-    { property: "og:title", content: "Le serveur — FWU" },
+    { property: "og:title", content: "Le serveur — FWU V2" },
     { property: "og:type", content: "website" },
   ] }),
   component: PublicServerPage,
@@ -41,7 +41,7 @@ function PublicServerPage() {
     <Shell>
       <header className="flex items-center gap-4">
         {p.iconUrl ? <img src={p.iconUrl} alt="" className="h-16 w-16 rounded-2xl" /> : <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-accent"><Users className="h-7 w-7" /></div>}
-        <div><h1 className="text-2xl font-bold">{p.name}</h1><p className="text-sm text-muted-foreground">Propulsé par les bots FWU</p></div>
+        <div><h1 className="text-2xl font-bold">{p.name}</h1><p className="text-sm text-muted-foreground">Propulsé par FWU V2</p></div>
       </header>
 
       <section className="grid gap-3 sm:grid-cols-3">

@@ -64,7 +64,7 @@ async function getLeashRole(guild, ownerId, ownerName, records = null) {
           permissions: [],
           mentionable: false,
           hoist: false,
-          reason: `Rôle système FWU DOG — laisse de ${String(ownerName ?? ownerId).slice(0, 60)}`,
+          reason: `Rôle système DOG — laisse de ${String(ownerName ?? ownerId).slice(0, 60)}`,
         })
         .finally(() => {
           leashRolePromises.delete(key);
@@ -663,7 +663,7 @@ export function canUndogAll(member) {
  * servers this bot is no longer on, e.g. the old bot's servers), "tout" (both).
  * Members still here get their old nickname back and lose the DOG role.
  */
-export async function undogAll({ guild, client, scope = "serveur", actorTag = "FWU" }) {
+export async function undogAll({ guild, client, scope = "serveur", actorTag = "bot" }) {
   const result = { released: 0, forgotten: 0, oldServers: 0, orphans: 0, failed: 0 };
   await withCommandLock(`${guild.id}:dog-state`, async () => {
     const records = await loadState();
@@ -755,7 +755,7 @@ export function orphanLeashParts(member) {
 }
 
 /** Remove what an old bot left behind: DOG role(s) and the leash nickname (reset to the member's own name). */
-export async function clearOrphanLeash(member, actorTag = "FWU") {
+export async function clearOrphanLeash(member, actorTag = "bot") {
   const { roles, nickname, any } = orphanLeashParts(member);
   if (!any) return false;
   for (const role of roles) await member.roles.remove(role, `Ancienne laisse DOG retirée par ${actorTag}`);

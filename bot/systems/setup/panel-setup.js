@@ -30,7 +30,7 @@ const MODULE_NAMES = Object.keys(SETUP_MODULES);
 const PANEL_SECTIONS = {
   home: {
     label: "Accueil",
-    description: "Administration Discord First de FWU.",
+    description: "Administration Discord First des bots.",
     commands:
       "`/setup` — activer, désactiver et régler les modules\n`/panel` — revenir à ce centre\n`/voc vocal-panel` — ouvrir le panneau vocal historique",
   },
@@ -332,7 +332,7 @@ function panelPayload(guild, settings, section = "home", commandGroups = []) {
   };
   const embed = new EmbedBuilder()
     .setColor(0xe21d2f)
-    .setTitle(`FWU • ${page.label}`)
+    .setTitle(`Centre de contrôle • ${page.label}`)
     .setDescription(`${page.description}\n\n${page.commands}`)
     .addFields({
       name: `Modules configurables • ${guild.name}`,

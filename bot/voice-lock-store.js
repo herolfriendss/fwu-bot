@@ -191,7 +191,7 @@ export async function reconcileVoiceLocks(
         await channel.permissionOverwrites.edit(
           guild.roles.everyone,
           { Connect: false },
-          "FWU : rétablissement du mode privé après redémarrage",
+          "Rétablissement du mode privé après redémarrage",
         );
         onRelocked(snapshot);
         result.relocked += 1;

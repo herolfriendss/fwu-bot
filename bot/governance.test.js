@@ -143,5 +143,5 @@ test("economy diagnostic reports open fraud signals to SYS+", async () => {
   assert.match(text, /Entonnoir/);
   assert.match(text, /Aucune correction ni sanction automatique/);
   const matrixText = await runSysPlusDiagnostic(guild, member, "s", "matrice");
-  assert.match(matrixText, /OWNER FWU/);
+  assert.match(matrixText, /1=OWNER ·/);
 });

@@ -57,7 +57,7 @@ function antinukeText(config) {
     `🛡️ **Anti-nuke** : ${config.enabled ? "activé" : "désactivé"}`,
     `Seuil : **${config.threshold}** actions destructrices en **${config.windowSeconds} s** par la même personne`,
     "Surveillé : suppression de salons et de rôles, bannissements, expulsions, création de webhooks.",
-    `Personnes de confiance : ${config.trusted.length ? config.trusted.map((id) => `<@${id}>`).join(", ") : "aucune"} (toi, le propriétaire du serveur et les bots FWU sont toujours exemptés)`,
+    `Personnes de confiance : ${config.trusted.length ? config.trusted.map((id) => `<@${id}>`).join(", ") : "aucune"} (toi, le propriétaire du serveur et les bots du serveur sont toujours exemptés)`,
   ].join("\n");
 }
 

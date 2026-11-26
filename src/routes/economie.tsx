@@ -17,9 +17,9 @@ const economyQuery = queryOptions({
 export const Route = createFileRoute("/economie")({
   ssr: false,
   head: () => ({ meta: [
-    { title: "Économie PND — FWU" },
+    { title: "Économie PND — FWU V2" },
     { name: "description", content: "Soldes, classement et boutique PND synchronisés depuis le bot Oracle." },
-    { property: "og:title", content: "Économie PND — FWU" },
+    { property: "og:title", content: "Économie PND — FWU V2" },
     { property: "og:description", content: "Aperçu privé de l’économie PND du bot Discord." },
     { property: "og:type", content: "website" },
     { name: "twitter:card", content: "summary" },

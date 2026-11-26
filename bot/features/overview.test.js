@@ -95,7 +95,8 @@ test("presence lists the six bots and marks a stale lease offline", () => {
 test("the panel names every bot and warns about the ones that are down", () => {
   const view = panelView();
   const json = JSON.stringify(view.embeds[0].toJSON());
-  for (const label of ["FWU", "GUARD", "FDPDLAVOC", "SUCK ME", "LE FISC"]) assert.ok(json.includes(label), label);
+  for (const label of ["Bot principal", "GUARD", "FDPDLAVOC", "SUCK ME", "LE FISC"]) assert.ok(json.includes(label), label);
   assert.match(json, /Hors ligne/);
+  assert.doesNotMatch(json, /FWU/);
   assert.equal(view.components.length, 1);
 });

@@ -17,9 +17,9 @@ const overviewQuery = queryOptions({
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "Tableau de bord — FWU" },
+      { title: "Tableau de bord — FWU V2" },
       { name: "description", content: "Suivez vos serveurs, lisez les salons et envoyez des messages avec votre bot Discord FWU." },
-      { property: "og:title", content: "Tableau de bord — FWU" },
+      { property: "og:title", content: "Tableau de bord — FWU V2" },
       { property: "og:description", content: "Serveurs, salons et messages de votre bot Discord en un coup d'œil." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },

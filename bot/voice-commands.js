@@ -72,7 +72,7 @@ async function apply(channel, plan) {
     await channel.permissionOverwrites.edit(
       resolved,
       { Connect: target.Connect },
-      "FWU : configuration des accès vocaux",
+      "Configuration des accès vocaux",
     );
   }
 }
@@ -102,12 +102,12 @@ async function unlock(channel) {
     await channel.permissionOverwrites.edit(
       channel.guild.roles.everyone,
       { Connect: null },
-      "FWU : déverrouillage compatible ancien /voc lock",
+      "Déverrouillage compatible ancien /voc lock",
     );
     deactivatePrivateVoiceChannel({ guildId: channel.guild.id, channelId: channel.id });
     return;
   }
-  if (snapshot.guildId !== channel.guild.id) throw new Error("Ce salon n’a pas été verrouillé par FWU sur ce serveur.");
+  if (snapshot.guildId !== channel.guild.id) throw new Error("Ce salon n’a pas été verrouillé par le bot sur ce serveur.");
   await apply(channel, restoreVoicePlan(serialOverwrites(channel), snapshot.overwrites));
   deactivatePrivateVoiceChannel({ guildId: channel.guild.id, channelId: channel.id });
   deleteVoiceLockSnapshot(channel.id);
@@ -168,7 +168,7 @@ function panelPayload(channel, panelId) {
   return {
     embeds: [themePanelEmbed(new EmbedBuilder()
       .setTitle(`🌙 Vocal · ${channel.name}`)
-      .setDescription("Panneau de contrôle des accès vocaux — FWU.")
+      .setDescription("Panneau de contrôle des accès vocaux.")
       .addFields({ name: "Privé", value: "Les membres sans accès ne peuvent plus rejoindre. Les administrateurs Discord et le propriétaire restent soumis aux règles natives de Discord." }), { thumbnailUrl: channel.guild.client.user?.displayAvatarURL?.({ extension: "png", size: 128 }) })],
     components: [
       new ActionRowBuilder().addComponents(
@@ -288,7 +288,7 @@ async function handleMenotteMessage(message, command, rawSettings) {
   auditMenotte(message.guild.id, message.author.id, "menotte", target.id, voiceChannel.id);
   await sendCentralLog(message.guild, normalizeSettings(rawSettings), systemLogEmbed({ title: "🔒 MENOTTE — membre immobilisé", description: `Acteur : <@${message.author.id}>\nCible : <@${target.id}>\nSalon : <#${voiceChannel.id}>` })).catch(() => {});
   await message.reply({
-    content: `🔒 **${target.displayName}** est menotté au salon <#${voiceChannel.id}>${expiresAt ? ` jusqu’à <t:${Math.floor(expiresAt / 1000)}:R>` : " sans limite de durée"}. S'il le quitte ou le rejoint plus tard, FWU le ramènera ici.`,
+    content: `🔒 **${target.displayName}** est menotté au salon <#${voiceChannel.id}>${expiresAt ? ` jusqu’à <t:${Math.floor(expiresAt / 1000)}:R>` : " sans limite de durée"}. S'il le quitte ou le rejoint plus tard, le bot le ramènera ici.`,
     allowedMentions: { parse: [] },
   });
   return true;
@@ -487,7 +487,7 @@ export async function handleVoiceMessage(message, rawSettings) {
       }
       const locks = listPrivateVoiceLocks(message.guild.id);
       const lines = locks.slice(0, 25).map((lock) => `• <#${lock.channelId}> — ${lock.ownerId ? `<@${lock.ownerId}>` : "responsable inconnu"} · depuis <t:${Math.floor(lock.createdAt / 1000)}:R>`);
-      await message.reply({ content: locks.length ? `🔒 **Salons privatisés (${locks.length})**\n${lines.join("\n")}${locks.length > 25 ? `\n… et ${locks.length - 25} autre(s).` : ""}` : "🔓 Aucun salon privatisé par FWU sur ce serveur.", allowedMentions: { parse: [] } });
+      await message.reply({ content: locks.length ? `🔒 **Salons privatisés (${locks.length})**\n${lines.join("\n")}${locks.length > 25 ? `\n… et ${locks.length - 25} autre(s).` : ""}` : "🔓 Aucun salon privatisé par le bot sur ce serveur.", allowedMentions: { parse: [] } });
       return true;
     }
     const { channel, member, bot } = await authorizedChannel(message.guild, message.author.id, undefined, command, settings);
@@ -596,8 +596,8 @@ export async function handleVoiceInteraction(interaction, rawSettings) {
         if (action === "block" && target.voice.channelId === channel.id && !botPermissions.has(PermissionFlagsBits.MoveMembers)) {
           throw new Error("Le bot doit avoir « Déplacer les membres » pour sortir cette personne du vocal.");
         }
-        await channel.permissionOverwrites.edit(target, { Connect: action === "allow" }, `Accès vocal depuis le panneau FWU par ${interaction.user.tag}`);
-        if (action === "block" && target.voice.channelId === channel.id) await target.voice.disconnect("Bloqué depuis le panneau vocal FWU");
+        await channel.permissionOverwrites.edit(target, { Connect: action === "allow" }, `Accès vocal depuis le panneau par ${interaction.user.tag}`);
+        if (action === "block" && target.voice.channelId === channel.id) await target.voice.disconnect("Bloqué depuis le panneau vocal");
       } else {
         throw new Error("Action inconnue.");
       }

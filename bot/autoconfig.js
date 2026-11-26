@@ -32,9 +32,9 @@ export function staffLadderCandidates(roles, guildId, botPosition) {
 }
 
 async function category(guild, me) {
-  const existing = [...guild.channels.cache.values()].find((c) => c.type === ChannelType.GuildCategory && /fwu/.test(fold(c.name)));
+  const existing = [...guild.channels.cache.values()].find((c) => c.type === ChannelType.GuildCategory && (/fwu/.test(fold(c.name)) || /^\W*bots$/.test(fold(c.name).trim())));
   if (existing) return existing;
-  return guild.channels.create({ name: "✨ FWU", type: ChannelType.GuildCategory, reason: "FWU : configuration automatique" }).catch(() => null);
+  return guild.channels.create({ name: "✨ Bots", type: ChannelType.GuildCategory, reason: "Configuration automatique" }).catch(() => null);
 }
 
 /** Text channel where members read but only bots write. */
@@ -45,7 +45,7 @@ async function ensureChannel(guild, me, key, patterns, name, topic, log) {
   if (!channel) {
     const parent = await category(guild, me);
     channel = await guild.channels.create({
-      name, type: ChannelType.GuildText, topic, parent: parent?.id ?? null, reason: "FWU : configuration automatique",
+      name, type: ChannelType.GuildText, topic, parent: parent?.id ?? null, reason: "Configuration automatique",
       permissionOverwrites: [
         { id: guild.id, deny: [P.SendMessages, P.CreatePublicThreads, P.CreatePrivateThreads] },
         { id: me.id, allow: [P.ViewChannel, P.SendMessages, P.EmbedLinks] },
@@ -63,7 +63,7 @@ async function ensureRole(guild, me, key, pattern, data, log) {
   let role = findRoleByName(guild.roles.cache.values(), pattern);
   if (role && role.position >= me.roles.highest.position) role = null;
   if (!role) {
-    role = await guild.roles.create({ ...data, permissions: [], reason: "FWU : configuration automatique" }).catch(() => null);
+    role = await guild.roles.create({ ...data, permissions: [], reason: "Configuration automatique" }).catch(() => null);
     if (role) log(`rôle créé ${role.name}`); else return null;
   } else log(`rôle trouvé ${role.name}`);
   mark(guild.id, key, role.id);
@@ -103,7 +103,7 @@ async function configureGuard(guild, me, log) {
     if (!channel.permissionOverwrites || channel.isThread?.()) continue;
     if (channel.parentId && channel.permissionsLocked) continue; // inherits from its category
     if (channel.permissionOverwrites.cache.get(roleId)?.deny?.has?.(P.ViewChannel)) continue;
-    const ok = await channel.permissionOverwrites.edit(roleId, { ViewChannel: false, SendMessages: false, Connect: false }, { reason: "FWU : rôle de quarantaine" }).then(() => true).catch(() => false);
+    const ok = await channel.permissionOverwrites.edit(roleId, { ViewChannel: false, SendMessages: false, Connect: false }, { reason: "Rôle de quarantaine" }).then(() => true).catch(() => false);
     if (ok) applied += 1;
   }
   mark(guild.id, "guard:quarantine_ready", String(applied));

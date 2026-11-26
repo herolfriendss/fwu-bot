@@ -441,7 +441,7 @@ export async function handleSysPlusMessage(message, settings, { apiUrl, secret, 
       { name: "Modules disponibles", value: "Tickets staff : actifs\nCommandes vocales `=access` / `=panel` / `=pv` : actives\nDOG, flux audio autorisés et mini-jeux : actifs" },
       { name: "Portée des privilèges", value: "ADMIN+ reste limité aux scopes configurés. SYS+, WHITELIST et les permissions natives Discord gardent leurs contrôles indépendants." }
     )
-    .setFooter({ text: "FWU • Centre de contrôle SYS+" }), { thumbnailUrl: herBotAvatar(message.guild) });
+    .setFooter({ text: "Centre de contrôle SYS+" }), { thumbnailUrl: herBotAvatar(message.guild) });
   await message.reply({ embeds: [embed], allowedMentions: { parse: [] } });
   return true;
 }
@@ -539,7 +539,7 @@ export async function handleSysPlusInteraction(interaction, settings, { apiUrl, 
         { name: "Incidents élevés / critiques", value: String(critical.length), inline: true },
         { name: "Dernières actions SYS+", value: auditRows.length ? auditRows.map((row) => `• \`${row.action}\` — <t:${Math.floor(row.createdAt / 1000)}:R>`).join("\n") : "Aucune action récente." },
       )
-      .setFooter({ text: "FWU • Privé ne signifie pas invisible : accès audité, aucune surveillance des membres." });
+      .setFooter({ text: "Privé ne signifie pas invisible : accès audité, aucune surveillance des membres." });
     await interaction.reply({ embeds: [embed], ephemeral: true, allowedMentions: { parse: [] } });
     return true;
   }
@@ -1023,7 +1023,7 @@ ${reason}`, ephemeral: true });
         { name: "Commandes disponibles", value: "`/ticket` · `/sysp audit` · `=sysp admin-role @Rôle` · `/sysp whitelist-role` · `/sysp supervisor-set|supervisor-remove|supervisor-list` · `/sysp whitelist-*` (propriétaire) · `=access` · `=panel` · `=pv` · DOG · MENOTTE" },
         { name: "Modules disponibles", value: "Tickets staff, économie PND, social, cartes, vocal temporaire et jeux." }
       )
-      .setFooter({ text: "FWU • Centre de contrôle SYS+" }), { thumbnailUrl: herBotAvatar(guild) });
+      .setFooter({ text: "Centre de contrôle SYS+" }), { thumbnailUrl: herBotAvatar(guild) });
 
     await interaction.reply({ embeds: [embed], ephemeral: true, allowedMentions: { parse: [] } });
     return true;

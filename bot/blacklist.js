@@ -47,7 +47,7 @@ export function canUseBlacklist(member, guildSettings) {
 }
 
 function banReason(reason, actorId) {
-  return `FWU blacklist (par ${actorId})${reason ? ` : ${reason}` : ""}`.slice(0, 500);
+  return `Blacklist (par ${actorId})${reason ? ` : ${reason}` : ""}`.slice(0, 500);
 }
 
 /**
@@ -88,7 +88,7 @@ export function removeFromBlacklist(guildId, userId) {
 /** Lifts the Discord ban. Returns "unbanned", "not_banned" or "failed". */
 export async function liftBlacklistBan(guild, userId, actorId) {
   try {
-    await guild.bans.remove(userId, `FWU : retiré de la blacklist par ${actorId}`.slice(0, 500));
+    await guild.bans.remove(userId, `Retiré de la blacklist par ${actorId}`.slice(0, 500));
     return "unbanned";
   } catch (error) {
     return error?.code === 10026 ? "not_banned" : "failed";
@@ -100,7 +100,7 @@ export async function enforceBlacklistOnJoin(member, record = () => {}) {
   if (!member?.guild || !isBlacklisted(member.guild.id, member.id)) return false;
   const entry = getBlacklistEntry(member.guild.id, member.id);
   try {
-    await member.ban({ reason: banReason(entry?.reason, entry?.added_by ?? "FWU") });
+    await member.ban({ reason: banReason(entry?.reason, entry?.added_by ?? "bot") });
     record("blacklist_rebanned");
     return true;
   } catch {

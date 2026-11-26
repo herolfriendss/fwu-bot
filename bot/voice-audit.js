@@ -153,7 +153,7 @@ export async function handleVoicePresenceMessage(message) {
   const rows = getVoiceMembersAt(message.guild.id, timestamp);
   const lines = rows.slice(0, 40).map((row) => `• <@${row.userId}> — <#${row.channelId}> — ${row.precision === "approximate" ? "présence approximative (coupure/redémarrage possible)" : "présence enregistrée"}`);
   await message.reply({
-    content: `🎙️ **Présences vocales à <t:${Math.floor(timestamp / 1000)}:F>**\n${lines.length ? lines.join("\n") : "Aucune présence enregistrée à cette date. Attention : les périodes où le bot était hors ligne peuvent être incomplètes."}\n\nHistorique limité aux événements observés par FWU. Aucune conversation audio n'est enregistrée.`,
+    content: `🎙️ **Présences vocales à <t:${Math.floor(timestamp / 1000)}:F>**\n${lines.length ? lines.join("\n") : "Aucune présence enregistrée à cette date. Attention : les périodes où le bot était hors ligne peuvent être incomplètes."}\n\nHistorique limité aux événements observés par le bot. Aucune conversation audio n'est enregistrée.`,
     allowedMentions: { parse: [] },
   });
   return true;

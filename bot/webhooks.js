@@ -60,7 +60,7 @@ export async function handleWebhookInteraction(interaction, settings = {}, recor
       if (!channel.isTextBased() || !channel.guild || channel.guild.id !== guild.id || typeof channel.createWebhook !== "function") throw new Error("Choisis un salon textuel de ce serveur.");
       const bot = guild.members.me ?? await guild.members.fetchMe();
       if (!channel.permissionsFor(bot)?.has(PermissionFlagsBits.ManageWebhooks)) throw new Error("Le bot doit avoir Gérer les webhooks dans ce salon.");
-      const created = await channel.createWebhook({ name, reason: `Webhook FWU créé par ${interaction.user.tag}` });
+      const created = await channel.createWebhook({ name, reason: `Webhook créé par ${interaction.user.tag}` });
       try {
         insertWebhook.run(created.id, guild.id, channel.id, name, encryptWebhookToken(created.token), interaction.user.id, Date.now());
       } catch (error) {
@@ -75,7 +75,7 @@ export async function handleWebhookInteraction(interaction, settings = {}, recor
     if (action === "list") {
       const rows = listWebhooks.all(guild.id);
       const description = rows.map((row) => `• **${row.name}** — <#${row.channel_id}> — animation ${row.animation_enabled ? "🟣 activée" : "⚫ désactivée"} — ID \`${row.id}\``).join("\n") || "Aucun webhook géré.";
-      const embed = themePanelEmbed(new EmbedBuilder().setTitle("🔗 Webhooks FWU").setDescription(description), { footer: HER_THEME_FOOTER, thumbnailUrl: herBotAvatar(guild) });
+      const embed = themePanelEmbed(new EmbedBuilder().setTitle("🔗 Webhooks").setDescription(description), { footer: HER_THEME_FOOTER, thumbnailUrl: herBotAvatar(guild) });
       await interaction.reply({ embeds: [embed], ephemeral: true, allowedMentions: { parse: [] } });
       return true;
     }
@@ -88,11 +88,11 @@ export async function handleWebhookInteraction(interaction, settings = {}, recor
       const channel = await guild.channels.fetch(row.channel_id).catch(() => null);
       const remote = await channel?.fetchWebhooks().catch(() => null);
       const target = remote?.get(id);
-      if (target) await target.delete("Suppression via FWU");
+      if (target) await target.delete("Suppression via le bot");
       removeWebhook.run(id, guild.id);
       record("webhook_deleted");
       await sendCentralLog(guild, settings, systemLogEmbed({ title: "🗑️ Webhook supprimé", description: `Acteur : <@${interaction.user.id}>\nWebhook : \`${id}\`\nSalon : <#${row.channel_id}>` })).catch(() => {});
-      await interaction.reply({ content: "🗑️ Webhook supprimé de FWU et de Discord s'il existe encore.", ephemeral: true });
+      await interaction.reply({ content: "🗑️ Webhook supprimé du bot et de Discord s'il existe encore.", ephemeral: true });
       return true;
     }
     const hook = webhookClient(row);
