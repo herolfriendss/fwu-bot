@@ -57,6 +57,7 @@ export const HIERARCHY_MESSAGES = Object.freeze({
   owner: "⛔ Cette personne est l'OWNER : personne d'autre ne peut agir sur elle.",
   guildOwner: "⛔ Le propriétaire du serveur ne peut pas être visé.",
   notLower: "⛔ Tu ne peux agir que sur un membre dont le rôle le plus élevé est en dessous du tien.",
+  targetMissing: "⛔ Ce membre n'est pas présent sur le serveur : cette commande exige un membre présent.",
   unreadable: "⛔ Hiérarchie des rôles illisible : action refusée par sécurité.",
 });
 
@@ -84,29 +85,60 @@ export function decideHierarchy({ actorId, targetId, actorPosition, targetPositi
   return targetPosition < actorPosition ? null : HIERARCHY_MESSAGES.notLower;
 }
 
+const ABSENT_TARGET_ALLOWED_PATHS = new Set(["ban", "blacklist add"]);
+
+function isUnknownGuildMember(error) {
+  return Number(error?.code ?? error?.rawError?.code) === 10007;
+}
+
+async function fetchHierarchyMember(guild, userId) {
+  try {
+    const member = await guild.members.fetch({ user: userId, force: true });
+    return member ? { member } : { error: new Error("Member lookup returned no member") };
+  } catch (error) {
+    return isUnknownGuildMember(error) ? { absent: true } : { error };
+  }
+}
+
 /** Returns a refusal text, or null when the command may continue. Never mutates anything. */
 export async function checkInteractionHierarchy(interaction, { pndOwnerId = parsePndOwnerId(process.env.PND_OWNER_DISCORD_ID) } = {}) {
   if (!interaction?.isChatInputCommand?.() || !interaction.guild) return null;
-  const option = HIERARCHY_TARGETS[commandPath(interaction)];
+  const path = commandPath(interaction);
+  const option = HIERARCHY_TARGETS[path];
   if (!option) return null;
   const user = interaction.options.getUser?.(option, false);
   if (!user) return null;
   const guild = interaction.guild;
   const actorId = interaction.user?.id;
   if (hasFullAccess(actorId, { guildOwnerId: guild.ownerId, pndOwnerId }) && user.id !== pndOwnerId) return null;
-  const [actor, target] = await Promise.all([
-    guild.members.fetch({ user: actorId, force: true }).catch(() => null),
-    guild.members.fetch({ user: user.id, force: true }).catch(() => null),
+
+  const [actorResult, targetResult] = await Promise.all([
+    fetchHierarchyMember(guild, actorId),
+    fetchHierarchyMember(guild, user.id),
   ]);
+  // A failed actor lookup or any target lookup error other than Discord's explicit
+  // Unknown Member response makes hierarchy unverifiable. Never turn an API outage
+  // into permission to act on an ID-only target.
+  if (actorResult.error || !actorResult.member || targetResult.error) {
+    return HIERARCHY_MESSAGES.unreadable;
+  }
+
   const position = (member) => {
     const value = member?.roles?.highest?.position;
     return Number.isFinite(value) ? value : NaN;
   };
+  if (targetResult.absent && !ABSENT_TARGET_ALLOWED_PATHS.has(path)) {
+    const protectedTarget = decideHierarchy({
+      actorId, targetId: user.id, actorPosition: position(actorResult.member),
+      targetPosition: null, guildOwnerId: guild.ownerId, pndOwnerId,
+    });
+    return protectedTarget ?? HIERARCHY_MESSAGES.targetMissing;
+  }
   return decideHierarchy({
     actorId,
     targetId: user.id,
-    actorPosition: position(actor),
-    targetPosition: target ? position(target) : null,
+    actorPosition: position(actorResult.member),
+    targetPosition: targetResult.absent ? null : position(targetResult.member),
     guildOwnerId: guild.ownerId,
     pndOwnerId,
   });
