@@ -86,6 +86,7 @@ import { BOT_PROFILES, LEASE_RENEW_MS, createDomainGate, enqueueRelayedLog, load
 import { handleLiveInteraction, handleLiveMessage } from "./live-commands.js";
 import { SLASH_FOR_PREFIX, prefixifyPayload, slashifyPayload } from "./prefix-to-slash.js";
 import { handleDossierButton, installMessageReplyLayer, installReplyLayer } from "./reply-layer.js";
+import { installMonochromeTheme } from "./monochrome-theme.js";
 import { handleLogsInteraction, handleLogsMessage } from "./logs-commands.js";
 import { logEvent, startLogMaintenance } from "./log-events.js";
 import { activeSourceGuildIds } from "./logs-config.js";
@@ -336,6 +337,8 @@ function auditSlashUsage(interaction, category) {
 
 // Nobody can touch the OWNER, whatever the path (commands, panels, jobs, automatic protections).
 installOwnerShield({ report: () => record("owner_shield_blocked") });
+// Thème noir et blanc : embeds en niveaux de gris, boutons colorés en gris, pour tout message sortant.
+installMonochromeTheme();
 const guardReport = (guild, { title, description, color }) => sendCentralLog(guild, settings[guild.id], systemLogEmbed({ category: "security", title, description, color }));
 const automod = createAutomod({ report: guardReport, record: (code) => record(code) });
 const client = new Client({

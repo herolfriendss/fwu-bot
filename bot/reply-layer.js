@@ -22,13 +22,16 @@ export const REFUSAL_DELETE_MS = 10_000;
 const DOSSIER_RETENTION_MS = 90 * 24 * 60 * 60_000;
 
 /** Couleur par bot et par type, icône du bot (aucun nom de produit affiché). */
+// Thème noir et blanc (26/11/2026) : le type se lit à la teinte (blanc = succès,
+// gris = information/attention, noir = refus) ; chaque bot se reconnaît à son icône.
+const MONO_KINDS = Object.freeze({ success: 0xffffff, info: 0xbdbdbd, warning: 0x7a7a7a, refusal: 0x1c1c1c });
 export const BOT_STYLES = Object.freeze({
-  fwu: { icon: "🌐", label: "Bot principal", colors: { success: 0x22c55e, refusal: 0xef4444, warning: 0xf59e0b, info: 0x5865f2 } },
-  guard: { icon: "🛡️", label: "GUARD", colors: { success: 0x16a34a, refusal: 0xdc2626, warning: 0xea580c, info: 0x64748b } },
-  fdpdlavoc: { icon: "🎧", label: "FDPDLAVOC", colors: { success: 0x10b981, refusal: 0xe11d48, warning: 0xf97316, info: 0x8b5cf6 } },
-  suckme: { icon: "👑", label: "SUCK ME", colors: { success: 0x22c55e, refusal: 0xef4444, warning: 0xf59e0b, info: 0xeab308 } },
-  fisc: { icon: "💰", label: "LE FISC", colors: { success: 0x15803d, refusal: 0xb91c1c, warning: 0xd97706, info: 0x059669 } },
-  investplus: { icon: "📈", label: "Invest +", colors: { success: 0x0d9488, refusal: 0xbe123c, warning: 0xca8a04, info: 0x06b6d4 } },
+  fwu: { icon: "🌐", label: "Bot principal", colors: MONO_KINDS },
+  guard: { icon: "🛡️", label: "GUARD", colors: MONO_KINDS },
+  fdpdlavoc: { icon: "🎧", label: "FDPDLAVOC", colors: MONO_KINDS },
+  suckme: { icon: "👑", label: "SUCK ME", colors: MONO_KINDS },
+  fisc: { icon: "💰", label: "LE FISC", colors: MONO_KINDS },
+  investplus: { icon: "📈", label: "Invest +", colors: MONO_KINDS },
 });
 
 export const KIND_TITLES = Object.freeze({

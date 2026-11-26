@@ -38,7 +38,8 @@ const ACTION_LABELS = Object.freeze({
 
 const SEVERITY_ICONS = Object.freeze({ info: "ℹ️", notice: "📝", warning: "⚠️", critical: "🚨" });
 const BOT_TINTS = Object.freeze({ fwu: 0, guard: 1, fdpdlavoc: 2, suckme: 3, fisc: 4, investplus: 5 });
-const SEVERITY_BASE = Object.freeze({ info: [0x64748b, 0x475569, 0x8b5cf6, 0xeab308, 0x059669, 0x06b6d4], notice: [0x3b82f6, 0x2563eb, 0x7c3aed, 0xca8a04, 0x16a34a, 0x0891b2], warning: [0xf59e0b, 0xea580c, 0xf97316, 0xd97706, 0xd97706, 0xca8a04], critical: [0xef4444, 0xdc2626, 0xe11d48, 0xb91c1c, 0xb91c1c, 0xbe123c] });
+// Thème noir et blanc : la gravité se lit du blanc (info) au noir (critique), un léger écart par bot.
+const SEVERITY_BASE = Object.freeze({ info: [0xe5e5e5, 0xe0e0e0, 0xdbdbdb, 0xd6d6d6, 0xd1d1d1, 0xcccccc], notice: [0xa3a3a3, 0x9e9e9e, 0x999999, 0x949494, 0x8f8f8f, 0x8a8a8a], warning: [0x666666, 0x616161, 0x5c5c5c, 0x575757, 0x525252, 0x4d4d4d], critical: [0x1a1a1a, 0x171717, 0x141414, 0x111111, 0x0e0e0e, 0x0b0b0b] });
 
 export function severityColor(bot, severity) {
   const palette = SEVERITY_BASE[severity] ?? SEVERITY_BASE.info;

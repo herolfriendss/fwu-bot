@@ -63,3 +63,12 @@ Reste (partiel) :
   être supprimé qu'après typage de ses ≈40 appelants.
 - Les modules émettent encore des embeds libres via `systemLogEmbed` (catégorie typée, mais pas encore action/gravité/dossier) ;
   les nouvelles fonctions (BLR, piège, mode raid…) utilisent `logEvent`.
+| Demande de l'owner : thème noir et blanc | fait | 1 072 tests (1 046 réussis, 26 ignorés), smoke 2 734/0, vitest 277, tsc/eslint OK |
+
+### Thème noir et blanc (`bot/monochrome-theme.js`)
+
+Crochet unique sur `MessagePayload.resolveBody` (discord.js), installé au démarrage dans `index.js` : **tout** message
+sortant des 6 bots (réponses, panneaux, logs, éditions, webhooks) a ses couleurs d'embed converties en gris de même
+luminance (un embed sans couleur prend le blanc cassé du thème) et ses boutons bleus/verts/rouges passés en gris.
+La couche de réponses et les journaux typés utilisent directement une palette de gris (succès blanc → refus noir).
+Non modifié : images (bannières GIF, cartes, avatars), emojis colorés, site/tableau de bord.
