@@ -1,0 +1,47 @@
+name: Commit regenerated dependency lockfile
+
+on:
+  push:
+    branches:
+      - security/patch-vite-zod-2026-11-26
+    paths:
+      - package.json
+      - .github/workflows/regenerate-patched-lockfile.yml
+
+permissions:
+  contents: write
+
+concurrency:
+  group: fwu-patched-lockfile-commit
+  cancel-in-progress: true
+
+jobs:
+  regenerate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: true
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Generate lockfile without running dependency scripts
+        run: npm install --package-lock-only --ignore-scripts --no-audit --no-fund
+
+      - name: Verify clean install without running dependency scripts
+        run: npm ci --ignore-scripts --no-audit --no-fund
+
+      - name: Commit lockfile only
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add package-lock.json
+          if git diff --cached --quiet; then
+            echo "Lockfile already matches package.json."
+            exit 0
+          fi
+          git commit -m "chore(deps): regenerate patched package lock"
+          git push
