@@ -30,7 +30,7 @@ test("non-members (ban by ID) and self-targeting are left to the command", () =>
   assert.equal(decideHierarchy({ ...base, actorId: "2", targetId: "3", actorPosition: Number.NaN, targetPosition: 4 }), HIERARCHY_MESSAGES.unreadable);
 });
 
-function interaction({ path, actorId, targetId, positions, guildOwnerId = GUILD_OWNER }) {
+function interaction({ path, actorId, targetId, positions, fetchErrors = {}, guildOwnerId = GUILD_OWNER }) {
   const [commandName, a, b] = path.split(" ");
   const sub = b ?? a ?? null;
   const group = b ? a : null;
@@ -41,7 +41,13 @@ function interaction({ path, actorId, targetId, positions, guildOwnerId = GUILD_
     options: { getSubcommand: () => sub, getSubcommandGroup: () => group, getUser: () => ({ id: targetId }) },
     guild: {
       ownerId: guildOwnerId,
-      members: { fetch: async ({ user }) => (user in positions ? { id: user, roles: { highest: { position: positions[user] } } } : Promise.reject(new Error("unknown"))) },
+      members: {
+        fetch: async ({ user }) => {
+          if (fetchErrors[user]) throw fetchErrors[user];
+          if (user in positions) return { id: user, roles: { highest: { position: positions[user] } } };
+          throw Object.assign(new Error("unknown member"), { code: 10007 });
+        },
+      },
     },
   };
 }
@@ -52,7 +58,11 @@ test("central guard refuses a SYS+ action on a higher member and lets the OWNER 
   assert.equal(await checkInteractionHierarchy(interaction({ path: "ban", actorId: "2", targetId: "3", positions }), { pndOwnerId: OWNER }), HIERARCHY_MESSAGES.notLower);
   assert.equal(await checkInteractionHierarchy(interaction({ path: "ban", actorId: OWNER, targetId: "3", positions }), { pndOwnerId: OWNER }), null);
   assert.equal(await checkInteractionHierarchy(interaction({ path: "ban", actorId: "3", targetId: "2", positions }), { pndOwnerId: OWNER }), null);
-  assert.equal(await checkInteractionHierarchy(interaction({ path: "ban", actorId: "3", targetId: "404", positions }), { pndOwnerId: OWNER }), null, "ban by ID of a non-member");
+  assert.equal(await checkInteractionHierarchy(interaction({ path: "ban", actorId: "3", targetId: "404", positions }), { pndOwnerId: OWNER }), null, "ban by ID of a confirmed non-member");
+  assert.equal(await checkInteractionHierarchy(interaction({ path: "blacklist add", actorId: "3", targetId: "404", positions }), { pndOwnerId: OWNER }), null, "blacklist may ban a confirmed non-member by ID");
+  assert.equal(await checkInteractionHierarchy(interaction({ path: "dog", actorId: "3", targetId: "404", positions }), { pndOwnerId: OWNER }), HIERARCHY_MESSAGES.targetMissing, "member-only actions reject absent users");
+  assert.equal(await checkInteractionHierarchy(interaction({ path: "ban", actorId: "2", targetId: "3", positions, fetchErrors: { 3: Object.assign(new Error("rate limited"), { code: 429 }) } }), { pndOwnerId: OWNER }), HIERARCHY_MESSAGES.unreadable, "API errors must not become an absent target");
+  assert.equal(await checkInteractionHierarchy(interaction({ path: "ban", actorId: "2", targetId: "3", positions, fetchErrors: { 2: new Error("network unavailable") } }), { pndOwnerId: OWNER }), HIERARCHY_MESSAGES.unreadable, "actor lookup failures reject closed");
   assert.equal(await checkInteractionHierarchy(interaction({ path: "balance", actorId: "2", targetId: "3", positions }), { pndOwnerId: OWNER }), null, "public commands untouched");
 });
 
