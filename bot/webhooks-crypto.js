@@ -23,3 +23,13 @@ export function decryptWebhookToken(payload, key) {
   decipher.setAuthTag(tag);
   return Buffer.concat([decipher.update(ciphertext), decipher.final()]).toString("utf8");
 }
+
+/** Encrypt a webhook token using the configured 64-character hexadecimal key. */
+export function encryptWebhookTokenWithHexKey(token, keyHex) {
+  return encryptWebhookToken(token, parseWebhookEncryptionKey(keyHex));
+}
+
+/** Decrypt a stored webhook token using the configured 64-character hexadecimal key. */
+export function decryptWebhookTokenWithHexKey(payload, keyHex) {
+  return decryptWebhookToken(payload, parseWebhookEncryptionKey(keyHex));
+}
