@@ -30,7 +30,7 @@ test("non-members (ban by ID) and self-targeting are left to the command", () =>
   assert.equal(decideHierarchy({ ...base, actorId: "2", targetId: "3", actorPosition: Number.NaN, targetPosition: 4 }), HIERARCHY_MESSAGES.unreadable);
 });
 
-function interaction({ path, actorId, targetId, positions, guildOwnerId = GUILD_OWNER }) {
+function interaction({ path, actorId, targetId, positions, guildOwnerId = GUILD_OWNER, failure = null }) {
   const [commandName, a, b] = path.split(" ");
   const sub = b ?? a ?? null;
   const group = b ? a : null;
@@ -41,7 +41,13 @@ function interaction({ path, actorId, targetId, positions, guildOwnerId = GUILD_
     options: { getSubcommand: () => sub, getSubcommandGroup: () => group, getUser: () => ({ id: targetId }) },
     guild: {
       ownerId: guildOwnerId,
-      members: { fetch: async ({ user }) => (user in positions ? { id: user, roles: { highest: { position: positions[user] } } } : Promise.reject(new Error("unknown"))) },
+      members: {
+        fetch: async ({ user }) => {
+          if (failure && user === targetId) throw failure;
+          if (user in positions) return { id: user, roles: { highest: { position: positions[user] } } };
+          throw Object.assign(new Error("Unknown Member"), { code: 10007 });
+        },
+      },
     },
   };
 }
@@ -54,6 +60,20 @@ test("central guard refuses a SYS+ action on a higher member and lets the OWNER 
   assert.equal(await checkInteractionHierarchy(interaction({ path: "ban", actorId: "3", targetId: "2", positions }), { pndOwnerId: OWNER }), null);
   assert.equal(await checkInteractionHierarchy(interaction({ path: "ban", actorId: "3", targetId: "404", positions }), { pndOwnerId: OWNER }), null, "ban by ID of a non-member");
   assert.equal(await checkInteractionHierarchy(interaction({ path: "balance", actorId: "2", targetId: "3", positions }), { pndOwnerId: OWNER }), null, "public commands untouched");
+});
+
+test("central guard fails closed when the target cannot be read, but allows a target absent from the server", async () => {
+  const positions = { 2: 10, 3: 5 };
+  const rateLimited = Object.assign(new Error("rate limited"), { status: 429 });
+  assert.equal(await checkInteractionHierarchy(interaction({ path: "ban", actorId: "2", targetId: "3", positions, failure: rateLimited }), { pndOwnerId: OWNER }), HIERARCHY_MESSAGES.unreadable, "rate limit → refused");
+  assert.equal(await checkInteractionHierarchy(interaction({ path: "ban", actorId: "2", targetId: "3", positions, failure: new Error("network down") }), { pndOwnerId: OWNER }), HIERARCHY_MESSAGES.unreadable, "generic error → refused");
+  const unknownUser = Object.assign(new Error("Unknown User"), { code: 10013 });
+  assert.equal(await checkInteractionHierarchy(interaction({ path: "ban", actorId: "2", targetId: "3", positions, failure: unknownUser }), { pndOwnerId: OWNER }), null, "unknown user → absent, allowed");
+  assert.equal(await checkInteractionHierarchy(interaction({ path: "ban", actorId: "2", targetId: "404", positions }), { pndOwnerId: OWNER }), null, "unknown member (10007) → absent, allowed");
+});
+
+test("decideHierarchy refuses an unreadable target marker", () => {
+  assert.equal(decideHierarchy({ actorId: "2", targetId: "3", actorPosition: 10, targetPosition: Number.NaN, guildOwnerId: GUILD_OWNER, pndOwnerId: OWNER }), HIERARCHY_MESSAGES.unreadable);
 });
 
 test("every targeted path exists in the slash catalogue with that member option", async () => {
@@ -85,4 +105,40 @@ test("the guard runs in interactionCreate before any command handler", () => {
   const guard = source.indexOf("checkInteractionHierarchy(interaction)");
   assert.ok(guard > 0);
   assert.ok(guard < source.indexOf("handleDmAllInteraction(interaction"), "guard before handlers");
+});
+
+test("prefix commands map to the same targeted paths as their slash form", async () => {
+  const { prefixHierarchyPath, prefixTargetId } = await import("./hierarchy-guard.js");
+  assert.equal(prefixHierarchyPath("=rank <@300000000000000003> <@&1>"), "rank");
+  assert.equal(prefixHierarchyPath("=dog <@300000000000000003>"), "dog");
+  assert.equal(prefixHierarchyPath("=wakeup <@300000000000000003>"), "wakeup");
+  assert.equal(prefixHierarchyPath("=lockname <@300000000000000003> Pseudo"), "lockname proteger");
+  assert.equal(prefixHierarchyPath("=sysp add <@300000000000000003>"), "sysp add");
+  assert.equal(prefixHierarchyPath("=sysp audit <@300000000000000003>"), null, "read-only subcommand untouched");
+  assert.equal(prefixHierarchyPath("=balance <@300000000000000003>"), null);
+  assert.equal(prefixTargetId("=rank <@!300000000000000003> <@&400000000000000004>"), "300000000000000003");
+  assert.equal(prefixTargetId("=ban 300000000000000003 spam"), "300000000000000003");
+  assert.equal(prefixTargetId("=rank <@&400000000000000004>"), null);
+});
+
+test("prefix hierarchy refuses a higher target and fails closed on read errors", async () => {
+  const { checkPrefixHierarchy } = await import("./hierarchy-guard.js");
+  const message = (failure = null) => ({
+    author: { id: "200000000000000002" },
+    guild: {
+      ownerId: GUILD_OWNER,
+      members: {
+        fetch: async ({ user }) => {
+          if (failure && user === "300000000000000003") throw failure;
+          const positions = { "200000000000000002": 10, "300000000000000003": 20 };
+          if (user in positions) return { id: user, roles: { highest: { position: positions[user] } } };
+          throw Object.assign(new Error("Unknown Member"), { code: 10007 });
+        },
+      },
+    },
+  });
+  assert.equal(await checkPrefixHierarchy(message(), "=dog <@300000000000000003>", { pndOwnerId: OWNER }), HIERARCHY_MESSAGES.notLower);
+  assert.equal(await checkPrefixHierarchy(message(Object.assign(new Error("x"), { status: 429 })), "=wakeup <@300000000000000003>", { pndOwnerId: OWNER }), HIERARCHY_MESSAGES.unreadable);
+  assert.equal(await checkPrefixHierarchy(message(), "=balance <@300000000000000003>", { pndOwnerId: OWNER }), null);
+  assert.equal(await checkPrefixHierarchy(message(), "=ban 999999999999999999", { pndOwnerId: OWNER }), null, "absent → allowed (ban by ID)");
 });

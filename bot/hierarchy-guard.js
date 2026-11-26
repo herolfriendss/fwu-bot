@@ -6,6 +6,7 @@
 // The rule runs centrally in interactionCreate, so a module can never forget it; modules
 // keep their own checks (bot rank, Discord permissions) on top.
 import { parsePndOwnerId } from "./pnd-owner-policy.js";
+import { SLASH_FOR_PREFIX } from "./prefix-to-slash.js";
 
 /** "command[ group] sub" → option holding the targeted member. */
 export const HIERARCHY_TARGETS = Object.freeze({
@@ -84,6 +85,47 @@ export function decideHierarchy({ actorId, targetId, actorPosition, targetPositi
   return targetPosition < actorPosition ? null : HIERARCHY_MESSAGES.notLower;
 }
 
+/** Discord error codes meaning "this user is not (or no longer) a member of the server". */
+export const ABSENT_MEMBER_CODES = Object.freeze(new Set([10007, 10013]));
+
+/**
+ * Reads a member and tells "absent from the server" apart from "could not read".
+ * Fail closed: any error other than Unknown Member / Unknown User (rate limit, network,
+ * missing access) is reported as `unreadable`, never as "absent".
+ * @returns {Promise<{ state: "member", member: any } | { state: "absent" } | { state: "unreadable" }>}
+ */
+export async function readMemberState(guild, userId) {
+  try {
+    const member = await guild.members.fetch({ user: userId, force: true });
+    if (member) return { state: "member", member };
+    return { state: "absent" };
+  } catch (error) {
+    const code = Number(error?.code ?? error?.rawError?.code);
+    return ABSENT_MEMBER_CODES.has(code) ? { state: "absent" } : { state: "unreadable" };
+  }
+}
+
+/** Shared core: refusal text for `actorId` acting on `targetId` in `guild`, or null. */
+export async function checkTargetHierarchy(guild, actorId, targetId, { pndOwnerId = parsePndOwnerId(process.env.PND_OWNER_DISCORD_ID) } = {}) {
+  if (!guild || !targetId) return null;
+  if (hasFullAccess(actorId, { guildOwnerId: guild.ownerId, pndOwnerId }) && targetId !== pndOwnerId) return null;
+  const [actorState, targetState] = await Promise.all([readMemberState(guild, actorId), readMemberState(guild, targetId)]);
+  const actor = actorState.state === "member" ? actorState.member : null;
+  const position = (member) => {
+    const value = member?.roles?.highest?.position;
+    return Number.isFinite(value) ? value : NaN;
+  };
+  return decideHierarchy({
+    actorId,
+    targetId,
+    actorPosition: position(actor),
+    // absent → null (nothing to compare, e.g. ban by ID); unreadable → NaN (refused).
+    targetPosition: targetState.state === "absent" ? null : targetState.state === "member" ? position(targetState.member) : NaN,
+    guildOwnerId: guild.ownerId,
+    pndOwnerId,
+  });
+}
+
 /** Returns a refusal text, or null when the command may continue. Never mutates anything. */
 export async function checkInteractionHierarchy(interaction, { pndOwnerId = parsePndOwnerId(process.env.PND_OWNER_DISCORD_ID) } = {}) {
   if (!interaction?.isChatInputCommand?.() || !interaction.guild) return null;
@@ -91,23 +133,40 @@ export async function checkInteractionHierarchy(interaction, { pndOwnerId = pars
   if (!option) return null;
   const user = interaction.options.getUser?.(option, false);
   if (!user) return null;
-  const guild = interaction.guild;
-  const actorId = interaction.user?.id;
-  if (hasFullAccess(actorId, { guildOwnerId: guild.ownerId, pndOwnerId }) && user.id !== pndOwnerId) return null;
-  const [actor, target] = await Promise.all([
-    guild.members.fetch({ user: actorId, force: true }).catch(() => null),
-    guild.members.fetch({ user: user.id, force: true }).catch(() => null),
-  ]);
-  const position = (member) => {
-    const value = member?.roles?.highest?.position;
-    return Number.isFinite(value) ? value : NaN;
-  };
-  return decideHierarchy({
-    actorId,
-    targetId: user.id,
-    actorPosition: position(actor),
-    targetPosition: target ? position(target) : null,
-    guildOwnerId: guild.ownerId,
-    pndOwnerId,
-  });
+  return checkTargetHierarchy(interaction.guild, interaction.user?.id, user.id, { pndOwnerId });
+}
+
+/**
+ * Slash path a canonical prefix command ("=rank @x", "=sysp add @x") stands for, when
+ * that path targets a member (HIERARCHY_TARGETS); otherwise null.
+ */
+export function prefixHierarchyPath(canonical, slashForPrefix = SLASH_FOR_PREFIX) {
+  const words = String(canonical ?? "").trim().split(/\s+/);
+  const token = (words.shift() ?? "").replace(/^=/, "").toLowerCase();
+  const base = slashForPrefix[token];
+  if (!base) return null;
+  const args = words.filter((word) => /^[a-z-]+$/i.test(word)).map((word) => word.toLowerCase());
+  const candidates = [base, `${base} ${args[0] ?? ""}`.trim(), `${base} ${args[0] ?? ""} ${args[1] ?? ""}`.trim()];
+  return candidates.find((path) => HIERARCHY_TARGETS[path]) ?? null;
+}
+
+/** First member a prefix command aims at: a user mention, else a bare Discord ID. */
+export function prefixTargetId(canonical) {
+  const text = String(canonical ?? "");
+  const mention = text.match(/<@!?(\d{17,20})>/);
+  if (mention) return mention[1];
+  const bare = text.replace(/<@&\d+>|<#\d+>/g, " ").match(/(?:^|\s)(\d{17,20})(?=\s|$)/);
+  return bare ? bare[1] : null;
+}
+
+/**
+ * Same rule for prefix commands ("=dog @x", "=wakeup @x"…): the slash guard never sees
+ * them, so the message router calls this once, before any module.
+ */
+export async function checkPrefixHierarchy(message, canonical, options = {}) {
+  if (!message?.guild || !message.author?.id) return null;
+  if (!prefixHierarchyPath(canonical)) return null;
+  const targetId = prefixTargetId(canonical);
+  if (!targetId) return null;
+  return checkTargetHierarchy(message.guild, message.author.id, targetId, options);
 }

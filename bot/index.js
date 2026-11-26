@@ -103,7 +103,7 @@ import { checkLiveAlerts } from "./live-alerts.js";
 import { handleWebhookInteraction } from "./webhooks.js";
 import { handlePanelSetupInteraction } from "./systems/setup/panel-setup.js";
 import { getPndPrivilegedIds } from "./pnd-owner-policy.js";
-import { checkInteractionHierarchy } from "./hierarchy-guard.js";
+import { checkInteractionHierarchy, checkPrefixHierarchy } from "./hierarchy-guard.js";
 import { createAntiNuke, registerBotIdentity } from "./guard/anti-nuke.js";
 import { createAutomod } from "./guard/automod.js";
 import { handleShieldInteraction, checkHoneypotMessage } from "./guard/shield-commands.js";
@@ -537,6 +537,13 @@ async function handleMessageCreate(msg) {
   if (ownCommand) {
     const refusal = await freezeRefusal({ guildId: msg.guild.id, member: msg.member, prefixed: true, settings });
     if (refusal) { await msg.reply({ content: refusal, allowedMentions: { parse: [] } }).catch(() => {}); return; }
+    // Same hierarchy rule as slash commands ("=dog @x", "=wakeup @x"…), fail closed.
+    const hierarchyRefusal = await checkPrefixHierarchy(msg, prefixed.canonical).catch(() => "⛔ Hiérarchie des rôles illisible : action refusée par sécurité.");
+    if (hierarchyRefusal) {
+      record("hierarchy_refused");
+      await msg.reply({ content: hierarchyRefusal, allowedMentions: { parse: [] } }).catch(() => {});
+      return;
+    }
   }
   if (serves("fwu")) recordAnalyticsMetric(msg.guild.id, "messages");
   // GUARD trap channel: anyone writing there is handled and the message is gone.
