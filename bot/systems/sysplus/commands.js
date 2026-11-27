@@ -35,6 +35,7 @@ import { handleFreezeCommand } from "./freeze-commands.js";
 import { handleAbuseAlertCommand } from "./abuse-alerts.js";
 import { handleMemberCardCommand } from "./member-card.js";
 import { handleStaffStatsCommand } from "./staff-stats.js";
+import { lastUndoableGrant } from "./undo.js";
 import { forgetTemporary, sysPlusSpan, trackTemporary } from "./temporary.js";
 import { handleStaffNotesCommand } from "./staff-notes.js";
 import { isStaffForFreeze } from "../../staff-freeze-gate.js";
