@@ -185,3 +185,15 @@ test("no bypass: the Discord permission alone is not enough for mass voice actio
   const rankNoPerm = { ...sysplus, permissions: { has: () => false } };
   assert.equal(mass.canUseMassVoice(rankNoPerm, "mvall", env, SETTINGS), false, "the rank never replaces the Discord permission");
 });
+
+test("double validation: a mass action on 5+ members waits for another SYS+ when enabled", async () => {
+  const { needsSecondApproval } = await import("./voice-mass.js");
+  const { setDoubleValidation } = await import("./systems/sysplus/double-validation.js");
+  const plan = (n) => ({ members: Array.from({ length: n }, (_, i) => ({ id: `m${i}` })) });
+  setDoubleValidation("dv-guild", false);
+  assert.equal(needsSecondApproval("dv-guild", { id: "a" }, plan(10), {}), false, "désactivée");
+  setDoubleValidation("dv-guild", true);
+  assert.equal(needsSecondApproval("dv-guild", { id: "a" }, plan(10), {}), true);
+  assert.equal(needsSecondApproval("dv-guild", { id: "a" }, plan(4), {}), false, "moins de 5 membres");
+  assert.equal(needsSecondApproval("dv-guild", { id: "123456789012345678" }, plan(10), { PND_OWNER_DISCORD_ID: "123456789012345678" }), false, "owner");
+});

@@ -13,6 +13,8 @@ import { parsePndOwnerId } from "./pnd-owner-policy.js";
 import { isAntiMoveProtected } from "./anti-move.js";
 import { withVoiceChannelLock } from "./voice-channel-lock.js";
 import { logEvent } from "./log-events.js";
+import { doubleValidationEnabled } from "./systems/sysplus/double-validation.js";
+import { isSysPlus } from "./systems/sysplus/permissions.js";
 
 db.exec(`CREATE TABLE IF NOT EXISTS voice_mass_undo (
   guild_id TEXT PRIMARY KEY, actor_id TEXT NOT NULL, kind TEXT NOT NULL, payload TEXT NOT NULL, created_at INTEGER NOT NULL
@@ -212,17 +214,47 @@ export async function runMassCommand(guild, actor, request, options = {}) {
   return previewPayload(guild, actor, plan);
 }
 
+// Double validation (/sysp double-validation) : une action de masse sur 5 membres ou plus attend
+// un deuxième SYS+. L'owner configuré n'en a pas besoin.
+export const DOUBLE_VALIDATION_MIN_MEMBERS = 5;
+export function needsSecondApproval(guildId, actor, plan, env = process.env) {
+  if ((plan?.members?.length ?? 0) < DOUBLE_VALIDATION_MIN_MEMBERS) return false;
+  if (actor?.id && actor.id === parsePndOwnerId(env.PND_OWNER_DISCORD_ID)) return false;
+  try { return doubleValidationEnabled(guildId); } catch { return false; }
+}
+
 /** Boutons d'aperçu (auteur seulement ; la permission est revérifiée au clic). */
 export async function handleMassButton(interaction, { env = process.env, settings = null } = {}) {
   if (!interaction?.isButton?.() || !String(interaction.customId ?? "").startsWith("vmass:")) return false;
   const [, action, id] = interaction.customId.split(":");
   const entry = pending.get(id);
   if (!entry || entry.expiresAt < Date.now()) { pending.delete(id); await interaction.update({ content: "⌛ Aperçu expiré.", components: [] }).catch(() => {}); return true; }
+  if (action === "approve") {
+    // Deuxième SYS+ : jamais celui qui a lancé l'action.
+    if (interaction.user.id === entry.actorId) { await interaction.reply({ content: "⛔ Il faut un autre SYS+ que toi pour valider.", ephemeral: true }).catch(() => {}); return true; }
+    const approver = await interaction.guild.members.fetch({ user: interaction.user.id, force: true }).catch(() => null);
+    if (!approver || !isSysPlus(approver, settings?.sysPlus?.roleId ?? null)) { await interaction.reply({ content: "⛔ Réservé aux membres SYS+.", ephemeral: true }).catch(() => {}); return true; }
+    pending.delete(id);
+    const author = await interaction.guild.members.fetch({ user: entry.actorId, force: true }).catch(() => null);
+    if (!author || !canUseMassVoice(author, entry.plan.kind, env, settings)) { await interaction.update({ content: "⛔ L'auteur n'a plus la permission.", components: [] }).catch(() => {}); return true; }
+    await interaction.update({ content: `⏳ Validé par <@${approver.id}>, en cours…`, components: [], allowedMentions: { parse: [] } }).catch(() => {});
+    const { done, failed } = await executeMassPlan(interaction.guild, author, entry.plan);
+    await interaction.editReply({ content: `✅ ${done} membre(s) traité(s)${failed ? `, ${failed} échec(s)` : ""} (validé par <@${approver.id}>). Annulable avec \`/undo\` pendant 30 min.`, allowedMentions: { parse: [] } }).catch(() => {});
+    return true;
+  }
   if (interaction.user.id !== entry.actorId) { await interaction.reply({ content: "⛔ Ce bouton n'est pas pour toi.", ephemeral: true }).catch(() => {}); return true; }
-  pending.delete(id);
-  if (action === "cancel") { await interaction.update({ content: "❌ Action annulée.", components: [] }).catch(() => {}); return true; }
+  if (action === "cancel") { pending.delete(id); await interaction.update({ content: "❌ Action annulée.", components: [] }).catch(() => {}); return true; }
   const actor = await interaction.guild.members.fetch({ user: interaction.user.id, force: true }).catch(() => null);
-  if (!actor || !canUseMassVoice(actor, entry.plan.kind, env, settings)) { await interaction.update({ content: "⛔ Permission retirée entre-temps.", components: [] }).catch(() => {}); return true; }
+  if (!actor || !canUseMassVoice(actor, entry.plan.kind, env, settings)) { pending.delete(id); await interaction.update({ content: "⛔ Permission retirée entre-temps.", components: [] }).catch(() => {}); return true; }
+  if (needsSecondApproval(interaction.guild.id, actor, entry.plan, env)) {
+    entry.expiresAt = Date.now() + 10 * 60_000;
+    await interaction.update({
+      content: `🔐 Double validation : **${entry.plan.kind}** sur ${entry.plan.members.length} membre(s) attend l'accord d'un **autre SYS+** (10 min).`,
+      components: [{ type: 1, components: [{ type: 2, style: 3, label: "Valider (autre SYS+)", custom_id: `vmass:approve:${id}` }, { type: 2, style: 2, label: "Annuler", custom_id: `vmass:cancel:${id}` }] }],
+    }).catch(() => {});
+    return true;
+  }
+  pending.delete(id);
   await interaction.update({ content: "⏳ En cours…", components: [] }).catch(() => {});
   const { done, failed } = await executeMassPlan(interaction.guild, actor, entry.plan);
   await interaction.editReply({ content: `✅ ${done} membre(s) traité(s)${failed ? `, ${failed} échec(s)` : ""}. Annulable avec \`/undo\` pendant 30 min.` }).catch(() => {});

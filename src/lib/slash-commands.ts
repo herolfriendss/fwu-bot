@@ -284,13 +284,15 @@ export const SLASH_COMMANDS: SlashCommandDef[] = [
   {
     name: "ban",
     description: "Bannit un membre du serveur",
-    usage: "/ban membre raison",
+    usage: "/ban membre raison preuve|capture",
     category: "Modération",
     dmPermission: false,
     requiresBotProcess: true,
     options: [
       opt(6, "membre", "Membre à bannir", { required: true }),
       opt(3, "raison", "Raison", { required: true, max_length: 300 }),
+      opt(3, "preuve", "Lien du message ou description précise (preuve obligatoire)", { max_length: 300 }),
+      opt(11, "capture", "Capture d'écran de la preuve"),
     ],
   },
   {

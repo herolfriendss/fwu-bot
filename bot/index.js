@@ -34,7 +34,7 @@ import { expireWaoufActions, handleWaoufInteraction, handleWaoufMessage } from "
 import { expireMalus, handleMalusInteraction, handleMalusMessage } from "./systems/malus/commands.js";
 import { handleExileVoiceState, handlePatateMessage } from "./systems/malus/voice-games.js";
 import { handleCibleMessage, handleRansomMessage } from "./systems/malus/economy-malus.js";
-import { astreinteMembers, expireFrozenChannels, handleGardeInteraction, msUntilWeeklyReport, sendWeeklyStaffReports } from "./systems/garde/commands.js";
+import { astreinteMembers, expireFrozenChannels, handleGardeInteraction, msUntilWeeklyReport, sendSanctionEndReminders, sendWeeklyStaffReports } from "./systems/garde/commands.js";
 import { enforceLeashNickname, handleDogCommand, handleLeashVoiceState, handleUndogAllInteraction, reconcileLeashedMembers } from "./dog-commands.js";
 import { handleMusicExtrasInteraction, handleMusicMessage, handleMusicInteraction, handleRadioMessage, startConfiguredRadios } from "./music/music.js";
 import { economySnapshot, handleEconomyMessage, handleEconomyInteraction, reconcilePendingEconomy, recoverBlackjackGames, settleExpiredEconomyAuctions, transferEconomyRole } from "./economy.js";
@@ -1731,6 +1731,7 @@ client.once("clientReady", () => {
     void expireWaoufActions(client, settings).then((count) => { if (count) record("waouf_expired"); }).catch(() => record("waouf_expiration_error"));
     void expireMalus(client, settings).then((count) => { if (count) record("malus_expired"); }).catch(() => record("malus_error"));
     void expireFrozenChannels(client).catch(() => record("garde_error"));
+    if (IS_FWU) void sendSanctionEndReminders(client).catch(() => record("garde_error"));
   }, 30_000);
   // Bilan SYS+ du dimanche soir, en message privé (une fois par semaine et par serveur).
   const scheduleWeeklyStaffReport = () => setTimeout(() => {

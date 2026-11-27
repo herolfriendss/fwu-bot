@@ -22,6 +22,13 @@ import { formatDurationFr } from "./shared/quotas.js";
 
 const P = PermissionFlagsBits;
 const MAX_CASE_DETAILS = 1_000;
+/** Proof for a ban: an attachment URL, a link given as proof, or a link inside the reason. */
+export function banProof({ proof = null, attachment = null, reason = "" } = {}) {
+  if (attachment?.url && /^https:\/\//.test(attachment.url)) return attachment.url;
+  const link = (text) => String(text ?? "").match(/https:\/\/\S+/)?.[0] ?? null;
+  return link(proof) ?? link(reason) ?? (String(proof ?? "").trim().length >= 10 ? String(proof).trim().slice(0, 300) : null);
+}
+
 const MODERATION_COMMANDS = new Set(["warn", "warnings", "unmute", "kick", "ban", "tempban", "purge", "slowmode", "lock", "unlock", "verify"]);
 const CASE_ACTIONS = new Set(["warn", "mute", "unmute", "kick", "ban"]);
 const APPEALABLE_ACTIONS = new Set(["warn", "mute", "kick", "ban"]);
@@ -165,6 +172,10 @@ function moderationAppealById(appealId) {
 export function reviewModerationAppeal(guildId, reviewerId, appealId, decision, now = Date.now()) {
   if (!guildId || !reviewerId) throw new Error("Réviseur ou serveur invalide.");
   if (!new Set(["accepted", "rejected"]).has(decision)) throw new Error("Décision d’appel invalide.");
+  // Contestation examinée par quelqu'un d'autre que l'auteur de la sanction.
+  const author = db.prepare(`SELECT c.moderator_id FROM moderation_appeals a JOIN moderation_cases c ON c.guild_id=a.guild_id AND c.id=a.case_id
+    WHERE a.guild_id=? AND a.id=?`).get(guildId, appealId)?.moderator_id;
+  if (author && author === reviewerId) throw new Error("Tu as posé cette sanction : un autre membre du staff doit examiner l'appel.");
   const result = db.prepare(`UPDATE moderation_appeals SET status=?,reviewed_by=?,reviewed_at=?
     WHERE guild_id=? AND id=? AND status='pending'`).run(decision, reviewerId, now, guildId, appealId);
   if (!Number(result.changes)) throw new Error("Appel introuvable ou déjà traité.");
@@ -459,7 +470,13 @@ export async function handleModerationInteraction(interaction, guildSettings = {
     }
 
     if (command === "ban") {
-      const { caseId } = await runModerationAction({ ...common, execute: () => guild.members.ban(user.id, { reason, deleteMessageSeconds: 0 }) });
+      // Preuve obligatoire (PND_BAN_PROOF=off pour la rendre facultative) : capture jointe, ou lien dans « preuve » ou dans la raison.
+      const proof = banProof({ proof: interaction.options.getString?.("preuve") ?? null, attachment: interaction.options.getAttachment?.("capture") ?? null, reason });
+      if (!proof && String(process.env.PND_BAN_PROOF ?? "").trim().toLowerCase() !== "off") {
+        throw new Error("Un ban demande une preuve : joins une capture (`capture`) ou un lien de message (`preuve`). Elle est gardée dans le dossier.");
+      }
+      const banReason = proof ? `${reason} · preuve : ${proof}`.slice(0, 500) : reason;
+      const { caseId } = await runModerationAction({ ...common, reason: banReason, execute: () => guild.members.ban(user.id, { reason: banReason.slice(0, 450), deleteMessageSeconds: 0 }) });
       await confirm(interaction, `🔨 ${caseId ? `Dossier #${caseId} · ` : ""}<@${user.id}> banni.`);
       return true;
     }

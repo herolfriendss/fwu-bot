@@ -17,3 +17,16 @@ test("garde helpers", () => {
   assert.equal(new Date(nextWeeklyReport(sat)).toISOString(), "2026-11-29T19:00:00.000Z");
   assert.equal(new Date(nextWeeklyReport(Date.UTC(2026, 10, 29, 20))).toISOString(), "2026-12-06T19:00:00.000Z");
 });
+
+test("sanction end reminders: only temporary sanctions ending within 5 min, once", async () => {
+  const { sanctionsEndingSoon } = await import("./commands.js");
+  const now = 1_000_000_000;
+  const rows = [
+    { id: 1, created_at: now - 56 * 60_000, details_json: JSON.stringify({ durationMs: 60 * 60_000 }) },
+    { id: 2, created_at: now - 10 * 60_000, details_json: JSON.stringify({ durationMs: 60 * 60_000 }) },
+    { id: 3, created_at: now - 59 * 60_000, details_json: JSON.stringify({}) },
+    { id: 4, created_at: now - 58 * 60_000, details_json: JSON.stringify({ durationSeconds: 3600 }) },
+  ];
+  assert.deepEqual(sanctionsEndingSoon(rows, { now }).map((r) => r.id), [1, 4]);
+  assert.deepEqual(sanctionsEndingSoon(rows, { now, sent: new Set([1]) }).map((r) => r.id), [4]);
+});

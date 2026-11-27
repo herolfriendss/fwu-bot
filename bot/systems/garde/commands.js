@@ -11,7 +11,8 @@ import { appealOutcome, countBy, formatDuration, nextSanction, nextWeeklyReport 
 const P = PermissionFlagsBits;
 db.exec(`CREATE TABLE IF NOT EXISTS garde_astreinte (guild_id TEXT NOT NULL, member_id TEXT NOT NULL, since INTEGER NOT NULL, PRIMARY KEY (guild_id, member_id));
   CREATE TABLE IF NOT EXISTS garde_frozen_channels (guild_id TEXT NOT NULL, channel_id TEXT PRIMARY KEY, previous_slowmode INTEGER NOT NULL, had_overwrite INTEGER NOT NULL, previous_send TEXT, until INTEGER NOT NULL, by_id TEXT NOT NULL);
-  CREATE TABLE IF NOT EXISTS garde_weekly_sent (guild_id TEXT NOT NULL, week INTEGER NOT NULL, PRIMARY KEY (guild_id, week));`);
+  CREATE TABLE IF NOT EXISTS garde_weekly_sent (guild_id TEXT NOT NULL, week INTEGER NOT NULL, PRIMARY KEY (guild_id, week));
+  CREATE TABLE IF NOT EXISTS garde_end_reminders (case_id INTEGER PRIMARY KEY, sent_at INTEGER NOT NULL);`);
 
 class GardeError extends Error {}
 const safe = (fn, fallback) => { try { return fn(); } catch { return fallback; } };
@@ -229,3 +230,34 @@ export async function sendWeeklyStaffReports(client, settingsByGuild, { now = Da
   return sent;
 }
 export function msUntilWeeklyReport(now = Date.now()) { return nextWeeklyReport(now) - now; }
+
+/** Pure: temporary sanctions ending within `aheadMs` that still need a reminder. */
+export function sanctionsEndingSoon(rows, { now = Date.now(), aheadMs = 5 * 60_000, sent = new Set() } = {}) {
+  const out = [];
+  for (const row of rows) {
+    if (sent.has(row.id)) continue;
+    let details = {};
+    try { details = JSON.parse(row.details_json ?? "{}") ?? {}; } catch { continue; }
+    const ms = Number(details.durationMs ?? (details.durationSeconds ? details.durationSeconds * 1000 : 0));
+    if (!ms) continue;
+    const endsAt = Number(row.created_at) + ms;
+    if (endsAt > now && endsAt - now <= aheadMs) out.push({ ...row, endsAt });
+  }
+  return out;
+}
+
+/** Reminds the moderator 5 min before a temporary mute/ban ends (one DM per sanction). */
+export async function sendSanctionEndReminders(client, { now = Date.now() } = {}) {
+  const rows = safe(() => db.prepare("SELECT id, guild_id, user_id, moderator_id, action, details_json, created_at FROM moderation_cases WHERE action IN ('mute','ban') AND created_at > ? ORDER BY id DESC LIMIT 500").all(now - 30 * 86_400_000), []);
+  const sent = new Set(safe(() => db.prepare("SELECT case_id FROM garde_end_reminders WHERE sent_at > ?").all(now - 31 * 86_400_000).map((r) => r.case_id), []));
+  let count = 0;
+  for (const row of sanctionsEndingSoon(rows, { now, sent })) {
+    db.prepare("INSERT OR IGNORE INTO garde_end_reminders VALUES (?,?)").run(row.id, now);
+    const guild = client.guilds.cache.get(row.guild_id);
+    const moderator = await client.users.fetch(row.moderator_id).catch(() => null);
+    if (!guild || !moderator) continue;
+    await moderator.send({ content: `⏰ **${guild.name}** : ${row.action === "ban" ? "le ban temporaire" : "le mute"} de <@${row.user_id}> (dossier #${row.id}) se termine <t:${Math.floor(row.endsAt / 1000)}:R>. Pour prolonger, refais la sanction ; sinon rien à faire.`, allowedMentions: { parse: [] } }).catch(() => {});
+    count++;
+  }
+  return count;
+}
