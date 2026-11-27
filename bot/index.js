@@ -1072,7 +1072,7 @@ client.on("guildMemberUpdate", (oldMember, newMember) => {
   if (nicknameChanged) {
     void enforceProtectedNickname(newMember, settings[newMember.guild.id]).then((restored) => { if (restored) record("lockname_restored"); }).catch(() => record("lockname_restore_error"));
   }
-  enforceLeashNickname(newMember)
+  enforceLeashNickname(newMember, { onConflict: () => record("dog_conflict_paused") })
     .then((restored) => { if (restored) record("dog_nickname_restored"); })
     .catch(() => record("dog_enforcement_error"));
 });

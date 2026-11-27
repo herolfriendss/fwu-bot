@@ -13,7 +13,7 @@ module.exports = {
         NITRO_HOST: "127.0.0.1",
         NITRO_PORT: "3000",
       },
-      max_memory_restart: "220M",
+      max_memory_restart: "600M",
       autorestart: true,
       restart_delay: 5000,
       min_uptime: "15s",
@@ -31,7 +31,7 @@ module.exports = {
         // bot/.env (node --env-file never overrides an existing variable, PM2's env wins) made it a second SUCK ME.
         PND_BOT_PROFILE: "fwu",
       },
-      max_memory_restart: "140M",
+      max_memory_restart: "600M",
       autorestart: true,
       restart_delay: 5000,
       min_uptime: "15s",

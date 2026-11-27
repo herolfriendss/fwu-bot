@@ -151,7 +151,7 @@ export const PREFIX_COMMAND_OWNERS: Record<BotProfileId, readonly string[]> = {
   suckme: [
     "sysp", "rank", "addrole", "removerole", "rankall", "rolepanel", "staffhistory", "vocalpresence",
     "lockname", "unlockname", "locknamelist", "automation", "autorule", "knowledge",
-    "dog", "undog", "doginfo", "doglist", "menotte", "unmenotte", "menotteinfo", "wakeup",
+    "dog", "undog", "doginfo", "doglist", "dogfix", "menotte", "unmenotte", "menotteinfo", "wakeup",
     "anti-moove", "anti-move", "wouaf", "waouf", "dmall", "logs", "dossier", "blr", "guide", "pourquoi",
     // venues de FWU
     "ticket", "candidature", "candidatures", "ia", "pndia",

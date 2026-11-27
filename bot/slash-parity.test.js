@@ -18,8 +18,9 @@ function pathExists(path) {
   return Boolean(node);
 }
 
-// Commandes qui n'existent qu'en préfixe (décision du 24/11 : +unban sur GUARD, ;mv et ;accessall sur FDPDLAVOC).
-const PREFIX_ONLY = ["unban", "mv"];
+// Commandes qui n'existent qu'en préfixe (décision du 24/11 : +unban sur GUARD, ;mv et ;accessall sur FDPDLAVOC ;
+// 27/11 : =dogfix, outil de réparation DOG réservé aux SYS+ sur SUCK ME).
+const PREFIX_ONLY = ["unban", "mv", "dogfix"];
 
 test("every prefix command has a slash equivalent, except the documented prefix-only ones", () => {
   const tokens = Object.values(PREFIX_COMMAND_OWNERS).flat();

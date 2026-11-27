@@ -171,10 +171,64 @@ export async function isMemberDogged(guildId, memberId) {
   return Boolean(record && !record.releasing);
 }
 
+// Anti-conflit : si deux bots (ou une ancienne version du bot, ex. pseudo « 🐶 de … » et
+// rôle commun « En laisse ») imposent chacun « leur » laisse, ils se la renvoient sans fin.
+// Au-delà de LEASH_RESTORE_MAX rétablissements par minute pour un membre, le maintien est
+// suspendu LEASH_RESTORE_PAUSE_MS pour ce membre, puis =dogfix le remet d'aplomb.
+const LEASH_RESTORE_MAX = 4;
+const LEASH_RESTORE_WINDOW_MS = 60_000;
+const LEASH_RESTORE_PAUSE_MS = 5 * 60_000;
+const leashRestoreHistory = new Map();
+const leashRestorePaused = new Map();
+const leashConflicts = new Map();
+
+/** Tests only: reset the anti-conflict counters. */
+export function resetLeashRestoreGuardForTests() {
+  leashRestoreHistory.clear();
+  leashRestorePaused.clear();
+  leashConflicts.clear();
+}
+
+function clearLeashRestoreGuard(id) {
+  leashRestoreHistory.delete(id);
+  leashRestorePaused.delete(id);
+}
+
+/** "ok" (restore allowed and counted), "paused" (still suspended) or "tripped" (just suspended). */
+function takeLeashRestore(id, now = Date.now()) {
+  const until = leashRestorePaused.get(id);
+  if (until && until > now) return "paused";
+  if (until) leashRestorePaused.delete(id);
+  const recent = (leashRestoreHistory.get(id) ?? []).filter((at) => now - at < LEASH_RESTORE_WINDOW_MS);
+  if (recent.length >= LEASH_RESTORE_MAX) {
+    leashRestoreHistory.delete(id);
+    leashRestorePaused.set(id, now + LEASH_RESTORE_PAUSE_MS);
+    leashConflicts.set(id, now);
+    return "tripped";
+  }
+  recent.push(now);
+  leashRestoreHistory.set(id, recent);
+  if (leashRestoreHistory.size > 5_000) {
+    for (const [entry, times] of leashRestoreHistory) if (!times.some((at) => now - at < LEASH_RESTORE_WINDOW_MS)) leashRestoreHistory.delete(entry);
+  }
+  if (leashConflicts.size > 5_000) {
+    for (const [entry, at] of leashConflicts) if (now - at > 24 * 60 * 60_000) leashConflicts.delete(entry);
+  }
+  return "ok";
+}
+
+/** Leash roles a member carries besides the current one (old shared role, another owner's role…). */
+function strayLeashRoles(member, keepRoleId) {
+  const cache = member?.roles?.cache;
+  if (typeof cache?.values !== "function") return [];
+  return [...cache.values()].filter((role) => role?.id !== keepRoleId && !role.managed && isLeashRoleName(role.name));
+}
+
 /** Reapply the persistent leash role and nickname after any member update. */
-export async function enforceLeashNickname(member) {
+export async function enforceLeashNickname(member, options = {}) {
   if (!member?.guild || !member.id) return false;
   const id = key(member.guild.id, member.id);
+  if ((leashRestorePaused.get(id) ?? 0) > Date.now()) return false;
   const activeEnforcement = enforcingMembers.get(id);
   if (activeEnforcement) {
     activeEnforcement.latestMember = member;
@@ -210,6 +264,22 @@ export async function enforceLeashNickname(member) {
           await currentMember.roles.remove(previousRole, "DOG : passage au rôle du maître").catch(() => {});
         }
       }
+      const expectedNickname = dogNickname(record.ownerName || "son propriétaire");
+      const stray = strayLeashRoles(currentMember, leashRole.id);
+      const needsWork = stray.length > 0
+        || !currentMember.roles.cache.has(leashRole.id)
+        || currentMember.nickname !== expectedNickname;
+      if (!needsWork) continue;
+      const allowance = takeLeashRestore(id);
+      if (allowance !== "ok") {
+        if (allowance === "tripped") options.onConflict?.(record);
+        return restored;
+      }
+
+      for (const role of stray) {
+        await currentMember.roles.remove(role, "DOG : ancienne laisse retirée").catch(() => {});
+        restored = true;
+      }
       if (!currentMember.roles.cache.has(leashRole.id)) {
         const botMember = await currentMember.guild.members.fetchMe();
         if (!botMember.permissions.has(PermissionFlagsBits.ManageRoles) || leashRole.position >= botMember.roles.highest.position) {
@@ -219,7 +289,6 @@ export async function enforceLeashNickname(member) {
         restored = true;
       }
 
-      const expectedNickname = dogNickname(record.ownerName || "son propriétaire");
       if (currentMember.nickname === expectedNickname) continue;
 
       const botMember = await currentMember.guild.members.fetchMe();
@@ -402,10 +471,83 @@ export async function handleLeashVoiceState(oldState, newState, options = {}) {
   return moved;
 }
 
+function conflictWarning(conflicts = []) {
+  if (!conflicts.length) return "";
+  const last = Math.floor(Math.max(...conflicts) / 1000);
+  return `\n⚠️ Conflit détecté (${conflicts.length} membre(s), dernier <t:${last}:R>) : un autre bot remettait une autre laisse. Une ancienne version d'un bot tourne probablement encore en parallèle.`;
+}
+
+/**
+ * =dogfix @membre : relit l'état sur disque, lève la suspension anti-conflit, retire les
+ * anciens rôles de laisse et réapplique la laisse enregistrée. Sans laisse enregistrée (ou
+ * laisse bloquée en cours de retrait), nettoie les restes : rôle DOG et pseudo « 🦮/🐶 de … ».
+ */
+export async function repairMemberLeash(target, actorTag = "bot") {
+  const id = key(target.guild.id, target.id);
+  stateMtimeMs = null; // force a fresh read: another process may have changed the file
+  const records = await loadState();
+  const record = records[id];
+  const conflictAt = leashConflicts.get(id);
+  leashConflicts.delete(id);
+  clearLeashRestoreGuard(id);
+  const conflicts = conflictAt ? [conflictAt] : [];
+  const name = target.user?.username ?? target.displayName ?? target.id;
+
+  if (!record || record.releasing) {
+    if (record?.releasing) {
+      delete records[id];
+      await saveState();
+    }
+    let cleaned;
+    try { cleaned = await clearOrphanLeash(target, actorTag); } catch { cleaned = null; }
+    if (cleaned === null) return { conflicts, text: `❌ Impossible de nettoyer **${name}** : mon rôle doit être au-dessus du rôle DOG et de ce membre.` };
+    if (cleaned || record?.releasing) return { conflicts, text: `🔧 **${name}** n'a plus de laisse enregistrée : restes d'ancienne laisse retirés (rôle DOG et pseudo).` };
+    return { conflicts, text: `✅ **${name}** n'est pas en laisse et ne porte aucun reste de laisse : rien à réparer.` };
+  }
+
+  try {
+    const changed = await enforceLeashNickname(target);
+    const fresh = await target.guild.members.fetch(target.id).catch(() => target);
+    const role = await fetchRole(target.guild, records[id]?.leashRoleId ?? record.leashRoleId);
+    const expected = dogNickname(record.ownerName || "son propriétaire");
+    const nicknameOk = fresh.nickname === expected;
+    const details = `rôle « ${role?.name ?? "En laisse"} »${nicknameOk ? ` et pseudo « ${expected} »` : " (pseudo non modifiable : hiérarchie ou permission Gérer les surnoms)"}`;
+    return {
+      conflicts,
+      text: changed
+        ? `🔧 Laisse de **${name}** remise d'aplomb : ${details}.`
+        : `✅ La laisse de **${name}** est correcte : ${details}. Rien à réparer.`,
+    };
+  } catch (error) {
+    return { conflicts, text: `❌ Impossible de réparer la laisse de **${name}** : ${error.message}` };
+  }
+}
+
+/** =dogfix sans membre : même réparation pour toutes les laisses actives du serveur. */
+export async function repairGuildLeashes(guild) {
+  await pruneDepartedLeashes(guild).catch(() => 0);
+  stateMtimeMs = null;
+  const records = await loadState();
+  const result = { checked: 0, repaired: 0, conflicts: [] };
+  for (const record of Object.values(records)) {
+    if (!record || record.releasing || record.guildId !== guild.id || !record.memberId) continue;
+    const id = key(guild.id, record.memberId);
+    const conflictAt = leashConflicts.get(id);
+    if (conflictAt) result.conflicts.push(conflictAt);
+    leashConflicts.delete(id);
+    clearLeashRestoreGuard(id);
+    const member = await guild.members.fetch(record.memberId).catch(() => null);
+    if (!member) continue;
+    result.checked += 1;
+    if (await enforceLeashNickname(member).catch(() => false)) result.repaired += 1;
+  }
+  return result;
+}
+
 export async function handleDogCommand(message, guildSettings = null) {
   const parts = message.content.trim().split(/\s+/);
   const command = parts[0]?.toLowerCase();
-  if (!["=dog", "=undog", "=doginfo", "=doglist"].includes(command)) return false;
+  if (!["=dog", "=undog", "=doginfo", "=doglist", "=dogfix"].includes(command)) return false;
 
   if (!message.guild || !message.member) return true;
   const actor = await message.guild.members.fetch(message.author.id).catch(() => null);
@@ -432,6 +574,14 @@ export async function handleDogCommand(message, guildSettings = null) {
   }
 
   const targetId = message.mentions.members.first()?.id ?? parts[1]?.match(/^<@!?(\d+)>$/)?.[1];
+  if (!targetId && command === "=dogfix") {
+    const result = await repairGuildLeashes(message.guild);
+    await message.reply({
+      content: `🔧 **Réparation DOG · ${message.guild.name}** : ${result.checked} laisse(s) vérifiée(s), ${result.repaired} remise(s) d'aplomb.${conflictWarning(result.conflicts)}`,
+      allowedMentions: { parse: [] },
+    });
+    return true;
+  }
   if (!targetId) {
     await message.reply({
       content: `Utilisation : \`${command} @membre\``,
@@ -478,6 +628,12 @@ export async function handleDogCommand(message, guildSettings = null) {
   });
   if (!hierarchy.allowed) {
     await message.reply({ content: `❌ ${hierarchy.reason}`, allowedMentions: { parse: [] } });
+    return true;
+  }
+
+  if (command === "=dogfix") {
+    const result = await repairMemberLeash(target, message.author.tag);
+    await message.reply({ content: `${result.text}${conflictWarning(result.conflicts)}`, allowedMentions: { parse: [] } });
     return true;
   }
 
