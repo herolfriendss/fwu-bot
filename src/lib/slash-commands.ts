@@ -2375,6 +2375,22 @@ export const EXTRA_SLASH_COMMANDS: SlashCommandDef[] = [
     ],
   },
   {
+    name: "rapportstaff",
+    description: "SUCK ME : rapport du staff chaque lundi et alerte après 14 jours d'inactivité",
+    usage: "/rapportstaff etat · configurer salon · desactiver",
+    category: "SYS+",
+    dmPermission: false,
+    requiresBotProcess: true,
+    defaultMemberPermissions: manageServer,
+    options: [
+      sub("etat", "Réglages actuels"),
+      sub("configurer", "Choisis le salon (réservé au staff) du rapport et des alertes", [
+        opt(7, "salon", "Salon du rapport", { required: true, channel_types: [0, 5] }),
+      ]),
+      sub("desactiver", "Coupe le rapport et les alertes"),
+    ],
+  },
+  {
     name: "compteurs",
     description: "SUCK ME : salons compteurs (membres, en vocal, boosts) mis à jour toutes les 10 min",
     usage: "/compteurs installer · retirer · actualiser",

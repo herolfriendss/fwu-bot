@@ -172,6 +172,7 @@ describe("bot wiring", () => {
       read("bot/features/seniority.js"),
       read("bot/features/event-countdown.js"),
       read("bot/features/support-waiting.js"),
+      read("bot/systems/sysplus/staff-routine.js"),
       read("bot/features/snipe.js"),
       read("bot/features/invite-rewards.js"),
       read("bot/features/bounty.js"),
