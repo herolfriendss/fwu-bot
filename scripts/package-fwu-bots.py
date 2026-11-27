@@ -151,9 +151,12 @@ pm2 reset fwu-{profile} >/dev/null 2>&1 || true
 # The bot writes .connected once Discord accepts it: "online" in PM2 alone is not enough.
 rm -f "$HERE/.connected"
 pm2 startOrReload ecosystem.config.cjs --update-env >/dev/null
-ok=0
+ok=0; deferred=0
 for attempt in $(seq 1 24); do
   sleep 5
+  # .session-wait = the bot deliberately postpones its login to save Discord's daily session
+  # starts (bot/session-budget.js). Not a failure: no rollback, which would cost one more start.
+  if [[ -f "$HERE/.session-wait" && ! -f "$HERE/.connected" ]]; then deferred=1; ok=2; break; fi
   [[ -f "$HERE/.connected" ]] || {{ ok=0; continue; }}
   if pm2 jlist | node --input-type=module -e '
     let raw = ""; process.stdin.on("data", (c) => raw += c).on("end", () => {{
@@ -168,6 +171,10 @@ if [[ "$ok" -lt 2 ]]; then
   fail "{label} n'a pas démarré (bot arrêté, FWU continue de tout faire). Causes fréquentes : token faux, intents « Server Members » et « Message Content » non activés dans le portail Discord, bot pas invité sur le serveur."
 fi
 pm2 save >/dev/null
+if [[ "$deferred" == 1 ]]; then
+  printf '\n⏳ {label} est installé mais attend avant de se connecter à Discord (trop de redémarrages récents ou connexions du jour presque épuisées).\n'
+  printf '   Il se connectera tout seul. Détails : pm2 logs fwu-{profile} --lines 20 --nostream\n'
+fi
 
 info "Synchronisation avec FWU"
 if [[ -f "$FWU_ROOT/scripts/fwu-synchroniser.sh" ]]; then
@@ -227,7 +234,7 @@ def bot_files():
         if any(part in EXCLUDED_DIRS for part in rel.parts):
             continue
         name = path.name
-        if name == ".env" or name.startswith(".env.") or name == ".connected":
+        if name == ".env" or name.startswith(".env.") or name in {".connected", ".session-wait"}:
             continue
         if rel.as_posix() not in ALWAYS_INCLUDE and (
             path.suffix.lower() in EXCLUDED_SUFFIXES or name.endswith((".pem", ".key", ".p12", ".pfx"))
