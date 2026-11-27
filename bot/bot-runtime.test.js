@@ -152,6 +152,7 @@ test("domain leases: one holder at a time, FWU takes the domain back when the le
   const fwu = createDomainGate({ profile: "fwu", holder: "fwu:1", now, cacheMs: 0 });
   const guard = createDomainGate({ profile: "guard", holder: "guard:1", now, ttlMs: 60_000, cacheMs: 0 });
   const guardTwin = createDomainGate({ profile: "guard", holder: "guard:2", now, ttlMs: 60_000, cacheMs: 0 });
+  fwu.tick(); // FWU connected: it holds its own lease
 
   // Before GUARD starts, FWU handles everything: historical mode.
   assert.equal(fwu.servesAll(), true);
@@ -266,6 +267,7 @@ test("every dedicated profile, including optional Invest+, can claim only its ow
   let clock = 5_000_000;
   const now = () => clock;
   const fwu = createDomainGate({ profile: "fwu", holder: "fwu:matrix", now, cacheMs: 0 });
+  fwu.tick();
 
   for (const profile of BOT_PROFILE_IDS.filter((id) => id !== "fwu")) {
     const gate = createDomainGate({
@@ -327,4 +329,32 @@ test("mauvais préfixe : le bot propriétaire est trouvé, la commande n'est pas
     assert.equal(parsePrefixedMessage(text, DEFAULT_PREFIXES)?.owner, owner, text);
   }
   assert.equal(parsePrefixedMessage(";moveall #a", DEFAULT_PREFIXES)?.owner, "fdpdlavoc");
+});
+
+test("chain relay: SUCK ME covers GUARD only when GUARD and FWU are both gone, and the reverse", () => {
+  db.exec("DELETE FROM bot_domain_leases");
+  let clock = 9_000_000;
+  const now = () => clock;
+  const fwu = createDomainGate({ profile: "fwu", holder: "fwu:c", now, cacheMs: 0 });
+  const guard = createDomainGate({ profile: "guard", holder: "guard:c", now, cacheMs: 0 });
+  const suckme = createDomainGate({ profile: "suckme", holder: "suckme:c", now, cacheMs: 0 });
+  const fisc = createDomainGate({ profile: "fisc", holder: "fisc:c", now, cacheMs: 0 });
+  fwu.tick(); suckme.tick(); fisc.tick();
+  assert.equal(fwu.serves("guard"), true, "GUARD absent, FWU vivant : FWU relaie");
+  assert.equal(suckme.serves("guard"), false);
+  clock += 61_000; suckme.tick(); fisc.tick(); // FWU stops renewing (disconnected)
+  assert.equal(suckme.serves("guard"), true, "FWU et GUARD absents : SUCK ME relaie");
+  assert.deepEqual(suckme.relayedDomains(), ["guard"]);
+  assert.equal(fisc.serves("guard"), false, "seul le relais désigné prend le relais");
+  assert.equal(fisc.serves("suckme"), false);
+  guard.tick();
+  assert.equal(suckme.serves("guard"), false, "GUARD revenu : SUCK ME s'efface");
+  assert.equal(guard.serves("suckme"), false, "SUCK ME vivant : GUARD ne le couvre pas");
+  suckme.release();
+  assert.equal(guard.serves("suckme"), true, "SUCK ME et FWU absents : GUARD couvre le bouclier tier 0");
+  for (const domain of ["guard", "suckme"]) {
+    // FWU is disconnected here: it receives no Discord event, only the live bots count.
+    assert.equal([guard, suckme, fisc].filter((g) => g.serves(domain)).length, 1, `un seul traitant pour ${domain}`);
+  }
+  db.exec("DELETE FROM bot_domain_leases");
 });

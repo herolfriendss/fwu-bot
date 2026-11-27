@@ -8,7 +8,7 @@ test("a dedicated bot claims its domain only when present on every protected ser
   assert.match(source, /function dedicatedBotReady\(\) \{[\s\S]*?servers\.every\(\(guildId\) => client\.guilds\.cache\.has\(guildId\)\)/);
   assert.match(source, /if \(dedicatedBotReady\(\)\) return gate\.tick\(\);/);
   assert.match(source, /if \(gate\.held\) gate\.release\(\);/);
-  assert.match(source, /setInterval\(\(\) => \{ tickDomainLease\(\); \}, LEASE_RENEW_MS\)/);
+  assert.match(source, /setInterval\(\(\) => \{ tickDomainLease\(\); watchRelays\(\); \}, LEASE_RENEW_MS\)/);
   assert.doesNotMatch(source, /\ngate\.tick\(\);\nif \(!IS_FWU\)/, "no unconditional claim at startup");
   assert.match(source, /client\.on\("guildDelete", \(guild\) => \{[^\n]*tickDomainLease\(\)/);
 });

@@ -5,8 +5,10 @@ import { addTrapChannel, isGuardAdmin, panic, raidConfig, removeTrapChannel, sav
 export const RAID_COMMANDS = new Set(["piege", "raid", "scan", "panic"]);
 const REFUSAL = "⛔ Réservé aux administrateurs du serveur.";
 
-function scanPayload(guild) {
-  const result = scanGuild(guild);
+async function scanPayload(guild) {
+  // Only counted when Discord answered (needs "Gérer le serveur"); otherwise not judged.
+  const rules = await guild.autoModerationRules?.fetch?.().catch(() => null);
+  const result = scanGuild(guild, { automodRuleCount: rules ? rules.size : null });
   const level = result.score >= 80 ? "🟢 bon" : result.score >= 50 ? "🟠 moyen" : "🔴 faible";
   return {
     visibility: "private",
@@ -42,7 +44,7 @@ export async function runRaidCommand(request, { env = process.env } = {}) {
       case "raid off": await setRaidMode(guild, false, { manual: true, actorId: member.id, settings, reason: request.reason }); return { content: `✅ Mode raid coupé.\n${raidText(guild.id)}` };
       case "raid etat": return { visibility: "private", content: raidText(guild.id) };
       case "raid seuils": saveRaidSettings(guild.id, request); return { content: `✅ Seuils enregistrés.\n${raidText(guild.id)}` };
-      case "scan": return scanPayload(guild);
+      case "scan": return await scanPayload(guild);
       case "panic": {
         const { locked } = await panic(guild, { actorId: member.id, settings, reason: request.reason ?? "Verrouillage d'urgence" });
         return { content: `🚨 Verrouillage d'urgence : ${locked} salon(s) fermé(s), mode raid actif. Rouvre avec \`/bouclier deverrouiller\` puis \`/raid off\`.` };

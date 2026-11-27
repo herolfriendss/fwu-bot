@@ -113,7 +113,7 @@ Déjà présentes, donc retirées de la liste : `/dossier`, `/casier`, `/staffhi
 - [ ] 66. **Dossier partagé par membre** visible dans la console une fois l'étape 4 faite.
 
 ### Sécurité
-- [ ] 67. Liens de phishing et faux « Nitro gratuit » supprimés d'office, l'auteur mis en quarantaine.
+- [x] 67. Liens de phishing et faux « Nitro gratuit » supprimés d'office, l'auteur mis en quarantaine. _(Fait le 27/11 : règle AutoMod native « phishing et faux Nitro » (bloquée par Discord) ; la quarantaine de l'auteur reste à faire)_
 - [ ] 68. Alerte à chaque création de webhook ou d'intégration sur le serveur.
 - [ ] 69. Alerte quand un bot perd une permission Discord dont il a besoin (rôle déplacé, permission retirée).
 - [ ] 70. Message privé à l'owner à chaque connexion à la console du site (heure, appareil).
@@ -146,13 +146,13 @@ Constat dans le code : si Guard ne renouvelle plus son bail pendant 60 s, le bot
 (automod, anti-raid, pièges, double compte), et de même pour le bouclier tier 0 de SUCK ME (`bot/bot-runtime.js`, `serves`).
 Les commandes propres à Guard (`/ban`, `+ban`…) ne marchent plus, et si le bot principal tombe aussi, plus rien ne protège.
 
-- [ ] 85. **Prévenir quand le relais s'active** : message dans le salon staff (« Guard hors ligne, le bot principal assure ses protections ») et voyant dans la console.
-- [ ] 86. **Relais en chaîne** : si le bot principal tombe aussi, un deuxième bot (par exemple SUCK ME) reprend les protections de Guard.
-- [ ] 87. **Mode dégradé automatique** : tant que Guard est absent, le relais durcit la vérification des arrivées, jusqu'à son retour.
-- [ ] 88. **Alerte sans bot** : le site détecte qu'aucun bot de protection n'envoie de signal depuis 2 min et prévient par webhook Discord, même si tous les bots sont tombés.
-- [ ] 89. **AutoMod natif de Discord** (tourne chez Discord, sans bot) : spam de mentions, mots interdits, liens, alertes de raid et de spam en MP.
+- [x] 85. **Prévenir quand le relais s'active** : message dans le salon staff (« Guard hors ligne, le bot principal assure ses protections ») et voyant dans la console. _(Fait le 27/11 : message dans les logs staff quand le bot principal (ou le relais) prend ou rend la main, `bot/relay-watch.js`)_
+- [x] 86. **Relais en chaîne** : si le bot principal tombe aussi, un deuxième bot (par exemple SUCK ME) reprend les protections de Guard. _(Fait le 27/11 : SUCK ME couvre GUARD (et GUARD couvre SUCK ME) si le bot principal est aussi tombé, `BACKUP_FOR` dans `bot/bot-runtime.js`)_
+- [x] 87. **Mode dégradé automatique** : tant que Guard est absent, le relais durcit la vérification des arrivées, jusqu'à son retour. _(Fait le 27/11 : niveau de vérification « élevé » pendant l'absence de GUARD, rendu à son retour ; `PND_DEGRADED_MODE=off` pour le couper)_
+- [x] 88. **Alerte sans bot** : le site détecte qu'aucun bot de protection n'envoie de signal depuis 2 min et prévient par webhook Discord, même si tous les bots sont tombés. _(Fait le 27/11 : Supabase vérifie toutes les 2 min (pg_cron) et poste sur un webhook Discord, même si les bots et le site sont tombés ; à activer avec l'URL du webhook (voir `docs/MODE_EMPLOI.md`))_
+- [x] 89. **AutoMod natif de Discord** (tourne chez Discord, sans bot) : spam de mentions, mots interdits, liens, alertes de raid et de spam en MP. _(Fait le 27/11 : GUARD pose seul l'AutoMod natif (spam, spam de mentions, phishing/faux Nitro) une fois par serveur, et `/automod natif` le repose)_
 - [ ] 90. **Réglages du serveur** : 2FA obligatoire pour les actions de modération, niveau de vérification élevé, filtre de contenu, permission Administrateur réservée au compte owner.
-- [ ] 91. **Rôles des bots au-dessus des rôles staff**, vérifié par `/scan` qui signale un rôle mal placé.
+- [x] 91. **Rôles des bots au-dessus des rôles staff**, vérifié par `/scan` qui signale un rôle mal placé. _(Fait le 27/11 : `/scan` signale les rôles staff au-dessus du bot et l'absence d'AutoMod natif)_
 
 ## J. Encore d'autres commandes (27/11, mises de côté)
 

@@ -46,3 +46,24 @@ vérifier sur Render `DISCORD_CLIENT_ID`, `DISCORD_CLIENT_SECRET`, `DISCORD_OAUT
 
 Ne jamais coller un secret dans un chat ou un ticket. Un secret exposé se régénère dans le service qui l'a émis
 (portail Discord, Supabase), puis se remplace sur Render et dans les `.env` du VPS.
+
+## Alertes de panne sans bot (Supabase)
+
+Supabase vérifie toutes les 2 min l'état des bots et prévient sur Discord quand un bot ne répond plus depuis 5 min,
+quand il revient, et quand GUARD et le bot principal sont tombés en même temps. Cela marche même si le VPS et le site sont en panne.
+
+Pour l'activer, une seule fois :
+1. Discord → salon staff → Modifier le salon → Intégrations → Webhooks → Nouveau webhook → Copier l'URL.
+2. Supabase → SQL Editor, coller (en remplaçant l'URL entre apostrophes) puis Run :
+
+```
+update public.ops_alert_settings set webhook_url = 'COLLE_ICI_L_URL_DU_WEBHOOK', enabled = true where id = 1;
+```
+
+Pour couper : `update public.ops_alert_settings set enabled = false where id = 1;`
+
+## Protections quand un bot tombe
+
+- GUARD absent : le bot principal reprend ses protections en moins d'une minute, prévient le staff et passe la vérification des arrivées au niveau « élevé » jusqu'au retour de GUARD (`PND_DEGRADED_MODE=off` dans le `.env` pour ne pas toucher au niveau).
+- GUARD et bot principal absents : SUCK ME reprend les protections de GUARD (et GUARD celles de SUCK ME).
+- Tous absents : l'AutoMod natif de Discord, posé par GUARD (`/automod natif`), continue de bloquer spam, spam de mentions et phishing.

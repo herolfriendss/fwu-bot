@@ -1912,12 +1912,13 @@ export const EXTRA_SLASH_COMMANDS: SlashCommandDef[] = [
   {
     name: "automod",
     description: "GUARD : modération automatique (liens, invitations, mots, majuscules, flood)",
-    usage: "/automod etat | regle | mot-ajouter | mot-retirer | exempter | retirer-exemption",
+    usage: "/automod etat | natif | regle | mot-ajouter | mot-retirer | exempter | retirer-exemption",
     category: "Administration & sécurité",
     dmPermission: false,
     requiresBotProcess: true,
     options: [
       sub("etat", "Affiche les règles de l'automod"),
+      sub("natif", "Crée les règles AutoMod natives de Discord (marchent même si les bots sont hors ligne)"),
       sub("regle", "Active, désactive ou règle une règle", [
         opt(3, "regle", "Règle", { required: true, choices: [
           { name: "Liens", value: "liens" }, { name: "Invitations Discord", value: "invitations" }, { name: "Mots interdits", value: "mots" },

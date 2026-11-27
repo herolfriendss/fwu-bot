@@ -98,6 +98,21 @@ async function handleAutomod(interaction, settings) {
   const config = getAutomodConfig(guild.id);
   const o = interaction.options;
   const save = (next) => automodText(saveAutomodConfig(guild.id, next, interaction.user.id));
+  if (sub === "natif") {
+    if (!interaction.member.permissions?.has?.(P.ManageGuild)) return "⛔ Il faut la permission « Gérer le serveur ».";
+    const staffRoles = [...guild.roles.cache.values()].filter((r) => r.id !== guild.id && r.permissions?.has?.(P.ManageMessages)).map((r) => r.id);
+    try {
+      const { ensureNativeAutomod } = await import("./native-automod.js");
+      const result = await ensureNativeAutomod(guild, { exemptRoleIds: staffRoles, reason: `Demandé par ${interaction.user.tag}` });
+      return [
+        "🛡️ **AutoMod natif de Discord** (appliqué par Discord, même si tous les bots sont hors ligne)",
+        result.created.length ? `Créées : ${result.created.join(", ")}` : "Rien à créer.",
+        result.kept.length ? `Déjà en place : ${result.kept.join(", ")}` : null,
+        result.failed.length ? `Non créées (une règle du même type existe déjà sous un autre nom) : ${result.failed.join(", ")}` : null,
+        "Le staff (rôles avec « Gérer les messages ») est exempté.",
+      ].filter(Boolean).join("\n");
+    } catch { return "❌ Impossible de lire ou créer les règles AutoMod : il me faut « Gérer le serveur »."; }
+  }
   if (sub === "regle") {
     const rule = o.getString("regle", true);
     const current = config.rules[rule];

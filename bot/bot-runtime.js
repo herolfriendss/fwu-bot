@@ -196,6 +196,9 @@ export function listDomainLeases(now = Date.now()) {
  * Domain gate for one process. `serves(domain)` is cheap (cached) and safe to
  * call on every event.
  */
+// Second line of defence for the security domains when FWU is down too.
+export const BACKUP_FOR = Object.freeze({ guard: "suckme", suckme: "guard" });
+
 export function createDomainGate({ profile, holder = `${profile}:${process.pid}:${randomUUID().slice(0, 8)}`, now = () => Date.now(), ttlMs = LEASE_TTL_MS, cacheMs = 2_000 } = {}) {
   if (!isBotProfileId(profile)) throw new Error(`Profil inconnu : ${profile}`);
   let held = false;
@@ -222,18 +225,26 @@ export function createDomainGate({ profile, holder = `${profile}:${process.pid}:
     get held() { return held; },
     /** Claim or renew this process's own domain lease (dedicated bots only). */
     tick() {
-      if (profile === "fwu") return true;
-      try { held = claimDomainLease(profile, holder, now(), ttlMs); } catch { held = false; }
-      return held;
+      // FWU also holds a lease on its own name while connected: the backup bots below
+      // only step in when neither the dedicated bot nor FWU holds the domain.
+      try { held = claimDomainLease(profile, holder, now(), ttlMs); } catch { held = profile === "fwu"; }
+      return profile === "fwu" ? true : held;
     },
     release() {
-      if (profile === "fwu" || !held) return;
+      if (!held) return;
       try { releaseDomainLease(profile, holder); } catch { /* expires on its own */ }
       held = false;
     },
     serves(domain) {
       if (profile === "fwu") return domain === "fwu" || !foreignLease(domain);
-      return domain === profile && held;
+      if (domain === profile) return held;
+      // Relais en chaîne : the backup bot of a security domain serves it when both the
+      // dedicated bot and FWU are gone (no live lease for either).
+      return BACKUP_FOR[domain] === profile && held && !foreignLease(domain) && !foreignLease("fwu");
+    },
+    /** Domains this process currently covers for another bot (relay), for alerts. */
+    relayedDomains() {
+      return BOT_PROFILE_IDS.filter((domain) => domain !== profile && domain !== "fwu" && this.serves(domain));
     },
     /** True when this process handles every domain: the historical single-bot mode. */
     servesAll() {

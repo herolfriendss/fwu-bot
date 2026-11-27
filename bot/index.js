@@ -17,6 +17,7 @@ import { resolvePrefixCommand } from "./prefix-commands.js";
 import { handleVoiceMessage, handleVoiceInteraction, handleMenotteVoiceState, reconcileVoiceMenottes, expireVoiceMenottes, forgetVoicePanels, reconcilePrivateVoiceLocks, unlockPrivateVoiceChannel } from "./voice-commands.js";
 import { handleAntiMoveVoiceState, primeAntiMoveAuditSnapshots } from "./anti-move.js";
 import { createVoiceDropGuard, nextRegion } from "./voice-drop-guard.js";
+import { createRelayWatcher, degradedPlan, restorePlan } from "./relay-watch.js";
 import { handleTier0Ban, handleTier0Kick, handleTier0MemberUpdate, handleTier0VoiceState, primeTier0Members } from "./tier0-shield.js";
 import { recoverInterruptedRankAllJobs } from "./rankall-runner.js";
 import { reportInteractionFailure } from "./interaction-reply.js";
@@ -209,14 +210,18 @@ function dedicatedBotReady() {
   return servers.length > 0 && servers.every((guildId) => client.guilds.cache.has(guildId));
 }
 function tickDomainLease() {
-  if (IS_FWU) return gate.tick();
+  if (IS_FWU) {
+    // FWU's own lease only while it is really on Discord: the backup bots watch it.
+    if (client?.isReady?.()) return gate.tick();
+    if (gate.held) gate.release();
+    return true;
+  }
   if (dedicatedBotReady()) return gate.tick();
   if (gate.held) gate.release(); // FWU takes the domain back within a minute
   return false;
 }
-if (IS_FWU) gate.tick();
+setInterval(() => { tickDomainLease(); watchRelays(); }, LEASE_RENEW_MS).unref?.();
 if (!IS_FWU) {
-  setInterval(() => { tickDomainLease(); }, LEASE_RENEW_MS).unref?.();
   // Dedicated bots hand their logs to FWU (Logs Hub owner, RESUME source).
   setCentralLogRelay(({ guild, embed, fallbackChannelIds, components, allowedUserIds, category, mentionRoleIds }) => enqueueRelayedLog({
     guildId: guild.id, sourceProfile: RUNTIME.profile, embed, fallbackChannelIds, components, allowedUserIds, category, mentionRoleIds,
@@ -1078,6 +1083,59 @@ client.on("guildMemberUpdate", (oldMember, newMember) => {
     .catch(() => record("dog_enforcement_error"));
 });
 
+db.exec("CREATE TABLE IF NOT EXISTS native_automod_installs (guild_id TEXT PRIMARY KEY, installed_at INTEGER NOT NULL)");
+async function installNativeAutomodOnce() {
+  const { ensureNativeAutomod } = await import("./guard/native-automod.js");
+  for (const guild of client.guilds.cache.values()) {
+    if (!guardWatch(guild) || db.prepare("SELECT 1 FROM native_automod_installs WHERE guild_id = ?").get(guild.id)) continue;
+    try {
+      const staffRoles = [...guild.roles.cache.values()].filter((r) => r.id !== guild.id && r.permissions.has(PermissionFlagsBits.ManageMessages)).map((r) => r.id);
+      const result = await ensureNativeAutomod(guild, { exemptRoleIds: staffRoles, reason: "Protection native posée par GUARD" });
+      db.prepare("INSERT OR REPLACE INTO native_automod_installs(guild_id, installed_at) VALUES (?, ?)").run(guild.id, Date.now());
+      record("native_automod_installed");
+      if (result.created.length) auditLog(guild, settings[guild.id], "🛡️ AutoMod natif installé", `Règles appliquées par Discord, même si les bots tombent : ${result.created.join(", ")}.\nLe staff est exempté. Modifiables dans Paramètres du serveur → AutoMod.`, 0x22c55e);
+    } catch { record("native_automod_error"); }
+  }
+}
+
+// Relais : quand ce bot couvre GUARD ou SUCK ME tombés, le staff est prévenu et, pour GUARD,
+// la vérification des arrivées est durcie jusqu'à son retour (PND_DEGRADED_MODE=off pour ne pas toucher au niveau).
+const relayWatcher = createRelayWatcher();
+const RELAY_NAMES = { guard: "GUARD", suckme: "SUCK ME" };
+const DEGRADED_MODE_ON = String(process.env.PND_DEGRADED_MODE ?? "").trim().toLowerCase() !== "off";
+db.exec("CREATE TABLE IF NOT EXISTS relay_degraded (guild_id TEXT PRIMARY KEY, previous_level INTEGER NOT NULL, since INTEGER NOT NULL)");
+function relayGuilds() {
+  return client.isReady() ? [...client.guilds.cache.values()].filter((guild) => guildAllowed(guild.id, ALLOWED_GUILDS) && !isLogsHub(guild.id)) : [];
+}
+async function setDegradedMode(on) {
+  if (!DEGRADED_MODE_ON) return;
+  for (const guild of relayGuilds()) {
+    const saved = db.prepare("SELECT previous_level FROM relay_degraded WHERE guild_id = ?").get(guild.id)?.previous_level;
+    const plan = on ? degradedPlan(guild.verificationLevel, saved) : restorePlan(guild.verificationLevel, saved);
+    try {
+      if (plan.change) await guild.setVerificationLevel(plan.to, on ? "GUARD hors ligne : vérification renforcée" : "GUARD revenu : niveau d'origine");
+      if (on && plan.change) db.prepare("INSERT OR REPLACE INTO relay_degraded(guild_id, previous_level, since) VALUES (?, ?, ?)").run(guild.id, plan.previous, Date.now());
+      if (!on) db.prepare("DELETE FROM relay_degraded WHERE guild_id = ?").run(guild.id);
+      if (plan.change) record(on ? "degraded_mode_on" : "degraded_mode_off");
+    } catch { record("degraded_mode_error"); }
+  }
+}
+function watchRelays() {
+  if (!client?.isReady?.()) return;
+  const { started, stopped } = relayWatcher.update(gate.relayedDomains());
+  for (const domain of started) {
+    record("relay_takeover");
+    for (const guild of relayGuilds()) auditLog(guild, settings[guild.id], `🛟 Relais : ${RELAY_NAMES[domain]} hors ligne`,
+      `${BOT_LABEL} assure maintenant ses protections automatiques. Ses commandes ne répondent plus jusqu'à son retour.${domain === "guard" && DEGRADED_MODE_ON ? "\nVérification des arrivées renforcée en attendant." : ""}`, 0xf59e0b);
+    if (domain === "guard") void setDegradedMode(true);
+  }
+  for (const domain of stopped) {
+    record("relay_released");
+    for (const guild of relayGuilds()) auditLog(guild, settings[guild.id], `✅ Relais terminé : ${RELAY_NAMES[domain]} est revenu`, `${RELAY_NAMES[domain]} a repris ses protections.`, 0x22c55e);
+    if (domain === "guard") void setDegradedMode(false);
+  }
+}
+
 // Anti-largage vocal : plusieurs membres déconnectés du même salon en quelques secondes
 // (attaque réseau sur le serveur vocal) → changement de région du salon, alerte au staff.
 const VOICE_DROP_GUARD_ON = String(process.env.PND_VOICE_DROP_GUARD ?? "").trim().toLowerCase() !== "off";
@@ -1216,6 +1274,9 @@ client.on("guildBanRemove", (ban) => {
   const stillBlacklisted = isBlacklisted(ban.guild.id, ban.user.id);
   auditLog(ban.guild, settings[ban.guild.id], "✅ Bannissement retiré", `Membre : <@${ban.user.id}>\nID : \`${ban.user.id}\`${stillBlacklisted ? "\n⚠️ Ce compte est toujours **blacklisté** : il sera rebanni s'il revient. Retire-le avec \`/blacklist remove\` si c'est voulu." : ""}` , 0x22c55e);
 });
+// Reconnected: renew the lease at once, so a backup bot stops relaying without waiting 20 s.
+client.on("shardReady", () => tickDomainLease());
+client.on("shardResume", () => tickDomainLease());
 client.on("guildDelete", (guild) => { forgetGuildTempVoices(guild.id); if (!IS_FWU) tickDomainLease(); });
 client.on("messageUpdate", (oldMessage, newMessage) => {
   const guild = newMessage.guild;
@@ -1276,6 +1337,9 @@ client.once("clientReady", () => {
   if (serves("guard")) {
     for (const guild of client.guilds.cache.values()) if (guardWatch(guild)) void checkMfa(guild, { settings: settings[guild.id] }).catch(() => {});
     setInterval(() => { void raidAutoExit(client, { getSettings: (guildId) => settings[guildId] }).catch(() => record("guild_guard_error")); }, 60_000).unref?.();
+    // AutoMod natif de Discord, posé une seule fois par serveur (jamais recréé si le staff le supprime).
+    // PND_NATIVE_AUTOMOD=off pour ne pas le poser.
+    if (String(process.env.PND_NATIVE_AUTOMOD ?? "").trim().toLowerCase() !== "off") setTimeout(() => void installNativeAutomodOnce(), 30_000).unref?.();
   }
   if (serves("suckme")) startGuideRefresh({ client, getSettings: (guildId) => settings[guildId], guildIds: () => ALLOWED_GUILDS.filter((guildId) => !isLogsHub(guildId)), record });
   if (serves("suckme")) {

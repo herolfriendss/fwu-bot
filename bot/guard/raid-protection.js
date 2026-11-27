@@ -272,7 +272,7 @@ export async function checkMfa(guild, { settings = null } = {}) {
 }
 
 /** Audit de sécurité : score sur 100 et constats. Ne modifie rien. */
-export function scanGuild(guild) {
+export function scanGuild(guild, { automodRuleCount = null } = {}) {
   const findings = [];
   let score = 100;
   const penalty = (points, text) => { score -= points; findings.push(`−${points} ${text}`); };
@@ -290,6 +290,15 @@ export function scanGuild(guild) {
   if (Number(guild.verificationLevel ?? 0) < 2) penalty(10, "Niveau de vérification faible (moins de « moyen »).");
   if (Number(guild.explicitContentFilter ?? 0) === 0) penalty(5, "Filtre de contenu explicite désactivé.");
   if (!trapChannels(guild.id).length) penalty(5, "Aucun salon piège.");
+  // A bot can only sanction members whose highest role is below its own.
+  const me = guild.members?.me;
+  const myTop = Number(me?.roles?.highest?.position ?? -1);
+  if (myTop >= 0) {
+    const above = roles.filter((r) => !r.managed && Number(r.position) >= myTop && privilegedPermissionNames(r.permissions).length);
+    if (above.length) penalty(Math.min(15, above.length * 5), `${above.length} rôle(s) staff au-dessus de mon rôle : je ne peux pas sanctionner ceux qui les portent. Monte mon rôle dans Paramètres → Rôles.`);
+  }
+  // AutoMod natif : tourne chez Discord, protège même quand tous les bots sont tombés.
+  if (automodRuleCount === 0) penalty(10, "Aucune règle AutoMod native de Discord (protection qui marche même sans bot).");
   return { score: Math.max(0, score), findings, admins: admins.length };
 }
 

@@ -135,3 +135,15 @@ test("scan scores the server and commands are admin-only", async () => {
   assert.match(trap.content, /BLR/);
   assert.ok(R.trapChannels(GUILD_ID).includes("700000000000000010"));
 });
+
+test("scan flags staff roles above the bot and a server without native AutoMod", async () => {
+  const { scanGuild } = await import("./raid-protection.js");
+  const perms = (admin) => ({ has: (p) => admin && (p === 8n || p === "Administrator"), toArray: () => (admin ? ["Administrator"] : []) });
+  const role = (id, position, admin) => ({ id, position, managed: false, mentionable: false, permissions: { bitfield: admin ? 8n : 0n, has: () => admin, toArray: () => (admin ? ["Administrator"] : []) } });
+  const roles = new Map([["g", role("g", 0, false)], ["staff", role("staff", 9, true)], ["bot", role("bot", 5, false)]]);
+  const guild = { id: "g", mfaLevel: 1, verificationLevel: 3, explicitContentFilter: 2, roles: { cache: roles }, members: { cache: new Map(), me: { id: "me", roles: { highest: { position: 5 } } } } };
+  const text = scanGuild(guild, { automodRuleCount: 0 }).findings.join("\n");
+  assert.match(text, /au-dessus de mon rôle/);
+  assert.match(text, /AutoMod native/);
+  assert.doesNotMatch(scanGuild(guild, { automodRuleCount: null }).findings.join("\n"), /AutoMod/, "non vérifiable : pas de pénalité");
+});
