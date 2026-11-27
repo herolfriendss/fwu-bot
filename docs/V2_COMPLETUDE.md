@@ -135,6 +135,7 @@ Logs typés : le module qui la traite journalise avec une catégorie. Tests : la
 | SUCK ME | `/presence` | ✅ | ✅ pont | ✅ | ▫️ | ▫️ | ✅ |
 | SUCK ME | `/stabilite` | ✅ | ✅ pont | ✅ | ▫️ | ▫️ | ✅ |
 | SUCK ME | `/smash` | ✅ | ✅ pont | ✅ | ▫️ | ✅ | ✅ |
+| SUCK ME | `/famille` | ✅ | ✅ pont | ✅ | ▫️ | ✅ | ✅ |
 | LE FISC | `/balance` | ✅ | ✅ dédié | ✅ | ▫️ | ▫️ | ✅ |
 | LE FISC | `/daily` | ✅ | ✅ dédié | ✅ | ▫️ | ▫️ | ✅ |
 | LE FISC | `/work` | ✅ | ✅ dédié | ✅ | ▫️ | ▫️ | ✅ |

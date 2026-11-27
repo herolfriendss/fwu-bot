@@ -93,6 +93,7 @@ import { installMonochromeTheme } from "./monochrome-theme.js";
 import { installBlrShield } from "./blr-shield.js";
 import { createErrorWatch, maintenanceState, runToolCommand, stabilityRefusal } from "./stability.js";
 import { handleSmashInteraction } from "./features/smash.js";
+import { handleFamilyInteraction } from "./features/family.js";
 import { checkMfa, handleBotAdded, handleRoleDrift, handleTokenLeak, handleTrapPardon, handleWebhookCreated, isRaidActive, raidAutoExit, recordJoinForRaid, springBlrTrap } from "./guard/raid-protection.js";
 import { handleRaidInteraction, handleRaidPrefix } from "./guard/raid-commands.js";
 import { handleMassButton, handleMassInteraction, handleMassMessage } from "./voice-mass.js";
@@ -1762,6 +1763,7 @@ client.on("interactionCreate", (interaction) => {
     if (await handleGuideInteraction(interaction, settings[interaction.guildId])) { auditSlashUsage(interaction, "Guide"); return; }
     if (await handlePresenceInteraction(interaction)) { auditSlashUsage(interaction, "Statut"); return; }
     if (await handleSmashInteraction(interaction, settings[interaction.guildId])) { auditSlashUsage(interaction, "Smash or pass"); return; }
+    if (await handleFamilyInteraction(interaction)) { auditSlashUsage(interaction, "Famille"); return; }
     if (await handleTrapPardon(interaction, { client, getSettings: (guildId) => settings[guildId] })) return;
     if (await handleRaidInteraction(interaction, settings[interaction.guildId])) { auditSlashUsage(interaction, "Anti-raid"); return; }
     if (await handleMassButton(interaction, { settings: settings[interaction.guildId] })) return;

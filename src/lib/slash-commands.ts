@@ -2608,6 +2608,22 @@ export const EXTRA_SLASH_COMMANDS: SlashCommandDef[] = [
     ],
   },
   {
+    name: "famille",
+    description: "Relations entre membres : mariage, adoption, arbre familial",
+    usage: "/famille mariage membre · divorce · adopter membre · emanciper · renier membre · arbre [membre]",
+    category: "Communauté",
+    dmPermission: false,
+    requiresBotProcess: true,
+    options: [
+      sub("mariage", "Demander un membre en mariage (il doit accepter)", [opt(6, "membre", "Membre à épouser", { required: true })]),
+      sub("divorce", "Mettre fin à ton mariage"),
+      sub("adopter", "Proposer d'adopter un membre (il doit accepter)", [opt(6, "membre", "Membre à adopter", { required: true })]),
+      sub("emanciper", "Quitter ta famille (tes parents)"),
+      sub("renier", "Retirer un de tes enfants", [opt(6, "membre", "Ton enfant", { required: true })]),
+      sub("arbre", "Afficher un arbre familial", [opt(6, "membre", "Membre (toi par défaut)")]),
+    ],
+  },
+  {
     name: "stabilite",
     description: "OWNER/admins : couper une commande défaillante ou mettre un bot en maintenance",
     usage: "/stabilite commande-off commande [raison] · commande-on commande · maintenance-on bot [raison] · maintenance-off bot · etat",
