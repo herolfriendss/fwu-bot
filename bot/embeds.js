@@ -9,7 +9,7 @@ import { roleGrantRefusal } from "./role-grant-guard.js";
 import { SharedDbUnavailableError, isConnectionError, sharedQuery } from "./shared/db.js";
 import { logCommandUsage } from "./shared/audit.js";
 import { memberTier } from "./shared/tiers.js";
-import { generateRules, rulesToEmbedPages } from "./rules-ai.js";
+import { generateRules, parseRulesText, rulesToEmbedPages, rulesToText, validateRules } from "./rules-ai.js";
 
 export const EMBED_COMMANDS = new Set(["embed", "reglement", "screening"]);
 const NAME = /^[a-z0-9][a-z0-9_-]{0,31}$/;
@@ -228,6 +228,7 @@ async function handleEmbedCommand(interaction, { bot, audit }) {
 
 async function handleEmbedModal(interaction, { bot, audit }) {
   const [, mode, name] = interaction.customId.split(":");
+  if (mode === "reglement") return handleRulesModal(interaction, { bot, audit });
   if (!NAME.test(name ?? "")) return reply(interaction, "❌ Nom invalide.");
   const guild = interaction.guild;
   const field = (id) => interaction.fields.getTextInputValue(id) ?? "";
@@ -288,7 +289,14 @@ async function publishRules(guild, channel, draft, actorId) {
   });
   applyBanner(embeds.at(-1), "verification");
   embeds.at(-1)?.setFooter({ text: `${draft.rules.length} règles · en restant sur ce serveur, tu acceptes ce règlement.` }).setTimestamp(new Date());
-  const sent = await channel.send({ embeds, allowedMentions: { parse: [] } });
+  // Déjà publié dans ce salon : on met le message à jour (lien et épingle conservés).
+  const { rows: previous } = await sharedQuery(
+    "SELECT published_message_id FROM rules_drafts WHERE guild_id = $1 AND published_channel_id = $2 AND published_message_id IS NOT NULL ORDER BY id DESC LIMIT 1",
+    [guild.id, channel.id],
+  ).catch(() => ({ rows: [] }));
+  const old = previous[0]?.published_message_id ? await channel.messages?.fetch?.(previous[0].published_message_id).catch(() => null) : null;
+  const sent = old?.editable ? await old.edit({ embeds, allowedMentions: { parse: [] } }) : await channel.send({ embeds, allowedMentions: { parse: [] } });
+  sent.updatedInPlace = Boolean(old?.editable);
   await sharedQuery(
     "UPDATE rules_drafts SET status = 'published', published_channel_id = $2, published_message_id = $3, reviewed_by = COALESCE(reviewed_by, $4), reviewed_at = COALESCE(reviewed_at, now()) WHERE id = $1",
     [draft.id, channel.id, sent.id, actorId],
@@ -305,6 +313,15 @@ async function handleReglementCommand(interaction, { bot, audit }) {
     await logCommandUsage({ guildId: guild.id, userId: interaction.user.id, bot, command: "reglement generer", outcome: "ok", detail: `brouillon ${draft.id}` });
     return interaction.editReply({ content: "Relis le brouillon, puis valide-le, régénère-le ou refuse-le. Rien n'est publié sans validation.", ...rulesPreview(draft), allowedMentions: { parse: [] } });
   }
+  if (sub === "ecrire") {
+    const current = await latestDraft(guild.id, ["draft", "approved", "published"]).catch(() => null);
+    const field = new TextInputBuilder().setCustomId("rules").setLabel("Une règle par ligne : Titre : description")
+      .setStyle(TextInputStyle.Paragraph).setRequired(true).setMaxLength(4000)
+      .setPlaceholder("Respect : pas d'insulte ni de harcèlement.\nPublicité : interdite sans accord du staff.");
+    const text = rulesToText(current?.rules).slice(0, 4000);
+    if (text) field.setValue(text);
+    return interaction.showModal(new ModalBuilder().setCustomId("embed:reglement").setTitle("Écrire le règlement").addComponents(new ActionRowBuilder().addComponents(field)));
+  }
   if (sub === "apercu") {
     const draft = await latestDraft(guild.id, ["draft", "approved", "published"]);
     if (!draft) return reply(interaction, "Aucun brouillon : lance `/reglement generer`.");
@@ -317,12 +334,29 @@ async function handleReglementCommand(interaction, { bot, audit }) {
     const me = guild.members.me ?? await guild.members.fetchMe();
     if (!channel.permissionsFor?.(me)?.has([PermissionFlagsBits.SendMessages, PermissionFlagsBits.EmbedLinks])) return reply(interaction, `⛔ Il me faut Envoyer des messages et Intégrer des liens dans <#${channel.id}>.`);
     await interaction.deferReply({ ephemeral: true });
-    await publishRules(guild, channel, draft, interaction.user.id);
+    const sent = await publishRules(guild, channel, draft, interaction.user.id);
     await logCommandUsage({ guildId: guild.id, userId: interaction.user.id, bot, command: "reglement publier", outcome: "ok", detail: `brouillon ${draft.id}` });
     audit(guild, null, "📜 Règlement publié", `Par : <@${interaction.user.id}>\nSalon : <#${channel.id}>\nBrouillon : #${draft.id} (${draft.rules.length} règles)`);
-    return reply(interaction, `✅ Règlement publié dans <#${channel.id}>. Pense à \`/screening configurer\` ou \`/screening synchroniser\` pour l'écran d'adhésion.`);
+    return reply(interaction, `✅ Règlement ${sent.updatedInPlace ? "mis à jour" : "publié"} dans <#${channel.id}>. Pense à \`/screening configurer\` ou \`/screening synchroniser\` pour l'écran d'adhésion.`);
   }
   return reply(interaction, "Sous-commande inconnue.");
+}
+
+/** Règlement écrit à la main : validé d'office (c'est l'admin qui l'a rédigé), prêt à publier en embed. */
+async function handleRulesModal(interaction, { bot, audit }) {
+  const guild = interaction.guild;
+  const checked = validateRules(parseRulesText(interaction.fields.getTextInputValue("rules")));
+  const blocking = checked.problems.filter((problem) => !problem.includes("doublon"));
+  if (blocking.length) return reply(interaction, `❌ Règlement refusé : ${blocking.join(" ; ")}. Il faut de 5 à 20 règles, titre de 80 caractères et description de 400 au plus.`);
+  const { rows } = await sharedQuery(
+    "INSERT INTO rules_drafts(guild_id, rules, created_by, status, reviewed_by, reviewed_at) VALUES ($1, $2, $3, 'approved', $3, now()) RETURNING id",
+    [guild.id, JSON.stringify(checked.rules), interaction.user.id],
+  );
+  const draft = { id: String(rows[0].id), rules: checked.rules, status: "approved" };
+  await logCommandUsage({ guildId: guild.id, userId: interaction.user.id, bot, command: "reglement ecrire", outcome: "ok", detail: `brouillon ${draft.id}` });
+  audit(guild, null, "📝 Règlement rédigé", `Par : <@${interaction.user.id}>\nBrouillon : #${draft.id} (${draft.rules.length} règles)`);
+  const warn = checked.problems.length ? `\n⚠️ À vérifier : ${checked.problems.join(" ; ")}.` : "";
+  return reply(interaction, `✅ Règlement enregistré (${draft.rules.length} règles). Publie-le en embed avec \`/reglement publier salon:#règlement\` : s'il y est déjà, le message est mis à jour.${warn}`, rulesPreview(draft));
 }
 
 async function handleRulesButton(interaction, { bot, audit }) {

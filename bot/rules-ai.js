@@ -153,3 +153,25 @@ export function rulesToEmbedPages(rules, maxLength = 4000) {
   if (current.trim()) pages.push(current.trim());
   return pages;
 }
+
+/** Règles → texte éditable, une règle par ligne : « Titre : description ». */
+export function rulesToText(rules) {
+  return (rules ?? []).map((rule) => `${rule.title} : ${rule.description}`).join("\n");
+}
+
+/**
+ * Texte écrit par un admin → règles. Une règle par ligne (« Titre : description », « Titre - description »
+ * ou « Titre — description »), numéros en tête ignorés. Une ligne sans séparateur prolonge la règle précédente.
+ */
+export function parseRulesText(text) {
+  const rules = [];
+  for (const raw of String(text ?? "").split(/\r?\n/)) {
+    const line = raw.trim().replace(/^(?:\d+\s*[.)-]|[-•*])\s*/, "").replace(/\*\*/g, "");
+    if (!line) continue;
+    const match = line.match(/^(.{2,80}?)\s*(?::|\s[-—–]\s)\s*(.+)$/);
+    if (match) rules.push({ title: match[1].trim(), description: match[2].trim() });
+    else if (rules.length) rules.at(-1).description = `${rules.at(-1).description} ${line}`.trim();
+    else throw new Error(`Ligne sans titre : « ${line.slice(0, 60)} ». Écris « Titre : description ».`);
+  }
+  return rules;
+}
