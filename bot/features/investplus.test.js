@@ -108,6 +108,31 @@ test("paiement en PND : débit atomique, refus si solde insuffisant, formules ma
   assert.equal(ip.investStats(G, T0).paidLast30, 300);
 });
 
+test("offrir une formule : le donateur paie, le bénéficiaire est abonné, jamais d'écrasement", () => {
+  fresh();
+  const W = "200000000000000003";
+  const pnd = ip.createPlan(G, { name: "Membre PND", price: 300, periodDays: 7, payMode: "pnd" }, T0);
+  const other = ip.createPlan(G, { name: "Autre PND", price: 100, periodDays: 7, payMode: "pnd" }, T0);
+  const manual = ip.createPlan(G, { name: "Privé", price: 50, periodDays: 30 }, T0);
+  db.prepare("INSERT OR REPLACE INTO wallets(guild_id,user_id,balance,bank) VALUES(?,?,?,0)").run(G, V, 700);
+  assert.throws(() => ip.giftWithPnd({ guildId: G, giverId: V, userId: V, planId: pnd.id }, T0), /toi-même/);
+  assert.throws(() => ip.giftWithPnd({ guildId: G, giverId: V, userId: W, planId: manual.id }, T0), /payables en PND/);
+  const r = ip.giftWithPnd({ guildId: G, giverId: V, userId: W, planId: pnd.id }, T0);
+  assert.equal(r.kind, "cadeau");
+  assert.equal(ip.subscriptionOf(G, W).expiresAt, T0 + 7 * DAY);
+  assert.ok(!ip.subscriptionOf(G, V), "le donateur n'est pas abonné");
+  assert.equal(Number(db.prepare("SELECT balance FROM wallets WHERE guild_id=? AND user_id=?").get(G, V).balance), 400);
+  assert.deepEqual(ip.historyOf(G, V).map((h) => h.kind), ["cadeau_offert"]);
+  assert.throws(() => ip.giftWithPnd({ guildId: G, giverId: V, userId: W, planId: other.id }, T0 + 1), /autre formule active/);
+  ip.giftWithPnd({ guildId: G, giverId: V, userId: W, planId: pnd.id }, T0 + 2);
+  assert.equal(ip.subscriptionOf(G, W).expiresAt, T0 + 14 * DAY, "même formule : prolongée");
+  assert.throws(() => ip.giftWithPnd({ guildId: G, giverId: V, userId: W, planId: pnd.id }, T0 + 3), /insuffisant/i);
+  assert.equal(ip.subscriptionOf(G, W).expiresAt, T0 + 14 * DAY, "un cadeau refusé ne prolonge rien");
+  ip.pauseSubscription(G, W, "admin", T0 + 4);
+  assert.throws(() => ip.giftWithPnd({ guildId: G, giverId: V, userId: W, planId: pnd.id }, T0 + 5), /en pause/);
+  assert.equal(ip.investStats(G, T0 + 5).paidLast30, 600);
+});
+
 test("tâches planifiées : un seul rappel par période, puis expiration", () => {
   fresh();
   ip.saveInvestConfig(G, { reminderDays: 3 });

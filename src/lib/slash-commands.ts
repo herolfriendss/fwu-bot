@@ -2156,7 +2156,7 @@ export const EXTRA_SLASH_COMMANDS: SlashCommandDef[] = [
   {
     name: "abonnement",
     description: "Invest + : ton abonnement, tes avantages et ton espace privé",
-    usage: "/abonnement voir · formules · historique · espace · demande",
+    usage: "/abonnement voir · formules · historique · offrir · espace · demande",
     category: "Invest +",
     dmPermission: false,
     requiresBotProcess: true,
@@ -2164,6 +2164,10 @@ export const EXTRA_SLASH_COMMANDS: SlashCommandDef[] = [
       sub("voir", "Ton abonnement : formule, échéance, avantages"),
       sub("formules", "Les formules proposées (et le paiement en PND quand il est possible)"),
       sub("historique", "L'historique de ton abonnement"),
+      sub("offrir", "Offre une formule payable en PND à un autre membre", [
+        opt(6, "membre", "Le membre qui reçoit le cadeau", { required: true }),
+        opt(3, "formule", "Formule offerte (nom ou numéro)", { required: true, max_length: 40 }),
+      ]),
       sub("espace", "Ouvre (ou retrouve) ton salon privé Invest +"),
       sub("demande", "Écris à l'administration (renouvellement, changement, question)", [
         opt(3, "type", "Objet de la demande", { required: true, choices: [{ name: "Renouveler", value: "renouveler" }, { name: "Changer de formule", value: "changer" }, { name: "Question", value: "question" }] }),

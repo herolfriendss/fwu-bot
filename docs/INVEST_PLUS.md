@@ -35,7 +35,8 @@ Mémoire : environ 100 Mo comme les autres bots (PM2 : `fwu-investplus`, limite 
 **Membres** (`/abonnement` ou `$abonnement` / `$abo`)
 - `voir` : ta formule, ton échéance, tes avantages (+ paiement en PND si possible)
 - `formules` : les formules proposées
-- `historique` : attribution, prolongations, paiements, pauses…
+- `historique` : attribution, prolongations, paiements, cadeaux, pauses…
+- `offrir membre formule` : offre une formule payable en PND à un autre membre (après confirmation, ton solde est débité). Si le membre a déjà une autre formule active ou en pause, le cadeau est refusé. S'il a la même formule, elle est prolongée. Le membre est prévenu et l'administration aussi (journal de l'économie : `investplus_cadeau`).
 - `espace` : ouvre ou retrouve ton salon privé
 - `demande type:[renouveler|changer|question] formule message` : écrit à l'administration
 

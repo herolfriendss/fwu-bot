@@ -11,7 +11,7 @@ import {
   DAY, LIMITS, REQUEST_KINDS, STATUS_LABELS, benefitLines, cancelSubscription, closeRequest, createPlan, createRequest,
   deleteSpace, deleteSpaceByChannel, expireDueSubscriptions, findPlan, formatPeriod, formatPrice, grantSubscription,
   historyOf, investConfig, investStats, listOpenRequests, listPlans, listSpaces, listSubscriptions, pauseSubscription,
-  payWithPnd, planById, requestById, resumeSubscription, saveInvestConfig, saveSpace, setPlanActive, setSpacePanel,
+  giftWithPnd, payWithPnd, planById, requestById, resumeSubscription, saveInvestConfig, saveSpace, setPlanActive, setSpacePanel,
   setSubscriptionNote, spaceByChannel, spaceChannelName, spaceOf, subscriptionOf, takeDueReminders, updatePlan,
 } from "./investplus.js";
 
@@ -30,7 +30,7 @@ export function isInvestAdmin(member, env = process.env) {
 
 const HISTORY_LABELS = Object.freeze({
   attribution: "🎁 Formule attribuée", prolongation: "➕ Prolongation", changement: "🔁 Changement de formule",
-  paiement: "💳 Paiement", pause: "⏸️ Pause", reprise: "▶️ Reprise", resiliation: "🛑 Résiliation", expiration: "⌛ Expiration",
+  paiement: "💳 Paiement", cadeau: "🎁 Formule reçue en cadeau", cadeau_offert: "🎀 Formule offerte", pause: "⏸️ Pause", reprise: "▶️ Reprise", resiliation: "🛑 Résiliation", expiration: "⌛ Expiration",
 });
 
 // --- Affichage ---------------------------------------------------------------
@@ -480,6 +480,22 @@ async function memberCommand(interaction) {
     case "voir": return { embeds: [subscriptionEmbed(gid, uid)], components: payMenu(gid, uid) };
     case "formules": return { embeds: [plansEmbed(gid)], components: payMenu(gid, uid) };
     case "historique": return { embeds: [historyEmbed(gid, uid)] };
+    case "offrir": {
+      const target = interaction.options.getUser("membre", true);
+      if (target.bot) throw new Error("On ne peut pas offrir d'abonnement à un bot.");
+      if (target.id === uid) throw new Error("Pour toi-même, paie ta formule depuis `/abonnement formules`.");
+      if (!(await interaction.guild.members.fetch(target.id).catch(() => null))) throw new Error("Ce membre n'est pas sur le serveur.");
+      const plan = planOption(interaction, "formule");
+      if (plan.payMode !== "pnd" || !plan.active) throw new Error("Seules les formules payables en PND peuvent être offertes (voir `/abonnement formules`).");
+      const current = subscriptionOf(gid, target.id);
+      if (current?.status === "active" && current.planId !== plan.id) throw new Error(`<@${target.id}> a déjà une autre formule active : offre-lui la même pour la prolonger.`);
+      return {
+        content: `🎁 Offrir **${plan.name}** (${formatPeriod(plan.periodDays)}) à <@${target.id}> pour **${formatPrice(plan)}** ? Ton solde PND sera débité tout de suite.${current?.status === "active" ? " Sa formule actuelle sera prolongée." : ""}`,
+        components: [new ActionRowBuilder().addComponents(
+          new ButtonBuilder().setCustomId(`${PREFIX}giftok:${uid}:${target.id}:${plan.id}`).setLabel("Offrir").setStyle(ButtonStyle.Success).setEmoji("🎁"),
+        )],
+      };
+    }
     case "espace": {
       const channel = await ensureSpace(interaction.guild, interaction.member);
       return `✅ Ton espace Invest + : ${channel}`;
@@ -574,6 +590,17 @@ async function handleComponent(interaction, settings) {
       await interaction.update({ content: `✅ Paiement accepté : **${result.plan.name}** jusqu'au ${result.subscription.expiresAt ? ts(result.subscription.expiresAt) : "—"}.`, components: [] });
       const problem = await afterChange(interaction.guild, ownerId, { previousPlanId: result.previous?.planId ?? null, settings });
       await notifyAdmin(interaction.guild, { content: `💳 <@${ownerId}> a payé **${result.plan.name}** (${formatPrice(result.plan)}).${problem ? ` ⚠️ Rôle : ${problem}.` : ""}` });
+      return true;
+    }
+    case "giftok": {
+      if (interaction.user.id !== ownerId) return interaction.reply(ephemeral("Seul le donateur peut confirmer ce cadeau."));
+      const [, recipientId, planId] = rest;
+      const result = giftWithPnd({ guildId: gid, giverId: ownerId, userId: recipientId, planId: Number(planId) });
+      const end = result.subscription.expiresAt ? ts(result.subscription.expiresAt) : "sans échéance";
+      await interaction.update({ content: `🎁 Cadeau envoyé : <@${recipientId}> profite de **${result.plan.name}** (échéance : ${end}).`, components: [] });
+      const problem = await afterChange(interaction.guild, recipientId, { previousPlanId: result.previous?.planId ?? null, settings });
+      await notifyMember(interaction.guild, recipientId, `<@${ownerId}> t'offre la formule **${result.plan.name}** 🎁 (échéance : ${end}).`);
+      await notifyAdmin(interaction.guild, { content: `🎁 <@${ownerId}> a offert **${result.plan.name}** (${formatPrice(result.plan)}) à <@${recipientId}>.${problem ? ` ⚠️ Rôle : ${problem}.` : ""}` });
       return true;
     }
     default: return interaction.reply(ephemeral("Action inconnue."));

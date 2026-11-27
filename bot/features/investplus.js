@@ -247,6 +247,27 @@ export function payWithPnd({ guildId, userId, planId }, now = Date.now()) {
   });
 }
 
+/**
+ * Un membre offre une formule payable en PND à un autre membre (débit du donateur,
+ * abonnement du bénéficiaire, une ligne d'historique chez chacun). Une autre formule
+ * déjà active ou en pause chez le bénéficiaire n'est jamais écrasée.
+ */
+export function giftWithPnd({ guildId, giverId, userId, planId }, now = Date.now()) {
+  if (String(giverId) === String(userId)) throw new Error("Pour toi-même, utilise le paiement de ta formule.");
+  const plan = planById(guildId, planId);
+  if (!plan || !plan.active) throw new Error("Formule introuvable ou plus proposée.");
+  if (plan.payMode !== "pnd") throw new Error("Seules les formules payables en PND peuvent être offertes.");
+  const current = subscriptionOf(guildId, userId);
+  if (current?.status === "paused") throw new Error("L'abonnement de ce membre est en pause : impossible de lui offrir une formule maintenant.");
+  if (current?.status === "active" && current.planId !== plan.id) throw new Error("Ce membre a déjà une autre formule active : offre-lui la même formule pour la prolonger.");
+  return transaction(() => {
+    grantPnd(guildId, giverId, -plan.price, "investplus_cadeau");
+    const result = grantSubscription({ guildId, userId, planId: plan.id, actorId: giverId, amount: plan.price, kind: "cadeau" }, now);
+    addHistory({ guildId, userId: giverId, kind: "cadeau_offert", planId: plan.id, amount: plan.price, detail: `pour ${userId}`, actorId: giverId }, now);
+    return result;
+  });
+}
+
 export function pauseSubscription(guildId, userId, actorId, now = Date.now()) {
   const sub = subscriptionOf(guildId, userId);
   if (sub?.status !== "active") throw new Error("Aucun abonnement actif à mettre en pause.");
@@ -323,7 +344,7 @@ export function investStats(guildId, now = Date.now()) {
     paused: count("SELECT COUNT(*) AS n FROM investplus_subscriptions WHERE guild_id=? AND status='paused'"),
     expiringSoon: count("SELECT COUNT(*) AS n FROM investplus_subscriptions WHERE guild_id=? AND status='active' AND expires_at IS NOT NULL AND expires_at<=?", now + 7 * DAY),
     endedLast30: count("SELECT COUNT(*) AS n FROM investplus_subscriptions WHERE guild_id=? AND status IN ('expired','cancelled') AND updated_at>=?", now - 30 * DAY),
-    paidLast30: count("SELECT COALESCE(SUM(amount),0) AS n FROM investplus_history WHERE guild_id=? AND kind='paiement' AND created_at>=?", now - 30 * DAY),
+    paidLast30: count("SELECT COALESCE(SUM(amount),0) AS n FROM investplus_history WHERE guild_id=? AND kind IN ('paiement','cadeau') AND created_at>=?", now - 30 * DAY),
     openRequests: count("SELECT COUNT(*) AS n FROM investplus_requests WHERE guild_id=? AND status='open'"),
     spaces: count("SELECT COUNT(*) AS n FROM investplus_spaces WHERE guild_id=?"),
     monthly,
