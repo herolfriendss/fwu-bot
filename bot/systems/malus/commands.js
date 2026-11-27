@@ -130,7 +130,19 @@ async function execute(interaction, guildSettings) {
   if (!ALL_KINDS.includes(sub)) throw new MalusError("Sous-commande inconnue.");
   const { actor, target } = await requireMalusTarget(interaction, guildSettings);
   const minutes = parseMinutes(interaction.options.getInteger("minutes"));
-  const expiresAt = await startMalus({ guild, actor, target, kind: sub, minutes, guildSettings });
+  let data = null;
+  if (sub === "rancon") {
+    const amount = Number(interaction.options.getInteger("montant"));
+    if (!Number.isInteger(amount) || amount < 10 || amount > 100_000) throw new MalusError("La rançon doit être entre 10 et 100 000 PND.");
+    data = { amount };
+  }
+  const expiresAt = await startMalus({ guild, actor, target, kind: sub, minutes, data, guildSettings });
+  if (sub === "rancon" && interaction.channel?.send) {
+    await interaction.channel.send({ content: `🔒 <@${target.id}> est pris en otage jusqu'à <t:${Math.floor(expiresAt / 1000)}:t>. Rançon : **${data.amount.toLocaleString("fr-FR")} PND**, payable par n'importe qui avec \`/malus payer-rancon\`.`, allowedMentions: { parse: [] } }).catch(() => {});
+  }
+  if ((sub === "taxe" || sub === "cible") && interaction.channel?.send) {
+    await interaction.channel.send({ content: sub === "taxe" ? `💸 <@${target.id}> est taxé : 30 % de ses gains vont à <@${actor.id}> jusqu'à <t:${Math.floor(expiresAt / 1000)}:t>.` : `🎯 <@${target.id}> est une cible : chaque membre qui le mentionne gagne 25 PND jusqu'à <t:${Math.floor(expiresAt / 1000)}:t>.`, allowedMentions: { parse: [] } }).catch(() => {});
+  }
   if (MESSAGE_KINDS.includes(sub) && interaction.channel?.send) {
     await interaction.channel.send({ content: `${KIND_LABELS[sub]} : <@${target.id}> est sous malus jusqu'à <t:${Math.floor(expiresAt / 1000)}:t>.`, allowedMentions: { parse: [] } }).catch(() => {});
   }

@@ -343,7 +343,23 @@ function changeBalance(guildId, userId, delta, reason = "adjustment") {
     db.prepare("UPDATE wallets SET balance=balance+? WHERE guild_id=? AND user_id=?").run(delta, guildId, userId);
   }
   if (delta) db.prepare("INSERT INTO economy_ledger(guild_id,user_id,delta,reason,created_at) VALUES(?,?,?,?,?)").run(guildId, userId, delta, reason, Date.now());
+  if (delta > 0 && !String(reason).startsWith("malus_")) applyMalusTax(guildId, userId, delta);
   return balance(guildId, userId);
+}
+
+// MALUS TAXE (/malus taxe) : pendant sa durée, 30 % de chaque gain va au SYS+ qui l'a posée.
+export const MALUS_TAX_RATE = 0.3;
+function applyMalusTax(guildId, userId, gain) {
+  let row = null;
+  try { row = db.prepare("SELECT started_by FROM malus_active WHERE guild_id=? AND member_id=? AND kind='taxe' AND expires_at>?").get(guildId, userId, Date.now()); } catch { return; }
+  if (!row || row.started_by === userId) return;
+  const tax = Math.floor(gain * MALUS_TAX_RATE);
+  if (tax < 1) return;
+  try {
+    // Collector first: if their balance is at the cap nothing moves; the debit can't fail (the gain was just credited).
+    changeBalance(guildId, row.started_by, tax, "malus_taxe_percue");
+    changeBalance(guildId, userId, -tax, "malus_taxe");
+  } catch { /* plafond ou solde : pas de taxe cette fois */ }
 }
 
 function format(value) { return `${Number(value).toLocaleString("fr-FR")} PND`; }

@@ -39,7 +39,7 @@ export const HIERARCHY_TARGETS = Object.freeze({
   "wouaf activer": "membre",
   "wouaf stop": "membre",
   ...Object.fromEntries(["perroquet", "fantome", "mime", "clown", "robot", "bebe", "yoda", "chuchote", "sablier", "malediction",
-    "sourdine-folle", "exil", "bouffon", "patate", "tribunal", "interrogatoire"].map((kind) => [`malus ${kind}`, "membre"])),
+    "sourdine-folle", "exil", "bouffon", "patate", "tribunal", "interrogatoire", "taxe", "rancon", "cible"].map((kind) => [`malus ${kind}`, "membre"])),
   menotte: "membre",
   unmenotte: "membre",
   "blacklist add": "membre",

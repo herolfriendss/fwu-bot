@@ -1469,6 +1469,14 @@ export const SLASH_COMMANDS: SlashCommandDef[] = [
       sub("patate", "Patate chaude : à passer en mentionnant quelqu'un en 30 s", [opt(6, "membre", "Premier à recevoir la patate", { required: true })]),
       sub("tribunal", "Vote public de 60 s : coupable ou innocent", [opt(6, "membre", "Accusé", { required: true })]),
       sub("interrogatoire", "3 questions, 30 s pour répondre à chacune", [opt(6, "membre", "Membre interrogé", { required: true })]),
+      sub("taxe", "30 % de ses gains de PND vont au SYS+", malusTargetOptions()),
+      sub("rancon", "Muet jusqu'à ce que quelqu'un paie la rançon", [
+        opt(6, "membre", "Membre pris en otage", { required: true }),
+        opt(4, "montant", "Rançon en PND (10 à 100 000)", { required: true, min_value: 10, max_value: 100000 }),
+        opt(4, "minutes", "Durée maximale (1 à 60 min, 10 par défaut)", { min_value: 1, max_value: 60 }),
+      ]),
+      sub("cible", "Chaque membre qui le mentionne gagne 25 PND", malusTargetOptions()),
+      sub("payer-rancon", "Paie la rançon d'un membre pour le libérer", [opt(6, "membre", "Otage à libérer", { required: true })]),
       sub("stop", "Lève les malus d'un membre", [
         opt(6, "membre", "Membre", { required: true }),
         opt(3, "type", "Un seul malus (vide = tous)", { choices: MALUS_STOP_CHOICES }),

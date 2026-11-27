@@ -33,6 +33,7 @@ import { enforceProtectedNickname, handleLocknameInteraction, handleLocknameMess
 import { expireWaoufActions, handleWaoufInteraction, handleWaoufMessage } from "./systems/waouf/commands.js";
 import { expireMalus, handleMalusInteraction, handleMalusMessage } from "./systems/malus/commands.js";
 import { handleExileVoiceState, handlePatateMessage } from "./systems/malus/voice-games.js";
+import { handleCibleMessage, handleRansomMessage } from "./systems/malus/economy-malus.js";
 import { enforceLeashNickname, handleDogCommand, handleLeashVoiceState, handleUndogAllInteraction, reconcileLeashedMembers } from "./dog-commands.js";
 import { handleMusicExtrasInteraction, handleMusicMessage, handleMusicInteraction, handleRadioMessage, startConfiguredRadios } from "./music/music.js";
 import { economySnapshot, handleEconomyMessage, handleEconomyInteraction, reconcilePendingEconomy, recoverBlackjackGames, settleExpiredEconomyAuctions, transferEconomyRole } from "./economy.js";
@@ -750,6 +751,8 @@ async function handleMessageCreate(msg) {
   try {
     if (runCmd("guard") && await handleReactionVerificationCommand(msg)) return;
     if (serves("suckme") && await handleWaoufMessage(msg, settings, record)) return;
+    if (serves("suckme") && await handleRansomMessage(msg)) return;
+    if (serves("suckme")) void handleCibleMessage(msg).catch(() => record("malus_error"));
     if (serves("suckme") && await handlePatateMessage(msg)) return;
     if (serves("suckme") && await handleMalusMessage(msg, record)) return;
   } catch {
