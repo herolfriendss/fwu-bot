@@ -1615,8 +1615,8 @@ client.on("guildCreate", (guild) => {
     void captureGuildInviteSnapshot(guild).then((result) => { if (!result.captured) record("invite_snapshot_unavailable"); }).catch(() => record("invite_snapshot_error"));
   }
 });
-client.on("error", () => record("gateway_error"));
-client.on("shardError", () => record("gateway_error"));
+client.on("error", (error) => { console.error(`[discord] ${String(error?.message ?? error).slice(0, 200)}`); record("gateway_error"); });
+client.on("shardError", (error) => { console.error(`[discord shard] ${String(error?.message ?? error).slice(0, 200)}`); record("gateway_error"); });
 
 /** Help groups limited to the commands this application registers. */
 function commandGroupsForThisBot() {
@@ -2051,4 +2051,4 @@ function stopOffline(reason) {
 clearConnectedMarker();
 const gatewayWatchdog = createGatewayWatchdog({ isReady: () => client.isReady(), exit: stopOffline });
 setInterval(() => gatewayWatchdog.check(), 15_000).unref?.();
-client.login(DISCORD_TOKEN).catch((error) => stopOffline(error?.code ?? error?.name ?? "login_failed"));
+client.login(DISCORD_TOKEN).catch((error) => { console.error(`[login] ${BOT_LABEL} : ${String(error?.message ?? error).slice(0, 200)}`); stopOffline(error?.code ?? error?.name ?? "login_failed"); });
