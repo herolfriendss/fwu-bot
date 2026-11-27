@@ -17,10 +17,12 @@ import {
 import { respondInPlaceSafe } from "./interaction-reply.js";
 import { runModerationAction } from "./moderation-actions.js";
 import { publishEventSafe } from "./event-bus.js";
+import { clearTempban, parseTempbanDuration, scheduleTempban } from "./guard/tempban.js";
+import { formatDurationFr } from "./shared/quotas.js";
 
 const P = PermissionFlagsBits;
 const MAX_CASE_DETAILS = 1_000;
-const MODERATION_COMMANDS = new Set(["warn", "warnings", "unmute", "kick", "ban", "purge", "slowmode", "lock", "unlock", "verify"]);
+const MODERATION_COMMANDS = new Set(["warn", "warnings", "unmute", "kick", "ban", "tempban", "purge", "slowmode", "lock", "unlock", "verify"]);
 const CASE_ACTIONS = new Set(["warn", "mute", "unmute", "kick", "ban"]);
 const APPEALABLE_ACTIONS = new Set(["warn", "mute", "kick", "ban"]);
 const APPEAL_WINDOW_MS = 7 * 86_400_000;
@@ -51,6 +53,40 @@ const CASE_EVENT_KIND = Object.freeze({
   kick: "member.kicked", ban: "member.banned", unban: "member.unbanned",
   quarantine: "member.quarantined", unquarantine: "member.unbanned",
 });
+
+/** Retire un dossier créé pour une sanction qui a finalement échoué (ban refusé par Discord). */
+export function discardModerationCase(guildId, caseId) {
+  db.prepare("DELETE FROM moderation_cases WHERE guild_id = ? AND id = ?").run(String(guildId), Number(caseId));
+}
+
+/**
+ * Appel accepté : la sanction encore en cours est levée (ban, ban temporaire,
+ * exclusion temporaire). Rend une phrase pour le staff, jamais une exception.
+ */
+export async function liftSanctionAfterAppeal(guild, appeal) {
+  if (!guild) return "Serveur d'origine injoignable : sanction à lever à la main.";
+  const reason = `Appel #${appeal.id} accepté (dossier #${appeal.case_id})`;
+  try {
+    if (appeal.action === "ban") {
+      clearTempban(guild.id, appeal.appellant_id);
+      await guild.bans.remove(appeal.appellant_id, reason);
+      return "Ban levé automatiquement.";
+    }
+    if (appeal.action === "mute") {
+      const member = await guild.members.fetch(appeal.appellant_id).catch(() => null);
+      if (member?.communicationDisabledUntilTimestamp && member.communicationDisabledUntilTimestamp > Date.now()) {
+        await member.timeout(null, reason);
+        return "Exclusion temporaire levée automatiquement.";
+      }
+      return "Exclusion temporaire déjà terminée.";
+    }
+    return "Rien à lever (avertissement ou expulsion déjà terminés).";
+  } catch (error) {
+    const code = error?.code ?? error?.rawError?.code;
+    if (code === 10026) return "Le membre n'était plus banni.";
+    return "Discord a refusé de lever la sanction : à faire à la main.";
+  }
+}
 
 export function recordModerationCase({ guildId, userId, moderatorId, action, reason, details = null }) {
   if (!guildId || !userId || !moderatorId || !CASE_ACTIONS.has(action)) {
@@ -197,7 +233,7 @@ async function submitSanctionAppeal(interaction) {
     new ButtonBuilder().setCustomId(`moderation:appeal-review:rejected:${appealId}`).setLabel("Rejeter l’appel").setStyle(ButtonStyle.Danger),
   );
   const embed = new EmbedBuilder().setColor(0xf59e0b).setTitle("🛡️ Appel de sanction")
-    .setDescription(`Dossier #${appeal.case_id} · appel #${appealId}\nMembre : <@${appeal.appellant_id}>\nSanction : **${appeal.action}**\nMotif initial : ${(appeal.sanction_reason || "Non renseigné").slice(0, 500)}\n\n**Demande**\n${appeal.body.slice(0, 1_000)}\n\nUne décision acceptée n’annule pas automatiquement une sanction Discord.`)
+    .setDescription(`Dossier #${appeal.case_id} · appel #${appealId}\nMembre : <@${appeal.appellant_id}>\nSanction : **${appeal.action}**\nMotif initial : ${(appeal.sanction_reason || "Non renseigné").slice(0, 500)}\n\n**Demande**\n${appeal.body.slice(0, 1_000)}\n\nAccepter l’appel lève automatiquement un ban ou une exclusion encore en cours.`)
     .setTimestamp(new Date(appeal.submitted_at));
   const delivered = await sendToLogsHub(interaction.client, sourceGuild, embed.toJSON(), "Modération — Appel sanction", [reviewRow.toJSON()], [], { category: "moderation" }).catch(() => false);
   await interaction.reply({ content: delivered ? "✅ Ton appel a été transmis à l’équipe de modération. La sanction reste active pendant son examen." : "✅ Ton appel est enregistré. Le journal central est indisponible ; le staff devra consulter la base de modération.", ephemeral: true });
@@ -224,13 +260,15 @@ async function handleSanctionAppealReview(interaction) {
   }
   try {
     const reviewed = reviewModerationAppeal(appeal.guild_id, interaction.user.id, appealId, decision);
+    // Appel accepté : la sanction en cours est levée tout de suite (27/11).
+    const lifted = decision === "accepted" ? await liftSanctionAfterAppeal(interaction.client.guilds.cache.get(appeal.guild_id), { ...appeal, id: appealId }) : null;
     const applicant = await interaction.client.users.fetch(reviewed.appellant_id).catch(() => null);
     await applicant?.send({ content: decision === "accepted"
-      ? `✅ Ton appel #${appealId} concernant le dossier #${appeal.case_id} a été accepté par l’équipe. La sanction Discord n’a pas été automatiquement levée ; contacte le staff pour la suite.`
+      ? `✅ Ton appel #${appealId} concernant le dossier #${appeal.case_id} a été accepté par l’équipe. ${lifted}`
       : `❌ Ton appel #${appealId} concernant le dossier #${appeal.case_id} a été rejeté par l’équipe.`, allowedMentions: { parse: [] } }).catch(() => {});
     await interaction.update({ components: [], embeds: interaction.message.embeds.map((item) => {
       const json = item.toJSON();
-      json.fields = [...(json.fields || []), { name: "Décision", value: `${decision === "accepted" ? "Accepté" : "Rejeté"} par ${interaction.user.tag} · <t:${Math.floor(Date.now() / 1000)}:f>`, inline: false }];
+      json.fields = [...(json.fields || []), { name: "Décision", value: `${decision === "accepted" ? "Accepté" : "Rejeté"} par ${interaction.user.tag} · <t:${Math.floor(Date.now() / 1000)}:f>${lifted ? `\n${lifted}` : ""}`, inline: false }];
       return json;
     }) });
   } catch (error) {
@@ -387,7 +425,7 @@ export async function handleModerationInteraction(interaction, guildSettings = {
     const target = await targetMember(guild, user);
     const reason = sanitizeReason(interaction.options.getString("raison") ?? "");
     const bot = api?.bot ?? "fwu";
-    const common = { guild, actor, command, bot, targetId: user.id, targetMember: target, targetUser: user, reason, settings, recordCase: recordModerationCase, appealButton };
+    const common = { guild, actor, command, bot, targetId: user.id, targetMember: target, targetUser: user, reason, settings, recordCase: recordModerationCase, appealButton, discardCase: discardModerationCase };
 
     // warn / unmute / kick / ban : accès par palier de rôle + quota partagé (shared/).
     if (command === "warn") {
@@ -423,6 +461,15 @@ export async function handleModerationInteraction(interaction, guildSettings = {
     if (command === "ban") {
       const { caseId } = await runModerationAction({ ...common, execute: () => guild.members.ban(user.id, { reason, deleteMessageSeconds: 0 }) });
       await confirm(interaction, `🔨 ${caseId ? `Dossier #${caseId} · ` : ""}<@${user.id}> banni.`);
+      return true;
+    }
+
+    if (command === "tempban") {
+      const duration = parseTempbanDuration(interaction.options.getString("duree", true));
+      if (duration.error) throw new Error(duration.error);
+      const { caseId } = await runModerationAction({ ...common, command: "ban", durationSeconds: duration.seconds, execute: () => guild.members.ban(user.id, { reason: `${reason} (temporaire)`, deleteMessageSeconds: 0 }) });
+      const expiresAt = scheduleTempban({ guildId: guild.id, userId: user.id, seconds: duration.seconds, caseId, moderatorId: actor.id, reason });
+      await confirm(interaction, `⏳ ${caseId ? `Dossier #${caseId} · ` : ""}<@${user.id}> banni pour ${formatDurationFr(duration.seconds)}, débanni automatiquement <t:${Math.floor(expiresAt / 1000)}:R>.`);
       return true;
     }
   } catch (error) {

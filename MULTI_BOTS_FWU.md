@@ -7,7 +7,7 @@
 | Bot | Processus PM2 | Préfixe | Ce qu'il fait | Token (dans le `.env` de son dossier) |
 |---|---|---|---|---|
 | **FWU** | `her-v5-bot` (avec le site `her-v5-web`) | slash uniquement | Modération staff : `/tempmute`, `/unmute`, `/warn`, `/warnings`, `/sanction`, `/sanction-type`, `/quota` ; embeds `/embed`, règlement IA `/reglement`, écran d'adhésion `/screening`. Événements, logs et IA par mention. **Reprend les événements** (pas les commandes) d'un bot arrêté. | `DISCORD_TOKEN` |
-| **GUARD** | `fwu-guard` | `+` | `+ban`, `+unban`, `+kick`, `+blacklist`, `+purge`, `+lock`, `+slowmode` ; GuildGuard, `/verify`, anti-spam, filtre d'insultes, Guardian | `PND_GUARD_TOKEN` |
+| **GUARD** | `fwu-guard` | `+` | `+ban`, `+tempban` (débanni automatiquement), `+unban`, `+kick`, `+blacklist`, `+purge`, `+lock`, `+slowmode` ; GuildGuard, `/verify`, anti-spam, filtre d'insultes, Guardian | `PND_GUARD_TOKEN` |
 | **FDPDLAVOC** | `fwu-fdpdlavoc` | `;` | Musique, radio, vocaux temporaires, `;pv`, `;access`, `;voc`, `;mv`, `;accessall` | `PND_FDPDLAVOC_TOKEN` |
 | **SUCK ME** | `fwu-suckme` | `=` | SYS+, rôles, DOG, MENOTTE, WAKEUP, LOCKNAME, Anti-Move, automatisations, webhooks, dmall ; tickets, candidatures, sondage, IA, live, AFK, social, giveaways, événements, commandes personnalisées du site | `PND_SUCKME_TOKEN` |
 | **LE FISC** | `fwu-fisc` | `-` | Économie, casino, jeux (dice, coinflip, trivia) et cartes | `PND_FISC_TOKEN` |

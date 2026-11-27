@@ -56,6 +56,7 @@ export const PRIVATE_COMMANDS = Object.freeze(new Set([
  */
 export const SENSITIVE_ACTIONS = Object.freeze({
   ban: "🚫 {target} a été banni.",
+  tempban: "⏳ {target} est banni temporairement.",
   kick: "👢 {target} a été expulsé.",
   tempmute: "🔇 {target} est réduit au silence.",
   warn: "⚠️ {target} a reçu un avertissement.",

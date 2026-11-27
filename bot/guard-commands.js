@@ -1,16 +1,18 @@
 // GUARD — commandes d'administration en préfixe (par défaut « + »).
-//   +ban @membre|ID [raison]   +unban ID [raison]   +kick @membre|ID [raison]
+//   +ban @membre|ID [raison]   +tempban @membre|ID durée [raison]   +unban ID [raison]   +kick @membre|ID [raison]
 //   +purge|+nettoyer nombre    +lock   +unlock      +slowmode secondes
 // ban / unban / kick : paliers + quotas partagés (moderation-actions.js).
 // Les handlers lisent la forme canonique « =commande » (réécrite par index.js).
 import { PermissionFlagsBits } from "discord.js";
 import { ModerationRefusal, describeDiscordError, runModerationAction } from "./moderation-actions.js";
-import { appealButton, recordModerationCase } from "./moderation.js";
+import { appealButton, discardModerationCase, recordModerationCase } from "./moderation.js";
+import { clearTempban, parseTempbanDuration, scheduleTempban } from "./guard/tempban.js";
+import { formatDurationFr } from "./shared/quotas.js";
 import { logCommandUsage } from "./shared/audit.js";
 import { memberTier } from "./shared/tiers.js";
 
 const P = PermissionFlagsBits;
-const COMMAND = /^=(ban|unban|kick|purge|nettoyer|lock|unlock|slowmode)(?=$|\s)([\s\S]*)$/i;
+const COMMAND = /^=(ban|tempban|unban|kick|purge|nettoyer|lock|unlock|slowmode)(?=$|\s)([\s\S]*)$/i;
 const TARGET = /^\s*(?:<@!?(\d{17,20})>|(\d{17,20}))(?=$|\s)([\s\S]*)$/;
 
 /** "=ban <@1…> spam" → { command, targetId, rest }. null when it is not a GUARD command. */
@@ -19,7 +21,7 @@ export function parseGuardCommand(content) {
   if (!match) return null;
   const command = match[1].toLowerCase();
   const args = match[2] ?? "";
-  if (["ban", "unban", "kick"].includes(command)) {
+  if (["ban", "tempban", "unban", "kick"].includes(command)) {
     const target = TARGET.exec(args);
     return { command, targetId: target ? (target[1] ?? target[2]) : null, rest: String(target ? target[3] : args).trim(), rawArgs: args.trim() };
   }
@@ -28,6 +30,7 @@ export function parseGuardCommand(content) {
 
 const USAGE = {
   ban: "`=ban @membre|ID [raison]`",
+  tempban: "`=tempban @membre|ID durée [raison]` (durée : `30m`, `12h`, `7j`…)",
   unban: "`=unban ID [raison]`",
   kick: "`=kick @membre|ID [raison]`",
   purge: "`=purge nombre` (1 à 100)",
@@ -49,12 +52,23 @@ export async function handleGuardPrefixCommand(message, settings = null, { bot =
   const say = (content) => message.reply({ content, allowedMentions: { parse: [], repliedUser: false } }).catch(() => null);
 
   try {
-    if (parsed.command === "ban" || parsed.command === "kick" || parsed.command === "unban") {
+    if (["ban", "tempban", "kick", "unban"].includes(parsed.command)) {
       if (!parsed.targetId) {
         await say(parsed.rawArgs ? `❌ Identifiant invalide. Utilisation : ${USAGE[parsed.command]}` : `Utilisation : ${USAGE[parsed.command]}`);
         return true;
       }
-      const reason = parsed.rest.slice(0, 300);
+      let reason = parsed.rest.slice(0, 300);
+      let durationSeconds = null;
+      if (parsed.command === "tempban") {
+        const [rawDuration, ...words] = parsed.rest.split(/\s+/);
+        const duration = parseTempbanDuration(rawDuration);
+        if (duration.error) {
+          await say(`${rawDuration ? `❌ ${duration.error} ` : ""}Utilisation : ${USAGE.tempban}`);
+          return true;
+        }
+        durationSeconds = duration.seconds;
+        reason = words.join(" ").slice(0, 300);
+      }
       const targetMember = await guild.members.fetch({ user: parsed.targetId, force: true }).catch(() => null);
       const targetUser = targetMember?.user ?? await message.client.users.fetch(parsed.targetId).catch(() => null);
       if (!targetUser) {
@@ -72,15 +86,21 @@ export async function handleGuardPrefixCommand(message, settings = null, { bot =
           return true;
         }
       }
-      const execute = parsed.command === "ban"
-        ? () => guild.members.ban(parsed.targetId, { reason: `${reason || "Sans raison"} (par ${actor.id})`.slice(0, 500), deleteMessageSeconds: 0 })
+      const execute = parsed.command === "ban" || parsed.command === "tempban"
+        ? () => guild.members.ban(parsed.targetId, { reason: `${reason || "Sans raison"}${durationSeconds ? " (temporaire)" : ""} (par ${actor.id})`.slice(0, 500), deleteMessageSeconds: 0 })
         : parsed.command === "kick"
           ? () => targetMember.kick(`${reason || "Sans raison"} (par ${actor.id})`.slice(0, 500))
           : () => guild.bans.remove(parsed.targetId, `${reason || "Sans raison"} (par ${actor.id})`.slice(0, 500));
       const { caseId } = await runModerationAction({
-        guild, actor, command: parsed.command, bot, targetId: parsed.targetId, targetMember, targetUser, reason, settings,
-        recordCase: recordModerationCase, appealButton, execute,
+        guild, actor, command: parsed.command === "tempban" ? "ban" : parsed.command, bot, targetId: parsed.targetId, targetMember, targetUser, reason, settings,
+        durationSeconds, recordCase: recordModerationCase, appealButton, discardCase: discardModerationCase, execute,
       });
+      if (parsed.command === "unban") clearTempban(guild.id, parsed.targetId);
+      if (parsed.command === "tempban") {
+        const expiresAt = scheduleTempban({ guildId: guild.id, userId: parsed.targetId, seconds: durationSeconds, caseId, moderatorId: actor.id, reason });
+        await say(`⏳ ${caseId ? `Dossier #${caseId} · ` : ""}<@${parsed.targetId}> banni pour ${formatDurationFr(durationSeconds)}, débanni automatiquement <t:${Math.floor(expiresAt / 1000)}:R>.${reason ? ` Raison : ${reason}` : ""}`);
+        return true;
+      }
       const icon = { ban: "🔨", kick: "👢", unban: "♻️" }[parsed.command];
       const verb = { ban: "banni", kick: "expulsé", unban: "débanni" }[parsed.command];
       await say(`${icon} ${caseId ? `Dossier #${caseId} · ` : ""}<@${parsed.targetId}> ${verb}.${reason ? ` Raison : ${reason}` : ""}`);
