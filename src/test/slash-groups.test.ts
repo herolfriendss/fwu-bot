@@ -64,7 +64,7 @@ describe("Discord limits", () => {
   it("uses only Discord option types and at most three nesting levels (command > group > subcommand)", () => {
     // Only subcommands and groups nest; a subcommand's parameters (types 3-8) are not levels.
     const depth = (options: Node[] | undefined, level: number): number => (options ?? []).reduce((max, option) => {
-      expect([1, 2, 3, 4, 5, 6, 7, 8]).toContain(option.type);
+      expect([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]).toContain(option.type);
       if (option.type === 2) {
         for (const child of option.options ?? []) expect(child.type).toBe(1);
         return Math.max(max, depth(option.options, level + 1));
