@@ -925,6 +925,11 @@ ${reason}`, ephemeral: true });
       catch (error) { await interaction.reply({ content: `❌ ${error.message}`, ephemeral: true }); return true; }
     }
     const hasRole = target.roles.cache.has(role.id);
+    if (subcommand === "add" && interaction.options.getBoolean("simuler", false) === true) {
+      const effect = hasRole ? "Rien ne changerait : ce membre a déjà SYS+." : span ? span.kind === "trial" ? "SYS+ attribué pour un essai de 14 jours (confirmation de l'owner demandée 2 jours avant la fin)." : `SYS+ attribué pour ${Math.round(span.seconds / 3600)} h, puis retiré automatiquement.` : "SYS+ attribué sans limite de durée.";
+      await interaction.reply({ content: `🧪 **Simulation, rien n'a été modifié.**\nMembre : <@${target.id}>\nRésultat : ${effect}\nLes règles de hiérarchie sont respectées.`, ephemeral: true, allowedMentions: { parse: [] } });
+      return true;
+    }
     if ((subcommand === "add" && hasRole) || (subcommand === "remove" && !hasRole)) {
       await interaction.reply({ content: subcommand === "add" ? "Ce membre possède déjà SYS+." : "Ce membre ne possède pas SYS+.", ephemeral: true });
       return true;

@@ -77,6 +77,7 @@ Chaque choix se change sans toucher au code (variable d'environnement ou command
 | 56 | Main courante du staff (SYS+) | `/courante ajouter|voir|retirer` : journal de bord partagé par les gardes du staff, 400 caractères par entrée, 30 entrées par auteur et par 24 h, conservé 90 jours, visible du staff seulement. Une entrée se retire par son auteur ou un admin. Rappel à chaque ajout : pas de données sensibles. | Purge automatique à 90 jours. |
 | 57 | SYS+ temporaire et période d'essai | `/sysp add membre duree:7j` (1 h à 90 jours) retire le rôle tout seul à l'échéance ; `essai:true` = 14 jours, alerte à l'owner 2 jours avant avec un bouton « Confirmer SYS+ » (owner seulement), sans confirmation le rôle est retiré. Seul le retrait (moins de privilèges) est automatique ; l'attribution passe toujours par la décision habituelle de `/sysp add`. Tout est dans l'audit SYS+. | Contrôle toutes les 5 min. |
 | 58 | `/sysp annuler` (SYS+) | L'owner défait sa dernière attribution de SYS+ dans l'heure (mauvais membre). Seul le retrait du rôle est possible, jamais une ré-attribution. Les actions `sysplus.member.*` (ajout, retrait, expiration, confirmation, annulation) partent aussi au Logs Hub. | Fenêtre d'une heure ; ignorée si un retrait a eu lieu depuis. |
+| 59 | Simulation `/sysp add simuler:true` | Vérifie la demande (hiérarchie, rôle, durée ou essai) et dit ce qui se passerait, sans rien attribuer ni journaliser. | Utilise les mêmes contrôles que l'attribution réelle. |
 
 ## Site et mises à jour
 

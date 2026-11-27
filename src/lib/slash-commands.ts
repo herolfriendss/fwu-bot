@@ -554,7 +554,7 @@ export const SLASH_COMMANDS: SlashCommandDef[] = [
         opt(4, "cible_heures", "En combien d'heures (1 à 720)", { min_value: 1, max_value: 720 }),
       ]),
       sub("annuler", "Annule ta dernière attribution de SYS+ (dans l'heure)"),
-      sub("add", "Attribue le rôle SYS+ à un membre (propriétaire)", [opt(6, "membre", "Membre concerné", { required: true }), opt(3, "duree", "Durée du SYS+ : 12h, 7j… (retrait automatique)", { max_length: 20 }), opt(5, "essai", "Période d'essai de 14 jours (confirmation de l'owner requise)")]),
+      sub("add", "Attribue le rôle SYS+ à un membre (propriétaire)", [opt(6, "membre", "Membre concerné", { required: true }), opt(3, "duree", "Durée du SYS+ : 12h, 7j… (retrait automatique)", { max_length: 20 }), opt(5, "essai", "Période d'essai de 14 jours (confirmation de l'owner requise)"), opt(5, "simuler", "Simuler : vérifie la demande sans rien modifier")]),
       sub("remove", "Retire le rôle SYS+ à un membre (propriétaire)", [opt(6, "membre", "Membre concerné", { required: true })]),
       sub("permissions", "Consulte les scopes ADMIN+"),
       sub("permissions-edit", "Modifie un scope ADMIN+", [
