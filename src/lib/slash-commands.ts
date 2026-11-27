@@ -2739,7 +2739,7 @@ export const EXTRA_SLASH_COMMANDS: SlashCommandDef[] = [
         opt(8, "role", "Rôle Discord", { required: true }),
         opt(4, "palier", "Palier (−1 = retirer l'association)", { required: true, choices: [...ALL_TIER_CHOICES, { name: "Retirer l'association", value: -1 }] }),
       ]),
-      sub("paliers", "Affiche les rôles associés à chaque palier"),
+      sub("paliers", "Affiche les rôles associés à chaque palier (staff)"),
       { type: 2, name: "exemption", description: "Exemptions de quota par utilisateur", options: [
         sub("ajouter", "Exempte un utilisateur de tous les quotas", [
           opt(3, "utilisateur", "Mention ou ID", { required: true, max_length: 40 }),

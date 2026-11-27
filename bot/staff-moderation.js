@@ -186,6 +186,27 @@ export function formatQuotaTable(quotas, onlyCommand = null) {
   return lines.join("\n");
 }
 
+/**
+ * Refus « owner uniquement », avec la fin de l'identifiant que CE bot attend : si l'owner
+ * voit ce message, son PND_OWNER_DISCORD_ID n'est pas le même dans le .env de ce bot.
+ */
+export function ownerOnlyRefusal(owner) {
+  const base = "⛔ Seul l'owner peut modifier les quotas, les paliers, la whitelist et les exemptions.";
+  if (!owner) return `${base}\nAucun owner n'est configuré sur ce bot : renseigne \`PND_OWNER_DISCORD_ID\` dans son \`.env\`, puis redémarre-le.`;
+  return `${base}\nOwner attendu par ce bot : identifiant finissant par \`…${owner.slice(-4)}\`. Si c'est toi avec un autre identifiant, corrige \`PND_OWNER_DISCORD_ID\` dans le \`.env\` de ce bot.`;
+}
+
+/** Liste des paliers (rôle → palier) + rôles dont le nom évoque un palier sans association. */
+export function formatRoleTierList(rows, guildRoles = []) {
+  const mapped = new Set(rows.map((row) => row.roleId));
+  const lines = rows.map((row) => `• <@&${row.roleId}> → ${TIER_LABELS[row.tier] ?? `${row.tier} %`}`);
+  const unmapped = guildRoles.filter((role) => !mapped.has(role.id) && /\d\s?%/.test(role.name ?? "")).map((role) => `<@&${role.id}>`);
+  let text = `🎚️ **Paliers**\n${lines.length ? lines.join("\n") : "Aucune association explicite : utilise \`/quota palier\`."}`;
+  if (unmapped.length) text += `\n⚠️ Sans palier (le nom ne suffit plus, utilise \`/quota palier\`) : ${unmapped.join(", ")}`;
+  text += "\nL'owner (`PND_OWNER_DISCORD_ID`) est toujours au palier 0 %.";
+  return text.length > 1900 ? `${text.slice(0, 1890)}\n…` : text;
+}
+
 async function handleQuota(interaction, settings, tier, bot) {
   const group = interaction.options.getSubcommandGroup(false);
   const sub = interaction.options.getSubcommand();
@@ -208,8 +229,15 @@ async function handleQuota(interaction, settings, tier, bot) {
     const table = formatQuotaTable(quotas, interaction.options.getString("commande"));
     return reply(interaction, `📊 **Quotas de modération** (partagés entre les 5 bots)\nTon palier : **${TIER_LABELS[tier] ?? "aucun"}**${tier === 0 ? " — illimité" : ""}\n0 % · Owner et bots whitelistés : illimité\n${table}\n\n✏️ = valeur propre à ce serveur.`.slice(0, 2000));
   }
+  // Lecture seule : le staff voit quels rôles donnent quel palier (comme /quota voir).
+  if (!group && sub === "paliers") {
+    if (!canUseModeration(tier)) return reply(interaction, "⛔ Réservé au staff (palier 50 % minimum).");
+    await interaction.deferReply({ ephemeral: true });
+    const rows = await listRoleTiers(guild.id);
+    return reply(interaction, formatRoleTierList(rows, [...(guild.roles?.cache?.values?.() ?? [])]));
+  }
   // Tout le reste : owner uniquement.
-  if (!owner || actorId !== owner) return reply(interaction, "⛔ Seul l'owner peut modifier les quotas, les paliers, la whitelist et les exemptions.");
+  if (!owner || actorId !== owner) return reply(interaction, ownerOnlyRefusal(owner));
   await interaction.deferReply({ ephemeral: true });
 
   if (!group && sub === "definir") {
@@ -237,12 +265,6 @@ async function handleQuota(interaction, settings, tier, bot) {
     const result = await setRoleTier({ guildId: guild.id, roleId: role.id, tier: chosen === -1 ? null : chosen, actorId, bot });
     await auditConfig(guild, settings, actorId, `Palier du rôle ${role.name}`, result.before == null ? null : { palier: result.before }, result.after == null ? null : { palier: result.after });
     return reply(interaction, chosen === -1 ? `✅ Association retirée pour <@&${role.id}> : ce rôle ne donne plus de palier.` : `✅ <@&${role.id}> → **${TIER_LABELS[chosen]}**.`);
-  }
-  if (!group && sub === "paliers") {
-    const rows = await listRoleTiers(guild.id);
-    const unmapped = [...(guild.roles?.cache?.values?.() ?? [])]
-      .filter((role) => !rows.some((row) => row.roleId === role.id) && /\d\s?%/.test(role.name)).map((role) => `<@&${role.id}>`);
-    return reply(interaction, `🎚️ **Paliers**\n${rows.length ? rows.map((row) => `• <@&${row.roleId}> → ${TIER_LABELS[row.tier]}`).join("\n") : "Aucune association explicite."}${unmapped.length ? `\n⚠️ Sans palier (le nom ne suffit plus, utilise \`/quota palier\`) : ${unmapped.join(", ")}` : ""}\nL'owner (\`PND_OWNER_DISCORD_ID\`) est toujours au palier 0 %.`);
   }
   if (!group && sub === "journal") {
     const rows = await recentConfigChanges(guild.id, 10);
