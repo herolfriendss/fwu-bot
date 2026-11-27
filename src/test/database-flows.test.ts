@@ -1,5 +1,5 @@
 // @vitest-environment node
-import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+import { afterAll, describe, expect, it } from "vitest";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -17,7 +17,6 @@ type Modules = {
   social: typeof import("../../bot/social.js");
   cards: typeof import("../../bot/cards.js");
 };
-let modules: Modules;
 
 const G1 = "111111111111111111";
 const G2 = "222222222222222222";
@@ -68,15 +67,16 @@ function replyText(fake: FakeMessage): string {
     .join("\n");
 }
 
-beforeAll(async () => {
-  vi.resetModules();
-  modules = {
-    database: await import("../../bot/database.js"),
-    economy: await import("../../bot/economy.js"),
-    social: await import("../../bot/social.js"),
-    cards: await import("../../bot/cards.js"),
-  };
-});
+// The bot modules (and discord.js behind them) are imported at the top level, during
+// collection, and not in a beforeAll: collection has no time limit, whereas a hook is
+// cut off after hookTimeout. On the slow VPS this import took more than the default 10 s
+// and made the whole update roll back. The dynamic imports keep HER_DB_PATH set first.
+const modules: Modules = {
+  database: await import("../../bot/database.js"),
+  economy: await import("../../bot/economy.js"),
+  social: await import("../../bot/social.js"),
+  cards: await import("../../bot/cards.js"),
+};
 
 afterAll(() => {
   delete process.env["HER_DB_PATH"];
