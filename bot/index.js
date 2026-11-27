@@ -111,6 +111,7 @@ import { handleResumeInteraction, handleResumeMessage, pruneResumeEvents, record
 import { handleStaffModerationInteraction, STAFF_COMMANDS } from "./staff-moderation.js";
 import { handleGuardPrefixCommand } from "./guard-commands.js";
 import { checkAltOnJoin, forgetBanList, handleAltInteraction, handleAltMessage } from "./guard/alt-detect.js";
+import { handleGhostPing } from "./guard/ghost-ping.js";
 import { handleVoiceMoveCommand } from "./voice-move.js";
 import { handleEmbedInteraction, EMBED_COMMANDS } from "./embeds.js";
 import { SHARED_DB_ALERTS, startSharedLayer } from "./shared/index.js";
@@ -876,8 +877,14 @@ async function handleMessageCreate(msg) {
   }
 }
 
+const ghostPing = (before, after = null) => {
+  const guild = before?.guild;
+  if (!serves("guard") || !guild || !guildAllowed(guild.id, ALLOWED_GUILDS) || isLogsHub(guild.id)) return;
+  void handleGhostPing(before, after, { record, sendLog: async (text) => auditLog(guild, settings[guild.id], "👻 Mention fantôme", text, 0xf59e0b) }).catch(() => record("ghost_ping_error"));
+};
 client.on("messageDelete", (message) => {
   const guild = message.guild;
+  ghostPing(message);
   if (serves("suckme") && guild && guildAllowed(guild.id, ALLOWED_GUILDS) && !isLogsHub(guild.id)) {
     void handleCountingDelete(message).catch(() => record("counting_error"));
   }
@@ -1138,6 +1145,7 @@ client.on("guildBanRemove", (ban) => {
 client.on("guildDelete", (guild) => { forgetGuildTempVoices(guild.id); if (!IS_FWU) tickDomainLease(); });
 client.on("messageUpdate", (oldMessage, newMessage) => {
   const guild = newMessage.guild;
+  ghostPing(oldMessage, newMessage);
   if (!serves("fwu") || !guild || !guildAllowed(guild.id, ALLOWED_GUILDS) || isLogsHub(guild.id) || newMessage.author?.bot) return;
   // Embeds unfurling also emit messageUpdate: only log a real text edit. Content is never copied.
   if (oldMessage.partial || oldMessage.content == null || oldMessage.content === newMessage.content) return;
