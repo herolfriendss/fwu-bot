@@ -9,6 +9,7 @@ import { randomInt } from "node:crypto";
 import { db, transaction } from "../database.js";
 import { changeTreasury, treasury } from "./fisc-config.js";
 import { move, seize } from "./fisc.js";
+import { respondInPlaceSafe } from "../interaction-reply.js";
 
 export const HEIST_COMMANDS = new Set(["braquage"]);
 export const HEIST = Object.freeze({
@@ -173,7 +174,7 @@ export async function handleHeistInteraction(interaction) {
         await interaction.update({ content: resultText(result), components: [], allowedMentions: { parse: [] } });
       }
     } catch (error) {
-      await interaction.reply({ content: `❌ ${error.message}`, ephemeral: true }).catch(() => {});
+      await respondInPlaceSafe(interaction, { content: `❌ ${error.message}`, ephemeral: true, allowedMentions: { parse: [] } });
     }
     return true;
   }
@@ -182,7 +183,7 @@ export async function handleHeistInteraction(interaction) {
     const id = openHeist(guild.id, interaction.user.id);
     await interaction.reply(lobbyPayload(id, guild.id));
   } catch (error) {
-    await interaction.reply({ content: `❌ ${error.message}`, ephemeral: true, allowedMentions: { parse: [] } }).catch(() => {});
+    await respondInPlaceSafe(interaction, { content: `❌ ${error.message}`, ephemeral: true, allowedMentions: { parse: [] } });
   }
   return true;
 }
