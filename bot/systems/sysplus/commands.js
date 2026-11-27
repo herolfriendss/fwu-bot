@@ -36,6 +36,7 @@ import { handleAbuseAlertCommand } from "./abuse-alerts.js";
 import { handleMemberCardCommand } from "./member-card.js";
 import { handleStaffStatsCommand } from "./staff-stats.js";
 import { lastUndoableGrant } from "./undo.js";
+import { autoFreezeConfig, setAutoFreeze } from "./auto-freeze.js";
 import { castVote, formatTally, tally } from "./vote.js";
 import { createPendingGrant, doubleValidationEnabled, pendingButtons, setDoubleValidation } from "./double-validation.js";
 import { forgetTemporary, sysPlusSpan, trackTemporary } from "./temporary.js";
@@ -878,6 +879,26 @@ ${reason}`, ephemeral: true });
         ? tally(guild.id, candidate.id)
         : castVote({ guildId: guild.id, candidateId: candidate.id, voterId: member.id, pour, candidateIsBot: Boolean(candidate.bot), candidateIsSysPlus: isSysPlus(candidateMember, roleId) });
       await interaction.reply({ content: formatTally(candidate.id, result), ephemeral: true, allowedMentions: { parse: [] } });
+    } catch (error) {
+      await interaction.reply({ content: `❌ ${error.message}`, ephemeral: true }).catch(() => {});
+    }
+    return true;
+  }
+  if (subcommand === "auto-gel") {
+    if (!canConfigureSysPlus(member)) {
+      await interaction.reply({ content: "⛔ Seul le Owner PND règle le gel automatique.", ephemeral: true });
+      return true;
+    }
+    try {
+      const wanted = interaction.options.getBoolean("actif", false);
+      const minutes = interaction.options.getInteger("minutes", false);
+      if ((wanted !== null && wanted !== undefined) || minutes !== null) {
+        const current = autoFreezeConfig(guild.id);
+        setAutoFreeze(guild.id, { enabled: wanted ?? current.enabled, minutes });
+        recordSysPlusAudit(guild.id, member.id, "sysplus.member.auto_freeze_config", null, { enabled: wanted ?? current.enabled, minutes });
+      }
+      const config = autoFreezeConfig(guild.id);
+      await interaction.reply({ content: config.enabled ? `🧊 Gel automatique **actif** : si GUARD repousse une attaque, le staff est gelé ${config.minutes} min (tu gardes tout ; \`/sysp degel\` pour lever). Aucun rôle n'est retiré.` : "🔥 Gel automatique **désactivé** (rien ne se gèle sans toi).", ephemeral: true });
     } catch (error) {
       await interaction.reply({ content: `❌ ${error.message}`, ephemeral: true }).catch(() => {});
     }
