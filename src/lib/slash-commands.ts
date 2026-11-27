@@ -62,7 +62,7 @@ export type SubcommandLayoutEntry = string | { group: string; description: strin
  * must appear exactly once; groupSubcommands() throws at load time otherwise.
  */
 export const SYSP_LAYOUT: SubcommandLayoutEntry[] = [
-  "panel", "audit", "add", "remove", "permissions", "permissions-edit", "incident",
+  "panel", "audit", "add", "annuler", "remove", "permissions", "permissions-edit", "incident",
   { group: "config", description: "Rôles, ADMIN+ et PND Intelligence", members: ["role", "admin-role", "whitelist-role", "intelligence-channel", "intelligence-toggle"] },
   { group: "staff", description: "Responsables et hiérarchie du staff", members: ["supervisor-set", "supervisor-remove", "supervisor-list"] },
   { group: "whitelist", description: "Exemption WHITELIST (propriétaire)", members: ["whitelist-add", "whitelist-remove", "whitelist-list"] },
@@ -553,7 +553,8 @@ export const SLASH_COMMANDS: SlashCommandDef[] = [
         opt(4, "cible", "Nombre de sanctions sur la même personne (2 à 50)", { min_value: 2, max_value: 50 }),
         opt(4, "cible_heures", "En combien d'heures (1 à 720)", { min_value: 1, max_value: 720 }),
       ]),
-      sub("add", "Attribue le rôle SYS+ à un membre (propriétaire)", [opt(6, "membre", "Membre concerné", { required: true })]),
+      sub("annuler", "Annule ta dernière attribution de SYS+ (dans l'heure)"),
+      sub("add", "Attribue le rôle SYS+ à un membre (propriétaire)", [opt(6, "membre", "Membre concerné", { required: true }), opt(3, "duree", "Durée du SYS+ : 12h, 7j… (retrait automatique)", { max_length: 20 }), opt(5, "essai", "Période d'essai de 14 jours (confirmation de l'owner requise)"), opt(5, "simuler", "Simuler : vérifie la demande sans rien modifier")]),
       sub("remove", "Retire le rôle SYS+ à un membre (propriétaire)", [opt(6, "membre", "Membre concerné", { required: true })]),
       sub("permissions", "Consulte les scopes ADMIN+"),
       sub("permissions-edit", "Modifie un scope ADMIN+", [

@@ -35,6 +35,8 @@ import { handleFreezeCommand } from "./freeze-commands.js";
 import { handleAbuseAlertCommand } from "./abuse-alerts.js";
 import { handleMemberCardCommand } from "./member-card.js";
 import { handleStaffStatsCommand } from "./staff-stats.js";
+import { lastUndoableGrant } from "./undo.js";
+import { forgetTemporary, sysPlusSpan, trackTemporary } from "./temporary.js";
 import { handleStaffNotesCommand } from "./staff-notes.js";
 import { isStaffForFreeze } from "../../staff-freeze-gate.js";
 import { parsePndOwnerId } from "../../pnd-owner-policy.js";
@@ -861,6 +863,25 @@ ${reason}`, ephemeral: true });
     return true;
   }
 
+  if (subcommand === "annuler") {
+    if (!canConfigureSysPlus(member)) {
+      await interaction.reply({ content: "⛔ Seul le Owner PND peut annuler une attribution SYS+.", ephemeral: true });
+      return true;
+    }
+    const grant = roleId ? lastUndoableGrant(guild.id, member.id, Date.now()) : null;
+    if (!grant) {
+      await interaction.reply({ content: "Rien à annuler : aucune attribution de SYS+ de ta part dans la dernière heure.", ephemeral: true });
+      return true;
+    }
+    const target = await guild.members.fetch({ user: grant.targetId, force: true }).catch(() => null);
+    if (target?.roles?.cache?.has(roleId)) await target.roles.remove(roleId, `Attribution SYS+ annulée par le propriétaire ${member.id}`);
+    forgetTemporary(guild.id, grant.targetId);
+    recordSysPlusAudit(guild.id, member.id, "sysplus.member.undo", grant.targetId, { undoes: grant.id });
+    audit(guild, "SYS+ — attribution annulée", `Propriétaire : <@${member.id}>\nMembre : <@${grant.targetId}>`);
+    record("sysplus_member_undo");
+    await interaction.reply({ content: `↩️ Attribution annulée : <@${grant.targetId}> n'a plus SYS+.`, ephemeral: true, allowedMentions: { parse: [] } });
+    return true;
+  }
   if (subcommand === "add" || subcommand === "remove") {
     if (!canConfigureSysPlus(member)) {
       await interaction.reply({ content: "⛔ Seul le Owner PND peut attribuer ou retirer SYS+.", ephemeral: true });
@@ -899,7 +920,17 @@ ${reason}`, ephemeral: true });
       await interaction.reply({ content: `❌ ${decision.reason}`, ephemeral: true });
       return true;
     }
+    let span = null;
+    if (subcommand === "add") {
+      try { span = sysPlusSpan({ duree: interaction.options.getString("duree", false), essai: interaction.options.getBoolean("essai", false) === true }); }
+      catch (error) { await interaction.reply({ content: `❌ ${error.message}`, ephemeral: true }); return true; }
+    }
     const hasRole = target.roles.cache.has(role.id);
+    if (subcommand === "add" && interaction.options.getBoolean("simuler", false) === true) {
+      const effect = hasRole ? "Rien ne changerait : ce membre a déjà SYS+." : span ? span.kind === "trial" ? "SYS+ attribué pour un essai de 14 jours (confirmation de l'owner demandée 2 jours avant la fin)." : `SYS+ attribué pour ${Math.round(span.seconds / 3600)} h, puis retiré automatiquement.` : "SYS+ attribué sans limite de durée.";
+      await interaction.reply({ content: `🧪 **Simulation, rien n'a été modifié.**\nMembre : <@${target.id}>\nRésultat : ${effect}\nLes règles de hiérarchie sont respectées.`, ephemeral: true, allowedMentions: { parse: [] } });
+      return true;
+    }
     if ((subcommand === "add" && hasRole) || (subcommand === "remove" && !hasRole)) {
       await interaction.reply({ content: subcommand === "add" ? "Ce membre possède déjà SYS+." : "Ce membre ne possède pas SYS+.", ephemeral: true });
       return true;
@@ -907,10 +938,12 @@ ${reason}`, ephemeral: true });
     if (subcommand === "add") await target.roles.add(role, `SYS+ attribué par le propriétaire ${member.id}`);
     else await target.roles.remove(role, `SYS+ retiré par le propriétaire ${member.id}`);
     const action = subcommand === "add" ? "sysplus.member.add" : "sysplus.member.remove";
-    recordSysPlusAudit(guild.id, member.id, action, target.id, { roleId: role.id });
+    if (span) trackTemporary({ guildId: guild.id, userId: target.id, roleId: role.id, grantedBy: member.id, ...span });
+    else forgetTemporary(guild.id, target.id);
+    recordSysPlusAudit(guild.id, member.id, action, target.id, { roleId: role.id, ...(span ? { kind: span.kind, seconds: span.seconds } : {}) });
     audit(guild, "SYS+ — privilège modifié", `Propriétaire : <@${member.id}>\nMembre : <@${target.id}>\nAction : ${subcommand}`);
     record(action.replaceAll(".", "_"));
-    await interaction.reply({ content: subcommand === "add" ? `✅ SYS+ attribué à <@${target.id}>.` : `✅ SYS+ retiré à <@${target.id}>.`, ephemeral: true, allowedMentions: { parse: [] } });
+    await interaction.reply({ content: subcommand === "add" ? `✅ SYS+ attribué à <@${target.id}>${span ? span.kind === "trial" ? " pour une période d'essai de 14 jours (alerte et confirmation 2 jours avant la fin)." : ` jusqu'au <t:${Math.floor((Date.now() + span.seconds * 1000) / 1000)}:f>, retrait automatique.` : "."}` : `✅ SYS+ retiré à <@${target.id}>.`, ephemeral: true, allowedMentions: { parse: [] } });
     return true;
   }
 

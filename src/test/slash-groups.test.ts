@@ -23,7 +23,7 @@ function leafPaths(options: Node[] | undefined, prefix: string[] = []): string[]
 const EXISTING_SYSP_LEAVES = [
   "panel", "audit", "role", "admin-role", "whitelist-role", "intelligence-channel", "intelligence-toggle",
   "supervisor-set", "supervisor-remove", "supervisor-list", "ghost", "composer", "search", "incident",
-  "blueprint", "add", "remove", "permissions", "permissions-edit", "whitelist-add", "whitelist-remove",
+  "blueprint", "add", "annuler", "remove", "permissions", "permissions-edit", "whitelist-add", "whitelist-remove",
   "whitelist-list", "clone", "pack", "studio",
 ];
 const DIAGNOSTIC_LEAVES = ["acl", "sante", "logs-couverture", "matrice", "economie", "bots", "installation"];
