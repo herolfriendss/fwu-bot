@@ -604,7 +604,7 @@ export const SLASH_COMMANDS: SlashCommandDef[] = [
   {
     name: "ticket",
     description: "Gère les tickets de support",
-    usage: "/ticket panel | close | add | remove | list | assign | historique | transcript",
+    usage: "/ticket panel | close | add | remove | list | notes | assign | historique | transcript",
     category: "SYS+",
     dmPermission: false,
     requiresBotProcess: true,
@@ -620,6 +620,7 @@ export const SLASH_COMMANDS: SlashCommandDef[] = [
         opt(6, "membre", "Membre à retirer", { required: true }),
       ]),
       sub("list", "Liste les tickets du serveur"),
+      sub("notes", "Staff : note moyenne du support par modérateur (1 à 5)"),
       sub("assign", "Assigne le ticket courant à un membre du staff", [
         opt(6, "membre", "Membre du staff support", { required: true }),
       ]),
