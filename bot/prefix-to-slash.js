@@ -10,7 +10,7 @@ export const SLASH_FOR_PREFIX = Object.freeze({
   pack: "pack", trade: "trade", trades: "trade liste", dice: "dice", coinflip: "coinflip", trivia: "trivia",
   giveaway: "giveaway", event: "event", pndevent: "pndevent", academy: "academy", award: "award", story: "story",
   radar: "radar", wrapped: "wrapped", afk: "afk", blacklist: "blacklist", live: "live",
-  ban: "ban", tempban: "tempban", kick: "kick", purge: "purge", nettoyer: "nettoyer", slowmode: "slowmode", lock: "lock", unlock: "unlock",
+  ban: "ban", tempban: "tempban", doublecompte: "doublecompte", kick: "kick", purge: "purge", nettoyer: "nettoyer", slowmode: "slowmode", lock: "lock", unlock: "unlock",
   "guardian-review": "guildguard review", verification: "verify reaction",
   pv: "voice private activer", unpv: "voice private retirer", access: "voice access grant", unaccess: "voice access revoke", panel: "voc vocal-panel",
   demandevocal: "voc demander", play: "music player play", p: "music player play", pause: "music player pause",

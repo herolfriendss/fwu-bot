@@ -110,6 +110,7 @@ import { handleDmAllInteraction, handleDmAllMessage, recoverInterruptedDmAllJobs
 import { handleResumeInteraction, handleResumeMessage, pruneResumeEvents, recordResumeEvent } from "./resume.js";
 import { handleStaffModerationInteraction, STAFF_COMMANDS } from "./staff-moderation.js";
 import { handleGuardPrefixCommand } from "./guard-commands.js";
+import { checkAltOnJoin, forgetBanList, handleAltInteraction, handleAltMessage } from "./guard/alt-detect.js";
 import { handleVoiceMoveCommand } from "./voice-move.js";
 import { handleEmbedInteraction, EMBED_COMMANDS } from "./embeds.js";
 import { SHARED_DB_ALERTS, startSharedLayer } from "./shared/index.js";
@@ -716,6 +717,7 @@ async function handleMessageCreate(msg) {
   }
   if (runCmd("guard") && await handleRaidPrefix(msg, s)) { auditPrefixUsage(msg, "Anti-raid"); return; }
   if (runCmd("fdpdlavoc") && await handleMassMessage(msg, s)) { auditPrefixUsage(msg, "Vocal de masse"); return; }
+  if (runCmd("guard") && await handleAltMessage(msg)) { auditPrefixUsage(msg, "Doubles comptes"); return; }
   if (runCmd("guard") && await handleGuardPrefixCommand(msg, s, { bot: RUNTIME.profile, record, audit: (title, description, color) => auditLog(msg.guild, s, title, description, color) })) { auditPrefixUsage(msg, "Administration GUARD"); return; }
   if (runCmd("fdpdlavoc") && await handleVoiceMoveCommand(msg, s, { bot: RUNTIME.profile, record, audit: (title, description, color) => auditLog(msg.guild, s, title, description, color) })) { auditPrefixUsage(msg, "Déplacement vocal"); return; }
   try {
@@ -947,6 +949,8 @@ client.on("guildMemberAdd", async (member) => {
     const inviteLabel = invite.source === "invite" ? `\nInvitation : ${invite.code} · créée par ${invite.inviterId ? `<@${invite.inviterId}>` : "créateur inconnu"}` : invite.source === "vanity" ? "\nInvitation : URL personnalisée du serveur" : "\nInvitation : attribution inconnue";
     auditLog(member.guild, s, "👋 Arrivée d’un membre", `Membre : <@${member.id}>\nID : \`${member.id}\`${inviteLabel}`, 0x22c55e);
   }
+  // GUARD : ressemblance avec un compte banni (alerte au staff, jamais de sanction automatique).
+  if (serves("guard") && !isLogsHub(member.guild.id)) void checkAltOnJoin(member, { record, sendLog: (embed) => sendCentralLog(member.guild, s, embed, [s?.moderation?.logChannelId], [], [], { category: "moderation" }) }).catch(() => record("alt_check_error"));
   if (serves("guard") && await handleGuildGuardJoin(member, s?.guildGuard ? { ...s.guildGuard, logs: s.logs } : s?.guildGuard, record)) return;
   // Split mode: GUARD decides in another process. Wait for it, then skip the
   // welcome/automation if GuildGuard kicked or quarantined the newcomer.
@@ -1114,12 +1118,14 @@ client.on("roleUpdate", (oldRole, newRole) => {
   auditLog(newRole.guild, settings[newRole.guild.id], "✏️ Rôle modifié", `Rôle : <@&${newRole.id}>\nNom : **${oldRole.name}** → **${newRole.name}**\nPermissions ou affichage modifiés : ${oldRole.permissions.bitfield !== newRole.permissions.bitfield || oldRole.hoist !== newRole.hoist || oldRole.mentionable !== newRole.mentionable ? "oui" : "non"}`);
 });
 client.on("guildBanAdd", (ban) => {
+  forgetBanList(ban.guild.id);
   if (serves("suckme") && guildAllowed(ban.guild.id, ALLOWED_GUILDS)) {
     void handleTier0Ban(ban, { audit: (guild, title, description, color) => auditLog(guild, settings[guild.id], title, description, color), record }).catch(() => record("tier0_error"));
   }
   if (serves("fwu") && guildAllowed(ban.guild.id, ALLOWED_GUILDS)) auditLog(ban.guild, settings[ban.guild.id], "⛔ Membre banni", `Membre : <@${ban.user.id}>\nID : \`${ban.user.id}\`` , 0xef4444);
 });
 client.on("guildBanRemove", (ban) => {
+  forgetBanList(ban.guild.id);
   if (!serves("fwu") || !guildAllowed(ban.guild.id, ALLOWED_GUILDS)) return;
   const stillBlacklisted = isBlacklisted(ban.guild.id, ban.user.id);
   auditLog(ban.guild, settings[ban.guild.id], "✅ Bannissement retiré", `Membre : <@${ban.user.id}>\nID : \`${ban.user.id}\`${stillBlacklisted ? "\n⚠️ Ce compte est toujours **blacklisté** : il sera rebanni s'il revient. Retire-le avec \`/blacklist remove\` si c'est voulu." : ""}` , 0x22c55e);
@@ -1795,6 +1801,7 @@ client.on("interactionCreate", (interaction) => {
     if (await handleDmAllInteraction(interaction, settings[interaction.guildId])) return;
     if (await handleUndogAllInteraction(interaction, settings[interaction.guildId])) return;
     if (await handleBlacklistInteraction(interaction, settings[interaction.guildId])) return;
+    if (await handleAltInteraction(interaction)) { auditSlashUsage(interaction, "Doubles comptes"); return; }
     if (await handleGuardInteraction(interaction, settings[interaction.guildId], { report: guardReport })) { auditSlashUsage(interaction, "GUARD"); return; }
     if (await handleCommunityInteraction(interaction, settings[interaction.guildId])) { auditSlashUsage(interaction, "Communauté"); return; }
     if (await handleFiscInteraction(interaction)) { auditSlashUsage(interaction, "LE FISC"); return; }
