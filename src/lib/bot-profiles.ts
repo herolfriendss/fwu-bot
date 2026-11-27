@@ -107,6 +107,8 @@ export const SLASH_COMMAND_OWNERS: Record<BotProfileId, readonly string[]> = {
     "outils",
     // V2 (26/11) : journaux typés et dossiers
     "logs", "dossier", "blr", "guide", "pourquoi", "presence", "stabilite", "smash",
+    // 27/11 : relations entre membres (mariage, adoption, arbre)
+    "famille",
   ],
   fisc: [
     "balance", "daily", "work", "job", "bank", "history", "rob", "lottery", "pay", "leaderboard",

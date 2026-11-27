@@ -16,6 +16,7 @@ import { describeSignal, detectTransferSignals, evaluateTransfer, recordTransfer
 import { isWhitelistMember } from "./systems/sysplus/whitelist-policy.js";
 import { sendCentralLog, systemLogEmbed } from "./logs.js";
 import { perkActive } from "./features/perks.js";
+import { coupleBonus } from "./features/family.js";
 
 const purchaseLocks = new Set();
 const marketLocks = new Set();
@@ -566,12 +567,15 @@ export async function handleEconomyMessage(message, guildSettings = null) {
         db.prepare("INSERT INTO daily_claims(guild_id,user_id,claimed_at) VALUES(?,?,?) ON CONFLICT(guild_id,user_id) DO UPDATE SET claimed_at=excluded.claimed_at").run(gid, uid, now);
         // Streak: claimed again within 48 h -> +10 % per day in a row (max +100 %).
         const streak = nextDailyStreak(gid, uid, previous ? Number(previous.claimed_at) : null, now);
-        const reward = dailyStreakReward(base, streak);
+        const streakReward = dailyStreakReward(base, streak);
+        // 27/11 : bonus de couple (+10 %) pour les personnes mariées (/famille sur SUCK ME).
+        const couple = coupleBonus(gid, uid, streakReward);
+        const reward = streakReward + couple;
         changeBalance(gid, uid, reward, "daily_reward");
-        return { reward, streak, total: balance(gid, uid) };
+        return { reward, streak, couple, total: balance(gid, uid) };
       });
       if (claim.remaining) await safeReply(message, `⏳ Ton bonus quotidien est déjà récupéré. Réessaie dans **${Math.ceil(claim.remaining / 3_600_000)} h**.`);
-      else await safeReply(message, `🎁 Tu as reçu **${format(claim.reward)}**${claim.streak > 1 ? ` (série de **${claim.streak} jours** 🔥, bonus +${Math.min(100, (claim.streak - 1) * 10)} %)` : ""}. Nouveau solde : **${format(claim.total)}**.`);
+      else await safeReply(message, `🎁 Tu as reçu **${format(claim.reward)}**${claim.streak > 1 ? ` (série de **${claim.streak} jours** 🔥, bonus +${Math.min(100, (claim.streak - 1) * 10)} %)` : ""}${claim.couple ? `, dont **${format(claim.couple)}** de bonus de couple 💍` : ""}. Nouveau solde : **${format(claim.total)}**.`);
     } else if (command === "=work") {
       const remaining = cooldownRemaining(gid, uid, "work");
       if (remaining) throw new Error(`⏳ Tu pourras retravailler dans **${Math.ceil(remaining / 60_000)} min**.`);

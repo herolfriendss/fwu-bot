@@ -5,6 +5,7 @@ import { db } from "./database.js";
 import { cooldownRemaining, pndBalance, setCooldown } from "./economy.js";
 import { colorToInt, REP_COOLDOWN_MS, repBadge, repCooldownRemaining, sanitizeBio, sanitizeProfileColor, canGiveRep, computeBadges, evaluateRepGiver } from "./social-policy.js";
 import { transaction } from "./database.js";
+import { familySummary } from "./features/family.js";
 
 function mention(id) { return `<@${id}>`; }
 function format(value) { return `${Number(value).toLocaleString("fr-FR")} PND`; }
@@ -38,6 +39,7 @@ function profileEmbed(guild, user, member, row, rep, cards) {
       { name: "Badges", value: computeBadges({ rep, joinedAt: member?.joinedTimestamp ?? null, totalPnd: wallet.balance + wallet.bank, cards, givenTotal: givenRep(guild.id, user.id) }).join(" · "), inline: false },
       { name: "PND", value: `${format(wallet.balance + wallet.bank)} (banque ${format(wallet.bank)})`, inline: true },
       { name: "Cartes", value: String(cards), inline: true },
+      ...(familySummary(guild.id, user.id) ? [{ name: "Famille", value: familySummary(guild.id, user.id), inline: false }] : []),
       { name: "Membre depuis", value: member?.joinedAt ? `<t:${Math.floor(member.joinedAt.getTime() / 1000)}:D>` : "Inconnu", inline: true },
       { name: "Identifiant", value: user.id, inline: true },
     )

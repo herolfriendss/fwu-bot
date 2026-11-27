@@ -27,7 +27,7 @@ Chaque choix se change sans toucher au code (variable d'environnement ou command
 | 6 | `/salut` et `/info-serveur` | Gardés mais inaccessibles en slash (catalogue plein). Sans effet. | Rien. |
 | 7 | Noms `her-v5-*`, `her-v3`, palette violette | **Conservés** en interne. Renommer les processus PM2 casserait le déploiement. | Rien. |
 | 14 | RESUME | **Développé** : `/afk on\|off\|resume` sur SUCK ME (nommé ainsi pour ne pas entrer en conflit avec `/resume` de la musique). | Rien. |
-| 15 | Relations entre membres, studio de profil, nouvelles fonctions IA | **Non développés** : aucune spécification. | Envoyer la liste précise des fonctionnalités voulues. |
+| 15 | Relations entre membres | **Développées le 27/11** (`/famille` sur SUCK ME) : mariage et adoption avec l'accord de l'autre personne (bouton, 15 min), un seul conjoint, deux parents au plus, 6 enfants au plus, aucune boucle dans l'arbre, retrait seul à tout moment (divorce, émancipation, reniement). Arbre sur trois générations, famille affichée sur `/profil`. Bonus de couple : +10 % sur le bonus quotidien de LE FISC. Studio de profil et nouvelles fonctions IA : non développés. | `bot/features/family.js` (`MAX_CHILDREN`, `COUPLE_BONUS_RATE`). |
 
 ## Modération et sécurité
 
