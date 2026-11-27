@@ -147,6 +147,7 @@ import { handleBlindtestInteraction, handleBlindtestMessage, isBlindTestRunning 
 import { handleTtsInteraction, handleTtsMessage } from "./features/tts.js";
 import { forgetStatChannel, handleStatChannelsInteraction, runStatChannels } from "./features/stat-channels.js";
 import { handleMemberOfMonthInteraction, runMemberOfMonth } from "./features/member-of-month.js";
+import { handleStaffRoutineInteraction, runStaffRoutine } from "./systems/sysplus/staff-routine.js";
 import { handleWaitingButton, handleWaitingInteraction, handleWaitingVoiceState } from "./features/support-waiting.js";
 import { handleCountdownInteraction, runCountdowns } from "./features/event-countdown.js";
 import { handleSeniorityInteraction, runSeniority } from "./features/seniority.js";
@@ -1277,6 +1278,7 @@ client.once("clientReady", () => {
   setInterval(() => { if (serves("fisc")) void runPndDrops(client, { isAllowedGuild: (id) => guildAllowed(id, ALLOWED_GUILDS) && !isLogsHub(id) }).catch(() => record("drop_error")); }, 60_000).unref?.();
   setInterval(() => { if (serves("suckme")) void runSeniority(client, { isAllowedGuild: (id) => guildAllowed(id, ALLOWED_GUILDS) && !isLogsHub(id), announce: motmAnnounce }).catch(() => record("seniority_error")); }, 60 * 60_000).unref?.();
   setInterval(() => { if (serves("suckme")) void runCountdowns(client, { isAllowedGuild: (id) => guildAllowed(id, ALLOWED_GUILDS) && !isLogsHub(id) }).catch(() => record("countdown_error")); }, 60_000).unref?.();
+  setInterval(() => { if (serves("suckme")) void runStaffRoutine(client, { isAllowedGuild: (id) => guildAllowed(id, ALLOWED_GUILDS) && !isLogsHub(id), getSettings: (id) => settings[id] }).catch(() => record("staff_routine_error")); }, 60 * 60_000).unref?.();
   // Membre du mois : clôture le 1er (heure de Paris), rôles expirés retirés ; contrôle toutes les heures.
   const motmAnnounce = async (guild, channelId, content, winnerId) => {
     const channel = guild.channels.cache.get(channelId) ?? await guild.channels.fetch(channelId).catch(() => null);
@@ -1880,6 +1882,7 @@ client.on("interactionCreate", (interaction) => {
     if (await handleBlindtestInteraction(interaction)) { auditSlashUsage(interaction, "Blind test"); return; }
     if (await handleTtsInteraction(interaction, { busy: isBlindTestRunning })) { auditSlashUsage(interaction, "Lecture vocale"); return; }
     if (await handleStatChannelsInteraction(interaction)) { auditSlashUsage(interaction, "Salons compteurs"); return; }
+    if (await handleStaffRoutineInteraction(interaction)) { auditSlashUsage(interaction, "Rapport du staff"); return; }
     if (await handleWaitingButton(interaction)) return;
     if (await handleWaitingInteraction(interaction)) { auditSlashUsage(interaction, "Salle d'attente"); return; }
     if (await handleCountdownInteraction(interaction)) { auditSlashUsage(interaction, "Compte à rebours"); return; }

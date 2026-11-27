@@ -70,14 +70,8 @@ export function staffStatsEmbed(rows, { days, centralAvailable }) {
     .setFooter({ text: "⚠️ avert. 🔇 mute 👢 kick 🔨 ban · 🎫 tickets pris · 🎙️ vocal · ⌨️ commandes · lecture seule" });
 }
 
-export async function handleStaffStatsCommand(interaction, { member, roleId, isSysPlus, isOwner, settings }) {
-  if (!isOwner && !isSysPlus(member, roleId)) {
-    await interaction.reply({ content: "⛔ Réservé aux SYS+ et à l'owner.", ephemeral: true });
-    return true;
-  }
-  const days = interaction.options.getString("periode") === "30j" ? 30 : 7;
-  await interaction.deferReply({ ephemeral: true });
-  const guild = interaction.guild;
+/** Lignes d'activité du staff d'un serveur sur `days` jours (base centrale facultative). */
+export async function collectStaffRows(guild, settings, days) {
   await guild.members.fetch().catch(() => null);
   const staffIds = [];
   for (const m of guild.members.cache.values()) {
@@ -86,8 +80,19 @@ export async function handleStaffStatsCommand(interaction, { member, roleId, isS
   }
   let central = null;
   try { central = await loadCentralStaffActivity(guild.id, days); } catch { central = null; }
-  const rows = buildStaffStats({ staffIds, central, local: localActivity(guild.id, Date.now() - days * DAY) });
+  return { rows: buildStaffStats({ staffIds, central, local: localActivity(guild.id, Date.now() - days * DAY) }), centralAvailable: Boolean(central) };
+}
+
+export async function handleStaffStatsCommand(interaction, { member, roleId, isSysPlus, isOwner, settings }) {
+  if (!isOwner && !isSysPlus(member, roleId)) {
+    await interaction.reply({ content: "⛔ Réservé aux SYS+ et à l'owner.", ephemeral: true });
+    return true;
+  }
+  const days = interaction.options.getString("periode") === "30j" ? 30 : 7;
+  await interaction.deferReply({ ephemeral: true });
+  const guild = interaction.guild;
+  const { rows, centralAvailable } = await collectStaffRows(guild, settings, days);
   try { recordSysPlusAudit(guild.id, interaction.user.id, "staff.stats", null, { days }); } catch { /* lecture quand même */ }
-  await interaction.editReply({ embeds: [staffStatsEmbed(rows, { days, centralAvailable: Boolean(central) })], allowedMentions: { parse: [] } });
+  await interaction.editReply({ embeds: [staffStatsEmbed(rows, { days, centralAvailable })], allowedMentions: { parse: [] } });
   return true;
 }
