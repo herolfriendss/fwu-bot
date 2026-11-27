@@ -69,7 +69,7 @@ export const SYSP_LAYOUT: SubcommandLayoutEntry[] = [
   { group: "outils", description: "Ghost, composer, recherche, blueprints, clone, studio, packs", members: ["ghost", "composer", "search", "blueprint", "clone", "studio", "pack"] },
   { group: "diagnostic", description: "Audit ACL, santé du bot et couverture des logs (lecture seule)", members: ["acl", "sante", "logs-couverture", "matrice", "economie", "bots", "installation"] },
   { group: "suivi", description: "Fiche d'un membre, notes du staff et activité du staff", members: ["fiche", "stats", "notes", "note-ajouter", "note-retirer"] },
-  { group: "urgence", description: "Gel d'urgence du staff et alertes d'abus du staff", members: ["gel", "degel", "alerte-abus"] },
+  { group: "urgence", description: "Gel d'urgence du staff et alertes d'abus du staff", members: ["gel", "degel", "alerte-abus", "double-validation"] },
   { group: "market", description: "Marketplace d'extensions (désactivé par défaut)", members: ["catalog", "installed", "publish", "withdraw", "submit", "validate", "reject", "install", "uninstall", "rollback"] },
 ];
 
@@ -554,6 +554,7 @@ export const SLASH_COMMANDS: SlashCommandDef[] = [
         opt(4, "cible_heures", "En combien d'heures (1 à 720)", { min_value: 1, max_value: 720 }),
       ]),
       sub("annuler", "Annule ta dernière attribution de SYS+ (dans l'heure)"),
+      sub("double-validation", "Exige l'accord d'un autre membre SYS+ pour attribuer SYS+", [opt(5, "actif", "Vrai = active, faux = désactive (vide = voir l'état)")]),
       sub("add", "Attribue le rôle SYS+ à un membre (propriétaire)", [opt(6, "membre", "Membre concerné", { required: true }), opt(3, "duree", "Durée du SYS+ : 12h, 7j… (retrait automatique)", { max_length: 20 }), opt(5, "essai", "Période d'essai de 14 jours (confirmation de l'owner requise)"), opt(5, "simuler", "Simuler : vérifie la demande sans rien modifier")]),
       sub("remove", "Retire le rôle SYS+ à un membre (propriétaire)", [opt(6, "membre", "Membre concerné", { required: true })]),
       sub("permissions", "Consulte les scopes ADMIN+"),

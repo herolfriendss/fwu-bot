@@ -176,6 +176,7 @@ describe("bot wiring", () => {
       read("bot/systems/sysplus/charter.js"),
       read("bot/systems/sysplus/temporary.js"),
       read("bot/systems/sysplus/undo.js"),
+      read("bot/systems/sysplus/double-validation.js"),
       read("bot/systems/sysplus/staff-log.js"),
       read("bot/features/snipe.js"),
       read("bot/features/invite-rewards.js"),

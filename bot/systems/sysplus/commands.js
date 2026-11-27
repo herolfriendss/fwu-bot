@@ -36,6 +36,7 @@ import { handleAbuseAlertCommand } from "./abuse-alerts.js";
 import { handleMemberCardCommand } from "./member-card.js";
 import { handleStaffStatsCommand } from "./staff-stats.js";
 import { lastUndoableGrant } from "./undo.js";
+import { createPendingGrant, doubleValidationEnabled, pendingButtons, setDoubleValidation } from "./double-validation.js";
 import { forgetTemporary, sysPlusSpan, trackTemporary } from "./temporary.js";
 import { handleStaffNotesCommand } from "./staff-notes.js";
 import { isStaffForFreeze } from "../../staff-freeze-gate.js";
@@ -863,6 +864,20 @@ ${reason}`, ephemeral: true });
     return true;
   }
 
+  if (subcommand === "double-validation") {
+    if (!canConfigureSysPlus(member)) {
+      await interaction.reply({ content: "⛔ Seul le Owner PND règle la double validation.", ephemeral: true });
+      return true;
+    }
+    const wanted = interaction.options.getBoolean("actif", false);
+    if (wanted !== null && wanted !== undefined) {
+      setDoubleValidation(guild.id, wanted);
+      recordSysPlusAudit(guild.id, member.id, "sysplus.member.double_validation", null, { enabled: wanted });
+    }
+    const on = doubleValidationEnabled(guild.id);
+    await interaction.reply({ content: on ? "🔐 Double validation **active** : une attribution de SYS+ attend l'accord d'un autre membre SYS+ (24 h)." : "🔓 Double validation **désactivée** : `/sysp add` attribue tout de suite.", ephemeral: true });
+    return true;
+  }
   if (subcommand === "annuler") {
     if (!canConfigureSysPlus(member)) {
       await interaction.reply({ content: "⛔ Seul le Owner PND peut annuler une attribution SYS+.", ephemeral: true });
@@ -933,6 +948,12 @@ ${reason}`, ephemeral: true });
     }
     if ((subcommand === "add" && hasRole) || (subcommand === "remove" && !hasRole)) {
       await interaction.reply({ content: subcommand === "add" ? "Ce membre possède déjà SYS+." : "Ce membre ne possède pas SYS+.", ephemeral: true });
+      return true;
+    }
+    if (subcommand === "add" && doubleValidationEnabled(guild.id)) {
+      const pendingId = createPendingGrant({ guildId: guild.id, userId: target.id, roleId: role.id, requestedBy: member.id, span });
+      recordSysPlusAudit(guild.id, member.id, "sysplus.member.request", target.id, { roleId: role.id, pendingId });
+      await interaction.reply({ content: `🔐 **Demande de SYS+ pour <@${target.id}>** par <@${member.id}>. Un autre membre SYS+ doit valider dans les 24 h.`, components: pendingButtons(pendingId), allowedMentions: { parse: [] } });
       return true;
     }
     if (subcommand === "add") await target.roles.add(role, `SYS+ attribué par le propriétaire ${member.id}`);
