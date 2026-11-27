@@ -117,6 +117,7 @@ import { handleInviteRewardsInteraction, runInviteRewards } from "./features/inv
 import { expireBounties, handleBountyInteraction } from "./features/bounty.js";
 import { handleMediaOnlyInteraction, handleMediaOnlyMessage, removeMediaChannel } from "./guard/media-only.js";
 import { handleNightInteraction, runNightMode } from "./guard/night-mode.js";
+import { handleFlagReaction } from "./features/flag-translate.js";
 import { handleVoiceMoveCommand } from "./voice-move.js";
 import { handleEmbedInteraction, EMBED_COMMANDS } from "./embeds.js";
 import { SHARED_DB_ALERTS, startSharedLayer } from "./shared/index.js";
@@ -912,6 +913,7 @@ client.on("messageReactionAdd", async (reaction, user) => {
     const guildId = reaction.message.guildId ?? reaction.message.guild?.id;
     if (guildId && (!guildAllowed(guildId, ALLOWED_GUILDS) || isLogsHub(guildId))) return;
     if (guildId && serves("suckme")) void handleStarboardReaction(reaction, user).catch(() => record("starboard_error"));
+    if (guildId && serves("suckme")) void handleFlagReaction(reaction, user).catch(() => record("flag_translate_error"));
     if (!serves("guard")) return;
     await handleReactionVerificationReaction(reaction, user);
   } catch {
