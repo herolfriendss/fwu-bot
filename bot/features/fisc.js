@@ -6,6 +6,7 @@ import { parsePndOwnerId } from "../pnd-owner-policy.js";
 import { settleCasinoRound } from "../casino.js";
 import { changeTreasury, getFiscConfig, saveFiscConfig, treasury } from "./fisc-config.js";
 import { parisDate } from "./community.js";
+import { BOUNTY, claimBounty } from "./bounty.js";
 
 export const FISC_COMMANDS = new Set(["impots", "pret", "duel", "pari"]);
 const fmt = (n) => `${Number(n).toLocaleString("fr-FR")} PND`;
@@ -202,6 +203,8 @@ export function resolveDuel(game, roll = (n) => randomInt(n)) {
   return { challengerWins: side === 0, detail: side === 0 ? "🪙 Pile" : "🪙 Face" };
 }
 
+const winnerLoser = (row, winner) => (winner === row.challenger_id ? row.opponent_id : row.challenger_id);
+
 export async function handleDuelButton(interaction, { roll } = {}) {
   if (!interaction.isButton?.() || !/^duel:(accept|refuse):\d+$/.test(interaction.customId ?? "")) return false;
   const [, action, rawId] = interaction.customId.split(":");
@@ -229,14 +232,16 @@ export async function handleDuelButton(interaction, { roll } = {}) {
       const winner = outcome.challengerWins ? row.challenger_id : row.opponent_id;
       move(row.guild_id, winner, row.bet * 2, "duel_win");
       db.prepare("UPDATE fisc_duels SET winner_id=? WHERE id=?").run(winner, row.id);
-      return { ...outcome, winner };
+      const loser = winner === row.challenger_id ? row.opponent_id : row.challenger_id;
+      const bounty = row.bet >= BOUNTY.minDuelBet ? claimBounty(row.guild_id, loser, winner, "duel") : 0;
+      return { ...outcome, winner, bounty };
     });
   } catch (error) {
     db.prepare("UPDATE fisc_duels SET status='pending' WHERE id=? AND status='done' AND winner_id IS NULL").run(row.id);
     await interaction.reply({ content: `❌ ${error.message.includes("insuffisant") ? "Un des deux joueurs n'a plus assez de PND." : error.message}`, ephemeral: true });
     return true;
   }
-  await interaction.update({ content: `⚔️ Duel ${DUEL_GAMES[row.game]} : ${result.detail} → 🏆 <@${result.winner}> remporte **${fmt(row.bet * 2)}** !`, components: duelButtons(row.id, true), allowedMentions: { parse: [] } });
+  await interaction.update({ content: `⚔️ Duel ${DUEL_GAMES[row.game]} : ${result.detail} → 🏆 <@${result.winner}> remporte **${fmt(row.bet * 2)}** !${result.bounty ? ` 🎯 Et la prime sur <@${winnerLoser(row, result.winner)}> : **${fmt(result.bounty)}** !` : ""}`, components: duelButtons(row.id, true), allowedMentions: { parse: [] } });
   return true;
 }
 

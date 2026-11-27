@@ -114,6 +114,7 @@ import { checkAltOnJoin, forgetBanList, handleAltInteraction, handleAltMessage }
 import { handleGhostPing } from "./guard/ghost-ping.js";
 import { handleSnipeInteraction, rememberDeleted, rememberEdited } from "./features/snipe.js";
 import { handleInviteRewardsInteraction, runInviteRewards } from "./features/invite-rewards.js";
+import { expireBounties, handleBountyInteraction } from "./features/bounty.js";
 import { handleVoiceMoveCommand } from "./voice-move.js";
 import { handleEmbedInteraction, EMBED_COMMANDS } from "./embeds.js";
 import { SHARED_DB_ALERTS, startSharedLayer } from "./shared/index.js";
@@ -1251,6 +1252,8 @@ client.once("clientReady", () => {
   setInterval(() => { if (serves("suckme")) void runQotd(communityGuilds()).catch(() => record("qotd_error")); }, 5 * 60_000).unref?.();
   // LE FISC : récompenses d'invitation (invité resté 7 jours), vérifiées toutes les heures.
   setInterval(() => { if (serves("fisc")) void runInviteRewards(client, { isAllowedGuild: (id) => guildAllowed(id, ALLOWED_GUILDS) && !isLogsHub(id) }).catch(() => record("invite_rewards_error")); }, 60 * 60_000).unref?.();
+  // LE FISC : primes sans preneur remboursées après 7 jours.
+  setInterval(() => { if (serves("fisc")) { try { expireBounties(); } catch { record("bounty_error"); } } }, 30 * 60_000).unref?.();
   // SUCK ME : salons compteurs (membres, en vocal, boosts), renommés au plus toutes les 10 minutes.
   setInterval(() => { if (serves("suckme")) void runStatChannels(client, { isAllowedGuild: (id) => guildAllowed(id, ALLOWED_GUILDS) && !isLogsHub(id) }).catch(() => record("stat_channels_error")); }, 60_000).unref?.();
   // SUCK ME jobs: expired temporary roles and scheduled announcements (every minute).
@@ -1833,6 +1836,7 @@ client.on("interactionCreate", (interaction) => {
     if (await handleStatChannelsInteraction(interaction)) { auditSlashUsage(interaction, "Salons compteurs"); return; }
     if (await handleSnipeInteraction(interaction)) { auditSlashUsage(interaction, "Snipe"); return; }
     if (await handleInviteRewardsInteraction(interaction)) { auditSlashUsage(interaction, "Invitations"); return; }
+    if (await handleBountyInteraction(interaction)) { auditSlashUsage(interaction, "LE FISC"); return; }
     if (await handleVersusInteraction(interaction)) { auditSlashUsage(interaction, "Jeux entre membres"); return; }
     if (await handleSelfUpdateInteraction(interaction)) { auditSlashUsage(interaction, "SUCK ME"); return; }
     if (await handleSuckmeInteraction(interaction, settings[interaction.guildId])) { auditSlashUsage(interaction, "SUCK ME"); return; }
