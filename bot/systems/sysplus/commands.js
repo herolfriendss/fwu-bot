@@ -879,7 +879,7 @@ ${reason}`, ephemeral: true });
         : castVote({ guildId: guild.id, candidateId: candidate.id, voterId: member.id, pour, candidateIsBot: Boolean(candidate.bot), candidateIsSysPlus: isSysPlus(candidateMember, roleId) });
       await interaction.reply({ content: formatTally(candidate.id, result), ephemeral: true, allowedMentions: { parse: [] } });
     } catch (error) {
-      await interaction.reply({ content: `❌ ${error.message}`, ephemeral: true }).catch(() => {});
+      await respondInPlaceSafe(interaction, { content: `❌ ${error.message}`, ephemeral: true });
     }
     return true;
   }
