@@ -83,3 +83,12 @@ test("V2: automatic update runs once a night at the chosen Paris hour, never whi
   assert.equal(autoUpdateDue({ now: at5, env: {}, status: { state: "running", at: Math.floor(at5.getTime() / 1000) } }), false);
   assert.equal(autoUpdateDue({ now: new Date("2026-11-27T21:30:00Z"), env: { FWU_AUTO_UPDATE_HOUR: "22" } }), "2026-11-27");
 });
+
+test("la mise à jour ne reçoit ni le profil ni les tokens du bot qui la lance", async () => {
+  const m = await import("./self-update.js");
+  const env = m.cleanUpdateEnv({ PATH: "/bin", PND_BOT_PROFILE: "suckme", DISCORD_TOKEN: "a", PND_SUCKME_TOKEN: "b", PND_GUARD_GUILD_IDS: "1", PND_OWNER_DISCORD_ID: "9", SITE_URL: "x" });
+  assert.deepEqual(env, { PATH: "/bin", PND_OWNER_DISCORD_ID: "9", SITE_URL: "x" });
+  let opts;
+  m.launchUpdate((_c, _a, o) => { opts = o; return { unref() {} }; }, "/x.sh");
+  assert.ok(opts.env && !("PND_BOT_PROFILE" in opts.env));
+});
