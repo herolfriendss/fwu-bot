@@ -2247,6 +2247,20 @@ export const EXTRA_SLASH_COMMANDS: SlashCommandDef[] = [
     options: [opt(6, "membre", "Compte à vérifier", { required: true })],
   },
   {
+    name: "compteurs",
+    description: "SUCK ME : salons compteurs (membres, en vocal, boosts) mis à jour toutes les 10 min",
+    usage: "/compteurs installer · retirer · actualiser",
+    category: "Communauté",
+    dmPermission: false,
+    requiresBotProcess: true,
+    defaultMemberPermissions: manageServer,
+    options: [
+      sub("installer", "Crée la catégorie Statistiques et ses salons compteurs"),
+      sub("retirer", "Supprime les salons compteurs"),
+      sub("actualiser", "Met les compteurs à jour tout de suite"),
+    ],
+  },
+  {
     name: "braquage",
     description: "LE FISC : monte une équipe (3 à 5) pour braquer la caisse du serveur",
     usage: "/braquage",

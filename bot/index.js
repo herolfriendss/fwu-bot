@@ -135,6 +135,7 @@ import { handleFiscInteraction, runLoanCollection, runWealthTax } from "./featur
 import { handleHeistInteraction } from "./features/heist.js";
 import { handleBlindtestInteraction, handleBlindtestMessage, isBlindTestRunning } from "./features/blindtest.js";
 import { handleTtsInteraction, handleTtsMessage } from "./features/tts.js";
+import { forgetStatChannel, handleStatChannelsInteraction, runStatChannels } from "./features/stat-channels.js";
 import { handleModmailDm, handleToolsInteraction, onStickyChannelMessage } from "./features/tools-commands.js";
 import { handleVersusInteraction, runVersusExpiry } from "./features/versus.js";
 import { announceUpdateResult, handleSelfUpdateInteraction, startAutoUpdate } from "./features/self-update.js";
@@ -1100,6 +1101,7 @@ client.on("channelDelete", (channel) => {
   forgetVoicePanels(channel.id);
   if (serves("fwu")) handleTicketChannelDelete(channel, record);
   if (channel.guild && serves("investplus")) { try { handleInvestPlusChannelDelete(channel); } catch { record("investplus_job_error"); } }
+  try { forgetStatChannel(channel.id); } catch { record("stat_channels_error"); }
 });
 client.on("roleCreate", (role) => {
   if (serves("fwu") && guildAllowed(role.guild.id, ALLOWED_GUILDS)) auditLog(role.guild, settings[role.guild.id], "🎭 Rôle créé", `Rôle : **${role.name}**\nID : \`${role.id}\``);
@@ -1234,6 +1236,8 @@ client.once("clientReady", () => {
   if (RUNTIME.profile === "suckme") startAutoUpdate({ record });
   // SUCK ME animation: question of the day, checked every 5 minutes (Paris time).
   setInterval(() => { if (serves("suckme")) void runQotd(communityGuilds()).catch(() => record("qotd_error")); }, 5 * 60_000).unref?.();
+  // SUCK ME : salons compteurs (membres, en vocal, boosts), renommés au plus toutes les 10 minutes.
+  setInterval(() => { if (serves("suckme")) void runStatChannels(client, { isAllowedGuild: (id) => guildAllowed(id, ALLOWED_GUILDS) && !isLogsHub(id) }).catch(() => record("stat_channels_error")); }, 60_000).unref?.();
   // SUCK ME jobs: expired temporary roles and scheduled announcements (every minute).
   setInterval(() => {
     if (!serves("suckme")) return;
@@ -1811,6 +1815,7 @@ client.on("interactionCreate", (interaction) => {
     if (await handleHeistInteraction(interaction)) { auditSlashUsage(interaction, "LE FISC"); return; }
     if (await handleBlindtestInteraction(interaction)) { auditSlashUsage(interaction, "Blind test"); return; }
     if (await handleTtsInteraction(interaction, { busy: isBlindTestRunning })) { auditSlashUsage(interaction, "Lecture vocale"); return; }
+    if (await handleStatChannelsInteraction(interaction)) { auditSlashUsage(interaction, "Salons compteurs"); return; }
     if (await handleVersusInteraction(interaction)) { auditSlashUsage(interaction, "Jeux entre membres"); return; }
     if (await handleSelfUpdateInteraction(interaction)) { auditSlashUsage(interaction, "SUCK ME"); return; }
     if (await handleSuckmeInteraction(interaction, settings[interaction.guildId])) { auditSlashUsage(interaction, "SUCK ME"); return; }
