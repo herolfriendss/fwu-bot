@@ -168,6 +168,7 @@ Logs typés : le module qui la traite journalise avec une catégorie. Tests : la
 | LE FISC | `/pack` | ✅ | ✅ dédié | ✅ | ▫️ | ▫️ | ✅ |
 | LE FISC | `/trade` | ✅ | ✅ dédié | ✅ | ▫️ | ▫️ | ✅ |
 | LE FISC | `/jeu` | ✅ | ✅ pont | ✅ | ▫️ | ▫️ | ✅ |
+| LE FISC | `/braquage` | ✅ | ✅ pont | ✅ | ▫️ | ✅ | ✅ |
 | Invest + | `/abonnement` | ✅ | ✅ dédié | ✅ | ▫️ | ▫️ | ✅ |
 | Invest + | `/investadmin` | ✅ | ✅ pont | ✅ | ▫️ | ▫️ | ✅ |
 
