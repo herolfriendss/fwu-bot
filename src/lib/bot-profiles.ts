@@ -89,7 +89,7 @@ export const SLASH_COMMAND_OWNERS: Record<BotProfileId, readonly string[]> = {
     // V2 (26/11) : anti-raid
     "piege", "raid", "scan", "panic",
     // 27/11 : doubles comptes (ressemblance avec un banni), salons médias
-    "doublecompte", "medias",
+    "doublecompte", "medias", "nuit",
   ],
   fdpdlavoc: [
     "voice", "voc", "music", "radio", "effet", "playlist", "dj", "pv", "unpv",

@@ -13,6 +13,7 @@ import { privilegedPermissionNames } from "../role-grant-guard.js";
 import { canManageBlr, setBlr, liftBlr } from "../blr-commands.js";
 import { isBlr } from "../blr.js";
 import { lockdownState, startLockdown } from "./shield.js";
+import { nightRaidThreshold } from "./night-mode.js";
 
 db.exec(`
   CREATE TABLE IF NOT EXISTS guard_trap_channels (
@@ -161,7 +162,10 @@ const joins = new Map();
 export async function recordJoinForRaid(member, { settings = null, now = Date.now() } = {}) {
   const guild = member?.guild;
   if (!guild || member.user?.bot) return false;
-  const config = raidConfig(guild.id);
+  const base = raidConfig(guild.id);
+  // Mode nuit : seuil d'arrivées abaissé pendant la plage programmée.
+  const night = nightRaidThreshold(guild.id);
+  const config = night != null && night < base.threshold ? { ...base, threshold: night } : base;
   const recent = (joins.get(guild.id) ?? []).filter((at) => now - at < config.windowSeconds * 1000);
   recent.push(now);
   joins.set(guild.id, recent);
