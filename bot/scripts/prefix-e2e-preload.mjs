@@ -40,7 +40,7 @@ const channel = wf({ id: CHANNEL, name: "general", type: 0, guildId: GUILD_ID, i
   sendTyping: async () => {}, permissionsFor: () => wf({ has: () => true, bitfield: 0n }, "cp"),
   messages: wf({ fetch: async () => collection() }, "msgs") }, "channel");
 function member(id, admin, position) {
-  return wf({ id, user: wf({ id, bot: false, username: "u" + id.slice(-3), tag: "u#0", createdTimestamp: Date.now() - 4e10, displayAvatarURL: () => "https://example.invalid/a.png" }, "user"),
+  return wf({ id, user: wf({ id, bot: false, username: "u" + id.slice(-3), tag: "u#0", createdTimestamp: Date.now() - 4e10, displayAvatarURL: () => "https://example.invalid/a.png", send: async () => ({}) }, "user"),
     displayName: "M" + id.slice(-3), get guild() { return guild; }, joinedTimestamp: Date.now() - 1e10,
     permissions: wf({ has: () => admin, bitfield: admin ? 8n : 0n, toArray: () => [] }, "perms"),
     roles: wf({ cache: collection([[ROLE, role()]]), highest: role(ROLE, position), add: async () => {}, remove: async () => {} }, "mr"),
@@ -48,11 +48,20 @@ function member(id, admin, position) {
 }
 const owner = member(OWNER, true, 50);
 const me = member("900000000000000999", true, 99);
+// E2E_AS=member : les commandes sont tapées par un simple membre (sans permission).
+const plain = member("900000000000000002", false, 1);
+const author = process.env.E2E_AS === "member" ? plain : owner;
 guild = wf({ id: GUILD_ID, name: "Serveur", ownerId: OWNER, memberCount: 2,
-  members: wf({ cache: collection([[OWNER, owner]]), me, fetch: async (a) => { const id = typeof a === "string" ? a : a?.user; return id ? (id === OWNER ? owner : null) : collection([[OWNER, owner]]); }, fetchMe: async () => me }, "members"),
+  members: wf({ cache: collection([[OWNER, owner]]), me, fetch: async (a) => { const id = typeof a === "string" ? a : a?.user; return id ? (id === OWNER ? owner : id === plain.id ? plain : null) : collection([[OWNER, owner], [plain.id, plain]]); }, fetchMe: async () => me }, "members"),
   roles: wf({ cache: collection([[ROLE, role()], [GUILD_ID, role(GUILD_ID, 0)]]), everyone: role(GUILD_ID, 0), fetch: async () => role() }, "roles"),
   channels: wf({ cache: collection([[CHANNEL, channel]]), fetch: async (id) => (id ? channel : collection([[CHANNEL, channel]])) }, "channels"),
-  fetchAuditLogs: async () => ({ entries: collection() }), iconURL: () => null }, "guild");
+  fetchAuditLogs: async () => ({ entries: collection() }), iconURL: () => null, disableInvites: async () => guild, bans: wf({ fetch: async () => null, remove: async () => {} }, "bans") }, "guild");
+
+function mentionsOf(content) {
+  const ids = [...String(content).matchAll(/<@!?(\d{17,20})>/g)].map((m) => m[1]);
+  const members = ids.map((id) => [id, id === OWNER ? owner : id === plain.id ? plain : member(id, false, 1)]);
+  return wf({ users: collection(members.map(([id, m]) => [id, m.user])), members: collection(members), roles: collection(), everyone: false, channels: collection() }, "mentions");
+}
 
 Client.prototype.login = async function () {
   const client = this;
@@ -63,12 +72,12 @@ Client.prototype.login = async function () {
     const results = {};
     for (const content of JSON.parse(process.env.E2E_COMMANDS)) {
       out.length = 0;
-      const msg = wf({ id: String(Date.now()), content, author: owner.user, member: owner, guild, guildId: GUILD_ID, channel, channelId: CHANNEL,
-        mentions: wf({ users: collection(), roles: collection(), members: collection(), everyone: false, channels: collection() }, "mentions"),
+      const msg = wf({ id: String(Date.now()), content, author: author.user, member: author, guild, guildId: GUILD_ID, channel, channelId: CHANNEL,
+        mentions: mentionsOf(content),
         reply: async (p) => { out.push(p); return wf({ id: "r", edit: async () => ({}), react: async () => {} }, "rep"); },
         react: async () => {}, delete: async () => {}, attachments: collection(), createdTimestamp: Date.now(), __replyLayer: undefined }, "msg");
       try { client.emit("messageCreate", msg); } catch (e) { out.push({ error: String(e) }); }
-      await new Promise((r) => setTimeout(r, 400));
+      await new Promise((r) => setTimeout(r, Number(process.env.E2E_WAIT_MS ?? 400)));
       results[content] = out.map((p) => { if (typeof p === "string") return p; if (p?.error) return "ERR " + p.error; const e = p?.embeds?.[0]; const d = e?.data ?? e ?? {}; return [p?.content, d.title, d.description, ...(d.fields ?? []).map((f) => f.name + ": " + f.value)].filter(Boolean).join(" | ").slice(0, 400); });
     }
     process.stdout.write("\nE2E_RESULT " + JSON.stringify(results) + "\n");

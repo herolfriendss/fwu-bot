@@ -541,6 +541,11 @@ export async function handleEconomyMessage(message, guildSettings = null) {
   if (!message.guild || !message.member) return false;
   let parts = message.content.trim().split(/\s+/);
   let command = (parts[0] ?? "").toLowerCase();
+  // =pnd-add / =pnd-remove (anciens noms, toujours listés) : même chose que =pnd add|remove.
+  if (command === "=pnd-add" || command === "=pnd-remove") {
+    parts = ["=pnd", command === "=pnd-add" ? "add" : "remove", ...parts.slice(1)];
+    command = "=pnd";
+  }
   if (command === "=casino" && (parts[1] ?? "").toLowerCase() === "blackjack") {
     parts = ["=blackjack", ...parts.slice(2)];
     command = "=blackjack";
@@ -797,8 +802,8 @@ export async function handleEconomyMessage(message, guildSettings = null) {
     } else if (command === "=pnd") {
       if (!isConfiguredPndOwner(uid, process.env.PND_OWNER_DISCORD_ID, gid)) throw new Error("Cette commande est réservée au propriétaire PND configuré.");
       const action = parts[1]?.toLowerCase(), target = message.mentions.users.first();
-      const amount = parseAmount(parts[3], action === "set");
       if (!["add", "remove", "set"].includes(action) || !target || target.bot) throw new Error("Utilisation : `=pnd add|remove|set @membre montant`.");
+      const amount = parseAmount(parts[3], action === "set");
       const total = transaction(() => {
         let newBalance;
         if (action === "set") {

@@ -19,7 +19,7 @@ const SETTINGS = {
 };
 
 /** Lance le bot `profile`, envoie `commands` et rend { commande: [réponses] }. */
-export async function runBotCommands(profile, commands, { settings = SETTINGS, timeoutMs = 60_000 } = {}) {
+export async function runBotCommands(profile, commands, { settings = SETTINGS, timeoutMs = 60_000, withLogs = false, as = "owner", waitMs = 400 } = {}) {
   const server = createServer((req, res) => {
     res.setHeader("content-type", "application/json");
     res.end(req.method === "GET" ? JSON.stringify({ guilds: { [GUILD]: settings } }) : "{}");
@@ -29,7 +29,7 @@ export async function runBotCommands(profile, commands, { settings = SETTINGS, t
   const env = { ...process.env, PND_BOT_PROFILE: profile === "fwu" ? "" : profile, DISCORD_TOKEN: "fwu-token", [TOKENS[profile] ?? "UNUSED_TOKEN"]: "other-token",
     SITE_URL: `http://127.0.0.1:${server.address().port}`, BOT_SYNC_SECRET: "e2e", HER_DB_PATH: join(dir, "db.sqlite"), PND_DATA_DIR: dir,
     PND_BOTS_CONFIG: join(dir, "absent-bots.json"), V4_ALLOWED_GUILD_IDS: GUILD, PND_OWNER_DISCORD_ID: "900000000000000001", E2E_GUILD: GUILD,
-    E2E_COMMANDS: JSON.stringify(commands), SHARED_DATABASE_URL: "", NODE_TEST_CONTEXT: "" };
+    E2E_COMMANDS: JSON.stringify(commands), E2E_AS: as, E2E_WAIT_MS: String(waitMs), SHARED_DATABASE_URL: "", NODE_TEST_CONTEXT: "" };
   for (const key of Object.keys(TOKENS)) if (key !== profile) delete env[TOKENS[key]];
   const preload = fileURLToPath(new URL("./prefix-e2e-preload.mjs", import.meta.url));
   const child = spawn(process.execPath, ["--no-warnings", "--import", preload, "index.js"], { cwd: fileURLToPath(new URL("..", import.meta.url)), env });
@@ -43,7 +43,9 @@ export async function runBotCommands(profile, commands, { settings = SETTINGS, t
   rmSync(dir, { recursive: true, force: true });
   const line = stdout.split("\n").find((l) => l.startsWith("E2E_RESULT "));
   if (!line) throw new Error(`${profile} : pas de résultat (code ${code})\n${stdout.slice(-2000)}\n${stderr.slice(-2000)}`);
-  return JSON.parse(line.slice("E2E_RESULT ".length));
+  const results = JSON.parse(line.slice("E2E_RESULT ".length));
+  if (withLogs) Object.defineProperty(results, "__stderr", { value: stderr, enumerable: false });
+  return results;
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
