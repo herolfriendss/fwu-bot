@@ -2281,6 +2281,22 @@ export const EXTRA_SLASH_COMMANDS: SlashCommandDef[] = [
     requiresBotProcess: true,
   },
   {
+    name: "prime",
+    description: "LE FISC : prime sur un membre, gagnée en le battant en duel ou en le volant",
+    usage: "/prime poser membre montant · voir [membre] · liste",
+    category: "Économie",
+    dmPermission: false,
+    requiresBotProcess: true,
+    options: [
+      sub("poser", "Met une prime sur la tête d'un membre (argent bloqué tout de suite)", [
+        opt(6, "membre", "La cible", { required: true }),
+        opt(4, "montant", "Montant (100 à 50 000 PND)", { required: true, min_value: 100, max_value: 50000 }),
+      ]),
+      sub("voir", "La prime sur un membre", [opt(6, "membre", "Membre")]),
+      sub("liste", "Les avis de recherche du serveur"),
+    ],
+  },
+  {
     name: "impots",
     description: "LE FISC : impôts sur les transferts et la fortune, caisse du serveur",
     usage: "/impots etat · config · verser",

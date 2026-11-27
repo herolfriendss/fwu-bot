@@ -17,6 +17,7 @@ import { isWhitelistMember } from "./systems/sysplus/whitelist-policy.js";
 import { sendCentralLog, systemLogEmbed } from "./logs.js";
 import { perkActive } from "./features/perks.js";
 import { coupleBonus } from "./features/family.js";
+import { claimBounty } from "./features/bounty.js";
 
 const purchaseLocks = new Set();
 const marketLocks = new Set();
@@ -724,16 +725,18 @@ export async function handleEconomyMessage(message, guildSettings = null) {
         setCooldown(gid, uid, "rob", Date.now() + 2 * 60 * 60_000);
         if (plan.success) {
           changeBalance(gid, target.id, -plan.amount, "rob_victim");
-          return { total: changeBalance(gid, uid, plan.amount, "rob_success"), fine: 0 };
+          changeBalance(gid, uid, plan.amount, "rob_success");
+          const bounty = claimBounty(gid, target.id, uid, "rob");
+          return { total: wallet(gid, uid).balance, fine: 0, bounty };
         }
         if (plan.fine > 0) {
           changeBalance(gid, uid, -plan.fine, "rob_failed");
           changeBalance(gid, target.id, plan.fine, "rob_restitution");
         }
-        return { total: wallet(gid, uid).balance, fine: plan.fine };
+        return { total: wallet(gid, uid).balance, fine: plan.fine, bounty: 0 };
       });
       await safeReply(message, plan.success
-        ? `🕵️ Tu as volé **${format(plan.amount)}** à ${mention(target.id)}. Solde : **${format(outcome.total)}**.`
+        ? `🕵️ Tu as volé **${format(plan.amount)}** à ${mention(target.id)}.${outcome.bounty ? ` 🎯 Tu empoches aussi sa prime : **${format(outcome.bounty)}** !` : ""} Solde : **${format(outcome.total)}**.`
         : `🚨 Vol raté ! Tu as dû rendre **${format(outcome.fine)}** à ${mention(target.id)}. Solde : **${format(outcome.total)}**.`);
     } else if (command === "=lottery") {
       const action = (parts[1] ?? "info").toLowerCase();
