@@ -139,3 +139,26 @@ Déjà présentes, donc retirées de la liste : `/dossier`, `/casier`, `/staffhi
 ### Owner
 - [ ] 83. Rapport mensuel de l'usage de l'IA (nombre de réponses, coût estimé).
 - [ ] 84. Export de toute la configuration en un fichier, envoyé en privé à l'owner, pour la restaurer si besoin.
+
+## I. Sécurité quand un bot tombe (27/11, à valider)
+
+Constat dans le code : si Guard ne renouvelle plus son bail pendant 60 s, le bot principal reprend seul ses protections automatiques
+(automod, anti-raid, pièges, double compte), et de même pour le bouclier tier 0 de SUCK ME (`bot/bot-runtime.js`, `serves`).
+Les commandes propres à Guard (`/ban`, `+ban`…) ne marchent plus, et si le bot principal tombe aussi, plus rien ne protège.
+
+- [ ] 85. **Prévenir quand le relais s'active** : message dans le salon staff (« Guard hors ligne, le bot principal assure ses protections ») et voyant dans la console.
+- [ ] 86. **Relais en chaîne** : si le bot principal tombe aussi, un deuxième bot (par exemple SUCK ME) reprend les protections de Guard.
+- [ ] 87. **Mode dégradé automatique** : tant que Guard est absent, le relais durcit la vérification des arrivées, jusqu'à son retour.
+- [ ] 88. **Alerte sans bot** : le site détecte qu'aucun bot de protection n'envoie de signal depuis 2 min et prévient par webhook Discord, même si tous les bots sont tombés.
+- [ ] 89. **AutoMod natif de Discord** (tourne chez Discord, sans bot) : spam de mentions, mots interdits, liens, alertes de raid et de spam en MP.
+- [ ] 90. **Réglages du serveur** : 2FA obligatoire pour les actions de modération, niveau de vérification élevé, filtre de contenu, permission Administrateur réservée au compte owner.
+- [ ] 91. **Rôles des bots au-dessus des rôles staff**, vérifié par `/scan` qui signale un rôle mal placé.
+
+## J. Encore d'autres commandes (27/11, mises de côté)
+
+- [ ] 92. **`/archive #salon`** : transcription d'un salon ou d'un ticket en fichier, gardée dans les logs.
+- [ ] 93. **Défi collectif de la semaine** : un objectif commun (10 000 messages, 200 h de vocal) qui récompense tout le serveur.
+- [ ] 94. **`/citation`** : transforme un message en image citation à partager.
+- [ ] 95. **Remerciement des boosters** : message automatique, rôle et avantages tant que le boost dure.
+- [ ] 96. **`/calendrier`** : les événements à venir, avec rappel en privé aux inscrits.
+- [ ] 97. **Salon texte temporaire** pour un événement, supprimé tout seul après.
