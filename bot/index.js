@@ -167,7 +167,7 @@ import { installOwnerShield, runAsActor } from "./owner-shield.js";
 import { assertOwnerConfig } from "./owner-config.js";
 import { db } from "./database.js";
 import { clearConnectedMarker, clearGatewayFailures, createGatewayWatchdog, recordGatewayFailure, writeConnectedMarker } from "./gateway-watchdog.js";
-import { LOGS_HUB_GUILD_ID, ACTIVE_SOURCE_GUILD_IDS, allowedRuntimeGuild, filterInactiveSourceGuilds, isLogsHub, inspectLogsHub } from "./logs-hub.js";
+import { LOGS_HUB_GUILD_ID, ACTIVE_SOURCE_GUILD_IDS, allowedRuntimeGuild, filterInactiveSourceGuilds, isLogsHub, inspectLogsHub, lastLogsHubFailure } from "./logs-hub.js";
 
 const { SITE_URL, BOT_SYNC_SECRET } = process.env;
 // FWU multi-bot: PND_BOT_PROFILE selects the application (fwu by default, the
@@ -1383,6 +1383,7 @@ client.once("clientReady", () => {
   if (IS_FWU) {
     // FWU posts the logs handed over by the dedicated bots (Logs Hub + RESUME).
     let relaying = false;
+    let lastRelayWarning = 0;
     const relayTimer = setInterval(() => {
       if (relaying) return;
       relaying = true;
@@ -1392,7 +1393,11 @@ client.once("clientReady", () => {
           if (!guild) { countLostRelayedLogs("serveur_absent"); continue; }
           // Un nouvel essai ne repasse pas par RESUME : il l'a déjà enregistré au premier.
           const delivered = await sendCentralLog(guild, item.hubOnly ? null : settings[guild.id], item.embed, item.hubOnly ? [] : item.fallbackChannelIds, item.components, item.allowedUserIds, { skipObservers: item.attempts > 0 || item.hubOnly === true, archived: true, noQueue: true, category: item.category ?? null, mentionRoleIds: item.mentionRoleIds ?? [] }).catch(() => false);
-          if (!delivered) { record("central_log_error"); requeueRelayedLog(item); }
+          if (!delivered) {
+            record("central_log_error"); requeueRelayedLog(item);
+            const why = lastLogsHubFailure();
+            if (why && Date.now() - lastRelayWarning > 60_000) { lastRelayWarning = Date.now(); console.error(`[relais de logs] non livré : ${why.reason}`); }
+          }
         }
       })().catch(() => record("log_relay_error")).finally(() => { relaying = false; });
     }, 2_000);

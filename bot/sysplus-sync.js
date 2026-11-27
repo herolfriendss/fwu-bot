@@ -12,6 +12,7 @@ export async function readSyncResponse(response) {
 export function describeIntelligenceSyncFailure(status, payload) {
   const code = typeof payload?.error === "string" ? payload.error : "";
   if (status === 401) return "Le secret BOT_SYNC_SECRET du bot ne correspond pas à celui du site.";
+  if (status === 403) return "Le site ne reconnaît pas ton identifiant comme owner : PND_OWNER_DISCORD_ID du site (.env à la racine) n'est pas le même que celui de ce bot, ou le site n'a pas redémarré avec.";
   if (status === 404) return "L’API de synchronisation du site est introuvable. Le dashboard doit être redéployé avec cette version.";
   if (status === 400) return "Le site a refusé les identifiants Discord transmis. Vérifie le serveur et le salon sélectionné.";
   if (status === 413) return "La configuration envoyée est trop volumineuse.";

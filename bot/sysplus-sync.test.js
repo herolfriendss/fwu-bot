@@ -10,6 +10,7 @@ test("SYS+ sync response reader handles JSON and non-JSON responses", async () =
 
 test("SYS+ intelligence sync errors explain likely deployment and credential failures", () => {
   assert.match(describeIntelligenceSyncFailure(401), /BOT_SYNC_SECRET/);
+  assert.match(describeIntelligenceSyncFailure(403, { error: "forbidden" }), /PND_OWNER_DISCORD_ID/);
   assert.match(describeIntelligenceSyncFailure(404), /redéployé/);
   assert.match(describeIntelligenceSyncFailure(400), /identifiants Discord/);
   assert.match(describeIntelligenceSyncFailure(503, { error: "settings_persistence_failed" }), /Supabase/);
