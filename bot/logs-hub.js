@@ -272,14 +272,19 @@ function findHubChannel(hub, spec) {
   return channel;
 }
 
+// Why the last delivery to the hub failed (never a log's content): shown in the PM2 logs by the relay.
+let lastHubFailure = null;
+export const lastLogsHubFailure = () => lastHubFailure;
+const hubFailed = (reason) => { lastHubFailure = { reason, at: Date.now() }; return false; };
+
 export async function sendToLogsHub(client, sourceGuild, embed, title = "", components = [], allowedUserIds = [], { category = null, mentionRoleIds = [] } = {}) {
   const hubId = logsHubGuildId();
   if (!client || !sourceGuild || sourceGuild.id === hubId) return false;
   category ??= embed?.logCategory ?? null;
   const spec = logChannelForGuild(sourceGuild.id, title || embed?.title || "", category);
-  if (!spec) return false;
+  if (!spec) return hubFailed(`aucun salon prévu pour le serveur ${sourceGuild.id}`);
   const hub = client.guilds.cache.get(hubId);
-  if (!hub) return false;
+  if (!hub) return hubFailed(`ce bot n'est pas dans le serveur Logs Hub (${hubId}) : invite-le ou vérifie son token`);
   let channel = findHubChannel(hub, spec);
   // Salon d'alertes absent : repli sur logs-securite (aucune alerte perdue).
   if (!channel && spec.optional) {
@@ -287,7 +292,7 @@ export async function sendToLogsHub(client, sourceGuild, embed, title = "", comp
     channel = fallback ? findHubChannel(hub, fallback) : null;
     if (channel) spec.source = fallback.source;
   }
-  if (!channel) return false;
+  if (!channel) return hubFailed(`salon « ${spec.name ?? spec.key ?? "?"} » introuvable dans le Logs Hub (/logs configurer)`);
   const payload = structuredClone(typeof embed?.toJSON === "function" ? embed.toJSON() : embed);
   const source = sourceForGuild(sourceGuild.id);
   payload.footer = {
@@ -297,11 +302,15 @@ export async function sendToLogsHub(client, sourceGuild, embed, title = "", comp
   const allowedMentions = buildLogAllowedMentions(allowedUserIds);
   const roles = mentionRoleIds.filter((id) => /^\d{17,20}$/.test(String(id)));
   if (roles.length) allowedMentions.roles = roles;
-  await channel.send({
-    ...(roles.length ? { content: roles.map((id) => `<@&${id}>`).join(" ") } : {}),
-    embeds: [payload],
-    components,
-    allowedMentions,
-  });
+  try {
+    await channel.send({
+      ...(roles.length ? { content: roles.map((id) => `<@&${id}>`).join(" ") } : {}),
+      embeds: [payload],
+      components,
+      allowedMentions,
+    });
+  } catch (error) {
+    return hubFailed(`envoi refusé par Discord : ${String(error?.message ?? error).slice(0, 120)}`);
+  }
   return true;
 }
