@@ -101,3 +101,41 @@ Déjà présentes, donc retirées de la liste : `/dossier`, `/casier`, `/staffhi
 ### Tous les bots
 - [ ] 59. **`/sante`** : état des 6 bots dans Discord, réservé à SYS+.
 - [ ] 60. **`/maintenance on|off`** : prévient les membres et coupe les commandes sensibles (à rapprocher de `/stabilite`).
+
+## H. Autres propositions (27/11, mises de côté, à valider)
+
+### SYS+ et modération
+- [ ] 61. **`/signaler`** (membres) : le signalement arrive dans une file staff avec un bouton « Je prends » ; un seul SYS+ s'en charge, les autres le voient.
+- [ ] 62. **Barème de sanctions** : selon le casier, le bot propose la sanction suivante (avertissement → mute 1 h → mute 24 h → ban) ; le SYS+ garde la décision.
+- [ ] 63. **Preuve obligatoire** pour un ban : capture ou lien de message joint, gardé dans le dossier.
+- [ ] 64. **Rappel avant la fin d'une sanction temporaire** au SYS+ qui l'a posée, pour la prolonger ou la laisser expirer.
+- [ ] 65. **`/enquete @membre`** (SYS+) : en un écran, ses arrivées et départs, l'invitation utilisée, ses passages en vocal et son casier.
+- [ ] 66. **Dossier partagé par membre** visible dans la console une fois l'étape 4 faite.
+
+### Sécurité
+- [ ] 67. Liens de phishing et faux « Nitro gratuit » supprimés d'office, l'auteur mis en quarantaine.
+- [ ] 68. Alerte à chaque création de webhook ou d'intégration sur le serveur.
+- [ ] 69. Alerte quand un bot perd une permission Discord dont il a besoin (rôle déplacé, permission retirée).
+- [ ] 70. Message privé à l'owner à chaque connexion à la console du site (heure, appareil).
+
+### Communauté
+- [ ] 71. **Starboard** : un message qui reçoit assez de réactions est recopié dans un salon « meilleurs messages ».
+- [ ] 72. **Parrainage** : un ancien accueille un nouveau, les deux gagnent une récompense si le nouveau reste un mois.
+- [ ] 73. **Succès et badges** affichés sur `/profil` (100 h de vocal, 1 an d'ancienneté, premier giveaway gagné…).
+- [ ] 74. **Série quotidienne** : bonus qui grandit chaque jour d'activité d'affilée.
+- [ ] 75. **`/resume #salon`** : résumé par l'IA de ce qu'on a raté dans un salon (sans jamais lire les salons privés du staff).
+- [ ] 76. **Traduire** : clic droit sur un message, traduction en privé.
+- [ ] 77. **`/heure @membre`** : son heure locale, pour savoir s'il dort.
+
+### Vocal
+- [ ] 78. Classement vocal de la semaine avec une récompense.
+- [ ] 79. Salon d'écoute commune : la radio ou la playlist du bot, chacun peut voter pour le morceau suivant.
+
+### Économie
+- [ ] 80. **Enchères** d'objets rares avec compte à rebours.
+- [ ] 81. **Assurance** contre `/rob` et `/braquage`, payée chaque semaine.
+- [ ] 82. Événements économiques aléatoires (krach, prime double) annoncés par Le Fisc.
+
+### Owner
+- [ ] 83. Rapport mensuel de l'usage de l'IA (nombre de réponses, coût estimé).
+- [ ] 84. Export de toute la configuration en un fichier, envoyé en privé à l'owner, pour la restaurer si besoin.
