@@ -80,6 +80,8 @@ export const SLASH_COMMAND_OWNERS: Record<BotProfileId, readonly string[]> = {
   fwu: [
     "tempmute", "unmute", "warn", "warnings", "sanction", "sanction-type", "quota",
     "embed", "reglement", "screening",
+    // 27/11 : dernier message supprimé ou modifié (staff)
+    "snipe",
   ],
   guard: [
     "guildguard", "kick", "ban", "tempban", "blacklist", "purge", "nettoyer", "slowmode", "lock", "unlock", "verify",
