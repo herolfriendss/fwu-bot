@@ -36,6 +36,7 @@ import { handleAbuseAlertCommand } from "./abuse-alerts.js";
 import { handleMemberCardCommand } from "./member-card.js";
 import { handleStaffStatsCommand } from "./staff-stats.js";
 import { lastUndoableGrant } from "./undo.js";
+import { castVote, formatTally, tally } from "./vote.js";
 import { createPendingGrant, doubleValidationEnabled, pendingButtons, setDoubleValidation } from "./double-validation.js";
 import { forgetTemporary, sysPlusSpan, trackTemporary } from "./temporary.js";
 import { handleStaffNotesCommand } from "./staff-notes.js";
@@ -864,6 +865,24 @@ ${reason}`, ephemeral: true });
     return true;
   }
 
+  if (subcommand === "vote") {
+    if (!isSysPlus(member, roleId)) {
+      await interaction.reply({ content: "⛔ Seuls les membres SYS+ votent.", ephemeral: true });
+      return true;
+    }
+    try {
+      const candidate = interaction.options.getUser("membre", true);
+      const candidateMember = await guild.members.fetch(candidate.id).catch(() => null);
+      const pour = interaction.options.getBoolean("pour", false);
+      const result = pour === null || pour === undefined
+        ? tally(guild.id, candidate.id)
+        : castVote({ guildId: guild.id, candidateId: candidate.id, voterId: member.id, pour, candidateIsBot: Boolean(candidate.bot), candidateIsSysPlus: isSysPlus(candidateMember, roleId) });
+      await interaction.reply({ content: formatTally(candidate.id, result), ephemeral: true, allowedMentions: { parse: [] } });
+    } catch (error) {
+      await interaction.reply({ content: `❌ ${error.message}`, ephemeral: true }).catch(() => {});
+    }
+    return true;
+  }
   if (subcommand === "double-validation") {
     if (!canConfigureSysPlus(member)) {
       await interaction.reply({ content: "⛔ Seul le Owner PND règle la double validation.", ephemeral: true });

@@ -79,6 +79,7 @@ Chaque choix se change sans toucher au code (variable d'environnement ou command
 | 58 | `/sysp annuler` (SYS+) | L'owner défait sa dernière attribution de SYS+ dans l'heure (mauvais membre). Seul le retrait du rôle est possible, jamais une ré-attribution. Les actions `sysplus.member.*` (ajout, retrait, expiration, confirmation, annulation) partent aussi au Logs Hub. | Fenêtre d'une heure ; ignorée si un retrait a eu lieu depuis. |
 | 59 | Simulation `/sysp add simuler:true` | Vérifie la demande (hiérarchie, rôle, durée ou essai) et dit ce qui se passerait, sans rien attribuer ni journaliser. | Utilise les mêmes contrôles que l'attribution réelle. |
 | 60 | Double validation de SYS+ | `/sysp double-validation actif:true` (owner) : `/sysp add` ne donne plus SYS+ tout de suite, la demande attend l'accord d'un autre membre SYS+ (boutons Valider / Refuser, 24 h). Le demandeur ne valide pas sa propre demande ; refus ou expiration n'accordent rien ; une nouvelle demande remplace l'ancienne. Désactivée par défaut. Tout est dans l'audit SYS+. | Étendre à d'autres actions lourdes plus tard si besoin. |
+| 61 | Vote des SYS+ (`/sysp vote`) | Les membres SYS+ donnent un avis (pour ou contre, une voix chacun, modifiable, 14 jours) sur un candidat ; sans option `pour`, la commande montre le résultat. Jamais d'attribution automatique : l'owner décide avec `/sysp add` (et la double validation si elle est active). Pas de vote pour soi, un bot ou un SYS+. | Avis seulement, par choix de sécurité. |
 
 ## Site et mises à jour
 
