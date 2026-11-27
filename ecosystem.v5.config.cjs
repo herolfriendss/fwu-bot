@@ -27,6 +27,9 @@ module.exports = {
       node_args: "--env-file=.env",
       env: {
         NODE_ENV: "production",
+        // This process is always the main bot. Forced here because a PND_BOT_PROFILE left in the shell or in
+        // bot/.env (node --env-file never overrides an existing variable, PM2's env wins) made it a second SUCK ME.
+        PND_BOT_PROFILE: "fwu",
       },
       max_memory_restart: "140M",
       autorestart: true,
