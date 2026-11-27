@@ -38,6 +38,7 @@ export const GUIDE_SANCTIONS = Object.freeze([
   { key: "dog", name: "DOG (laisse)", text: "Tu portes le rôle « En laisse » de ton maître et tu le suis en vocal." },
   { key: "menotte", name: "Menottes", text: "Tu es immobilisé dans ton salon vocal pendant la durée choisie." },
   { key: "quarantaine", name: "Quarantaine", text: "Accès réduit au serveur le temps que le staff vérifie ; tes rôles te sont rendus à la fin (sauf si tu es BLR)." },
+  { key: "malus", name: "Malus (SYS+)", text: "Punition amusante et temporaire (1 à 60 min) : perroquet, fantôme, mime, clown, robot, bébé, yoda, chuchote, sablier, malédiction, sourdine folle, exil, bouffon, taxe, rançon, cible. Jamais sur le staff au-dessus, levée possible à tout moment ; une rançon peut être payée par n'importe qui (`/malus payer-rancon`)." },
 ]);
 
 const SECTIONS = Object.freeze([
