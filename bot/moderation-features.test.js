@@ -184,6 +184,7 @@ function fakeVoiceWorld({ authorRoles = ["10% Modérateur"], authorPerms = [P.Vi
     },
     channels: { cache: channels },
   };
+  // @everyone has the guild's id, as on Discord (=accessall opens the vocal to it).
   guild.roles = { everyone: { id: guild.id } };
   const makeChannel = (id, name) => {
     const overwrites = new Map();
@@ -271,8 +272,8 @@ pgTest(";accessall : accès donné à chaque membre présent, bots exclus, usage
   world.makeMember("300000000000000001", room);
   world.makeMember("300000000000000002", room);
   await handleVoiceMoveCommand(world.message("=accessall", author), null, { bot: "fdpdlavoc" });
-  // V2 : le vocal est d'abord ouvert à @everyone (photo prise avant), puis chaque membre présent reçoit l'accès.
-  assert.deepEqual([...room.permissionOverwrites.cache.keys()].sort(), [world.guild.id, "300000000000000001", "300000000000000002", "author"]);
+  // @everyone (guild id) is opened too, then each human member present gets their own access.
+  assert.deepEqual([...room.permissionOverwrites.cache.keys()].sort(), ["200000000000000777", "300000000000000001", "300000000000000002", "author"]);
   assert.match(world.replies.at(-1), /3 accès accordé/);
   const { rows } = await sharedQuery("SELECT outcome FROM command_usage WHERE command = 'accessall'");
   assert.deepEqual(rows.map((r) => r.outcome), ["ok"]);
