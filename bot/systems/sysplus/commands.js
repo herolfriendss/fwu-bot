@@ -880,7 +880,7 @@ ${reason}`, ephemeral: true });
         : castVote({ guildId: guild.id, candidateId: candidate.id, voterId: member.id, pour, candidateIsBot: Boolean(candidate.bot), candidateIsSysPlus: isSysPlus(candidateMember, roleId) });
       await interaction.reply({ content: formatTally(candidate.id, result), ephemeral: true, allowedMentions: { parse: [] } });
     } catch (error) {
-      await interaction.reply({ content: `❌ ${error.message}`, ephemeral: true }).catch(() => {});
+      await respondInPlaceSafe(interaction, { content: `❌ ${error.message}`, ephemeral: true });
     }
     return true;
   }
@@ -900,7 +900,7 @@ ${reason}`, ephemeral: true });
       const config = autoFreezeConfig(guild.id);
       await interaction.reply({ content: config.enabled ? `🧊 Gel automatique **actif** : si GUARD repousse une attaque, le staff est gelé ${config.minutes} min (tu gardes tout ; \`/sysp degel\` pour lever). Aucun rôle n'est retiré.` : "🔥 Gel automatique **désactivé** (rien ne se gèle sans toi).", ephemeral: true });
     } catch (error) {
-      await interaction.reply({ content: `❌ ${error.message}`, ephemeral: true }).catch(() => {});
+      await respondInPlaceSafe(interaction, { content: `❌ ${error.message}`, ephemeral: true });
     }
     return true;
   }
