@@ -119,6 +119,7 @@ import { handleMediaOnlyInteraction, handleMediaOnlyMessage, removeMediaChannel 
 import { handleNightInteraction, runNightMode } from "./guard/night-mode.js";
 import { handleFlagReaction } from "./features/flag-translate.js";
 import { commandsByBot, handleHelpComponent, helpPayload } from "./features/help-panel.js";
+import { REPORT_CONTEXT_COMMAND, handleReportInteraction, reportButtons } from "./guard/report-message.js";
 import { handleVoiceMoveCommand } from "./voice-move.js";
 import { handleEmbedInteraction, EMBED_COMMANDS } from "./embeds.js";
 import { SHARED_DB_ALERTS, startSharedLayer } from "./shared/index.js";
@@ -1427,6 +1428,14 @@ client.once("clientReady", () => {
         console.error(`❌ ${BOT_LABEL} : /${command.name} refusée par Discord (${error?.code ?? error?.status ?? error?.name ?? "erreur"}).`);
       }
     }
+    // GUARD : menu clic droit « Signaler au staff » (commande de message, hors catalogue slash).
+    if (RUNTIME.profile === "guard") {
+      const menu = byName.get(REPORT_CONTEXT_COMMAND.name);
+      try {
+        if (menu) await rest.patch(`${commandRoute}/${menu.id}`, { body: REPORT_CONTEXT_COMMAND });
+        else await rest.post(commandRoute, { body: REPORT_CONTEXT_COMMAND });
+      } catch { failed.push(REPORT_CONTEXT_COMMAND.name); }
+    }
     lastSlashRegistration = { at: Date.now(), registered: plan.register.length - failed.filter((name) => !name.startsWith("-")).length, failed };
     if (failed.length) throw new Error("partial");
     console.log(`✅ ${BOT_LABEL} : ${plan.register.length} commandes slash enregistrées.`);
@@ -1598,6 +1607,15 @@ function commandGroupsForThisBot() {
     groups.set(command.category, [...(groups.get(command.category) ?? []), command]);
   }
   return [...groups.entries()].filter(([, commands]) => commands.length).map(([category, commands]) => ({ category, commands }));
+}
+
+/** Signalement d'un membre → logs de modération, avec les boutons Supprimer / Mute / Ignorer. */
+async function reportToStaff(guild, report) {
+  await logEvent(guild, settings[guild.id], {
+    category: "moderation", action: "message_report", severity: "warning", actorId: report.reporter_id, targetId: report.author_id,
+    title: `🚩 Signalement #${report.id}`, link: report.url,
+    details: `Auteur : <@${report.author_id}>\nSignalé par : <@${report.reporter_id}>\nSalon : <#${report.channel_id}>${report.reason ? `\nRaison : ${report.reason}` : ""}\n\n> ${String(report.excerpt ?? "").replace(/\n/g, "\n> ")}`,
+  }, { components: reportButtons(guild.id, report.id) });
 }
 
 let helpCommands = null;
@@ -1817,6 +1835,7 @@ client.on("interactionCreate", (interaction) => {
       return;
     }
     if ((interaction.isButton?.() || interaction.isStringSelectMenu?.()) && await handleHelpComponent(interaction, helpContext())) return;
+    if (await handleReportInteraction(interaction, { client, logReport: reportToStaff }).catch(() => { record("report_error"); return true; })) { record("report"); return; }
     if (await handleDossierButton(interaction, { settings: settings[interaction.guildId] })) return;
     if (await handleLogsInteraction(interaction, settings[interaction.guildId])) { auditSlashUsage(interaction, "Journaux"); return; }
     if (await handleBlrInteraction(interaction, settings[interaction.guildId])) { auditSlashUsage(interaction, "BLR"); return; }
