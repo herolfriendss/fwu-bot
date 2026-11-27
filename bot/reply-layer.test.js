@@ -172,3 +172,14 @@ test("the dossier button answers privately to staff only", async () => {
   assert.match(JSON.stringify(replies[1]), /Raison : test/);
   assert.equal(await handleDossierButton({ customId: "other", isButton: () => true }, {}), false);
 });
+
+test("commande sensible : une aide ou une information n'est jamais présentée comme une action faite", async () => {
+  const { shapeReply, isUsageOrNotice } = await import("./reply-layer.js");
+  for (const text of ["Utilisation : `=ban @membre|ID [raison]`", "ℹ️ <@1> n'est pas banni.", "Sous-commandes : `+verify moi`"]) {
+    assert.equal(isUsageOrNotice(text), true, text);
+    const shaped = shapeReply(text, { bot: "guard", commandName: "ban", surface: "prefix", initial: true });
+    assert.notEqual(shaped.level, "sensitive", text);
+  }
+  const done = shapeReply("🔨 <@123456789012345678> banni.", { bot: "guard", commandName: "ban", surface: "prefix", initial: true, targetId: "123456789012345678" });
+  assert.equal(done.level, "sensitive");
+});

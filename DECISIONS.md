@@ -1,6 +1,6 @@
 # FWU — Décisions en vigueur
 
-Mis à jour le 26/11/2026. Ce fichier liste les choix **actuels**. Quand une décision en remplace une autre, l'ancienne est rayée dans la section « Remplacées » en bas, avec la date du changement.
+Mis à jour le 27/11/2026. Ce fichier liste les choix **actuels**. Quand une décision en remplace une autre, l'ancienne est rayée dans la section « Remplacées » en bas, avec la date du changement.
 
 Chaque choix se change sans toucher au code (variable d'environnement ou commande Discord), sauf mention contraire. Le détail des 5 bots est dans `MULTI_BOTS_FWU.md`, celui des quotas dans `docs/FWU_BASE_PARTAGEE.md`.
 
@@ -21,6 +21,7 @@ Chaque choix se change sans toucher au code (variable d'environnement ou command
 | # | Sujet | Choix appliqué | Pour changer |
 |---|---|---|---|
 | 21 | Préfixes | **Un préfixe par bot** (ta décision du 24/11) : GUARD `+`, FDPDLAVOC `;`, SUCK ME `=`, LE FISC `-`. FWU reste en commandes slash uniquement. Une commande tapée avec le préfixe d'un autre bot ne fait rien (`=ban` ne fait rien, c'est `+ban`). `PND_PREFIX_COMMANDS` n'est plus utilisé. | `PND_DATA_DIR/bots.json` sur le VPS (modèle `bot/config/bots.example.json`), jamais écrasé par une mise à jour. |
+| 30 | Mauvais préfixe | Une commande tapée avec le préfixe d'un autre bot (`=pv`) n'est jamais exécutée par un autre bot : seul son bot propriétaire répond, avec la bonne forme (`;pv`). `/pv` et `/unpv` rétablies sur FDPDLAVOC, `;moveall` ajouté (27/11). | Rien. |
 | 17 | Nom affiché | **FWU V2** (ta décision du 26/11). Le nom « FWU » n'apparaît **plus nulle part dans Discord** : ni embeds, ni messages, ni raisons du journal d'audit, ni descriptions de commandes. Les bots dédiés signent de leur seul nom (« GUARD », « SUCK ME »…), le bot principal ne signe pas et se nomme « Bot principal ». Le nom reste sur le site et dans la documentation. Le nom des applications dans le Developer Portal n'est pas modifié par le code. Un test (`bot/discord-branding.test.js`) bloque tout retour de « FWU » dans un texte Discord. | `PND_<BOT>_FOOTER`, `PND_<BOT>_COLOR` (sans y remettre « FWU »). |
 | 19 | `/sondage` et `/nettoyer` | Tous les deux sur FWU (ton choix du 23/11). | Une ligne dans `src/lib/bot-profiles.ts`. |
 | 6 | `/salut` et `/info-serveur` | Gardés mais inaccessibles en slash (catalogue plein). Sans effet. | Rien. |

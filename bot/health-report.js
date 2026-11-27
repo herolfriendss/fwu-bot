@@ -124,6 +124,19 @@ export function evaluateHealth(snapshot, now = Date.now()) {
         : "Aucune.",
     );
 
+  // Commandes slash : celles que Discord a refusées ne s'affichent pas (ex. /tempmute absente).
+  const slash = snapshot.slashRegistration;
+  if (slash?.failed?.length)
+    add(
+      "Commandes slash",
+      "warning",
+      `Refusées par Discord : ${slash.failed.filter((name) => !name.startsWith("-")).map((name) => `/${name}`).join(", ") || "aucune"}${slash.failed.some((name) => name.startsWith("-")) ? " (des anciennes commandes n'ont pas pu être retirées)" : ""}. Relance le bot ; si ça persiste, transmets ses logs.`,
+    );
+  else if (slash)
+    add("Commandes slash", "ok", `${slash.registered} enregistrées.`);
+  if (snapshot.prefix !== undefined)
+    add("Préfixe", "ok", snapshot.prefix ? `\`${snapshot.prefix}\` (liste : \`${snapshot.prefix}aide\`).` : "Commandes slash uniquement.");
+
   if (snapshot.profile === "suckme" && (snapshot.rankallRunning ?? 0) > 0)
     add(
       "Rankall",
@@ -148,7 +161,7 @@ function count(sql, ...params) {
 }
 
 export function collectHealthSnapshot(client, guild, profile = "fwu") {
-  const { events = [], lastSync = null, startedAt = null } = provider() ?? {};
+  const { events = [], lastSync = null, startedAt = null, slashRegistration = null, prefix } = provider() ?? {};
   let database = "ok";
   try {
     const result = db.prepare("PRAGMA quick_check").get();
@@ -169,6 +182,8 @@ export function collectHealthSnapshot(client, guild, profile = "fwu") {
     uptimeMs: client?.uptime ?? null,
     startedAt,
     lastSync,
+    slashRegistration,
+    prefix,
     missingPermissions,
     antiMoveEnabled: profile === "suckme" && guild ? getAntiMoveConfig(guild.id).enabled : false,
     // Only FWU owns the central Logs Hub. Dedicated bots send their logs through its relay.

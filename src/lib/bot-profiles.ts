@@ -88,7 +88,7 @@ export const SLASH_COMMAND_OWNERS: Record<BotProfileId, readonly string[]> = {
     "piege", "raid", "scan", "panic",
   ],
   fdpdlavoc: [
-    "voice", "voc", "music", "radio", "effet", "playlist", "dj",
+    "voice", "voc", "music", "radio", "effet", "playlist", "dj", "pv", "unpv",
     // V2 (26/11) : vocal de masse
     "accessall", "mvall", "mvrole", "pull", "swap", "muteall", "unmuteall", "vclear", "undo",
   ],
@@ -134,7 +134,7 @@ export const PREFIX_COMMAND_OWNERS: Record<BotProfileId, readonly string[]> = {
   ],
   fdpdlavoc: [
     "pv", "unpv", "access", "unaccess", "panel", "demandevocal", "mv", "accessall",
-    "mvall", "mvrole", "pull", "swap", "muteall", "unmuteall", "vclear", "undo",
+    "mvall", "moveall", "mvrole", "pull", "swap", "muteall", "unmuteall", "vclear", "undo",
     "play", "p", "pause", "resume", "skip", "stop", "queue", "nowplaying", "np", "volume", "vol",
     "loop", "shuffle", "clearqueue", "remove", "join", "leave", "musicpanel", "radio",
   ],
@@ -157,6 +157,12 @@ export const PREFIX_COMMAND_OWNERS: Record<BotProfileId, readonly string[]> = {
   ],
   investplus: ["abonnement", "abo"],
 };
+
+/**
+ * Answered by every prefix bot with its own prefix ("+aide", ";aide", "=help"…):
+ * each bot lists its own commands. Not owned by any single bot.
+ */
+export const SHARED_PREFIX_COMMANDS: readonly string[] = ["aide", "help", "commandes"];
 
 /** Default prefixes (overridable in bot/config/bots.json). null = slash only. */
 export const DEFAULT_PREFIXES: Record<BotProfileId, string | null> = {
@@ -280,8 +286,30 @@ export function parsePrefixedMessage(content: string, prefixes: Record<BotProfil
     const match = /^([a-z][a-z0-9-]{0,30})(?=$|\s)/i.exec(rest);
     if (!match) return null;
     const word = (match[1] ?? "").toLowerCase();
-    if (prefixOwners.get(word) !== id) return null;
+    if (prefixOwners.get(word) !== id && !SHARED_PREFIX_COMMANDS.includes(word)) return null;
     return { owner: id, prefix, word, canonical: `=${rest}` };
+  }
+  return null;
+}
+
+/**
+ * A built-in command typed with ANOTHER bot's prefix ("=pv" while pv belongs to
+ * FDPDLAVOC, whose prefix is ";"). Only the owning bot uses this, to tell the
+ * member the right form; the command itself is never run.
+ */
+export function misprefixedCommand(content: string, prefixes: Record<BotProfileId, string | null>): { owner: BotProfileId; typedPrefix: string; word: string; correct: string } | null {
+  const text = String(content ?? "").trim();
+  if (parsePrefixedMessage(text, prefixes)) return null;
+  for (const id of BOT_PROFILE_IDS) {
+    const typedPrefix = prefixes[id];
+    if (!typedPrefix || !text.startsWith(typedPrefix)) continue;
+    const match = /^([a-z][a-z0-9-]{0,30})(?=$|\s)/i.exec(text.slice(typedPrefix.length));
+    if (!match) return null;
+    const word = (match[1] ?? "").toLowerCase();
+    const owner = prefixOwners.get(word);
+    const ownerPrefix = owner ? prefixes[owner] : null;
+    if (!owner || owner === id || !ownerPrefix) return null;
+    return { owner, typedPrefix, word, correct: `${ownerPrefix}${word}` };
   }
   return null;
 }

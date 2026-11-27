@@ -84,7 +84,7 @@ import { handleVoicePresenceMessage, reconcileActiveVoiceSessions, trackVoiceSta
 import { handleStaffMemberHistoryMessage } from "./staff-audit.js";
 import { captureGuildInviteSnapshot, resolveMemberInvite, recordMemberInvite, recordInviteLifecycle } from "./invite-attribution.js";
 import { addCentralLogObserver, setCentralLogRelay, systemLogEmbed, sendCentralLog } from "./logs.js";
-import { BOT_PROFILES, LEASE_RENEW_MS, createDomainGate, enqueueRelayedLog, loadBotPrefixes, parsePrefixedMessage, resolveBotRuntime, slashCommandOwner, slashRegistrationPlan, takeRelayedLogs, requeueRelayedLog, countLostRelayedLogs, formatRelayLossLine, isBridgedPrefixCommand } from "./bot-runtime.js";
+import { BOT_PROFILES, botsConfigPath, LEASE_RENEW_MS, createDomainGate, enqueueRelayedLog, loadBotPrefixes, parsePrefixedMessage, misprefixedCommand, SHARED_PREFIX_COMMANDS, resolveBotRuntime, slashCommandOwner, slashRegistrationPlan, takeRelayedLogs, requeueRelayedLog, countLostRelayedLogs, formatRelayLossLine, isBridgedPrefixCommand } from "./bot-runtime.js";
 import { runPrefixAsSlash } from "./prefix-slash-bridge.js";
 import { handleLiveInteraction, handleLiveMessage } from "./live-commands.js";
 import { SLASH_FOR_PREFIX, prefixifyPayload, slashifyPayload } from "./prefix-to-slash.js";
@@ -164,6 +164,7 @@ try { BOT_PREFIXES = loadBotPrefixes(process.env); } catch (error) {
   process.exit(1);
 }
 const OWN_PREFIX = BOT_PREFIXES[RUNTIME.profile];
+console.log(`[bot] ${RUNTIME.config.label} : ${OWN_PREFIX ? `préfixe « ${OWN_PREFIX} »` : "commandes slash uniquement"} (réglage : ${botsConfigPath(process.env)}).`);
 const BOT_LABEL = RUNTIME.config.label;
 // One gate per process: serves(domain) says whether this process handles that
 // domain right now. With no dedicated bot running, FWU serves everything.
@@ -218,6 +219,8 @@ const CONFIGURED_GUILDS = filterInactiveSourceGuilds(
 const ALLOWED_GUILDS = CONFIGURED_GUILDS.length ? CONFIGURED_GUILDS : [...ACTIVE_SOURCE_GUILD_IDS, LOGS_HUB_GUILD_ID];
 const startedAt = new Date().toISOString();
 let lastSync = null;
+/** Dernier enregistrement des commandes slash (diagnostic : commandes refusées par Discord). */
+let lastSlashRegistration = null;
 const events = [];
 let reporting = false;
 function record(code) {
@@ -236,7 +239,7 @@ const repeatedErrorWatch = createErrorWatch({
     }
   },
 });
-registerHealthProvider(() => ({ events: [...events], lastSync, startedAt }));
+registerHealthProvider(() => ({ events: [...events], lastSync, startedAt, slashRegistration: lastSlashRegistration, prefix: OWN_PREFIX ?? null }));
 // S1 : les actions SYS+ qui changent des droits partent aussi au Logs Hub (le bot qui agit publie).
 setSysPlusAuditObserver(({ guildId, actorId, action, targetId }) => {
   const guild = client.guilds.cache.get(guildId);
@@ -513,6 +516,13 @@ function pruneSpamState(now) {
   }
 }
 
+/** Réponse à une commande tapée avec le préfixe d'un autre bot. */
+function misprefixHint(wrong, content) {
+  const args = String(content ?? "").trim().slice(wrong.typedPrefix.length + wrong.word.length).trim();
+  const example = `${wrong.correct}${args ? ` ${args}` : ""}`.slice(0, 120).replace(/`/g, "");
+  return `ℹ️ \`${wrong.typedPrefix}${wrong.word}\` n'existe pas : cette commande est sur **${BOT_LABEL}**, avec le préfixe \`${OWN_PREFIX}\`. Tape \`${example}\` (liste : \`${OWN_PREFIX}aide\`).`;
+}
+
 /** Replies of a prefix command show this bot's prefix instead of the canonical "=". */
 function prefixifyMessageReplies(msg, prefix) {
   if (typeof msg.reply !== "function") return;
@@ -582,6 +592,21 @@ async function handleMessageCreate(msg) {
   // Passive checks (anti-spam, Guardian…) still follow the domain leases.
   const prefixed = parsePrefixedMessage(msg.content, BOT_PREFIXES);
   const ownCommand = Boolean(prefixed && prefixed.owner === RUNTIME.profile);
+  // "=pv" alors que pv est sur FDPDLAVOC (";pv") : seul le bot propriétaire répond,
+  // avec la bonne forme, sans exécuter la commande (une commande n'existe que sur son bot).
+  if (!prefixed) {
+    const wrong = misprefixedCommand(msg.content, BOT_PREFIXES);
+    if (wrong && wrong.owner === RUNTIME.profile && !resolvePrefixCommand(s?.prefixCommands ?? [], `=${String(msg.content).trim().slice(wrong.typedPrefix.length)}`)) {
+      const sent = await msg.reply({ content: misprefixHint(wrong, msg.content), allowedMentions: { parse: [], repliedUser: false } }).catch(() => null);
+      if (sent?.delete) setTimeout(() => { sent.delete().catch(() => {}); }, 20_000).unref?.();
+      record("prefix_hint");
+      return;
+    }
+  }
+  if (ownCommand && SHARED_PREFIX_COMMANDS.includes(prefixed.word)) {
+    // "+aide", ";help", "-commandes" : la liste des commandes de CE bot (même rendu que /aide).
+    prefixed.canonical = `=aide${prefixed.canonical.slice(prefixed.word.length + 1)}`;
+  }
   if (ownCommand) {
     typedContent.set(msg, msg.content);
     msg.content = prefixed.canonical;
@@ -768,7 +793,7 @@ async function handleMessageCreate(msg) {
     // V2 : toute autre commande slash de ce bot fonctionne avec son préfixe (pont générique).
     if (ownCommand && await runPrefixAsSlash(msg, {
       catalogue: [...SLASH_COMMANDS, ...EXTRA_SLASH_COMMANDS],
-      ownsCommand: (name) => isBridgedPrefixCommand(RUNTIME.profile, name),
+      ownsCommand: (name) => name === "aide" || isBridgedPrefixCommand(RUNTIME.profile, name),
       dispatch: (fake) => { client.emit("interactionCreate", fake); },
       prefix: OWN_PREFIX ?? "=",
     }).catch(() => false)) { auditPrefixUsage(msg, "Commande slash en préfixe"); return; }
@@ -1328,19 +1353,32 @@ client.once("clientReady", () => {
     // Each application registers only its own commands (FWU: every domain not
     // delegated yet). Commands moved to a dedicated bot are retired one by one.
     const plan = slashRegistrationPlan(RUNTIME, SLASH_COMMANDS, EXTRA_SLASH_COMMANDS);
+    const failed = [];
     for (const name of plan.retire) {
       const moved = byName.get(name);
       if (!moved) continue;
-      await rest.delete(`${commandRoute}/${moved.id}`);
-      byName.delete(name);
+      try {
+        await rest.delete(`${commandRoute}/${moved.id}`);
+        byName.delete(name);
+      } catch { failed.push(`-${name}`); }
     }
     if (plan.skipped.length) record("slash_commands_over_limit");
+    // One refused command (invalid definition, rate limit…) no longer stops the
+    // registration of all the commands after it (cause of a missing /tempmute).
     for (const command of plan.register) {
       const current = byName.get(command.name);
-      const body = toDiscordCommand(command);
-      if (current) await rest.patch(`${commandRoute}/${current.id}`, { body });
-      else await rest.post(commandRoute, { body });
+      try {
+        const body = toDiscordCommand(command);
+        if (current) await rest.patch(`${commandRoute}/${current.id}`, { body });
+        else await rest.post(commandRoute, { body });
+      } catch (error) {
+        failed.push(command.name);
+        console.error(`❌ ${BOT_LABEL} : /${command.name} refusée par Discord (${error?.code ?? error?.status ?? error?.name ?? "erreur"}).`);
+      }
     }
+    lastSlashRegistration = { at: Date.now(), registered: plan.register.length - failed.filter((name) => !name.startsWith("-")).length, failed };
+    if (failed.length) throw new Error("partial");
+    console.log(`✅ ${BOT_LABEL} : ${plan.register.length} commandes slash enregistrées.`);
   })()
     .then(() => record("slash_commands_registered"))
     .catch(() => record("slash_commands_registration_error"));

@@ -1487,6 +1487,23 @@ export const SLASH_COMMANDS: SlashCommandDef[] = [
       { group: "private", description: "Gère les salons vocaux privés", members: ["activer", "liste", "retirer"] },
     ]),
   },
+  // Raccourcis rétablis le 27/11 (demande de l'owner) : /pv et /unpv, comme ;pv et ;unpv.
+  {
+    name: "pv",
+    description: "Rend privé le salon vocal où tu te trouves",
+    usage: "/pv",
+    category: "Vocal & DOG",
+    dmPermission: false,
+    requiresBotProcess: true,
+  },
+  {
+    name: "unpv",
+    description: "Rétablit les permissions d’origine de ton salon vocal privé",
+    usage: "/unpv",
+    category: "Vocal & DOG",
+    dmPermission: false,
+    requiresBotProcess: true,
+  },
 
     {
     name: "panel",

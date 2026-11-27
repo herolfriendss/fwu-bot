@@ -19,7 +19,9 @@ describe("V4 slash commands", () => {
     expect(names).toContain("voice");
     expect(names).not.toContain("access");
     expect(names).not.toContain("unaccess");
-    expect(names).not.toContain("pv");
+    // /pv et /unpv rétablies le 27/11 (demande de l'owner), sur FDPDLAVOC.
+    expect(names).toContain("pv");
+    expect(names).toContain("unpv");
     expect(names).toContain("sysp");
   });
 

@@ -80,7 +80,7 @@ export function planMassAction(guild, actor, request, options = {}) {
   if (kind === "mvall") {
     const source = voiceChannel(guild, request.source);
     const target = voiceChannel(guild, request.target);
-    if (!source || !target) return { error: "⚠️ Utilisation : `mvall #vocal-source #vocal-cible` (salons vocaux)." };
+    if (!source || !target) return { error: "⚠️ Utilisation : `mvall #vocal-cible` (depuis ton vocal) ou `mvall #vocal-source #vocal-cible` (salons vocaux). Alias : `moveall`." };
     if (source.id === target.id) return { error: "⚠️ La source et la cible sont le même salon." };
     const { eligible, skipped } = eligibleMembers([...source.members.values()], actor, opts);
     return { plan: { kind, members: eligible, skipped, source, target, lockId: source.id } };
@@ -244,11 +244,11 @@ export async function handleMassInteraction(interaction, settings = null) {
   return true;
 }
 
-/** =mvall #a #b · =mvrole @r #b · =pull @m · =swap @a @b · =muteall [#s] · =unmuteall [#s] · =vclear [#s] · =undo */
+/** =mvall #a #b (ou =mvall #cible depuis son vocal ; alias =moveall) · =mvrole @r #b · =pull @m · =swap @a @b · =muteall [#s] · =unmuteall [#s] · =vclear [#s] · =undo */
 export async function handleMassMessage(message, settings = null) {
-  const match = String(message?.content ?? "").trim().match(/^=(mvall|mvrole|pull|swap|muteall|unmuteall|vclear|undo)\b\s*(.*)$/i);
+  const match = String(message?.content ?? "").trim().match(/^=(mvall|moveall|mvrole|pull|swap|muteall|unmuteall|vclear|undo)\b\s*(.*)$/i);
   if (!match || !message.guild || !message.member) return false;
-  const kind = match[1].toLowerCase();
+  const kind = match[1].toLowerCase() === "moveall" ? "mvall" : match[1].toLowerCase();
   const rest = match[2];
   const channels = [...rest.matchAll(/<#(\d+)>|\b(\d{17,20})\b/g)].map((m) => m[1] ?? m[2]);
   const users = [...rest.matchAll(/<@!?(\d{17,20})>/g)].map((m) => m[1]);
@@ -260,6 +260,11 @@ export async function handleMassMessage(message, settings = null) {
     roleId, a: users[0], b: users[1],
   };
   const actor = await message.guild.members.fetch({ user: message.author.id, force: true }).catch(() => message.member);
+  // Un seul salon donné : tout le vocal où se trouve l'auteur part vers ce salon.
+  if (kind === "mvall" && channels.length === 1) {
+    request.source = actor?.voice?.channelId ?? null;
+    request.target = channels[0];
+  }
   await message.reply({ ...(await runMassCommand(message.guild, actor, request, { settings })), allowedMentions: { parse: [] } }).catch(() => {});
   return true;
 }
