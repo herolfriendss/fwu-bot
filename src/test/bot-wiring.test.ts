@@ -174,6 +174,7 @@ describe("bot wiring", () => {
       read("bot/features/support-waiting.js"),
       read("bot/systems/sysplus/staff-routine.js"),
       read("bot/systems/sysplus/charter.js"),
+      read("bot/systems/sysplus/staff-log.js"),
       read("bot/features/snipe.js"),
       read("bot/features/invite-rewards.js"),
       read("bot/features/bounty.js"),
