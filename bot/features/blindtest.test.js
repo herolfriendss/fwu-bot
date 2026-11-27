@@ -65,3 +65,12 @@ test("tirage : sans doublon, nombre demandé", () => {
   assert.equal(new Set(picked).size, 3);
   assert.ok(B.DEFAULT_SONGS.length >= B.BT.maxRounds);
 });
+
+test("gains PND : 20 par point, bonus au gagnant (ex aequo compris), une erreur d'économie n'arrête rien", () => {
+  const calls = [];
+  const gains = B.rewardPlayers("g3", [["a", 5], ["b", 5], ["c", 2]], (g, u, n, r) => calls.push([g, u, n, r]));
+  assert.deepEqual(gains, { a: 200, b: 200, c: 40 });
+  assert.ok(calls.every((c) => c[0] === "g3" && c[3] === "blindtest_gain"));
+  assert.deepEqual(B.rewardPlayers("g3", [["a", 1]], () => { throw new Error("x"); }), {});
+  assert.deepEqual(B.rewardPlayers("g3", []), {});
+});

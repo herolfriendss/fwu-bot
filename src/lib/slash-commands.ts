@@ -2238,6 +2238,15 @@ export const EXTRA_SLASH_COMMANDS: SlashCommandDef[] = [
     ],
   },
   {
+    name: "doublecompte",
+    description: "GUARD : ce compte ressemble-t-il à un membre banni ? (indice pour le staff)",
+    usage: "/doublecompte membre",
+    category: "Modération",
+    dmPermission: false,
+    requiresBotProcess: true,
+    options: [opt(6, "membre", "Compte à vérifier", { required: true })],
+  },
+  {
     name: "braquage",
     description: "LE FISC : monte une équipe (3 à 5) pour braquer la caisse du serveur",
     usage: "/braquage",

@@ -3,14 +3,16 @@
 //   Les membres écrivent leurs réponses dans le salon : titre = 2 points, artiste = 1 point
 //   (le premier qui trouve). La manche s'arrête quand le titre est trouvé ou au bout de 30 s.
 //   /blindtest stop (l'organisateur ou le staff) · /blindtest classement (points cumulés du serveur).
+//   Gains en PND (LE FISC) à la fin : 20 PND par point, +100 PND au gagnant.
 // Lecture par le même moteur que la musique (yt-dlp + FFmpeg, sources HTTPS vérifiées).
 // Une partie à la fois par serveur, jamais pendant que la musique joue.
 import { ChannelType, PermissionFlagsBits as P } from "discord.js";
 import { db } from "../database.js";
 import { respondInPlaceSafe } from "../interaction-reply.js";
+import { grantPnd } from "../economy.js";
 
 export const BLINDTEST_COMMANDS = new Set(["blindtest"]);
-export const BT = Object.freeze({ roundMs: 30_000, pauseMs: 6_000, minRounds: 3, maxRounds: 15, defaultRounds: 8, titlePoints: 2, artistPoints: 1, skipIntroSeconds: 25 });
+export const BT = Object.freeze({ roundMs: 30_000, pauseMs: 6_000, minRounds: 3, maxRounds: 15, defaultRounds: 8, titlePoints: 2, artistPoints: 1, skipIntroSeconds: 25, pndPerPoint: 20, winnerBonus: 100 });
 
 // Liste par défaut : de simples recherches « Artiste - Titre » (aucun contenu embarqué).
 export const DEFAULT_SONGS = Object.freeze([
@@ -144,6 +146,17 @@ export function recordGame(guildId, scores) {
   return ranked;
 }
 
+/** Gains PND (LE FISC) : 20 PND par point, +100 au gagnant (ex aequo : chacun). Rend { userId: gain }. */
+export function rewardPlayers(guildId, ranked, grant = grantPnd) {
+  const best = ranked[0]?.[1] ?? 0;
+  const gains = {};
+  for (const [userId, points] of ranked) {
+    const amount = points * BT.pndPerPoint + (points === best ? BT.winnerBonus : 0);
+    try { grant(guildId, userId, amount, "blindtest_gain"); gains[userId] = amount; } catch { /* économie indisponible : la partie reste comptée */ }
+  }
+  return gains;
+}
+
 export function leaderboard(guildId, limit = 10) {
   return db.prepare("SELECT user_id, points, games, wins FROM blindtest_scores WHERE guild_id=? ORDER BY points DESC, wins DESC, games ASC, user_id LIMIT ?").all(guildId, limit);
 }
@@ -222,7 +235,9 @@ async function runGame(session, guild, channel) {
     try { session.connection?.destroy(); } catch { /* déjà détruit */ }
     endSession(session.guildId);
     const ranked = recordGame(session.guildId, session.scores);
-    await channel.send({ content: `🏁 **Fin du blind test**\n${rankingText(ranked)}`, allowedMentions: { parse: [] } }).catch(() => {});
+    const gains = rewardPlayers(session.guildId, ranked);
+    const gainText = Object.keys(gains).length ? `\n💰 Gains : ${Object.entries(gains).map(([id, n]) => `<@${id}> +${n.toLocaleString("fr-FR")} PND`).join(", ")}` : "";
+    await channel.send({ content: `🏁 **Fin du blind test**\n${rankingText(ranked)}${gainText}`, allowedMentions: { parse: [] } }).catch(() => {});
   }
 }
 
@@ -264,7 +279,7 @@ export async function handleBlindtestInteraction(interaction) {
     const rounds = Math.min(BT.maxRounds, Math.max(BT.minRounds, interaction.options.getInteger("manches", false) ?? BT.defaultRounds));
     const songs = pickSongs(songsFor(guild.id, interaction.user.id, interaction.options.getString("playlist", false)), rounds);
     const session = createSession({ guildId: guild.id, channelId: interaction.channelId, voiceChannelId: voiceChannel.id, hostId: interaction.user.id, songs });
-    await interaction.reply({ content: `🎶 **Blind test** lancé par <@${interaction.user.id}> dans <#${voiceChannel.id}> : **${songs.length} manches**. Réponds ici : titre = ${BT.titlePoints} pts, artiste = ${BT.artistPoints} pt. Les fautes de frappe légères passent.`, allowedMentions: { parse: [] } });
+    await interaction.reply({ content: `🎶 **Blind test** lancé par <@${interaction.user.id}> dans <#${voiceChannel.id}> : **${songs.length} manches**. Réponds ici : titre = ${BT.titlePoints} pts, artiste = ${BT.artistPoints} pt. Les fautes de frappe légères passent. Gains à la fin : ${BT.pndPerPoint} PND par point, +${BT.winnerBonus} PND au gagnant.`, allowedMentions: { parse: [] } });
     void runGame(session, guild, interaction.channel);
   } catch (error) {
     await respondInPlaceSafe(interaction, { content: `❌ ${error.message}`, ephemeral: true, allowedMentions: { parse: [] } });

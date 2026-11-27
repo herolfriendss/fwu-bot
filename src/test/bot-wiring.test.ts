@@ -164,6 +164,7 @@ describe("bot wiring", () => {
       read("bot/features/family.js"),
       read("bot/features/heist.js"),
       read("bot/features/blindtest.js"),
+      read("bot/guard/alt-detect.js"),
     ]) {
       for (const name of commandNameChecks(source)) add(name);
     }
