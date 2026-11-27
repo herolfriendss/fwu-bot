@@ -3,6 +3,23 @@
 Ce qui est mis en ligne, du plus récent au plus ancien. Le site (Render) se déploie seul à chaque push sur `main` ;
 les bots du VPS prennent la mise à jour avec `/maj lancer` ou la mise à jour automatique de 5 h.
 
+## 27/11/2026 (soir et nuit)
+
+### Sécurité
+- Relais en chaîne : GUARD absent → le bot principal reprend ses protections ; bot principal absent aussi → SUCK ME. Alerte au staff, vérification des arrivées renforcée pendant l'absence de GUARD.
+- AutoMod natif de Discord posé une fois par GUARD (spam, spam de mentions, phishing/faux Nitro), `/automod natif`, `/scan` vérifie la position des rôles et l'AutoMod.
+- Alerte de panne par Supabase toutes les 2 min, même si tout est tombé (à activer avec l'URL d'un webhook, voir `docs/MODE_EMPLOI.md`).
+- GUARD : contournement de ban, quarantaine automatique après phishing, alerte intégrations, alerte permission perdue ; `/raid purge`.
+- Preuve obligatoire pour `/ban`, double validation des actions vocales de masse, appel examiné par un autre que l'auteur, alerte de connexion à la console.
+
+### SYS+
+- `/malus` (23 sous-commandes : perroquet, fantôme, mime, clown, robot, bébé, yoda, chuchote, sablier, malédiction, sourdine folle, exil, bouffon, roulette vocale, patate, tribunal, interrogatoire, taxe, rançon, cible, payer-rancon, stop, liste). Raccourcis préfixe : `+perroquet @x`, etc.
+- `/garde` : moi, relève, astreinte, enquête, barème, appel, geler, demande de quota, bilan, planning ; bilan du dimanche en MP ; rappel 5 min avant la fin d'une sanction ; « Je prends » sur les signalements.
+
+### Communauté
+- Bot principal : `/heure`, `/citation`, `/archive`, `/resume-salon`, `/salon-temp`, `/sante`, `/defi`, `/export-config`, merci aux boosters, résumé du dimanche avec podium vocal récompensé, rapport mensuel d'usage de l'IA.
+- LE FISC : rôle « Plus riche du mois ». FDPDLAVOC : `/music recherche`, `/radio station`, `/vocal-plus`.
+
 ## 27/11/2026 (après-midi)
 
 ### Bots

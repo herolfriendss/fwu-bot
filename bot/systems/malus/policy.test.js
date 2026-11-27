@@ -39,3 +39,10 @@ test("limits", () => {
   assert.equal(canStartMalus(4), true);
   assert.equal(canStartMalus(5), false);
 });
+
+test("reposts never carry links (no phishing through the bot)", async () => {
+  const { rewriteFor, stripLinks } = await import("./policy.js");
+  assert.equal(stripLinks("va sur https://evil.example/x et discord.gg/abc ou [ici](https://x.y)"), "va sur [lien retiré] et [lien retiré] ou ici");
+  const out = rewriteFor(["perroquet"], "free nitro https://dlscord.gift/a", () => 0.9).text;
+  assert.doesNotMatch(out, /https?:|dlscord\.gift/i);
+});

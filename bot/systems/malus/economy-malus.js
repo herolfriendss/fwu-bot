@@ -37,10 +37,11 @@ registerMalusSubcommand("payer-rancon", async (interaction, guildSettings) => {
   if (!Number.isInteger(amount)) throw new MalusError("Rançon invalide.");
   if (interaction.user.id === row.started_by) throw new MalusError("Tu as posé cette rançon : lève-la avec `/malus stop`.");
   if (pndBalance(guild.id, interaction.user.id).balance < amount) throw new MalusError(`Il te faut ${amount.toLocaleString("fr-FR")} PND sur ton solde.`);
-  try {
-    grantPnd(guild.id, row.started_by, amount, "malus_rancon_recue");
-    grantPnd(guild.id, interaction.user.id, -amount, "malus_rancon_payee");
-  } catch (error) { throw new MalusError(`❌ Paiement impossible : ${error.message}`); }
+  // Débit d'abord (échoue proprement si le solde a bougé), puis crédit ; si le crédit échoue, remboursement.
+  try { grantPnd(guild.id, interaction.user.id, -amount, "malus_rancon_payee"); }
+  catch { throw new MalusError(`Il te faut ${amount.toLocaleString("fr-FR")} PND sur ton solde.`); }
+  try { grantPnd(guild.id, row.started_by, amount, "malus_rancon_recue"); }
+  catch { /* plafond du SYS+ : la rançon est quand même payée (l'argent sort du jeu) */ }
   await stopMalus({ guild, memberId: user.id, kind: "rancon", actorId: interaction.user.id, guildSettings, reason: `rançon de ${amount} PND payée` });
   await interaction.channel?.send?.({ content: `💰 <@${interaction.user.id}> a payé la rançon de <@${user.id}> (${amount.toLocaleString("fr-FR")} PND). Libéré !`, allowedMentions: { parse: [] } }).catch(() => {});
   return "💰 Rançon payée.";

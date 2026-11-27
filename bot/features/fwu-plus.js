@@ -142,7 +142,7 @@ async function execute(interaction, settings, { grant }) {
     const channel = o.getChannel("salon") ?? interaction.channel;
     const count = Math.min(500, Math.max(10, o.getInteger("messages") ?? 200));
     if (!channel?.messages?.fetch) throw new UserError("Choisis un salon textuel.");
-    if (!channel.permissionsFor(member)?.has(P.ReadMessageHistory)) throw new UserError("Tu ne peux pas lire l'historique de ce salon.");
+    if (!channel.permissionsFor(member)?.has(P.ViewChannel) || !channel.permissionsFor(member)?.has(P.ReadMessageHistory)) throw new UserError("Tu ne peux pas lire l'historique de ce salon.");
     const all = [];
     let before;
     while (all.length < count) {

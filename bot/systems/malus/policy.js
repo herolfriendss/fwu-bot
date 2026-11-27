@@ -90,10 +90,19 @@ export const MALEDICTION_PHRASES = Object.freeze([
 ]);
 
 /** Rewrites a message for the first rewrite kind in `kinds` (or null when nothing applies). */
+/** Links, invites and masked links never survive a repost by the bot (no phishing through the bot). */
+export function stripLinks(text) {
+  return String(text ?? "")
+    .replace(/\[([^\]]{0,200})\]\([^)]*\)/g, "$1")
+    .replace(/\b(?:https?:\/\/|www\.)\S+/gi, "[lien retiré]")
+    .replace(/\b(?:discord(?:app)?\.(?:gg|com\/invite)|dsc\.gg)\/\S+/gi, "[lien retiré]")
+    .replace(/<a?:\w+:\d+>/g, (m) => m); // émojis personnalisés gardés
+}
+
 export function rewriteFor(kinds, text, random = Math.random) {
   const kind = REWRITE_KINDS.find((k) => kinds.includes(k));
   if (!kind || !String(text ?? "").trim()) return null;
-  const input = String(text).slice(0, 1500);
+  const input = stripLinks(String(text).slice(0, 1500));
   const fn = { perroquet, robot, bebe, yoda, chuchote }[kind];
   return { kind, text: fn(input, random).slice(0, 1800) };
 }
