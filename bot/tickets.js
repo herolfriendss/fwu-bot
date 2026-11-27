@@ -2,6 +2,7 @@
 //
 // Chaque ticket possède son propre salon et sa ligne SQLite, indexée par
 // serveur. Les permissions sont revérifiées à chaque bouton et commande.
+import { askTicketRating, formatRatingStats, ratingStats } from "./features/ticket-rating.js";
 import {
   ActionRowBuilder, ButtonBuilder, ButtonStyle, ChannelType, EmbedBuilder, PermissionFlagsBits,
 } from "discord.js";
@@ -119,6 +120,8 @@ async function closeTicket({ guild, settings, interaction, row, reason, record }
     await channel.send({ content: `🔒 Ticket fermé par ${mention(interaction.user.id)}.`, allowedMentions: { parse: [] } }).catch(() => {});
     await channel.delete(`Ticket #${row.id} fermé par ${interaction.user.tag}`).catch(() => {});
   }
+  // Note du support demandée à l'auteur en MP (ne bloque jamais la fermeture).
+  void askTicketRating(guild, row, interaction.user.id).then((asked) => { if (asked) record("ticket_rating_asked"); }).catch(() => {});
 }
 
 export async function handleTicketsInteraction(interaction, guildSettings = {}, { apiUrl, secret, record = () => {} } = {}) {
@@ -143,6 +146,11 @@ export async function handleTicketsInteraction(interaction, guildSettings = {}, 
   const subcommand = interaction.options.getSubcommand();
 
   try {
+    if (subcommand === "notes") {
+      if (!isTicketStaff(member, settings)) throw new Error("Réservé au staff support.");
+      await interaction.reply({ content: formatRatingStats(ratingStats(guild.id)), ephemeral: true, allowedMentions: { parse: [] } });
+      return true;
+    }
     if (subcommand === "panel") {
       if (!isTicketStaff(member, settings)) throw new Error("Permission Gérer les salons requise.");
       const setupIssue = ticketSetupIssue(settings.tickets);
@@ -279,7 +287,7 @@ export async function handleTicketsMessage(message, guildSettings = {}, options 
   }
   if (action === "help") {
     await message.reply({
-      content: "**Tickets**\n`=ticket panel` — publier le panneau (staff)\n`=ticket list` — lister les tickets (staff)\n`=ticket close [raison]` — fermer le ticket courant\n`=ticket add @membre` / `=ticket remove @membre` — gérer les accès (staff)\n`=ticket assign @membre` — assigner (staff)\n`=ticket historique [id]` — historique (staff)",
+      content: "**Tickets**\n`=ticket panel` — publier le panneau (staff)\n`=ticket list` — lister les tickets (staff)\n`=ticket close [raison]` — fermer le ticket courant\n`=ticket add @membre` / `=ticket remove @membre` — gérer les accès (staff)\n`=ticket assign @membre` — assigner (staff)\n`=ticket historique [id]` — historique (staff)\n`=ticket notes` — notes du support par modérateur (staff)",
       allowedMentions: { parse: [] },
     });
     return true;

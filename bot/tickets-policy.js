@@ -46,7 +46,7 @@ export function parseTicketPrefixCommand(content, mentionedUserId = null) {
   const parts = String(content ?? "").trim().split(/\s+/);
   if (!/^=ticket$/i.test(parts[0] ?? "")) return null;
   const action = (parts[1] ?? "help").toLowerCase();
-  if (!["help", "panel", "list", "close", "add", "remove", "assign", "historique", "transcript"].includes(action)) {
+  if (!["help", "panel", "list", "close", "add", "remove", "assign", "historique", "transcript", "notes"].includes(action)) {
     return { action: "invalid" };
   }
   if ((action === "add" || action === "remove" || action === "assign") && !/^\d{5,25}$/.test(String(mentionedUserId ?? ""))) {

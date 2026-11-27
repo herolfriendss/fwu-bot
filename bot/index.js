@@ -120,6 +120,7 @@ import { handleNightInteraction, runNightMode } from "./guard/night-mode.js";
 import { handleFlagReaction } from "./features/flag-translate.js";
 import { commandsByBot, handleHelpComponent, helpPayload } from "./features/help-panel.js";
 import { REPORT_CONTEXT_COMMAND, handleReportInteraction, reportButtons } from "./guard/report-message.js";
+import { handleTicketRatingButton } from "./features/ticket-rating.js";
 import { handleVoiceMoveCommand } from "./voice-move.js";
 import { handleEmbedInteraction, EMBED_COMMANDS } from "./embeds.js";
 import { SHARED_DB_ALERTS, startSharedLayer } from "./shared/index.js";
@@ -1793,6 +1794,8 @@ client.on("interactionCreate", (interaction) => {
   runAsActor(interaction.user?.id, async () => {
     if (interaction.guildId && (!guildAllowed(interaction.guildId, ALLOWED_GUILDS)
       || (isLogsHub(interaction.guildId) && !interaction.customId?.startsWith("moderation:appeal-review:") && !interaction.customId?.startsWith("trap:pardon:")))) return;
+    // Note de ticket (bouton reçu en MP, sans serveur).
+    if (await handleTicketRatingButton(interaction).catch(() => true)) return;
     // A slash command is handled only by the bot that owns its domain. Buttons
     // and menus always come back to the bot that posted them: no filter needed.
     // Gel d'urgence du staff : commandes du staff refusées (sauf owner), sur les 5 bots.
