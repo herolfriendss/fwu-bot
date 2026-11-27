@@ -169,6 +169,7 @@ describe("bot wiring", () => {
       read("bot/features/stat-channels.js"),
       read("bot/features/member-of-month.js"),
       read("bot/features/pnd-drop.js"),
+      read("bot/features/seniority.js"),
       read("bot/features/snipe.js"),
       read("bot/features/invite-rewards.js"),
       read("bot/features/bounty.js"),

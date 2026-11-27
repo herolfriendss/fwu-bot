@@ -2320,6 +2320,26 @@ export const EXTRA_SLASH_COMMANDS: SlashCommandDef[] = [
     ],
   },
   {
+    name: "anciennete",
+    description: "SUCK ME : badges d'ancienneté (1 mois, 6 mois, 1 an) et message d'anniversaire d'arrivée",
+    usage: "/anciennete etat · activer · desactiver · configurer [role-1-mois] [role-6-mois] [role-1-an] [salon]",
+    category: "Communauté",
+    dmPermission: false,
+    requiresBotProcess: true,
+    defaultMemberPermissions: manageServer,
+    options: [
+      sub("etat", "Réglages actuels"),
+      sub("activer", "Active les badges et les anniversaires"),
+      sub("desactiver", "Coupe les badges et les anniversaires"),
+      sub("configurer", "Choisis les rôles et le salon des anniversaires", [
+        opt(8, "role-1-mois", "Rôle après 1 mois"),
+        opt(8, "role-6-mois", "Rôle après 6 mois"),
+        opt(8, "role-1-an", "Rôle après 1 an"),
+        opt(7, "salon", "Salon des messages d'anniversaire", { channel_types: [0, 5] }),
+      ]),
+    ],
+  },
+  {
     name: "compteurs",
     description: "SUCK ME : salons compteurs (membres, en vocal, boosts) mis à jour toutes les 10 min",
     usage: "/compteurs installer · retirer · actualiser",
