@@ -167,7 +167,7 @@ import { STAFF_ONLY_MESSAGE, isServerStaff } from "./server-staff.js";
 import { installOwnerShield, runAsActor } from "./owner-shield.js";
 import { assertOwnerConfig } from "./owner-config.js";
 import { db } from "./database.js";
-import { clearConnectedMarker, clearGatewayFailures, createGatewayWatchdog, recordGatewayFailure, writeConnectedMarker } from "./gateway-watchdog.js";
+import { clearConnectedMarker, clearGatewayFailures, createGatewayWatchdog, parseSessionLimit, recordGatewayFailure, writeConnectedMarker } from "./gateway-watchdog.js";
 import { LOGS_HUB_GUILD_ID, ACTIVE_SOURCE_GUILD_IDS, allowedRuntimeGuild, filterInactiveSourceGuilds, isLogsHub, inspectLogsHub, lastLogsHubFailure } from "./logs-hub.js";
 
 const { SITE_URL, BOT_SYNC_SECRET } = process.env;
@@ -2066,13 +2066,20 @@ startAutomationScheduler(client, record, () => serves("suckme"));
 // Each failure waits longer before restarting (30 s → 8 min); after 6 failures in a row the
 // bot stops for good (exit code ignored by PM2) and the diagnostic shows it in red.
 let stoppingOffline = false;
-function stopOffline(reason) {
+function stopOffline(reason, detail = "") {
   if (stoppingOffline) return;
   stoppingOffline = true;
+  const sessionLimit = parseSessionLimit(detail);
   let plan = { failures: 1, stop: false, delayMs: 30_000, exitCode: 1 };
-  try { plan = recordGatewayFailure(db, RUNTIME.profile, reason); } catch { /* keep the default pause */ }
-  console.error(`❌ ${BOT_LABEL} : pas de connexion à Discord (${reason}, échec ${plan.failures}). Vérifie le token et les intents « Server Members » et « Message Content ».`);
-  console.error(plan.stop
+  if (sessionLimit) {
+    // Not a crash series: wait for Discord's reset without burning another session start.
+    plan = { failures: 0, stop: false, delayMs: sessionLimit.delayMs, exitCode: 1 };
+    console.error(`⏳ ${BOT_LABEL} : limite quotidienne de connexions Discord atteinte. Attente de ${Math.round(sessionLimit.delayMs / 60_000)} min avant le prochain essai${sessionLimit.resetAt ? ` (reset ${new Date(sessionLimit.resetAt).toISOString()})` : ""}.`);
+  } else {
+    try { plan = recordGatewayFailure(db, RUNTIME.profile, reason); } catch { /* keep the default pause */ }
+  }
+  if (!sessionLimit) console.error(`❌ ${BOT_LABEL} : pas de connexion à Discord (${reason}, échec ${plan.failures}). Vérifie le token et les intents « Server Members » et « Message Content ».`);
+  if (!sessionLimit) console.error(plan.stop
     ? `⛔ ${BOT_LABEL} s'arrête définitivement après ${plan.failures} échecs. Corrige puis relance : pm2 restart ${process.env.name ?? "<processus>"}`
     : `↻ Nouvel essai dans ${Math.round(plan.delayMs / 1000)} s.`);
   record("gateway_error");
@@ -2084,4 +2091,4 @@ function stopOffline(reason) {
 clearConnectedMarker();
 const gatewayWatchdog = createGatewayWatchdog({ isReady: () => client.isReady(), exit: stopOffline });
 setInterval(() => gatewayWatchdog.check(), 15_000).unref?.();
-client.login(DISCORD_TOKEN).catch((error) => { console.error(`[login] ${BOT_LABEL} : ${String(error?.message ?? error).slice(0, 200)}`); stopOffline(error?.code ?? error?.name ?? "login_failed"); });
+client.login(DISCORD_TOKEN).catch((error) => { console.error(`[login] ${BOT_LABEL} : ${String(error?.message ?? error).slice(0, 200)}`); stopOffline(error?.code ?? error?.name ?? "login_failed", String(error?.message ?? "")); });

@@ -70,6 +70,20 @@ export function recordGatewayFailure(db, profile, reason, now = Date.now()) {
   return { failures, stop, delayMs: stop ? 0 : RESTART_DELAYS_MS[failures - 1], exitCode: stop ? STOP_EXIT_CODE : 1 };
 }
 
+// Discord caps session starts per day. Each crash-restart burns one, so a bot that keeps
+// failing can lock itself out until the reset. When Discord says so, wait for the reset
+// instead of restarting (a restart would only fail again and make it worse).
+const SESSION_LIMIT_MAX_WAIT_MS = 24 * 3_600_000;
+const SESSION_LIMIT_MARGIN_MS = 60_000;
+export function parseSessionLimit(message, now = Date.now()) {
+  const text = String(message ?? "");
+  if (!/not enough sessions remaining/i.test(text)) return null;
+  const match = text.match(/resets? at (\d{4}-\d{2}-\d{2}T[\d:.]+Z?)/i);
+  const resetAt = match ? Date.parse(match[1].endsWith("Z") ? match[1] : `${match[1]}Z`) : NaN;
+  const wait = Number.isFinite(resetAt) ? resetAt - now + SESSION_LIMIT_MARGIN_MS : SESSION_LIMIT_MAX_WAIT_MS;
+  return { resetAt: Number.isFinite(resetAt) ? resetAt : null, delayMs: Math.min(SESSION_LIMIT_MAX_WAIT_MS, Math.max(SESSION_LIMIT_MARGIN_MS, wait)) };
+}
+
 export function clearGatewayFailures(db, profile) {
   ensureGatewayFailureTable(db);
   db.prepare("DELETE FROM bot_gateway_failures WHERE profile = ?").run(profile);

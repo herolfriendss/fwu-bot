@@ -4,6 +4,9 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Console FWU</title>
+<meta name="theme-color" content="#000000">
+<link rel="manifest" href="/console/manifest.webmanifest">
+<link rel="icon" href="/console/icon.svg" type="image/svg+xml">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,300..700&family=Onest:wght@400;500&display=swap" rel="stylesheet">
@@ -790,7 +793,7 @@ R.analyse=()=>{
  const gs=isLive()?((L.data&&L.data.activity)||[]):[demoGuild()];
  const ev=S.logs,tot=ev.length,sev=[0,1,2].map(v=>ev.filter(e=>e.sev===v).length);
  return `<div class="grid">${gs.length?gs.map(guildAnalysis).join(''):`<div class="blk c12"><h3>Activité du serveur</h3><div class="empty">Aucun instantané reçu. Le bot principal en envoie un toutes les 15 minutes.</div></div>`}
- <div class="blk c6"><h3>Événements par famille <small>${tot} reçus</small></h3>${hbars(countBy(ev,e=>e.cat),tot,k=>CATS[k]||k)}</div>
+ <div class="blk c6"><h3>Événements par famille <small>${tot} reçus</small></h3><div class="row" style="margin-bottom:10px"><button type="button" class="btn sm" data-act="csv">Copier le journal en CSV</button></div>${hbars(countBy(ev,e=>e.cat),tot,k=>CATS[k]||k)}</div>
  <div class="blk c6"><h3>Événements par bot</h3>${hbars(countBy(ev,e=>e.bot),tot,k=>botN(k)?botN(k).name:k)}<div class="row" style="margin-top:14px;gap:18px"><span class="sev" style="padding:2px 8px 2px 10px">info ${sev[0]}</span><span class="sev v1" style="padding:2px 8px 2px 10px">attention ${sev[1]}</span><span class="sev v2" style="padding:2px 8px 2px 10px">critique ${sev[2]}</span></div></div>
  </div>`};
 
@@ -862,6 +865,11 @@ R.reglages=()=>`<div class="grid">
   <p class="muted" style="margin-bottom:10px">Quotas, sanctions, interrupteurs, whitelist et protections. Copiez-la pour la sauvegarder ou la réimporter.</p>
   <textarea id="cfg" aria-label="Configuration au format JSON" style="min-height:120px;font-size:12px"></textarea>
   <div class="row" style="margin-top:10px"><button class="btn" data-act="cfg-copy">Copier</button><button class="btn pri" data-act="cfg-import">Importer</button><button class="btn danger" data-act="reset">Tout réinitialiser</button></div></div>`}
+ ${isLive()?`<div class="blk c6"><h3>Maintenance</h3>
+  <p class="muted" style="margin-bottom:10px">Redémarre tous les bots joignables, un par un. Les bots hors ligne sont ignorés : un bot qui ne transmet plus son statut ne peut pas lire l’ordre.</p>
+  <button type="button" class="btn danger" data-act="restart-all">Tout redémarrer</button></div>
+ <div class="blk c6"><h3>Aide-mémoire du serveur <small>Oracle</small></h3>
+  ${[['État de tous les bots','pm2 status'],['Journal d’un bot','pm2 logs her-v5-bot --lines 50'],['Redémarrer un bot','pm2 restart her-v5-bot'],['Redémarrer tous les bots','pm2 restart all'],['Garder les bots après un reboot','pm2 save'],['Voir l’espace disque','df -h /']].map(([t,c])=>`<div class="tog"><div><b>${esc(t)}</b><small><code>${esc(c)}</code></small></div><button type="button" class="btn sm" data-act="copy-cmd" data-cmd="${esc(c)}">Copier</button></div>`).join('')}</div>`:''}
  <div class="blk c12"><h3>Raccourcis</h3><div class="row" style="gap:28px"><span><b style="font-weight:500">Ctrl K</b> ou <b style="font-weight:500">/</b> : rechercher ou agir</span><span><b style="font-weight:500">Alt 1 à 0</b> : changer de section</span><span><b style="font-weight:500">Échap</b> : fermer, puis retour à l’accueil</span></div></div>
  </div>`;
 
@@ -981,6 +989,18 @@ const A={
    else toast(j.error||'Redémarrage refusé.',{err:1});
   }catch(e){toast('Le site ne répond pas. Réessayez dans quelques secondes.',{err:1})}
   await pull();if(mode==='s2'&&S.panel==='bots')renderPanel(false,true)},
+ 'restart-all':async el=>{
+  if(!isLive()||!confirm2(el))return;
+  const targets=S.bots.filter(b=>b.real&&b.real.reachable!==false&&b.st!=='off'&&!['waiting','sent'].includes(RS(b).phase));
+  if(!targets.length){toast('Aucun bot joignable à redémarrer.',{err:1});return}
+  el.disabled=true;let ok=0,ko=[];
+  for(const b of targets){
+   try{const r=await fetch('/api/console/restart',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json','X-Console-Action':'restart'},body:JSON.stringify({bot:API_ID[b.id]})});
+    if(r.status===202)ok++;else if(r.status===401){L.err='Session expirée : reconnectez-vous.';paintBadge();ko.push(b.name);break}else ko.push(b.name)}
+   catch(e){ko.push(b.name)}}
+  toast(ko.length?`${ok} redémarrage(s) demandé(s). Refusé : ${ko.join(', ')}.`:`${ok} redémarrage(s) demandé(s).`,ko.length?{err:1}:undefined);
+  el.disabled=false;await pull();if(mode==='s2')renderPanel(false,true)},
+ 'copy-cmd':el=>{navigator.clipboard.writeText(el.dataset.cmd).then(()=>toast('Commande copiée.'),()=>toast('Copie refusée. Sélectionnez la commande et copiez-la à la main.',{err:1}))},
  'bot-open':el=>{S.bot=el.dataset.id;go('bots')},
  'bot-pick':el=>{S.bot=el.dataset.id;renderPanel(false)},
  'bot-conn':el=>{const b=botN(el.dataset.id);b.st=b.st==='off'?'on':'off';if(b.st==='off')b.mt='';addLog('systeme','conn',b.st==='off'?1:0,b.id,`${b.name} ${b.st==='off'?'déconnecté':'reconnecté'} depuis la console`);toast(`${b.name} : ${stLabel(b.st).toLowerCase()}.`);refreshGlobal();renderPanel(false)},
@@ -1033,7 +1053,7 @@ const IN={
 function mvPrev(){const s=$('#mvS'),t=$('#mvT'),o=$('#mvPrev');if(!s||!o)return;const a=S.voice[+s.value],b=S.voice[+t.value];o.textContent=s.value===t.value?'Choisissez deux salons différents.':a.m.length?`${a.m.length} membre${a.m.length>1?'s':''} de ${a.n} iront dans ${b.n}.`:`${a.n} est vide.`}
 
 /* En mode réel, seules les actions branchées au site partent ; le reste (aperçu local) est refusé, jamais simulé. */
-const LIVE_OK=new Set(['bot-open','bot-pick','ack','restart','csv','tpl','emb-new','emb-edit','live']);
+const LIVE_OK=new Set(['restart-all','copy-cmd','bot-open','bot-pick','ack','restart','csv','tpl','emb-new','emb-edit','live']);
 const NOT_WIRED='Pas encore relié au bot : rien n’a été envoyé à Discord.';
 document.addEventListener('click',ev=>{
  const g=ev.target.closest('[data-go]');if(g){ev.preventDefault();go(g.dataset.go);return}
@@ -1064,12 +1084,16 @@ document.addEventListener('submit',ev=>{
 let palSel=0,palItems=[];
 function palActions(){
  const l=PANELS.map(p=>({t:'Aller à '+p.label,h:'section',f:()=>go(p.id)}));
+ const q=($('#palq').value||'').toLowerCase().trim();
+ if(q.length>=2){
+  S.cmds.filter(c=>(c.n+' '+c.d).toLowerCase().includes(q)).slice(0,6).forEach(c=>l.push({x:1,t:'Commande '+c.n,h:(botN(c.b)?botN(c.b).name:c.b)+' · commandes',f:()=>{cmdQ={q:c.n,bot:'',st:''};go('commandes')}}));
+  S.logs.filter(e=>String(e.txt).toLowerCase().includes(q)).slice(0,6).forEach(e=>l.push({x:1,t:String(e.txt).slice(0,70),h:'journal',f:()=>{logQ={q:e.txt.slice(0,40),cat:'',sev:'',bot:''};go('journal')}}))}
  if(isLive()){S.bots.forEach(b=>{l.push({t:'Ouvrir '+b.name,h:'bot',f:()=>{S.bot=b.id;go('bots')}})});l.push({t:'Retour à l’accueil',h:'scène',f:goHero});return l}
  l.push({t:S.raid?'Couper le mode raid':'Activer le mode raid',h:'sécurité',f:A['raid-toggle']},{t:S.locked?'Lever le verrouillage d’urgence':'Verrouillage d’urgence',h:'sécurité',f:()=>{S.locked=!S.locked;if(S.locked)S.raid=true;save();addLog('securite','panic',2,'guard',S.locked?'Verrouillage d’urgence activé':'Verrouillage d’urgence levé');toast(S.locked?'Serveur verrouillé.':'Verrouillage levé.');refreshGlobal();if(mode==='s2')renderPanel(false)}});
  S.bots.forEach(b=>{l.push({t:'Ouvrir '+b.name,h:'bot',f:()=>{S.bot=b.id;go('bots')}});l.push({t:(b.st==='mt'?'Sortir de maintenance : ':'Maintenance : ')+b.name,h:'bot',f:()=>{if(b.st==='off'){toast(b.name+' est hors ligne.',{err:1});return}b.st=b.st==='mt'?'on':'mt';toast(`${b.name} : ${stLabel(b.st).toLowerCase()}.`);refreshGlobal();if(mode==='s2')renderPanel(false)}})});
  l.push({t:'Retour à l’accueil',h:'scène',f:goHero},{t:'Nouveau tempmute',h:'modération',f:()=>go('moderation')},{t:'Publier un embed',h:'embeds',f:()=>go('embeds')});
  return l}
-function palRender(){const q=$('#palq').value.toLowerCase().trim();palItems=palActions().filter(a=>!q||(a.t+' '+a.h).toLowerCase().includes(q));palSel=Math.min(palSel,Math.max(0,palItems.length-1));
+function palRender(){const q=$('#palq').value.toLowerCase().trim();palItems=palActions().filter(a=>a.x||!q||(a.t+' '+a.h).toLowerCase().includes(q));palSel=Math.min(palSel,Math.max(0,palItems.length-1));
  $('#pall').innerHTML=palItems.length?palItems.map((a,i)=>`<li><button type="button" data-pi="${i}" aria-selected="${i===palSel}">${esc(a.t)}<small>${esc(a.h)}</small></button></li>`).join(''):`<li><div class="empty" style="border:0">Aucune action ne correspond. Essayez « bot », « raid » ou le nom d’une section.</div></li>`}
 function palOpen(){$('#pal').classList.add('open');$('#palq').value='';palSel=0;palRender();setTimeout(()=>$('#palq').focus(),0)}
 function palClose(){$('#pal').classList.remove('open')}

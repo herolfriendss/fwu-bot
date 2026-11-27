@@ -61,3 +61,15 @@ test("growing pauses between restarts, then a definitive stop", async () => {
   clearGatewayFailures(db, "guard");
   assert.deepEqual(listGatewayFailures(db).map((r) => r.profile), ["fisc"]);
 });
+
+test("Discord's daily session limit makes the bot wait for the reset instead of restarting", async () => {
+  const { parseSessionLimit } = await import("./gateway-watchdog.js");
+  const now = Date.parse("2026-11-27T20:00:00Z");
+  const hit = parseSessionLimit("Not enough sessions remaining to spawn 1 shards; remaining: 0, reset_after: 9000000, resets at 2026-11-27T22:36:00.000Z", now);
+  assert.equal(hit.resetAt, Date.parse("2026-11-27T22:36:00Z"));
+  assert.equal(hit.delayMs, 2 * 3_600_000 + 36 * 60_000 + 60_000);
+  assert.equal(parseSessionLimit("Not enough sessions remaining", now).delayMs, 24 * 3_600_000, "sans heure : attente plafonnée à 24 h");
+  assert.equal(parseSessionLimit("Not enough sessions remaining resets at 2026-11-27T19:00:00Z", now).delayMs, 60_000, "reset déjà passé : 1 min");
+  assert.equal(parseSessionLimit("An invalid token was provided", now), null);
+  assert.equal(parseSessionLimit(undefined, now), null);
+});

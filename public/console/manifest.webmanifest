@@ -1,0 +1,10 @@
+{
+  "name": "Console FWU",
+  "short_name": "Console",
+  "start_url": "/console/",
+  "scope": "/console/",
+  "display": "standalone",
+  "background_color": "#000000",
+  "theme_color": "#000000",
+  "icons": [{ "src": "/console/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }]
+}
