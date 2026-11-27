@@ -67,3 +67,37 @@ Une tâche à la fois, dans l'ordre. Cocher au fur et à mesure.
 - [ ] 38. **Rapport hebdomadaire par e-mail ou Discord** : état des bots, pannes, activité, sanctions de la semaine.
 - [ ] 39. **Vue « tout va bien ? »** : un seul voyant vert ou rouge en haut de la console, avec la raison quand il est rouge.
 - [x] 40. **Recherche globale dans la console** (membre, commande, événement) depuis la palette `Ctrl K`. _(Fait le 27/11 : la palette `Ctrl K` cherche aussi dans les commandes et le journal)_
+
+## G. Nouvelles commandes proposées (27/11, à valider)
+
+Déjà présentes, donc retirées de la liste : `/dossier`, `/casier`, `/staffhistory`, `/rapportstaff`, `/anniversaire`, `/quete`, `/impots`, `/slowmode`, `/raid`, `/quarantaine`, `/status`, `/stabilite`.
+
+### Pour SYS+
+- [ ] 41. **`/sysp moi`** : mon quota restant aujourd'hui, mes dernières sanctions, les alertes ouvertes, en une réponse privée.
+- [ ] 42. **`/releve`** : résumé des 12 dernières heures (sanctions, alertes, tickets ouverts, membres surveillés) pour le SYS+ qui prend la suite.
+- [ ] 43. **Astreinte** : un SYS+ se déclare disponible ; les alertes de Guard le mentionnent lui seul au lieu de tout le staff.
+- [ ] 44. **Demande de quota** : un bouton pour demander à l'owner quelques sanctions de plus ; l'owner accepte ou refuse en un clic (rien n'est accordé sans lui).
+- [ ] 45. **Double validation des actions de masse** (`/muteall`, `/mvall`, `/dmall`, purge de raid) : un deuxième SYS+ confirme avant l'exécution.
+- [ ] 46. **`/appel`** : vote rapide entre SYS+ (pour / contre) avant une sanction lourde, résultat archivé dans le dossier.
+- [ ] 47. **Contestation** : un membre sanctionné peut faire appel par bouton ; l'appel est examiné par un autre SYS+ que l'auteur de la sanction.
+- [ ] 48. **Bilan personnel du dimanche** en message privé : mes sanctions, mes annulations, mon temps de présence.
+- [ ] 49. **`/note @membre`** : notes privées partagées entre SYS+ (vérifier d'abord ce que fait le module de notes existant).
+- [ ] 50. **`/geler #salon`** : écriture coupée et mode lent pendant une dispute, retour automatique à la normale après le délai choisi.
+- [ ] 51. **`/purge-raid`** : quarantaine ou expulsion en une fois des comptes arrivés pendant un raid (fenêtre et ancienneté de compte réglables).
+
+### Guard
+- [ ] 52. Alerte quand un compte récent arrive avec le même pseudo ou le même avatar qu'un banni.
+- [ ] 53. Liens d'invitation vers d'autres serveurs bloqués, sauf liste autorisée.
+- [ ] 54. Sauvegarde des salons et des rôles, `/restaurer` après une suppression massive.
+
+### Le Fisc et Invest+
+- [ ] 55. Impôt hebdomadaire sur les grosses fortunes reversé dans une cagnotte du serveur (à articuler avec `/impots`).
+- [ ] 56. Bourse virtuelle : des actions dont le cours suit l'activité du serveur.
+- [ ] 57. Classement mensuel des fortunes avec un rôle pour le premier (rôle non privilégié, via `role-grant-guard`).
+
+### SUCK ME et bot principal
+- [ ] 58. Résumé de la semaine posté le dimanche : arrivées, membres les plus actifs, temps en vocal.
+
+### Tous les bots
+- [ ] 59. **`/sante`** : état des 6 bots dans Discord, réservé à SYS+.
+- [ ] 60. **`/maintenance on|off`** : prévient les membres et coupe les commandes sensibles (à rapprocher de `/stabilite`).
