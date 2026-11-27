@@ -96,3 +96,6 @@ Chaque choix se change sans toucher au code (variable d'environnement ou command
 - ~~**14 (23/11) — RESUME non développé.**~~ Développé depuis (`bot/resume.js`).
 - ~~**8 (23/11) — `DEMARRER_AVEC_CLAUDE.txt` laissé en l'état.**~~ Rangé dans `docs/archives/` le 25/11.
 - ~~**Paliers lus dans le nom des rôles (« 10 % Modérateur »).**~~ Remplacé par la décision 22 (correction de sécurité des rôles).
+
+## Sécurité (audit du 27/11)
+Audit du code : accès au tableau de bord réservé à l'owner (OAuth PKCE, cookie sécurisé, comparaisons à temps constant), CSRF actif sur les fonctions serveur, signature Ed25519 sur les interactions, secret du bot sur les routes de synchronisation, `--` et entrée standard pour les programmes externes (yt-dlp, espeak), pas de SQL construit avec des entrées utilisateur, aucun secret dans le dépôt ni dans l'archive. Corrigé : vite 8.4.0 (faille de l'outil de développement), en-têtes de sécurité et limitation des essais de connexion dans le modèle nginx. Accepté : zod 3 (alerte de mémoire sur de très gros tableaux ; les entrées viennent de l'owner connecté ; passage à zod 4 = changement cassant, à planifier).
