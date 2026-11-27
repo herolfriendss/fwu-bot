@@ -55,7 +55,7 @@ button{cursor:pointer;background:none;border:0}
 .is-s2 .shade{background:linear-gradient(180deg,rgba(0,0,0,.82),rgba(0,0,0,.55))}
 
 .fg{position:absolute;left:0;right:0;bottom:0;height:calc(810 * var(--s));overflow:hidden;pointer-events:none}
-.word{position:absolute;left:50%;top:calc(224 * var(--s));transform:translateX(-50%);font-family:var(--d-font);font-stretch:125%;font-weight:600;font-size:calc(520 * var(--s));line-height:1;letter-spacing:-.035em;white-space:nowrap;color:var(--blanc)}
+.word{position:absolute;left:50%;top:calc(110 * var(--s));transform:translateX(-50%);font-family:var(--d-font);font-stretch:125%;font-weight:600;font-size:calc(520 * var(--s));line-height:1;letter-spacing:-.035em;white-space:nowrap;color:var(--blanc)}
 .word span{display:inline-block;transform:scaleX(1.04);transform-origin:left top}
 .word i{display:inline-block;font-style:normal}
 .mounds{position:absolute;bottom:0;width:50%;height:calc(440 * var(--s))}
@@ -272,6 +272,19 @@ pre.code{font-size:12px;line-height:1.55;border:1px solid var(--line);padding:12
   .log{grid-template-columns:52px 1fr}
   .log .meta{grid-column:2;justify-content:flex-start}
 }
+.cbody{background-image:linear-gradient(rgba(255,255,255,.028) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.028) 1px,transparent 1px);background-size:34px 34px}
+.blk{position:relative;background:linear-gradient(180deg,rgba(16,16,16,.88),rgba(5,5,5,.88));backdrop-filter:blur(6px)}
+.blk::before,.blk::after{content:"";position:absolute;width:10px;height:10px;border:1px solid var(--blanc);pointer-events:none}
+.blk::before{top:-1px;left:-1px;border-right:0;border-bottom:0}
+.blk::after{bottom:-1px;right:-1px;border-left:0;border-top:0}
+.blk h3{letter-spacing:.01em}
+.tile:hover{border-color:var(--blanc)}
+.dot.on{animation:ping 2.6s infinite}
+@keyframes ping{0%{box-shadow:0 0 0 0 rgba(242,242,242,.55)}70%,100%{box-shadow:0 0 0 7px rgba(242,242,242,0)}}
+.stat{min-width:120px}
+.stat .big{font-size:34px}
+.hbar{display:grid;grid-template-columns:110px 1fr 40px;gap:10px;align-items:center;margin-top:7px;font-size:12.5px}
+.hbar span:last-child{text-align:right}
 .nb{margin:0 0 14px;padding:9px 12px;border:1px dashed var(--line-2);font-size:12.5px;line-height:1.4;color:rgba(242,242,242,.82)}
 .nb b{font-weight:500;color:var(--blanc)}
 .demo.on{border-style:solid}
@@ -313,6 +326,7 @@ pre.code{font-size:12px;line-height:1.55;border:1px solid var(--line);padding:12
       <li><a href="#controle" data-go="controle">Contrôle</a></li>
       <li><a href="#bots" data-go="bots">Bots</a></li>
       <li><a href="#moderation" data-go="moderation">Modération</a></li>
+      <li><a href="#analyse" data-go="analyse">Analyse</a></li>
       <li><a href="#journal" data-go="journal">Journal</a></li>
       <li><a href="#reglages" data-go="reglages">Réglages</a></li>
     </ul>
@@ -530,7 +544,7 @@ function afterLive(){
  refreshGlobal();paintBadge();
  if(mode!=='s2'||editing())return;
  const p=S.panel;
- if(p==='controle'||p==='bots'||p==='reglages')renderPanel(false,true);
+ if(p==='controle'||p==='bots'||p==='reglages'||p==='analyse')renderPanel(false,true);
  else if(p==='journal'&&$('#logList'))$('#logList').innerHTML=logsHTML();
  else if(p==='commandes'&&$('#cmdList'))$('#cmdList').innerHTML=cmdsHTML()}
 
@@ -584,6 +598,7 @@ const ICON={
  vocal:'<rect x="6" y="2" width="4" height="7" rx="2"/><path d="M3.5 8a4.5 4.5 0 009 0M8 12.5V14"/>',
  securite:'<circle cx="8" cy="8" r="6"/><path d="M8 4v4l3 2"/>',
  journal:'<path d="M3 3h10M3 6.5h10M3 10h7M3 13.5h5"/>',
+ analyse:'<path d="M3 13V8M7 13V4M11 13V6M14 13H2"/>',
  embeds:'<rect x="2" y="3" width="12" height="10"/><path d="M2 3v10M5 6h6M5 9h4"/>',
  commandes:'<path d="M3 4l4 4-4 4M8 12h5"/>',
  reglages:'<path d="M2 4.5h7M12 4.5h2M2 11.5h2M7 11.5h7"/><circle cx="10.5" cy="4.5" r="1.5"/><circle cx="5.5" cy="11.5" r="1.5"/>'
@@ -595,6 +610,7 @@ const PANELS=[
  {id:'roles',label:'Rôles',sub:'Hiérarchie, droits par palier, whitelist des bots.'},
  {id:'vocal',label:'Vocal',sub:'Déplacements de masse, accès, laisse, réveil.'},
  {id:'securite',label:'Sécurité',sub:'Anti-raid, piège, plafonds anti-nuke, verrouillage.'},
+ {id:'analyse',label:'Analyse',sub:'Messages, arrivées, départs, événements et membres les plus actifs.'},
  {id:'journal',label:'Journal',sub:'Événements typés et filtrables.'},
  {id:'embeds',label:'Embeds',sub:'Composer, publier, modifier sur place.'},
  {id:'commandes',label:'Commandes',sub:'Commandes de tous les bots.'},
@@ -747,6 +763,36 @@ R.securite=()=>`<div class="grid">
   <div class="row">${S.trap.map((t,i)=>`<span class="tag">${esc(t)} <button data-act="trap-del" data-i="${i}" aria-label="Retirer ${esc(t)}" style="margin-left:6px">×</button></span>`).join('')||'<span class="muted">Aucun salon piège.</span>'}</div>
   <form id="fTrap" class="row" style="margin-top:10px"><div class="fld"><label class="sr" for="trapN">Nom du salon</label><input type="text" id="trapN" placeholder="#nom-du-salon"></div><button class="btn" type="submit">Ajouter</button></form></div>
  </div>`;
+
+/* --- Analyse --- */
+const sum=(a,f)=>a.reduce((t,x)=>t+f(x),0);
+const countBy=(a,f)=>{const m={};a.forEach(x=>{const k=f(x);m[k]=(m[k]||0)+1});return Object.entries(m).sort((x,y)=>y[1]-x[1])};
+const dayFmt=d=>{const p=String(d).split('-');return p.length===3?p[2]+'/'+p[1]:String(d)};
+function demoGuild(){const now=Date.now();return {guildName:'Démonstration',capturedAt:new Date(now).toISOString(),stale:false,rankedMembers:128,
+ daily:Array.from({length:30},(_,i)=>({day:new Date(now-(29-i)*864e5).toISOString().slice(0,10),messages:60+((i*53)%140),joins:(i*7)%5,leaves:(i*3)%3})),
+ top:MEMBERS.slice(0,5).map((m,i)=>({displayName:m,level:12-i,xp:4200-i*610}))}}
+function hbars(rows,total,label){return rows.length?rows.map(([k,n])=>`<div class="hbar"><span>${esc(label(k))}</span><div class="meter"><i style="width:${total?Math.round(n/total*100):0}%"></i></div><span class="tabnum">${n}</span></div>`).join(''):`<div class="empty">Aucun événement reçu pour l’instant.</div>`}
+function guildAnalysis(g){
+ const d=g.daily||[],msg=sum(d,x=>x.messages),jn=sum(d,x=>x.joins),lv=sum(d,x=>x.leaves);
+ const last7=sum(d.slice(-7),x=>x.messages),prev7=sum(d.slice(-14,-7),x=>x.messages);
+ const trend=prev7?Math.round((last7-prev7)/prev7*100):null;
+ const peak=d.reduce((b,x)=>x.messages>(b?b.messages:-1)?x:b,null);
+ const mx=Math.max(1,...d.map(x=>x.messages)),mj=Math.max(1,...d.map(x=>Math.max(x.joins,x.leaves)));
+ const net=jn-lv;
+ return `<div class="blk c12"><h3>${esc(g.guildName||'Serveur')} <small>${g.stale?'données anciennes · ':''}capturé ${ago(Date.parse(g.capturedAt))}</small></h3>
+  <div class="row" style="gap:30px;margin-bottom:14px"><div class="stat"><div class="big tabnum">${msg}</div><div class="muted">messages sur 30 j</div></div><div class="stat"><div class="big tabnum">${d.length?Math.round(msg/d.length):0}</div><div class="muted">par jour en moyenne</div></div><div class="stat"><div class="big tabnum">${peak?peak.messages:'—'}</div><div class="muted">pic${peak?' le '+dayFmt(peak.day):''}</div></div><div class="stat"><div class="big tabnum">${trend===null?'—':(trend>0?'+':'')+trend+' %'}</div><div class="muted">7 derniers jours vs 7 précédents</div></div><div class="stat"><div class="big tabnum">${g.rankedMembers}</div><div class="muted">membres classés</div></div></div>
+  <div class="bars">${d.map(x=>`<i style="height:${Math.max(3,x.messages/mx*100)}%" title="${esc(dayFmt(x.day))} : ${x.messages} messages"></i>`).join('')}</div><div class="axis"><span>${d.length?esc(dayFmt(d[0].day)):''}</span><span>aujourd’hui</span></div></div>
+ <div class="blk c6"><h3>Arrivées et départs <small>solde ${net>0?'+':''}${net} sur 30 j</small></h3>
+  <p class="muted" style="margin-bottom:6px">Arrivées : ${jn}</p><div class="bars" style="height:56px">${d.map(x=>`<i style="height:${Math.max(3,x.joins/mj*100)}%" title="${esc(dayFmt(x.day))} : ${x.joins} arrivées"></i>`).join('')}</div>
+  <p class="muted" style="margin:12px 0 6px">Départs : ${lv}</p><div class="bars" style="height:56px">${d.map(x=>`<i style="height:${Math.max(3,x.leaves/mj*100)}%;opacity:.55" title="${esc(dayFmt(x.day))} : ${x.leaves} départs"></i>`).join('')}</div></div>
+ <div class="blk c6"><h3>Membres les plus actifs <small>par expérience</small></h3>${(g.top||[]).length?`<table class="tbl"><thead><tr><th>#</th><th>Membre</th><th>Niveau</th><th>XP</th></tr></thead><tbody>${g.top.map((m,i)=>`<tr><td class="tabnum">${i+1}</td><td>${esc(m.displayName||'Membre inconnu')}</td><td class="tabnum">${m.level}</td><td class="tabnum">${m.xp}</td></tr>`).join('')}</tbody></table>`:`<div class="empty">Aucun classement reçu pour l’instant.</div>`}</div>`}
+R.analyse=()=>{
+ const gs=isLive()?((L.data&&L.data.activity)||[]):[demoGuild()];
+ const ev=S.logs,tot=ev.length,sev=[0,1,2].map(v=>ev.filter(e=>e.sev===v).length);
+ return `<div class="grid">${gs.length?gs.map(guildAnalysis).join(''):`<div class="blk c12"><h3>Activité du serveur</h3><div class="empty">Aucun instantané reçu. Le bot principal en envoie un toutes les 15 minutes.</div></div>`}
+ <div class="blk c6"><h3>Événements par famille <small>${tot} reçus</small></h3>${hbars(countBy(ev,e=>e.cat),tot,k=>CATS[k]||k)}</div>
+ <div class="blk c6"><h3>Événements par bot</h3>${hbars(countBy(ev,e=>e.bot),tot,k=>botN(k)?botN(k).name:k)}<div class="row" style="margin-top:14px;gap:18px"><span class="sev" style="padding:2px 8px 2px 10px">info ${sev[0]}</span><span class="sev v1" style="padding:2px 8px 2px 10px">attention ${sev[1]}</span><span class="sev v2" style="padding:2px 8px 2px 10px">critique ${sev[2]}</span></div></div>
+ </div>`};
 
 /* --- Journal --- */
 let logQ={q:'',cat:'',sev:'',bot:''};
