@@ -2391,6 +2391,19 @@ export const EXTRA_SLASH_COMMANDS: SlashCommandDef[] = [
     ],
   },
   {
+    name: "charte",
+    description: "SUCK ME : charte du staff à lire et accepter, suivi de ceux qui ne l'ont pas fait",
+    usage: "/charte voir · definir · suivi",
+    category: "SYS+",
+    dmPermission: false,
+    requiresBotProcess: true,
+    options: [
+      sub("voir", "Lis la charte et accepte-la (staff)"),
+      sub("definir", "Admins : écris ou modifie la charte (chacun devra ré-accepter)"),
+      sub("suivi", "Admins : qui n'a pas encore accepté la version en cours"),
+    ],
+  },
+  {
     name: "compteurs",
     description: "SUCK ME : salons compteurs (membres, en vocal, boosts) mis à jour toutes les 10 min",
     usage: "/compteurs installer · retirer · actualiser",
