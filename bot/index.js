@@ -71,6 +71,7 @@ import { handleOrganizationMessage } from "./organization-commands.js";
 import { startOrganizationMaintenance } from "./organization-maintenance.js";
 import { recordAnalyticsMetric, flushAnalyticsMetrics } from "./analytics-buffer.js";
 import { installProcessGuard } from "./process-guard.js";
+import { decideRemoteCommand } from "./remote-control.js";
 import { autoIncidentNotice, recordGuardIncident } from "./systems/sysplus/auto-incidents.js";
 import { setSysPlusAuditObserver } from "./systems/sysplus/audit.js";
 import { freezeRefusal, startFreezeRefresh } from "./staff-freeze-gate.js";
@@ -317,8 +318,26 @@ async function reportStatus() {
       }),
     });
     noteStatusDelivery(res.ok ? null : `HTTP ${res.status}`);
+    // Console du site : la réponse peut contenir un ordre de redémarrage pour CE bot.
+    if (res.ok) handleRemoteCommand(await res.json().catch(() => null));
   } catch (error) { noteStatusDelivery(error?.name === "TimeoutError" ? "délai dépassé (10 s)" : "site injoignable"); }
   finally { reporting = false; }
+}
+// Redémarrage demandé depuis la console du site : arrêt propre, PM2 relance le processus (autorestart).
+// PND_REMOTE_RESTART=off désactive la fonction sur ce bot. Aucune autre action n'existe.
+const handledRemoteCommands = new Set();
+let remoteRestartScheduled = false;
+function handleRemoteCommand(body) {
+  const decision = decideRemoteCommand(body, { now: Date.now(), seen: handledRemoteCommands, enabled: process.env.PND_REMOTE_RESTART !== "off" });
+  if (!decision) return;
+  if (decision.action === "ignore") { record("remote_command_ignored"); return; }
+  if (remoteRestartScheduled) return;
+  remoteRestartScheduled = true;
+  handledRemoteCommands.add(decision.id);
+  record("remote_restart");
+  console.log("[bot] redémarrage demandé depuis la console du site : arrêt propre, PM2 relance le bot.");
+  // Un dernier rapport part d'abord, pour que le journal de la console montre l'événement.
+  setTimeout(() => { void reportStatus().finally(() => process.kill(process.pid, "SIGTERM")); }, 1_000);
 }
 // Log status delivery problems once per outage (with the reason), not on every attempt.
 let statusFailures = 0;

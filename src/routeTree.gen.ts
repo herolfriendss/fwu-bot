@@ -18,6 +18,8 @@ import { Route as InstallationRouteImport } from './routes/installation'
 import { Route as StatutRouteImport } from './routes/statut'
 import { Route as ApiIncidentRouteImport } from './routes/api/incident'
 import { Route as ServeurGuildIdRouteImport } from './routes/serveur.$guildId'
+import { Route as ApiConsoleRestartRouteImport } from './routes/api/console/restart'
+import { Route as ApiConsoleStateRouteImport } from './routes/api/console/state'
 import { Route as ApiPublicActivitySnapshotRouteImport } from './routes/api/public/activity-snapshot'
 import { Route as ApiPublicBotStatusRouteImport } from './routes/api/public/bot-status'
 import { Route as ApiPublicBotSyncRouteImport } from './routes/api/public/bot-sync'
@@ -70,6 +72,16 @@ const ApiIncidentRoute = ApiIncidentRouteImport.update({
 const ServeurGuildIdRoute = ServeurGuildIdRouteImport.update({
   id: '/serveur/$guildId',
   path: '/serveur/$guildId',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiConsoleRestartRoute = ApiConsoleRestartRouteImport.update({
+  id: '/api/console/restart',
+  path: '/api/console/restart',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiConsoleStateRoute = ApiConsoleStateRouteImport.update({
+  id: '/api/console/state',
+  path: '/api/console/state',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiPublicActivitySnapshotRoute =
@@ -126,6 +138,8 @@ export interface FileRoutesByFullPath {
   '/statut': typeof StatutRoute
   '/api/incident': typeof ApiIncidentRoute
   '/serveur/$guildId': typeof ServeurGuildIdRoute
+  '/api/console/restart': typeof ApiConsoleRestartRoute
+  '/api/console/state': typeof ApiConsoleStateRoute
   '/api/public/activity-snapshot': typeof ApiPublicActivitySnapshotRoute
   '/api/public/bot-status': typeof ApiPublicBotStatusRoute
   '/api/public/bot-sync': typeof ApiPublicBotSyncRoute
@@ -145,6 +159,8 @@ export interface FileRoutesByTo {
   '/statut': typeof StatutRoute
   '/api/incident': typeof ApiIncidentRoute
   '/serveur/$guildId': typeof ServeurGuildIdRoute
+  '/api/console/restart': typeof ApiConsoleRestartRoute
+  '/api/console/state': typeof ApiConsoleStateRoute
   '/api/public/activity-snapshot': typeof ApiPublicActivitySnapshotRoute
   '/api/public/bot-status': typeof ApiPublicBotStatusRoute
   '/api/public/bot-sync': typeof ApiPublicBotSyncRoute
@@ -165,6 +181,8 @@ export interface FileRoutesById {
   '/statut': typeof StatutRoute
   '/api/incident': typeof ApiIncidentRoute
   '/serveur/$guildId': typeof ServeurGuildIdRoute
+  '/api/console/restart': typeof ApiConsoleRestartRoute
+  '/api/console/state': typeof ApiConsoleStateRoute
   '/api/public/activity-snapshot': typeof ApiPublicActivitySnapshotRoute
   '/api/public/bot-status': typeof ApiPublicBotStatusRoute
   '/api/public/bot-sync': typeof ApiPublicBotSyncRoute
@@ -186,6 +204,8 @@ export interface FileRouteTypes {
     | '/statut'
     | '/api/incident'
     | '/serveur/$guildId'
+    | '/api/console/restart'
+    | '/api/console/state'
     | '/api/public/activity-snapshot'
     | '/api/public/bot-status'
     | '/api/public/bot-sync'
@@ -205,6 +225,8 @@ export interface FileRouteTypes {
     | '/statut'
     | '/api/incident'
     | '/serveur/$guildId'
+    | '/api/console/restart'
+    | '/api/console/state'
     | '/api/public/activity-snapshot'
     | '/api/public/bot-status'
     | '/api/public/bot-sync'
@@ -224,6 +246,8 @@ export interface FileRouteTypes {
     | '/statut'
     | '/api/incident'
     | '/serveur/$guildId'
+    | '/api/console/restart'
+    | '/api/console/state'
     | '/api/public/activity-snapshot'
     | '/api/public/bot-status'
     | '/api/public/bot-sync'
@@ -244,6 +268,8 @@ export interface RootRouteChildren {
   StatutRoute: typeof StatutRoute
   ApiIncidentRoute: typeof ApiIncidentRoute
   ServeurGuildIdRoute: typeof ServeurGuildIdRoute
+  ApiConsoleRestartRoute: typeof ApiConsoleRestartRoute
+  ApiConsoleStateRoute: typeof ApiConsoleStateRoute
   ApiPublicActivitySnapshotRoute: typeof ApiPublicActivitySnapshotRoute
   ApiPublicBotStatusRoute: typeof ApiPublicBotStatusRoute
   ApiPublicBotSyncRoute: typeof ApiPublicBotSyncRoute
@@ -319,6 +345,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ServeurGuildIdRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/console/restart': {
+      id: '/api/console/restart'
+      path: '/api/console/restart'
+      fullPath: '/api/console/restart'
+      preLoaderRoute: typeof ApiConsoleRestartRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/console/state': {
+      id: '/api/console/state'
+      path: '/api/console/state'
+      fullPath: '/api/console/state'
+      preLoaderRoute: typeof ApiConsoleStateRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/activity-snapshot': {
       id: '/api/public/activity-snapshot'
       path: '/api/public/activity-snapshot'
@@ -388,6 +428,8 @@ const rootRouteChildren: RootRouteChildren = {
   StatutRoute: StatutRoute,
   ApiIncidentRoute: ApiIncidentRoute,
   ServeurGuildIdRoute: ServeurGuildIdRoute,
+  ApiConsoleRestartRoute: ApiConsoleRestartRoute,
+  ApiConsoleStateRoute: ApiConsoleStateRoute,
   ApiPublicActivitySnapshotRoute: ApiPublicActivitySnapshotRoute,
   ApiPublicBotStatusRoute: ApiPublicBotStatusRoute,
   ApiPublicBotSyncRoute: ApiPublicBotSyncRoute,

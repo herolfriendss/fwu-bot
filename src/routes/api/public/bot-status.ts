@@ -18,6 +18,13 @@ export const Route = createFileRoute("/api/public/bot-status")({ server: { handl
     if (times.some((t) => Date.parse(t) > Date.now() + 60_000)) return Response.json({ error: "invalid timestamp" }, { status: 400, headers });
     const { writeRuntimeStatus } = await import("@/lib/bot-status.server");
     await writeRuntimeStatus(result.data);
-    return Response.json({ ok: true }, { headers });
+    // Console du site : un éventuel ordre de redémarrage pour CE bot part dans la réponse (livré une seule fois).
+    // Une panne de cette étape ne doit jamais empêcher l'enregistrement du statut.
+    let command = null;
+    try {
+      const { takePendingCommand } = await import("@/lib/bot-control.server");
+      command = await takePendingCommand(result.data.profile ?? "fwu");
+    } catch { /* table absente avant la migration, ou base injoignable */ }
+    return Response.json({ ok: true, command }, { headers });
   },
 } } });

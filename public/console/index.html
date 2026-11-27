@@ -1,0 +1,1091 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Console FWU</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,300..700&family=Onest:wght@400;500&display=swap" rel="stylesheet">
+<style>
+/* Plan : noir et blanc stricts. Une scène plein écran à deux états (accueil, console),
+   un mot géant « fwu » derrière deux rochers, tout l'état en forme (plein, vide, rayé), jamais en couleur. */
+:root{
+  --noir:#000;
+  --encre:#0a0a0a;
+  --gris-1:#161616;
+  --gris-2:#2a2a2a;
+  --gris-3:#8c8c8c;
+  --blanc:#f2f2f2;
+  --d-font:"Archivo","Arial Narrow",Arial,sans-serif;
+  --b-font:"Onest",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --u:min(calc(100vw / 1440),calc(100vh / 810));
+  --s:calc(100vw / 1440);
+  --out:cubic-bezier(.16,1,.3,1);
+  --line:rgba(242,242,242,.16);
+  --line-2:rgba(242,242,242,.32);
+  color-scheme:dark;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{height:100%;overflow:hidden;background:var(--noir);color:var(--blanc);overscroll-behavior:none}
+body{font-family:var(--b-font);-webkit-font-smoothing:antialiased;font-size:14px;line-height:1.45}
+a{color:inherit;text-decoration:none}
+button,input,select,textarea{font:inherit;color:inherit}
+button{cursor:pointer;background:none;border:0}
+:focus-visible{outline:2px solid var(--blanc);outline-offset:2px}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+
+/* ---------- scène ---------- */
+.stage{position:fixed;inset:0;overflow:hidden;background:var(--noir)}
+.plate{position:absolute;inset:-3%;transform-origin:50% 62%;will-change:transform;overflow:hidden}
+.plate i{position:absolute;display:block}
+.plate .sky{left:0;right:0;top:0;height:46%;background:linear-gradient(115deg,transparent 0 38%,rgba(255,255,255,.1) 46%,rgba(255,255,255,.34) 50%,rgba(255,255,255,.08) 54%,transparent 62%)}
+.plate .disc{left:50%;top:47%;width:34vmax;height:34vmax;transform:translate(-50%,-50%);border-radius:50%;background:radial-gradient(circle,#fff 0 20%,#d6d6d6 31%,rgba(255,255,255,.55) 48%,rgba(255,255,255,.12) 66%,transparent 74%)}
+.plate .gate{left:50%;top:27%;width:36vmax;height:60%;transform:translateX(-50%);background:repeating-linear-gradient(90deg,#000 0 .8vmax,transparent .8vmax 3.3vmax)}
+.plate .lintel{left:50%;top:25%;width:46vmax;height:2.4vmax;transform:translateX(-50%);background:#000;box-shadow:0 1px 0 rgba(255,255,255,.22)}
+.plate .lintel.b{top:30%;width:40vmax;height:1.2vmax}
+.plate .brz{bottom:30%;width:5vmax;height:5vmax;border-radius:50%;background:radial-gradient(circle,rgba(255,255,255,.85) 0,rgba(255,255,255,.18) 40%,transparent 70%);animation:flick 3.4s ease-in-out infinite}
+.plate .brz.l{left:20%}.plate .brz.r{right:20%;animation-delay:-1.3s}
+.plate .floor{left:0;right:0;bottom:0;height:34%;background:linear-gradient(180deg,rgba(0,0,0,0),#000 70%),repeating-linear-gradient(0deg,rgba(255,255,255,.05) 0 1px,transparent 1px 14px)}
+@keyframes flick{0%,100%{opacity:.7}40%{opacity:1}70%{opacity:.8}}
+#fx{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
+.grain{position:absolute;inset:0;pointer-events:none;opacity:.07;mix-blend-mode:screen;background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 .9 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>")}
+.shade{position:absolute;inset:0;pointer-events:none;background:linear-gradient(180deg,rgba(0,0,0,.78),rgba(0,0,0,.2) 24%,rgba(0,0,0,0) 42%,rgba(0,0,0,0) 74%,rgba(0,0,0,.45))}
+.is-s2 .plate{transform:perspective(1400px) translateX(-9%) scale(1.22) rotateY(-6deg)}
+.is-s2 .shade{background:linear-gradient(180deg,rgba(0,0,0,.82),rgba(0,0,0,.55))}
+
+.fg{position:absolute;left:0;right:0;bottom:0;height:calc(810 * var(--s));overflow:hidden;pointer-events:none}
+.word{position:absolute;left:50%;top:calc(224 * var(--s));transform:translateX(-50%);font-family:var(--d-font);font-stretch:125%;font-weight:600;font-size:calc(520 * var(--s));line-height:1;letter-spacing:-.035em;white-space:nowrap;color:var(--blanc)}
+.word span{display:inline-block;transform:scaleX(1.04);transform-origin:left top}
+.word i{display:inline-block;font-style:normal}
+.mounds{position:absolute;bottom:0;width:50%;height:calc(440 * var(--s))}
+.ml{left:0}.mr{right:0}
+.is-s2 .fg,.is-s2 .h1{opacity:0;visibility:hidden}
+
+/* ---------- navigation ---------- */
+.nav{position:absolute;left:0;right:0;top:0;height:calc(86 * var(--u));min-height:64px;display:flex;align-items:center;justify-content:space-between;padding:0 calc(30 * var(--u)) 0 calc(26 * var(--u));z-index:6}
+.logo{display:block;width:max(40px,calc(52 * var(--u)))}
+.logo svg{display:block;width:100%;height:auto}
+.links{display:flex;gap:clamp(18px,calc(64 * var(--u)),64px);list-style:none;margin-left:clamp(20px,calc(300 * var(--u)),300px)}
+.links li{overflow:hidden}
+.links a{display:inline-block;padding:6px 0;line-height:14px;font-size:max(12px,calc(12.5 * var(--u)));font-weight:500;letter-spacing:.02em;opacity:.92;transition:opacity .3s}
+.links a:hover{opacity:.55}
+.navr{display:flex;align-items:center;gap:14px}
+.pill{display:flex;align-items:center;gap:8px;padding:6px 12px;border:1px solid var(--line-2);font-size:12px;font-weight:500;letter-spacing:.02em;background:rgba(0,0,0,.4)}
+.btn-pal{display:flex;align-items:center;gap:10px;padding:6px 12px;border:1px solid var(--line-2);font-size:12px;background:rgba(0,0,0,.4);transition:background .2s,color .2s}
+.btn-pal:hover{background:var(--blanc);color:var(--noir)}
+.btn-pal kbd{font:inherit;opacity:.6;border-left:1px solid currentColor;padding-left:10px}
+.lockbar{position:absolute;left:0;right:0;top:0;z-index:9;display:none;background:var(--blanc);color:var(--noir);text-align:center;font-size:12px;font-weight:500;padding:5px;letter-spacing:.03em}
+.locked .lockbar{display:block}
+
+/* ---------- rail ---------- */
+.rail{position:absolute;left:calc(26 * var(--u));top:max(118px,calc(150 * var(--u)));display:flex;flex-direction:column;gap:6px;z-index:5}
+.rail button{position:relative;width:34px;height:34px;display:grid;place-items:center;border:1px solid transparent;opacity:.75;transition:opacity .2s,border-color .2s,background .2s}
+.rail button svg{width:17px;height:17px;stroke:currentColor;fill:none;stroke-width:1.2}
+.rail button:hover{opacity:1;border-color:var(--line-2)}
+.rail button[aria-current="true"]{opacity:1;background:var(--blanc);color:var(--noir)}
+.rail button span{position:absolute;left:42px;white-space:nowrap;font-size:12px;font-weight:500;background:var(--blanc);color:var(--noir);padding:3px 8px;opacity:0;pointer-events:none;transform:translateX(-4px);transition:opacity .15s,transform .15s}
+.rail button:hover span,.rail button:focus-visible span{opacity:1;transform:none}
+
+/* ---------- accueil ---------- */
+.h1{position:absolute;inset:0;pointer-events:none}
+.h1 .ui{pointer-events:auto}
+.mon{position:absolute;right:calc(36 * var(--u));bottom:max(92px,calc(92 * var(--u)));width:max(190px,calc(214 * var(--u)));padding:12px 14px 10px;border:1px solid var(--line-2);background:rgba(0,0,0,.72);text-align:left;display:block;transition:background .25s,color .25s}
+.mon:hover{background:var(--blanc);color:var(--noir)}
+.mon .row{display:flex;align-items:center;gap:8px;font-size:11px;line-height:1.9;font-weight:500}
+.mon .row b{font-weight:500;flex:1;letter-spacing:.02em}
+.mon .go{display:flex;justify-content:space-between;margin-top:8px;padding-top:7px;border-top:1px solid currentColor;font-size:12px;font-weight:500}
+.mon svg.sp{width:46px;height:12px}
+.caps{position:absolute;left:0;right:0;bottom:calc(14 * var(--u));height:max(44px,calc(40 * var(--u)))}
+.cap{position:absolute;bottom:0;overflow:hidden}
+.cap .mi{display:flex;align-items:center;gap:calc(14 * var(--u))}
+.cap strong{font-family:var(--d-font);font-stretch:104%;font-weight:300;font-size:max(26px,calc(33.3 * var(--u)));line-height:1;font-variant-numeric:tabular-nums}
+.cap em{font-style:normal;border-left:1px solid rgba(242,242,242,.4);padding-left:calc(12 * var(--u));font-size:max(11px,calc(11.6 * var(--u)));line-height:1.3;color:rgba(242,242,242,.82)}
+.cap:nth-child(1){left:calc(37 * var(--u))}.cap:nth-child(2){left:calc(411 * var(--u))}.cap:nth-child(3){left:calc(786 * var(--u))}.cap:nth-child(4){left:calc(1173 * var(--u))}
+
+/* état de pré-chargement */
+.pre .nav .links a,.pre .navr,.pre .rail,.pre .h1 .ui,.pre .fg{opacity:0}
+.pre .plate{transform:scale(1.3)}
+
+/* ---------- console ---------- */
+.s2{position:absolute;inset:0;pointer-events:none}
+.s2 .ui{opacity:0}
+.is-s2 .s2 .ui{opacity:1}
+.is-s2 .s2{pointer-events:auto}
+.console{position:absolute;left:84px;right:26px;top:92px;bottom:20px;display:flex;flex-direction:column;min-height:0;pointer-events:none}
+.console>*{pointer-events:auto}
+.chead{display:flex;align-items:flex-end;justify-content:space-between;gap:20px;padding:0 0 14px;flex-wrap:wrap}
+.chead .t{overflow:hidden;padding-bottom:.1em}
+.chead h2{font-family:var(--d-font);font-stretch:90%;font-weight:400;font-size:clamp(26px,3.3vw,44px);line-height:1.1;text-transform:uppercase;letter-spacing:-.01em}
+.chead h2 span{display:block}
+.chead p{margin-top:6px;font-size:13px;color:rgba(242,242,242,.7);max-width:62ch}
+.demo{display:flex;align-items:center;gap:8px;font-size:12px;border:1px dashed var(--line-2);padding:5px 10px;color:rgba(242,242,242,.8)}
+.cbody{flex:1;min-height:0;overflow-y:auto;overflow-x:hidden;padding:2px 6px 28px 0;scrollbar-width:thin;scrollbar-color:var(--gris-2) transparent}
+.cbody::-webkit-scrollbar{width:8px}.cbody::-webkit-scrollbar-thumb{background:var(--gris-2)}
+.grid{display:grid;gap:14px;grid-template-columns:repeat(12,minmax(0,1fr));align-items:start}
+.c3{grid-column:span 3}.c4{grid-column:span 4}.c5{grid-column:span 5}.c6{grid-column:span 6}.c7{grid-column:span 7}.c8{grid-column:span 8}.c12{grid-column:span 12}
+.blk{background:rgba(8,8,8,.82);border:1px solid var(--line);padding:16px 18px;min-width:0}
+.blk>h3{font-size:13px;font-weight:500;margin-bottom:12px;display:flex;justify-content:space-between;align-items:center;gap:10px}
+.blk>h3 small{font-size:12px;font-weight:400;opacity:.6}
+.muted{color:rgba(242,242,242,.62);font-size:12.5px}
+.big{font-family:var(--d-font);font-stretch:104%;font-weight:300;font-size:44px;line-height:1;font-variant-numeric:tabular-nums}
+
+/* contrôles */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:34px;padding:7px 14px;border:1px solid var(--line-2);font-size:13px;font-weight:500;transition:background .2s,color .2s,border-color .2s}
+.btn:hover{background:var(--blanc);color:var(--noir)}
+.btn.pri{background:var(--blanc);color:var(--noir);border-color:var(--blanc)}
+.btn.pri:hover{background:transparent;color:var(--blanc)}
+.btn.sm{min-height:28px;padding:3px 10px;font-size:12px}
+.btn.danger{border-style:dashed}
+.btn[disabled]{opacity:.35;pointer-events:none}
+.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.fld{display:flex;flex-direction:column;gap:5px;min-width:0;flex:1 1 150px}
+.fld label{font-size:12px;color:rgba(242,242,242,.7)}
+input[type=text],input[type=number],input[type=search],select,textarea{width:100%;background:var(--noir);border:1px solid var(--line-2);padding:8px 10px;font-size:13px;min-height:36px;border-radius:0}
+textarea{resize:vertical;min-height:90px;line-height:1.45}
+select{appearance:none;background-image:linear-gradient(45deg,transparent 50%,#f2f2f2 50%),linear-gradient(135deg,#f2f2f2 50%,transparent 50%);background-position:calc(100% - 16px) 50%,calc(100% - 11px) 50%;background-size:5px 5px;background-repeat:no-repeat;padding-right:28px}
+input::placeholder{color:rgba(242,242,242,.4)}
+input[type=number]{width:74px;min-height:30px;padding:4px 8px}
+.sw{position:relative;width:38px;height:20px;border:1px solid var(--blanc);flex:none;transition:background .2s}
+.sw::after{content:"";position:absolute;top:2px;left:2px;width:14px;height:14px;background:var(--blanc);transition:transform .25s var(--out),background .2s}
+.sw[aria-checked="true"]{background:var(--blanc)}
+.sw[aria-checked="true"]::after{transform:translateX(18px);background:var(--noir)}
+.tog{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:9px 0;border-bottom:1px solid var(--line)}
+.tog:last-child{border-bottom:0}
+.tog b{font-weight:500;font-size:13px;display:block}
+.tog small{display:block;font-size:12px;color:rgba(242,242,242,.6)}
+
+/* tableaux */
+.tbl{width:100%;border-collapse:collapse;font-size:13px}
+.tbl th{font-weight:400;text-align:left;font-size:12px;color:rgba(242,242,242,.6);padding:6px 8px 8px 0;border-bottom:1px solid var(--line-2);white-space:nowrap}
+.tbl td{padding:9px 8px 9px 0;border-bottom:1px solid var(--line);vertical-align:middle}
+.tbl tr:last-child td{border-bottom:0}
+.scroll-x{overflow-x:auto}
+.tabnum{font-variant-numeric:tabular-nums}
+
+/* état en forme : plein = en ligne, vide = hors ligne, rayé = maintenance */
+.dot{display:inline-block;width:11px;height:11px;border-radius:50%;border:1.5px solid var(--blanc);flex:none}
+.dot.on{background:var(--blanc)}
+.dot.off{background:transparent}
+.dot.mt{background:repeating-linear-gradient(135deg,var(--blanc) 0 2px,transparent 2px 4px)}
+.tag{display:inline-block;padding:1px 8px;border:1px solid var(--line-2);font-size:11.5px;white-space:nowrap}
+.tag.f{background:var(--blanc);color:var(--noir);border-color:var(--blanc)}
+.tag.d{border-style:dashed}
+/* gravité : épaisseur du trait à gauche */
+.sev{border-left:1px solid var(--line-2);padding-left:12px}
+.sev.v1{border-left:3px solid rgba(242,242,242,.7)}
+.sev.v2{border-left:6px solid var(--blanc)}
+.alert{display:flex;justify-content:space-between;gap:12px;align-items:flex-start;padding:10px 0 10px 12px;border-bottom:1px solid var(--line)}
+.alert:last-child{border-bottom:0}
+.alert b{font-weight:500;font-size:13px}
+.alert small{display:block;color:rgba(242,242,242,.6);font-size:12px}
+
+/* tuiles de bots */
+.tiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:12px}
+.tile{text-align:left;border:1px solid var(--line);padding:14px;background:rgba(8,8,8,.82);display:flex;flex-direction:column;gap:10px;transition:border-color .2s,background .2s}
+.tile:hover{border-color:var(--blanc)}
+.tile[aria-pressed="true"]{border-color:var(--blanc);background:var(--gris-1)}
+.tile .n{font-family:var(--d-font);font-stretch:110%;font-weight:500;font-size:16px;letter-spacing:.01em;display:flex;align-items:center;gap:9px}
+.tile .px{font-size:12px;color:rgba(242,242,242,.65)}
+.spark{display:block;width:100%;height:28px}
+
+/* barres */
+.bars{display:flex;align-items:flex-end;gap:3px;height:120px;border-bottom:1px solid var(--line-2);background:repeating-linear-gradient(0deg,transparent 0 29px,var(--line) 29px 30px)}
+.bars i{flex:1;background:var(--blanc);min-height:2px;position:relative}
+.bars i:hover{background:var(--gris-3)}
+.axis{display:flex;justify-content:space-between;font-size:11px;color:rgba(242,242,242,.55);margin-top:5px}
+.meter{height:8px;border:1px solid var(--line-2);position:relative}
+.meter i{position:absolute;left:0;top:0;bottom:0;background:var(--blanc)}
+.meter.full i{background:repeating-linear-gradient(135deg,var(--blanc) 0 3px,transparent 3px 6px)}
+
+/* matrice de permissions */
+.cell{display:inline-block;width:14px;height:14px;border:1.5px solid var(--blanc)}
+.cell.y{background:var(--blanc)}
+.cell.q{background:linear-gradient(135deg,var(--blanc) 50%,transparent 50%)}
+.cell.n{opacity:.35}
+.ladder{display:flex;flex-direction:column;gap:6px}
+.step{display:flex;align-items:center;gap:12px;padding:8px 12px;border:1px solid var(--line)}
+.step b{font-family:var(--d-font);font-stretch:110%;font-weight:500;width:56px;font-size:15px;flex:none}
+.step span{flex:1;min-width:0}
+.step small{display:block;font-size:12px;color:rgba(242,242,242,.6)}
+
+/* journal */
+.log{display:grid;grid-template-columns:62px 1fr auto;gap:12px;padding:9px 0 9px 12px;border-bottom:1px solid var(--line);align-items:start}
+.log time{font-size:12px;color:rgba(242,242,242,.6);font-variant-numeric:tabular-nums;padding-top:1px}
+.log p{font-size:13px;overflow-wrap:anywhere}
+.log .meta{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}
+.logs-wrap{max-height:56vh;overflow-y:auto;scrollbar-width:thin;scrollbar-color:var(--gris-2) transparent}
+
+/* aperçu embed */
+.emb{background:#111;border:1px solid var(--line);display:flex;max-width:520px}
+.emb .bar{width:5px;flex:none;background:var(--blanc)}
+.emb .in{padding:12px 14px;min-width:0}
+.emb .nm{font-size:12px;opacity:.7;margin-bottom:6px;display:flex;align-items:center;gap:8px}
+.emb h4{font-size:15px;font-weight:500;margin-bottom:6px}
+.emb p{font-size:13px;white-space:pre-wrap;overflow-wrap:anywhere;color:rgba(242,242,242,.88)}
+.emb .ft{font-size:11.5px;margin-top:10px;opacity:.6}
+pre.code{font-size:12px;line-height:1.55;border:1px solid var(--line);padding:12px;overflow-x:auto;background:var(--noir);white-space:pre-wrap}
+
+/* palette de commandes */
+.pal{position:fixed;inset:0;z-index:30;display:none;align-items:flex-start;justify-content:center;padding-top:14vh;background:rgba(0,0,0,.78)}
+.pal.open{display:flex}
+.pal .box{width:min(620px,calc(100vw - 32px));background:var(--noir);border:1px solid var(--blanc)}
+.pal input{border:0;border-bottom:1px solid var(--line-2);min-height:48px;font-size:15px;padding:12px 16px}
+.pal ul{list-style:none;max-height:46vh;overflow-y:auto}
+.pal li button{display:flex;width:100%;justify-content:space-between;gap:12px;padding:10px 16px;text-align:left;font-size:13px;border-bottom:1px solid var(--line)}
+.pal li button small{opacity:.55;font-size:12px}
+.pal li button[aria-selected="true"]{background:var(--blanc);color:var(--noir)}
+.pal li button[aria-selected="true"] small{opacity:.7}
+.pal .foot{padding:8px 16px;font-size:11.5px;opacity:.55}
+
+/* messages */
+.toasts{position:fixed;left:50%;bottom:22px;transform:translateX(-50%);z-index:40;display:flex;flex-direction:column;gap:8px;align-items:center;width:min(560px,calc(100vw - 32px));pointer-events:none}
+.toast{pointer-events:auto;background:var(--blanc);color:var(--noir);padding:10px 14px;font-size:13px;font-weight:500;width:100%;display:flex;gap:10px;align-items:flex-start;animation:tin .35s var(--out)}
+.toast.err{background:var(--noir);color:var(--blanc);border:1px solid var(--blanc)}
+.toast .x{margin-left:auto;font-size:12px;opacity:.6}
+@keyframes tin{from{opacity:0;transform:translateY(10px)}}
+.empty{padding:22px;border:1px dashed var(--line-2);color:rgba(242,242,242,.65);font-size:13px;text-align:center}
+
+/* ---------- petits écrans ---------- */
+@media (max-width:820px),(max-aspect-ratio:1/1){
+  :root{--u:calc(100vw / 390)}
+  .nav{padding:14px 16px 0;align-items:flex-start;height:auto;flex-wrap:wrap;row-gap:10px}
+  .logo{width:42px}
+  .links{order:3;width:100%;margin:0;justify-content:space-between;gap:8px}
+  .links a{font-size:11px}
+  .pill{display:none}
+  .shade{background:linear-gradient(180deg,rgba(0,0,0,.92),rgba(0,0,0,.62) 30%,rgba(0,0,0,.25) 48%,rgba(0,0,0,0) 60%,rgba(0,0,0,.5))}
+  .rail{top:auto;bottom:0;left:0;right:0;flex-direction:row;gap:2px;padding:6px 10px;overflow-x:auto;background:rgba(0,0,0,.92);border-top:1px solid var(--line);z-index:12}
+  .rail button{flex:none}
+  .rail button span{display:none}
+  .mon{left:18px;right:auto;top:112px;bottom:auto;width:min(210px,56vw);padding:8px 10px}
+    .caps{left:18px;right:18px;bottom:62px;height:auto;display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  .cap{position:static}
+  .cap:nth-child(n){left:auto}
+  .cap strong{font-size:22px}
+  .cap em{font-size:11px}
+  .fg{height:calc(100vw * 810 / 1440 + 192px)}
+  .word{top:calc(40 * var(--s) + 20px)}
+  .console{left:12px;right:12px;top:92px;bottom:58px}
+  .grid>*{grid-column:span 12!important}
+  .chead h2{font-size:26px}
+  .log{grid-template-columns:52px 1fr}
+  .log .meta{grid-column:2;justify-content:flex-start}
+}
+.nb{margin:0 0 14px;padding:9px 12px;border:1px dashed var(--line-2);font-size:12.5px;line-height:1.4;color:rgba(242,242,242,.82)}
+.nb b{font-weight:500;color:var(--blanc)}
+.demo.on{border-style:solid}
+.demo a{color:inherit;text-decoration:underline}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+<div class="lockbar" id="lockbar">Verrouillage d'urgence actif. Les commandes sensibles sont suspendues.</div>
+<main class="stage pre" id="stage">
+  <div class="plate" id="plate"><i class="sky"></i><i class="disc"></i><i class="brz l"></i><i class="brz r"></i><i class="gate"></i><i class="lintel"></i><i class="lintel b"></i><i class="floor"></i></div>
+  <canvas id="fx" aria-hidden="true"></canvas>
+  <div class="grain"></div>
+  <div class="shade"></div>
+
+  <div class="fg" id="fg">
+    <div class="word" id="word" aria-hidden="true"><span><i>f</i><i>w</i><i>u</i></span></div>
+    <svg class="mounds ml" id="mL" viewBox="0 0 720 440" preserveAspectRatio="none" aria-hidden="true">
+      <polygon fill="#050505" points="0,140 60,118 120,130 190,98 262,150 330,172 402,216 470,252 542,302 612,362 684,416 720,440 0,440"/>
+      <polygon fill="#101010" points="0,200 80,168 150,190 230,196 320,236 420,290 520,352 600,408 650,440 0,440"/>
+      <polygon fill="#0a0a0a" points="0,300 110,262 210,300 330,340 440,392 520,440 0,440"/>
+      <polyline fill="none" stroke="#fff" stroke-opacity=".85" stroke-width="1.6" points="0,140 60,118 120,130 190,98 262,150 330,172 402,216 470,252 542,302 612,362 684,416 720,440"/>
+    </svg>
+    <svg class="mounds mr" id="mR" viewBox="0 0 720 440" preserveAspectRatio="none" aria-hidden="true">
+      <g transform="translate(720,0) scale(-1,1)">
+      <polygon fill="#050505" points="0,120 70,92 140,116 215,88 280,138 350,166 420,206 488,248 556,296 626,356 690,410 720,440 0,440"/>
+      <polygon fill="#101010" points="0,190 90,150 160,176 250,190 340,228 436,284 530,346 610,404 660,440 0,440"/>
+      <polygon fill="#0a0a0a" points="0,290 120,250 230,292 340,334 450,388 530,440 0,440"/>
+      <polyline fill="none" stroke="#fff" stroke-opacity=".85" stroke-width="1.6" points="0,120 70,92 140,116 215,88 280,138 350,166 420,206 488,248 556,296 626,356 690,410 720,440"/>
+      </g>
+    </svg>
+  </div>
+
+  <header class="nav" id="nav">
+    <a class="logo" href="#" id="logo" aria-label="Retour à l'accueil">
+      <svg viewBox="0 0 56 56" fill="none" stroke="#f2f2f2" stroke-width="1.6" aria-hidden="true"><circle cx="28" cy="28" r="26"/><circle cx="28" cy="28" r="21" stroke-width=".8" stroke-dasharray="1.5 3"/><path d="M28 14v28M14 28h28" stroke-width="1"/><circle cx="28" cy="28" r="7" fill="#f2f2f2"/></svg>
+    </a>
+    <ul class="links" id="links">
+      <li><a href="#controle" data-go="controle">Contrôle</a></li>
+      <li><a href="#bots" data-go="bots">Bots</a></li>
+      <li><a href="#moderation" data-go="moderation">Modération</a></li>
+      <li><a href="#journal" data-go="journal">Journal</a></li>
+      <li><a href="#reglages" data-go="reglages">Réglages</a></li>
+    </ul>
+    <div class="navr" id="navr">
+      <span class="pill" id="pill"><i class="dot on"></i><span id="pillt">6/6 en ligne</span></span>
+      <button class="btn-pal" id="openPal" type="button" aria-label="Ouvrir la palette de commandes">Rechercher ou agir <kbd>Ctrl K</kbd></button>
+    </div>
+  </header>
+
+  <nav class="rail" id="rail" aria-label="Sections"></nav>
+
+  <section class="h1" id="h1" aria-label="Accueil">
+    <h1 class="sr">Console</h1>
+    <button class="mon ui" id="mon" type="button" aria-label="Ouvrir la console"></button>
+    <div class="caps" id="caps">
+      <div class="cap"><div class="mi ui"><strong id="k1">0</strong><em id="k1l">Bots<br>en ligne</em></div></div>
+      <div class="cap"><div class="mi ui"><strong id="k2">0</strong><em id="k2l">Sanctions<br>24 h</em></div></div>
+      <div class="cap"><div class="mi ui"><strong id="k3">0</strong><em>Alertes<br>ouvertes</em></div></div>
+      <div class="cap"><div class="mi ui"><strong id="k4">0</strong><em>Commandes<br>actives</em></div></div>
+    </div>
+  </section>
+
+  <section class="s2" id="s2" aria-label="Console">
+    <div class="console" id="console">
+      <div class="chead ui" id="chead">
+        <div><div class="t"><h2 id="ctitle"><span id="ctitleIn">Contrôle</span></h2></div><p id="csub"></p></div>
+        <div class="demo" id="demoBadge"><i class="dot mt"></i>Données de démonstration</div>
+      </div>
+      <div class="cbody ui" id="cbody" tabindex="-1"></div>
+    </div>
+  </section>
+</main>
+
+<div class="pal" id="pal" role="dialog" aria-modal="true" aria-label="Palette de commandes">
+  <div class="box">
+    <input type="text" id="palq" placeholder="Aller à une section, couper un bot, activer un mode…" autocomplete="off" aria-label="Rechercher une action">
+    <ul id="pall"></ul>
+    <div class="foot">Flèches pour choisir, Entrée pour lancer, Échap pour fermer.</div>
+  </div>
+</div>
+<div class="toasts" id="toasts" aria-live="polite"></div>
+
+<script>
+"use strict";
+/* =====================================================================
+   Console FWU : état, données de démonstration, rendu des sections.
+   Tout passe par l'objet S. Pour brancher les vrais bots, voir « Réglages ».
+   ===================================================================== */
+const $=(s,r=document)=>r.querySelector(s), $$=(s,r=document)=>[...r.querySelectorAll(s)];
+const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const rnd=(a,b)=>a+Math.floor(Math.random()*(b-a+1)), pick=a=>a[Math.floor(Math.random()*a.length)];
+const MIN=60000, HOUR=3600000;
+const RM=matchMedia('(prefers-reduced-motion: reduce)').matches;
+const pad=(n,l=2)=>String(n).padStart(l,'0');
+const hhmm=ts=>{const d=new Date(ts);return pad(d.getHours())+':'+pad(d.getMinutes())};
+const ago=ts=>{const m=Math.round((Date.now()-ts)/MIN);return m<1?'à l’instant':m<60?`il y a ${m} min`:m<1440?`il y a ${Math.round(m/60)} h`:`il y a ${Math.round(m/1440)} j`};
+const dur=m=>m>=60&&m%60===0?(m/60)+' h':m+' min';
+
+/* ---------- référentiel (repris du projet) ---------- */
+const TIERS=[
+ {id:'owner',pct:'0 %',name:'Owner',d:'Exempté de tous les quotas. Seul à tout régler.'},
+ {id:'all',pct:'1 %',name:'All Access',d:'Staff, accès total.'},
+ {id:'adm',pct:'5 %',name:'Administrateur',d:'Modération complète, avec quotas.'},
+ {id:'mod',pct:'10 %',name:'Modérateur',d:'Tempmute, kick, ban dans ses quotas.'},
+ {id:'test',pct:'50 %',name:'Modérateur test',d:'Quotas les plus faibles.'},
+ {id:'m70',pct:'70 %',name:'Membre 70 %',d:'Aucun pouvoir de modération.'},
+ {id:'m80',pct:'80 %',name:'Membre 80 %',d:'Aucun pouvoir de modération.'},
+ {id:'m100',pct:'100 %',name:'Tous les membres',d:'Rang de base du serveur.'}
+];
+const TIER=id=>TIERS.find(t=>t.id===id);
+const ACTIONS=[ /* 2 oui, 1 oui avec quota, 0 non */
+ {k:'warn',l:'Warn et lecture des sanctions',v:[2,2,2,2,2,0,0,0]},
+ {k:'tm',l:'Tempmute',v:[2,1,1,1,1,0,0,0]},
+ {k:'kick',l:'Kick',v:[2,1,1,1,1,0,0,0]},
+ {k:'ban',l:'Ban',v:[2,1,1,1,0,0,0,0]},
+ {k:'blr',l:'Poser ou lever un BLR',v:[2,2,0,0,0,0,0,0]},
+ {k:'emb',l:'Publier des embeds',v:[2,2,2,0,0,0,0,0]},
+ {k:'logs',l:'Lire les journaux',v:[2,2,2,2,0,0,0,0]},
+ {k:'cfg',l:'Modifier quotas et sanctions',v:[2,0,0,0,0,0,0,0]},
+ {k:'wl',l:'Gérer la whitelist des bots',v:[2,0,0,0,0,0,0,0]}
+];
+const BOTS0=[
+ {id:'fwu',name:'FWU',prefix:'/',st:'on',role:'Modération staff et embeds',pres:'Veille sur le serveur'},
+ {id:'guard',name:'GUARD',prefix:'+',st:'on',role:'Commandes admin, anti-raid, scan',pres:'Protection active'},
+ {id:'fdp',name:'FDPDLAVOC',prefix:';',st:'on',role:'Vocal : déplacements, accès, laisse',pres:'Salons vocaux'},
+ {id:'suck',name:'SUCK ME',prefix:'=',st:'on',role:'Outils staff : rangs, absences, planning',pres:'Outils du staff'},
+ {id:'fisc',name:'LE FISC',prefix:'-',st:'on',role:'Économie : quêtes, boutique, loterie',pres:'Cagnotte du serveur'},
+ {id:'inv',name:'INVEST +',prefix:'$',st:'off',role:'Investissement (rôle à préciser)',pres:''}
+];
+const CMD0=[ /* [bot, nom, description, état] */
+ ['fwu','tempmute','Mute temporaire avec sanction prédéfinie','actif'],['fwu','sanction','Historique des sanctions d’un membre','actif'],
+ ['fwu','warn','Avertir un membre','actif'],['fwu','reglement','Brouillon, validation et publication du règlement','actif'],
+ ['fwu','screening','Écran d’adhésion','actif'],['fwu','embed','Créer ou modifier un embed','actif'],
+ ['fwu','guide','Guide des permissions','prévu'],['fwu','pourquoi','Explique un refus','prévu'],['fwu','dossier','Retrouver un dossier par numéro','prévu'],
+ ['fwu','logs','Rechercher dans les journaux','prévu'],['fwu','statut','État des bots et logs perdus','prévu'],['fwu','presence','Changer la présence d’un bot','prévu'],
+ ['guard','ban','Bannir un membre','actif'],['guard','kick','Expulser un membre','actif'],['guard','blr','Poser ou lever un BLR','prévu'],
+ ['guard','raid','Activer ou couper le mode raid','prévu'],['guard','scan','Audit de sécurité avec score','prévu'],['guard','panic','Verrouillage rapide du serveur','prévu'],
+ ['fdp','mv','Déplace un membre (mention ou identifiant) dans votre vocal','actif'],['fdp','mvall','Déplace tout un vocal vers un autre','prévu'],
+ ['fdp','accessall','Ouvre un vocal privé à tout le monde','prévu'],['fdp','dog','Mettre un membre en laisse','actif'],
+ ['fdp','wakeup','Réveiller un membre en parcourant les vocaux','actif'],['fdp','pull','Ramène un membre dans son vocal','prévu'],
+ ['fdp','swap','Échange deux membres de vocal','prévu'],['fdp','vclear','Vide un vocal','prévu'],['fdp','muteall','Mute tout un vocal','prévu'],
+ ['suck','rank','Donner un rôle à un membre','actif'],['suck','rankall','Donner un rôle à tout un groupe','actif'],
+ ['suck','absence','Déclarer une absence du staff','prévu'],['suck','planning','Planning du staff','prévu'],['suck','note','Note privée sur un membre','prévu'],
+ ['suck','watch','Surveiller un membre','prévu'],['suck','alts','Comptes liés à un membre','prévu'],
+ ['fisc','solde','Voir son solde','actif'],['fisc','boutique','Boutique de rôles perso','prévu'],['fisc','quetes','Quêtes quotidiennes','prévu'],
+ ['fisc','loterie','Loterie du serveur','prévu'],['fisc','classement','Classements saisonniers','prévu']
+];
+const PROT0=[
+ {k:'hier',l:'Hiérarchie : refus si la lecture du membre échoue',d:'Corrige la faille où le contrôle s’ouvrait en cas d’erreur.',on:true},
+ {k:'blr',l:'BLR appliqué sur toute attribution de rôle',d:'Commande, autre bot, action manuelle ou automatique.',on:true},
+ {k:'raid',l:'Détection automatique des afflux',d:'Seuil réglable, sortie auto après une période calme.',on:true},
+ {k:'piege',l:'Salon piège',d:'Quiconque y écrit passe en BLR, avec bouton Pardon pour le staff.',on:false},
+ {k:'nuke',l:'Plafonds anti-nuke',d:'Suppressions de rôles et salons, bans, kicks par minute.',on:true},
+ {k:'drift',l:'Alerte de dérive de permissions',d:'Un rôle existant gagne Administrateur ou Gérer les rôles.',on:false},
+ {k:'bots',l:'Validation de l’Owner pour tout ajout de bot',d:'Bloque l’ajout tant que l’Owner n’a pas validé.',on:true},
+ {k:'hook',l:'Validation de l’Owner pour tout webhook',d:'Signale ou bloque la création de webhooks.',on:false},
+ {k:'tok',l:'Détection de token de bot dans un message',d:'Supprime le message et signale.',on:true},
+ {k:'a2f',l:'Double authentification exigée pour la modération',d:'Alerte si elle n’est plus exigée.',on:false}
+];
+const STAFF=[{h:'Owner',tier:'owner'},{h:'Nox',tier:'all'},{h:'Ange',tier:'adm'},{h:'Kaï',tier:'mod'},{h:'Zed',tier:'test'}];
+const MEMBERS=['loup42','mika','jade_','tomtom','sora','neo','lila','vex','rémi','iris'];
+const CATS={moderation:'Modération',securite:'Sécurité',vocal:'Vocal',roles:'Rôles',systeme:'Système',economie:'Économie',communaute:'Communauté',embeds:'Embeds'};
+
+/* ---------- état ---------- */
+const STORE='fwu-console-v1';
+const S={
+ bots:BOTS0.map(b=>({...b,lat:rnd(38,90),hist:Array.from({length:24},()=>rnd(36,110)),up:b.st==='off'?0:99.4+Math.random()*.6,mt:''})),
+ cmds:CMD0.map(([b,n,d,s])=>({b,n,d,s,on:true})),
+ quotas:{all:{tm:20,kick:12,ban:8},adm:{tm:10,kick:8,ban:4},mod:{tm:4,kick:2,ban:1},test:{tm:2,kick:1,ban:0}},
+ sanctions:[{k:'deplaces',label:'Propos déplacés',min:10},{k:'ins_leg',label:'Insultes légères',min:15},{k:'ins_gra',label:'Insultes graves',min:30},{k:'disc',label:'Discrimination',min:60}],
+ wl:Object.fromEntries(BOTS0.map(b=>[b.id,true])),
+ prot:PROT0.map(p=>({...p})),
+ raid:false,locked:false,thr:{joins:12,secs:10},nuke:{del:5,ban:3},trap:['#piège-1'],
+ dossier:431,actions:[],hist:[],logs:[],alerts:[],blr:[],emb:[],undo:[],
+ voice:[{n:'Salon 1',priv:false,open:false,m:['Nox','loup42','mika']},{n:'Salon 2',priv:true,open:false,m:['Ange','jade_']},{n:'Salon 3',priv:false,open:false,m:['tomtom','neo']},{n:'Salon privé Zed',priv:true,open:false,m:['Zed','sora']},{n:'Salon vide',priv:false,open:false,m:[]}],
+ dogs:[{master:'Nox',leash:'neo'}],
+ live:true,panel:'controle',bot:'fwu',hours:Array.from({length:24},(_,i)=>rnd(2,10)+(i>17?rnd(6,14):0))
+};
+const PERSIST=['cmds','quotas','sanctions','wl','prot','raid','locked','thr','nuke','trap','blr','emb','live'];
+function save(){try{const o={};PERSIST.forEach(k=>o[k]=S[k]);localStorage.setItem(STORE,JSON.stringify(o))}catch(e){}}
+function load(){try{const o=JSON.parse(localStorage.getItem(STORE)||'null');if(o)PERSIST.forEach(k=>{if(o[k]!==undefined)S[k]=o[k]})}catch(e){}}
+
+const TPL=[
+ {c:'moderation',a:'tempmute',s:0,b:'fwu',t:()=>`Tempmute de @${pick(MEMBERS)} par @${pick(STAFF).h} : ${pick(S.sanctions).label.toLowerCase()}`},
+ {c:'moderation',a:'warn',s:0,b:'fwu',t:()=>`Avertissement envoyé à @${pick(MEMBERS)} par @${pick(STAFF).h}`},
+ {c:'moderation',a:'ban',s:1,b:'guard',t:()=>`Ban de @${pick(MEMBERS)} par @${pick(STAFF).h}`},
+ {c:'securite',a:'raid',s:2,b:'guard',t:()=>`Afflux détecté : ${rnd(10,22)} arrivées en 10 s`},
+ {c:'securite',a:'blr',s:1,b:'guard',t:()=>`Rôle tenté sur un BLR (@${pick(MEMBERS)}) : retiré automatiquement`},
+ {c:'vocal',a:'mv',s:0,b:'fdp',t:()=>`@${pick(STAFF).h} a déplacé @${pick(MEMBERS)} dans son vocal`},
+ {c:'vocal',a:'dog',s:0,b:'fdp',t:()=>`Laisse : @${pick(MEMBERS)} a suivi son maître vers ${pick(S.voice).n}`},
+ {c:'roles',a:'rank',s:0,b:'suck',t:()=>`Rôle donné à @${pick(MEMBERS)} par @${pick(STAFF).h}`},
+ {c:'systeme',a:'maj',s:0,b:'fwu',t:()=>`Latence ${rnd(40,95)} ms, aucune erreur répétée`},
+ {c:'economie',a:'quete',s:0,b:'fisc',t:()=>`@${pick(MEMBERS)} a terminé une quête quotidienne`},
+ {c:'embeds',a:'edit',s:0,b:'fwu',t:()=>`Embed « Règlement » mis à jour sur place`}
+];
+function mkEvent(ts,tpl){tpl=tpl||pick(TPL);const e={id:S.logs.length+Math.random(),ts,cat:tpl.c,act:tpl.a,sev:tpl.s,bot:tpl.b,txt:tpl.t()};if(['ban','tempmute'].includes(tpl.a)&&Math.random()>.4)e.dos=S.dossier++;return e}
+function seed(){
+ const now=Date.now();
+ S.logs=Array.from({length:30},(_,i)=>mkEvent(now-i*rnd(2,14)*MIN-i*MIN*3)).sort((a,b)=>b.ts-a.ts);
+ const sn=[['deplaces','loup42','Kaï',22],['ins_leg','mika','Ange',47],['ins_gra','vex','Nox',95],['deplaces','neo','Zed',140],['disc','tomtom','Ange',260],['ins_leg','jade_','Kaï',480],['deplaces','sora','Zed',700]];
+ S.hist=sn.map((x,i)=>{const t=S.sanctions.find(s=>s.k===x[0]);return {dos:S.dossier-1-i-9,type:t.k,label:t.label,min:t.min,target:x[1],actor:x[2],ts:now-x[3]*MIN,reason:'',lifted:false}});
+ S.dossier+=0;
+ S.alerts=[
+  {id:1,sev:2,t:'Afflux d’arrivées : 14 en 10 s',d:'Le mode raid n’est pas activé.',ts:now-6*MIN,open:true,act:'raid'},
+  {id:2,sev:1,t:'Rôle tenté sur un BLR (@vex)',d:'Retiré automatiquement. Auteur à vérifier dans le journal d’audit.',ts:now-31*MIN,open:true},
+  {id:3,sev:1,t:'INVEST + est hors ligne',d:'Aucun battement depuis 12 min.',ts:now-12*MIN,open:true,act:'bot:inv'},
+  {id:4,sev:0,t:'Webhook créé dans #annonces',d:'Création signalée, validation de l’Owner en attente.',ts:now-2*HOUR,open:true}
+ ];
+ S.blr=[{target:'vex',actor:'Nox',reason:'Tentatives répétées',ts:now-3*HOUR,roles:['Helper','Membre 80 %']}];
+ S.emb=[{id:'m-1',title:'Règlement du serveur',desc:'1. Respect de chacun.\n2. Pas d’insultes ni de discrimination.\n3. Pas de publicité sans accord du staff.',foot:'Règlement',chan:'#règlement',tone:'blanc',ts:now-26*HOUR,upd:null}];
+}
+const addLog=(cat,act,sev,bot,txt,dos)=>{if(L.mode==='live')return;S.logs.unshift({id:Math.random(),ts:Date.now(),cat,act,sev,bot,txt,dos});if(S.logs.length>400)S.logs.pop()};
+
+/* ---------- mode réel : lecture du site (/api/console/state), jamais de données inventées ---------- */
+const API_ID={fwu:'fwu',guard:'guard',fdp:'fdpdlavoc',suck:'suckme',fisc:'fisc',inv:'investplus'};
+const UI_ID=Object.fromEntries(Object.entries(API_ID).map(([k,v])=>[v,k]));
+const PM2=id=>id==='fwu'?'her-v5-bot':'fwu-'+API_ID[id];
+const L={mode:'demo',data:null,at:0,err:'',tries:0};
+const isLive=()=>L.mode==='live';
+const ACK_KEY='fwu-console-ack';let ACK=new Set();
+try{ACK=new Set(JSON.parse(localStorage.getItem(ACK_KEY)||'[]'))}catch(e){}
+const saveAck=()=>{try{localStorage.setItem(ACK_KEY,JSON.stringify([...ACK].slice(-200)))}catch(e){}};
+const fmtUp=sec=>{if(sec==null)return '—';const d=Math.floor(sec/86400),h=Math.floor(sec%86400/3600),m=Math.floor(sec%3600/60);return d?`${d} j ${h} h`:h?`${h} h ${pad(m)}`:`${m} min`};
+const RS=b=>b.real?b.real.restart:{phase:'idle',requestedAt:null,requestedBy:null};
+const restarting=()=>S.bots.some(b=>['waiting','sent'].includes(RS(b).phase));
+const UNSYNCED=['moderation','roles','vocal','securite','embeds'];
+
+function deriveAlerts(d){
+ const now=Date.now(),out=[];
+ d.bots.forEach(a=>{const ui=UI_ID[a.id],b=botN(ui);if(!b)return;
+  if(a.state==='unknown'){if(!a.optional)out.push({id:'nosig:'+a.id,sev:1,t:`${b.name} n’a jamais transmis son statut`,d:'Vérifiez BOT_SYNC_SECRET et le processus PM2.',ts:now,act:'bot:'+ui});return}
+  if(a.state==='offline')out.push({id:'off:'+a.id+':'+(a.lastSeen||''),sev:a.reachable?1:2,t:`${b.name} est hors ligne`,d:a.reachable?'Le processus répond mais Discord est déconnecté.':'Plus aucun signal du processus.',ts:a.lastSeen?Date.parse(a.lastSeen):now,act:'bot:'+ui})});
+ d.events.filter(e=>e.severity===2&&now-Date.parse(e.at)<3*HOUR).slice(0,6).forEach(e=>{const b=botN(UI_ID[e.bot]);out.push({id:'ev:'+e.at+e.bot+e.code,sev:2,t:e.label,d:b?b.name:e.bot,ts:Date.parse(e.at)})});
+ S.alerts=out.map(a=>({...a,open:!ACK.has(a.id)})).sort((x,y)=>y.sev-x.sev||y.ts-x.ts)}
+
+function applyLive(d){
+ L.data=d;const by=Object.fromEntries(d.bots.map(b=>[b.id,b]));
+ S.bots.forEach(b=>{const a=by[API_ID[b.id]];b.real=a||null;if(!a){b.st='off';return}
+  b.st=a.state==='online'?'on':'off';b.noSignal=a.state==='unknown';b.prefix=a.prefix||'';b.role=a.summary||b.role;b.pres='';b.mt='';b.lat=null;b.hist=[];b.up=null});
+ S.logs=d.events.map(e=>({id:e.at+e.bot+e.code,ts:Date.parse(e.at),cat:e.category,act:e.code,sev:e.severity,bot:UI_ID[e.bot]||e.bot,txt:e.label}));
+ S.cmds=[];d.bots.forEach(a=>{const ui=UI_ID[a.id];if(!ui)return;
+  (a.commands.slash||[]).forEach(n=>S.cmds.push({b:ui,n,d:'',s:'actif',on:true,k:'/'}));
+  (a.commands.prefix||[]).forEach(n=>S.cmds.push({b:ui,n,d:'',s:'actif',on:true,k:a.prefix||''}))});
+ const now=Date.now();S.hours=Array(24).fill(0);S.logs.forEach(e=>{const h=Math.floor((now-e.ts)/HOUR);if(h>=0&&h<24)S.hours[23-h]++});
+ deriveAlerts(d)}
+
+function paintBadge(){const el=$('#demoBadge');if(!el)return;
+ if(L.mode==='live'){const sec=Math.max(0,Math.round((Date.now()-L.at)/1000));
+  el.className='demo on';el.innerHTML=L.err?`<i class="dot mt"></i>${esc(L.err)}`:`<i class="dot on"></i>En direct · il y a ${sec} s`;return}
+ if(L.mode==='auth'){el.className='demo';el.innerHTML='<i class="dot mt"></i><a href="/connexion">Aperçu · se connecter</a>';return}
+ el.className='demo';el.innerHTML='<i class="dot mt"></i>Données de démonstration'}
+
+const editing=()=>{const a=document.activeElement;return !!(a&&cbody.contains(a)&&/^(INPUT|SELECT|TEXTAREA)$/.test(a.tagName))||!!cbody.querySelector('[data-armed]')};
+function afterLive(){
+ refreshGlobal();paintBadge();
+ if(mode!=='s2'||editing())return;
+ const p=S.panel;
+ if(p==='controle'||p==='bots'||p==='reglages')renderPanel(false,true);
+ else if(p==='journal'&&$('#logList'))$('#logList').innerHTML=logsHTML();
+ else if(p==='commandes'&&$('#cmdList'))$('#cmdList').innerHTML=cmdsHTML()}
+
+async function pull(){
+ try{
+  const r=await fetch('/api/console/state',{credentials:'same-origin',cache:'no-store',headers:{Accept:'application/json'}});
+  if(r.status===401){if(L.mode==='live'){L.err='Session expirée : reconnectez-vous.';paintBadge()}else{L.mode='auth';paintBadge()}return false}
+  if(!r.ok)throw new Error('HTTP '+r.status);
+  const d=await r.json();if(!d||!Array.isArray(d.bots)||!Array.isArray(d.events))throw new Error('réponse inattendue');
+  L.mode='live';L.err='';L.at=Date.now();applyLive(d);afterLive();return true
+ }catch(e){
+  if(L.mode==='live'){L.err='Connexion perdue : dernières données affichées.';paintBadge()}
+  return false}}
+function loop(){
+ const wait=document.hidden?30000:restarting()?3000:10000;
+ setTimeout(async()=>{await pull();loop()},wait)}
+function retryDemo(){ /* hors du site (aperçu hébergé, fichier local) : trois nouvelles tentatives puis on s'arrête */
+ if(L.mode!=='demo'||L.tries>=3)return;const w=[5000,15000,45000][L.tries++];
+ setTimeout(async()=>{if(await pull())loop();else retryDemo()},w)}
+document.addEventListener('visibilitychange',()=>{if(!document.hidden&&L.mode==='live')pull()});
+setInterval(()=>{if(L.mode==='live')paintBadge()},1000);
+
+/* ---------- utilitaires d'affichage ---------- */
+function spark(a,w=120,h=28){const mx=Math.max(...a),mn=Math.min(...a),r=mx-mn||1;const pts=a.map((v,i)=>[i*(w-4)/(a.length-1)+2,h-3-(v-mn)/r*(h-8)]);
+ const d=pts.map((p,i)=>(i?'L':'M')+p[0].toFixed(1)+' '+p[1].toFixed(1)).join('');const l=pts[pts.length-1];
+ return `<svg class="spark" viewBox="0 0 ${w} ${h}" preserveAspectRatio="none" aria-hidden="true"><path d="${d} L${w-2} ${h} L2 ${h}Z" fill="rgba(242,242,242,.12)"/><path d="${d}" fill="none" stroke="#f2f2f2" stroke-width="1.3" vector-effect="non-scaling-stroke"/><path d="M${l[0]} ${l[1]}h0" stroke="#f2f2f2" stroke-width="6" stroke-linecap="round" vector-effect="non-scaling-stroke"/></svg>`}
+const dotc=st=>`<i class="dot ${st}" title="${st==='on'?'En ligne':st==='mt'?'Maintenance':'Hors ligne'}"></i>`;
+const stLabel=st=>st==='on'?'En ligne':st==='mt'?'Maintenance':'Hors ligne';
+const sw=(on,act,data='',label='')=>`<button type="button" class="sw" role="switch" aria-checked="${!!on}" data-act="${act}" ${data} aria-label="${esc(label)}"></button>`;
+const botN=id=>S.bots.find(b=>b.id===id);
+const online=()=>S.bots.filter(b=>b.st==='on').length;
+const evt24=()=>S.hours.reduce((a,b)=>a+b,0);
+const sanc24=()=>S.hist.filter(h=>!h.lifted&&Date.now()-h.ts<24*HOUR).length;
+const openAl=()=>S.alerts.filter(a=>a.open).length;
+const cmdOn=()=>S.cmds.filter(c=>c.on&&botN(c.b).st!=='off').length;
+
+function toast(msg,o={}){const t=document.createElement('div');t.className='toast'+(o.err?' err':'');t.setAttribute('role',o.err?'alert':'status');
+ t.innerHTML=`<span>${esc(msg)}</span><button class="x" type="button" aria-label="Fermer">Fermer</button>`;
+ $('#toasts').appendChild(t);const kill=()=>t.remove();t.querySelector('.x').onclick=kill;setTimeout(kill,o.err?10000:4200)}
+function confirm2(btn,act){ /* double clic de sécurité */
+ if(btn.dataset.armed){delete btn.dataset.armed;return true}
+ btn.dataset.armed='1';const old=btn.textContent;btn.textContent='Confirmer ?';btn.classList.add('pri');
+ setTimeout(()=>{if(btn.dataset.armed){delete btn.dataset.armed;btn.textContent=old;btn.classList.remove('pri')}},3500);return false}
+
+/* ---------- sections ---------- */
+const ICON={
+ controle:'<rect x="2" y="2" width="5" height="5"/><rect x="9" y="2" width="5" height="5"/><rect x="2" y="9" width="5" height="5"/><rect x="9" y="9" width="5" height="5"/>',
+ bots:'<rect x="3" y="5" width="10" height="8" rx="1"/><path d="M8 2v3M6 9h.01M10 9h.01"/>',
+ moderation:'<path d="M8 2l5 2v4c0 3-2.2 5-5 6-2.8-1-5-3-5-6V4z"/><path d="M8 6v4M6 8h4"/>',
+ roles:'<path d="M3 13h10M4 10h8M5 7h6M6.5 4h3"/>',
+ vocal:'<rect x="6" y="2" width="4" height="7" rx="2"/><path d="M3.5 8a4.5 4.5 0 009 0M8 12.5V14"/>',
+ securite:'<circle cx="8" cy="8" r="6"/><path d="M8 4v4l3 2"/>',
+ journal:'<path d="M3 3h10M3 6.5h10M3 10h7M3 13.5h5"/>',
+ embeds:'<rect x="2" y="3" width="12" height="10"/><path d="M2 3v10M5 6h6M5 9h4"/>',
+ commandes:'<path d="M3 4l4 4-4 4M8 12h5"/>',
+ reglages:'<path d="M2 4.5h7M12 4.5h2M2 11.5h2M7 11.5h7"/><circle cx="10.5" cy="4.5" r="1.5"/><circle cx="5.5" cy="11.5" r="1.5"/>'
+};
+const PANELS=[
+ {id:'controle',label:'Contrôle',sub:'Alertes, état des bots, derniers événements.'},
+ {id:'bots',label:'Bots',sub:'État, redémarrage et commandes de chaque bot.'},
+ {id:'moderation',label:'Modération',sub:'Tempmute, sanctions, BLR, quotas par palier.'},
+ {id:'roles',label:'Rôles',sub:'Hiérarchie, droits par palier, whitelist des bots.'},
+ {id:'vocal',label:'Vocal',sub:'Déplacements de masse, accès, laisse, réveil.'},
+ {id:'securite',label:'Sécurité',sub:'Anti-raid, piège, plafonds anti-nuke, verrouillage.'},
+ {id:'journal',label:'Journal',sub:'Événements typés et filtrables.'},
+ {id:'embeds',label:'Embeds',sub:'Composer, publier, modifier sur place.'},
+ {id:'commandes',label:'Commandes',sub:'Commandes de tous les bots.'},
+ {id:'reglages',label:'Réglages',sub:'Connexion, configuration, raccourcis.'}
+];
+const R={};
+
+/* --- Contrôle --- */
+R.controle=()=>{
+ const al=S.alerts.filter(a=>a.open);
+ const ev=S.logs.slice(0,6);
+ const mx=Math.max(...S.hours);
+ return `<div class="grid">
+ <div class="blk c12"><h3>Bots <small>${online()} sur ${S.bots.length} en ligne</small></h3><div class="tiles" id="tiles">${tilesHTML()}</div></div>
+ <div class="blk c7"><h3>À traiter <small>${al.length} ouverte${al.length>1?'s':''}</small></h3>${al.length?al.map(a=>`<div class="alert sev v${a.sev}"><div><b>${esc(a.t)}</b><small>${esc(a.d)} · ${ago(a.ts)}</small></div><div class="row">${a.act==='raid'&&!S.raid?`<button class="btn sm pri" data-act="raid-on">Activer le mode raid</button>`:''}${a.act&&a.act.startsWith('bot:')?`<button class="btn sm" data-act="bot-open" data-id="${a.act.slice(4)}">Voir le bot</button>`:''}<button class="btn sm" data-act="ack" data-id="${a.id}">Acquitter</button></div></div>`).join(''):`<div class="empty">Aucune alerte ouverte. Les prochains événements graves apparaîtront ici.</div>`}</div>
+ <div class="blk c5"><h3>Actions rapides</h3>${isLive()?`<div class="row" style="flex-direction:column;align-items:stretch"><button class="btn" data-go="bots">Redémarrer un bot</button><button class="btn" data-go="journal">Ouvrir le journal</button></div><p class="muted" style="margin-top:10px">Verrouillage d’urgence et mode raid : pas encore reliés au bot.</p>`:`<div class="row" style="flex-direction:column;align-items:stretch">
+  <button class="btn ${S.locked?'pri':'danger'}" data-act="panic">${S.locked?'Lever le verrouillage d’urgence':'Verrouillage d’urgence'}</button>
+  <button class="btn" data-act="raid-toggle">${S.raid?'Couper le mode raid':'Activer le mode raid'}</button>
+  <button class="btn" data-go="moderation">Appliquer un tempmute</button>
+  <button class="btn" data-go="embeds">Publier un embed</button></div>`}</div>
+ <div class="blk c7"><h3>Événements sur 24 h <small>${isLive()?'reçus des bots, derniers 50 par bot':'par heure'}</small></h3><div class="bars">${S.hours.map((v,i)=>`<i style="height:${Math.max(3,v/mx*100)}%" title="${isLive()?`il y a ${23-i} h : ${v}`:`${pad((new Date().getHours()-23+i+24)%24)} h : ${v}`}"></i>`).join('')}</div><div class="axis"><span>il y a 24 h</span><span>maintenant</span></div></div>
+ <div class="blk c5"><h3>Derniers événements <button class="btn sm" data-go="journal">Tout voir</button></h3>${ev.length?ev.map(e=>`<div class="log sev v${e.sev}" style="grid-template-columns:52px 1fr"><time>${hhmm(e.ts)}</time><p>${esc(e.txt)}</p></div>`).join(''):`<div class="empty">Aucun événement reçu pour l’instant.</div>`}</div>
+ ${isLive()?activityHTML():''}
+ </div>`};
+function activityHTML(){
+ const act=(L.data&&L.data.activity)||[];
+ if(!act.length)return `<div class="blk c12"><h3>Activité du serveur</h3><div class="empty">Aucun instantané reçu. Le bot principal en envoie un toutes les 15 minutes.</div></div>`;
+ return act.map(g=>{const mx=Math.max(1,...g.daily.map(d=>d.messages));
+  return `<div class="blk c12"><h3>${esc(g.guildName||'Serveur')} <small>${g.stale?'données anciennes · ':''}capturé ${ago(Date.parse(g.capturedAt))}</small></h3>
+  <div class="row" style="gap:32px;margin-bottom:14px"><div><div class="big tabnum">${g.totals.messages}</div><div class="muted">messages sur 30 j</div></div><div><div class="big tabnum">${g.totals.joins}</div><div class="muted">arrivées</div></div><div><div class="big tabnum">${g.totals.leaves}</div><div class="muted">départs</div></div><div><div class="big tabnum">${g.rankedMembers}</div><div class="muted">membres classés</div></div></div>
+  <div class="bars">${g.daily.map(d=>`<i style="height:${Math.max(3,d.messages/mx*100)}%" title="${esc(d.day)} : ${d.messages} messages"></i>`).join('')}</div><div class="axis"><span>il y a 30 j</span><span>aujourd’hui</span></div></div>`}).join('')}
+function tilesHTML(){return S.bots.map(b=>`<button type="button" class="tile" data-act="bot-open" data-id="${b.id}" aria-pressed="false"><span class="n">${dotc(b.st)}${esc(b.name)}</span><span class="px">${b.prefix?`Préfixe ${esc(b.prefix)}`:isLive()?'Commandes /':'Préfixe à définir'} · ${b.st==='off'?(b.noSignal?'aucun signal':'—'):isLive()?fmtUp(b.real&&b.real.uptimeSeconds):b.lat+' ms'}</span>${isLive()?'':spark(b.hist)}</button>`).join('')}
+
+/* --- Bots --- */
+const RPH={waiting:'Ordre déposé. Le bot le lit à son prochain signal (20 s au plus).',sent:'Ordre reçu : arrêt propre, PM2 relance le bot.',stalled:'Le bot n’est pas revenu après 3 min. Vérifiez PM2 sur le serveur.',expired:'Ordre expiré sans être lu. Le bot ne répond plus ?'};
+function botsLive(b){
+ const a=b.real,rs=RS(b),ph=rs.phase,busy=ph==='waiting'||ph==='sent',can=!!(a&&a.reachable)&&!busy;
+ const cs=S.cmds.filter(c=>c.b===b.id);
+ const msg=!a||!a.reachable?`Ce bot ne transmet plus son statut : il ne peut pas lire l’ordre. Sur le serveur : pm2 restart ${PM2(b.id)}`
+  :RPH[ph]?RPH[ph]:ph==='restarted'?`Dernier redémarrage demandé ${ago(Date.parse(rs.requestedAt))} : terminé.`:'Arrêt propre, puis relance automatique par PM2 (20 à 40 s).';
+ return `<div class="grid">
+ <div class="blk c4"><h3>Bots</h3><div class="tiles" style="grid-template-columns:1fr" id="tiles2">${S.bots.map(x=>`<button type="button" class="tile" data-act="bot-pick" data-id="${x.id}" aria-pressed="${x.id===b.id}"><span class="n">${dotc(x.st)}${esc(x.name)}</span><span class="px">${esc(x.role)}</span></button>`).join('')}</div></div>
+ <div class="blk c8"><h3>${esc(b.name)} <small>${b.noSignal?'Aucun signal':stLabel(b.st)}</small></h3>
+  <div class="row" style="margin-bottom:14px;gap:32px"><div><div class="big tabnum">${a&&a.uptimeSeconds!=null?fmtUp(a.uptimeSeconds):'—'}</div><div class="muted">en ligne depuis</div></div><div><div class="big tabnum">${a&&a.lastSeen?ago(Date.parse(a.lastSeen)).replace('il y a ',''):'—'}</div><div class="muted">dernier signal</div></div><div><div class="big tabnum">${a?a.guilds.length:'—'}</div><div class="muted">serveur${a&&a.guilds.length>1?'s':''}</div></div></div>
+  <div class="tog"><div><b>Redémarrer ${esc(b.name)}</b><small>${esc(msg)}</small></div><button type="button" class="btn danger" data-act="restart" data-id="${b.id}" ${can?'':'disabled'}>${busy?'En cours…':'Redémarrer'}</button></div>
+  <div class="tog"><div><b>Préfixe</b><small>${b.prefix?esc(b.prefix):'Aucun : commandes slash uniquement'}</small></div></div>
+  ${a&&a.guilds.length?`<div class="tog"><div><b>Serveurs</b><small>${a.guilds.map(g=>esc(g.name)).join(', ')}</small></div></div>`:''}
+  <p class="muted" style="margin-top:10px">Maintenance, présence et interrupteurs de commandes : pas encore reliés au bot.</p>
+ </div>
+ <div class="blk c12"><h3>Commandes de ${esc(b.name)} <small>${cs.length}</small></h3>${cs.length?`<div class="scroll-x"><table class="tbl"><thead><tr><th>Commande</th><th>Type</th></tr></thead><tbody>${cs.map(c=>`<tr><td><b>${esc(c.k+c.n)}</b></td><td>${c.k==='/'?'Slash':'Préfixe'}</td></tr>`).join('')}</tbody></table></div>`:`<div class="empty">Aucune commande déclarée pour ce bot.</div>`}</div>
+ </div>`}
+R.bots=()=>{
+ const b=botN(S.bot);if(isLive())return botsLive(b);const cs=S.cmds.filter(c=>c.b===b.id);
+ return `<div class="grid">
+ <div class="blk c4"><h3>Bots</h3><div class="tiles" style="grid-template-columns:1fr" id="tiles2">${S.bots.map(x=>`<button type="button" class="tile" data-act="bot-pick" data-id="${x.id}" aria-pressed="${x.id===b.id}"><span class="n">${dotc(x.st)}${esc(x.name)}</span><span class="px">${esc(x.role)}</span></button>`).join('')}</div></div>
+ <div class="blk c8"><h3>${esc(b.name)} <small>${stLabel(b.st)}</small></h3>
+  <div class="row" style="margin-bottom:14px"><div style="flex:1;min-width:200px"><div class="big tabnum" id="latBig">${b.st==='off'?'—':b.lat}</div><div class="muted">millisecondes de latence</div></div><div style="flex:1;min-width:200px" id="latSp">${spark(b.hist,220,44)}</div></div>
+  <div class="tog"><div><b>Connexion</b><small>Un bot hors ligne ne répond plus à aucune commande.</small></div>${sw(b.st!=='off','bot-conn',`data-id="${b.id}"`,'Connexion de '+b.name)}</div>
+  <div class="tog"><div><b>Mode maintenance</b><small>Les membres voient un message clair, les commandes sont suspendues.</small></div>${sw(b.st==='mt','bot-mt',`data-id="${b.id}"`,'Maintenance de '+b.name)}</div>
+  <div class="row" style="margin:12px 0 4px"><div class="fld"><label for="mtmsg">Message de maintenance</label><input type="text" id="mtmsg" value="${esc(b.mt)}" placeholder="Retour prévu dans quelques minutes." data-in="mtmsg" data-id="${b.id}"></div>
+   <div class="fld"><label for="pres">Présence affichée</label><input type="text" id="pres" value="${esc(b.pres)}" data-in="pres" data-id="${b.id}"></div>
+   <div class="fld" style="flex:0 0 100px"><label for="pfx">Préfixe</label><input type="text" id="pfx" maxlength="2" value="${esc(b.prefix)}" placeholder="?" data-in="pfx" data-id="${b.id}"></div></div>
+  <p class="muted">Rôle : ${esc(b.role)}. Disponibilité sur 30 jours : ${b.st==='off'?'—':b.up.toFixed(2)+' %'}.</p>
+ </div>
+ <div class="blk c12"><h3>Commandes de ${esc(b.name)} <small>${cs.filter(c=>c.on).length} actives sur ${cs.length}</small></h3>${cs.length?`<div class="scroll-x"><table class="tbl"><thead><tr><th>Commande</th><th>Description</th><th>État</th><th>Interrupteur</th></tr></thead><tbody>${cs.map(c=>`<tr><td><b>${esc((c.b==='fwu'?'/':b.prefix)+c.n)}</b></td><td>${esc(c.d)}</td><td><span class="tag ${c.s==='actif'?'f':'d'}">${c.s==='actif'?'En service':'Prévue'}</span></td><td>${sw(c.on,'cmd-toggle',`data-k="${c.b}:${c.n}"`,'Activer '+c.n)}</td></tr>`).join('')}</tbody></table></div>`:`<div class="empty">Aucune commande renseignée pour ce bot. Ajoutez-les depuis le registre, ou branchez l’API.</div>`}</div>
+ </div>`};
+
+/* --- Modération --- */
+function qUsage(actor,type){const w=type==='tm'?30*MIN:24*HOUR;return S.actions.filter(a=>a.actor===actor&&a.type===type&&Date.now()-a.ts<w).length}
+function qLimit(tier,type){if(tier==='owner')return Infinity;const q=S.quotas[tier];return q?q[type]:0}
+R.moderation=()=>{
+ return `<div class="grid">
+ <div class="blk c7"><h3>Appliquer un tempmute</h3>
+  <form id="fTm" class="row" style="align-items:flex-end">
+   <div class="fld"><label for="tmA">Modérateur</label><select id="tmA">${STAFF.map(s=>`<option value="${s.h}" ${s.h===lastActor?'selected':''}>${s.h} (${TIER(s.tier).pct})</option>`).join('')}</select></div>
+   <div class="fld"><label for="tmT">Membre ciblé</label><input type="text" id="tmT" placeholder="@membre ou identifiant à 18 chiffres" autocomplete="off"></div>
+   <div class="fld"><label for="tmS">Sanction</label><select id="tmS">${S.sanctions.map(s=>`<option value="${s.k}">${esc(s.label)} (${dur(s.min)})</option>`).join('')}</select></div>
+   <div class="fld" style="flex-basis:100%"><label for="tmR">Raison (visible dans les logs du staff uniquement)</label><input type="text" id="tmR" placeholder="Contexte de la sanction"></div>
+   <button class="btn pri" type="submit">Appliquer le tempmute</button>
+  </form><p class="muted" style="margin-top:10px">Le quota du modérateur est vérifié avant l’action. L’Owner et les bots de la whitelist ne sont jamais limités.</p></div>
+ <div class="blk c5"><h3>Quotas consommés <small>fenêtre glissante</small></h3><div id="quotaUse">${quotaUseHTML()}</div></div>
+ <div class="blk c12"><h3>Historique des sanctions <small id="hcount"></small></h3>
+  <div class="row" style="margin-bottom:10px"><div class="fld"><label class="sr" for="hq">Rechercher</label><input type="search" id="hq" placeholder="Membre, modérateur ou numéro de dossier" data-in="hq"></div>
+   <div class="fld" style="flex:0 0 190px"><label class="sr" for="hf">Type</label><select id="hf" data-in="hf"><option value="">Toutes les sanctions</option>${S.sanctions.map(s=>`<option value="${s.k}">${esc(s.label)}</option>`).join('')}</select></div></div>
+  <div class="scroll-x" id="hlist"></div></div>
+ <div class="blk c6"><h3>BLR <small>${S.blr.length} actif${S.blr.length>1?'s':''}</small></h3>
+  <p class="muted" style="margin-bottom:10px">Le membre perd tous ses rôles sauf le rôle membre, et aucun rôle supérieur ne peut lui être redonné, quelle que soit la méthode. Réservé aux paliers 0 % et 1 % (à confirmer).</p>
+  <form id="fBlr" class="row" style="align-items:flex-end"><div class="fld"><label for="bA">Auteur</label><select id="bA">${STAFF.map(s=>`<option value="${s.h}">${s.h} (${TIER(s.tier).pct})</option>`).join('')}</select></div>
+   <div class="fld"><label for="bT">Membre</label><input type="text" id="bT" placeholder="@membre ou identifiant"></div><button class="btn pri" type="submit">Poser un BLR</button></form>
+  <div style="margin-top:12px" id="blrList">${blrHTML()}</div></div>
+ <div class="blk c6"><h3>Sanctions prédéfinies <small>durées modifiables</small></h3>
+  ${S.sanctions.map((s,i)=>`<div class="tog"><div><b>${esc(s.label)}</b></div><div class="row" style="flex-wrap:nowrap"><input type="number" min="1" max="1440" value="${s.min}" aria-label="Durée en minutes de ${esc(s.label)}" data-in="smin" data-i="${i}"><span class="muted">min</span></div></div>`).join('')}
+  <h3 style="margin:20px 0 6px">Quotas par palier <small>valeurs de départ à ajuster</small></h3>
+  <div class="scroll-x"><table class="tbl"><thead><tr><th>Palier</th><th>Tempmute / 30 min</th><th>Kick / jour</th><th>Ban / jour</th></tr></thead><tbody>
+  ${['all','adm','mod','test'].map(t=>`<tr><td>${TIER(t).pct} ${TIER(t).name}</td>${['tm','kick','ban'].map(k=>`<td><input type="number" min="0" max="99" value="${S.quotas[t][k]}" aria-label="${k} pour ${TIER(t).name}" data-in="quota" data-t="${t}" data-k="${k}"></td>`).join('')}</tr>`).join('')}
+  <tr><td>0 % Owner</td><td colspan="3" class="muted">Illimité, comme les bots whitelistés.</td></tr></tbody></table></div></div>
+ </div>`};
+function quotaUseHTML(){return STAFF.filter(s=>s.tier!=='owner').map(s=>['tm','kick','ban'].map(k=>{const lim=qLimit(s.tier,k),u=qUsage(s.h,k);return {s,k,lim,u}})).map(rows=>`<div style="margin-bottom:12px"><div class="row" style="justify-content:space-between"><b style="font-weight:500;font-size:13px">${rows[0].s.h}</b><span class="muted">${TIER(rows[0].s.tier).name}</span></div>${rows.map(r=>`<div class="row" style="flex-wrap:nowrap;gap:10px;margin-top:5px"><span class="muted" style="width:60px">${r.k==='tm'?'Tempmute':r.k==='kick'?'Kick':'Ban'}</span><div class="meter ${r.lim>0&&r.u>=r.lim?'full':''}" style="flex:1"><i style="width:${r.lim?Math.min(100,r.u/r.lim*100):100}%"></i></div><span class="tabnum muted" style="width:42px;text-align:right">${r.u}/${r.lim}</span></div>`).join('')}</div>`).join('')}
+function blrHTML(){return S.blr.length?`<table class="tbl"><tbody>${S.blr.map((b,i)=>`<tr><td><b>@${esc(b.target)}</b><div class="muted">par ${esc(b.actor)}, ${ago(b.ts)}${b.reason?' · '+esc(b.reason):''}</div></td><td style="text-align:right"><button class="btn sm" data-act="blr-lift" data-i="${i}">Lever</button></td></tr>`).join('')}</tbody></table>`:`<div class="empty">Aucun BLR actif.</div>`}
+function histHTML(){
+ const q=($('#hq')?.value||'').toLowerCase().trim(),f=$('#hf')?.value||'';
+ const rows=S.hist.filter(h=>(!f||h.type===f)&&(!q||('@'+h.target+' '+h.actor+' #'+h.dos+' '+h.label).toLowerCase().includes(q)));
+ const c=$('#hcount');if(c)c.textContent=rows.length+' résultat'+(rows.length>1?'s':'');
+ return rows.length?`<table class="tbl"><thead><tr><th>Dossier</th><th>Membre</th><th>Sanction</th><th>Durée</th><th>Par</th><th>Quand</th><th></th></tr></thead><tbody>${rows.map(h=>`<tr><td class="tabnum">#${pad(h.dos,4)}</td><td>@${esc(h.target)}</td><td>${esc(h.label)}</td><td>${dur(h.min)}</td><td>${esc(h.actor)}</td><td class="muted">${ago(h.ts)}</td><td style="text-align:right">${h.lifted?'<span class="tag d">Levée</span>':Date.now()<h.ts+h.min*MIN?`<button class="btn sm" data-act="unmute" data-d="${h.dos}">Lever</button>`:'<span class="tag">Expirée</span>'}</td></tr>`).join('')}</tbody></table>`:`<div class="empty">Aucune sanction ne correspond. Modifiez la recherche ou le type.</div>`}
+const validTarget=v=>/^<@!?\d{17,20}>$|^@\S{2,32}$|^\d{17,20}$/.test(v.trim());
+
+/* --- Rôles --- */
+R.roles=()=>`<div class="grid">
+ <div class="blk c5"><h3>Hiérarchie <small>0 % est le plus rare</small></h3><div class="ladder">${TIERS.map(t=>`<div class="step"><b>${t.pct}</b><span>${esc(t.name)}<small>${esc(t.d)}</small></span></div>`).join('')}</div></div>
+ <div class="blk c7"><h3>Droits par palier <small><i class="cell y"></i> oui <i class="cell q" style="margin-left:8px"></i> avec quota <i class="cell n" style="margin-left:8px"></i> non</small></h3>
+  <div class="scroll-x"><table class="tbl"><thead><tr><th>Action</th>${TIERS.map(t=>`<th title="${esc(t.name)}">${t.pct}</th>`).join('')}</tr></thead><tbody>${ACTIONS.map(a=>`<tr><td>${esc(a.l)}</td>${a.v.map((v,i)=>`<td><span class="cell ${v===2?'y':v===1?'q':'n'}" role="img" aria-label="${v===2?'oui':v===1?'avec quota':'non'} pour ${esc(TIERS[i].name)}"></span></td>`).join('')}</tr>`).join('')}</tbody></table></div>
+  <p class="muted" style="margin-top:10px">Le droit de poser un BLR est une hypothèse du prompt V2, à confirmer.</p></div>
+ <div class="blk c12"><h3>Whitelist des bots <small>un bot whitelisté contourne les quotas</small></h3>
+  ${S.bots.map(b=>`<div class="tog"><div><b>${esc(b.name)}</b><small>${esc(b.role)}</small></div>${sw(S.wl[b.id],'wl',`data-id="${b.id}"`,'Whitelist de '+b.name)}</div>`).join('')}</div>
+ </div>`;
+
+/* --- Vocal --- */
+R.vocal=()=>{
+ const opts=S.voice.map((v,i)=>`<option value="${i}">${esc(v.n)} (${v.m.length})</option>`).join('');
+ return `<div class="grid">
+ <div class="blk c7"><h3>Salons vocaux <small>${S.voice.reduce((a,v)=>a+v.m.length,0)} connectés</small></h3>
+  ${S.voice.map((v,i)=>`<div class="tog"><div><b>${esc(v.n)} ${v.priv?'<span class="tag d">Privé</span>':''} ${v.open?'<span class="tag f">Ouvert à tous</span>':''}</b><small>${v.m.length?v.m.map(m=>'@'+esc(m)).join(', '):'Personne'}</small></div>${v.priv?`<button class="btn sm" data-act="accessall" data-i="${i}">${v.open?'Restaurer les accès':'Ouvrir à tous'}</button>`:''}</div>`).join('')}</div>
+ <div class="blk c5"><h3>Déplacer tout un vocal</h3>
+  <div class="fld"><label for="mvS">Salon source</label><select id="mvS" data-in="mvprev">${opts}</select></div>
+  <div class="fld" style="margin-top:10px"><label for="mvT">Salon cible</label><select id="mvT" data-in="mvprev">${opts.replace('value="1"','value="1" selected')}</select></div>
+  <p class="muted" id="mvPrev" style="margin:10px 0"></p>
+  <div class="row"><button class="btn pri" data-act="mvall">Déplacer</button><button class="btn" data-act="undo" ${S.undo.length?'':'disabled'}>Annuler la dernière action de masse</button></div></div>
+ <div class="blk c7"><h3>Laisse <small>le membre suit son maître</small></h3>
+  ${S.dogs.length?S.dogs.map((d,i)=>{const mc=S.voice.findIndex(v=>v.m.includes(d.master)),lc=S.voice.findIndex(v=>v.m.includes(d.leash));return `<div class="tog"><div><b>@${esc(d.leash)} suit @${esc(d.master)}</b><small>${mc<0||lc<0?'Un des deux n’est pas en vocal.':mc===lc?'Même salon : '+esc(S.voice[mc].n):'Écart : '+esc(S.voice[lc].n)+' contre '+esc(S.voice[mc].n)}</small></div><div class="row" style="flex-wrap:nowrap"><select aria-label="Déplacer le maître" data-in="dogmove" data-i="${i}" style="min-width:140px"><option value="">Déplacer le maître…</option>${opts}</select><button class="btn sm" data-act="dog-del" data-i="${i}">Retirer</button></div></div>`}).join(''):`<div class="empty">Aucune laisse en cours.</div>`}
+  <form id="fDog" class="row" style="margin-top:12px;align-items:flex-end"><div class="fld"><label for="dM">Maître</label><input type="text" id="dM" placeholder="@maître"></div><div class="fld"><label for="dL">En laisse</label><input type="text" id="dL" placeholder="@membre"></div><button class="btn" type="submit">Mettre en laisse</button></form></div>
+ <div class="blk c5"><h3>Test du réveil <small>simulation</small></h3>
+  <p class="muted" style="margin-bottom:10px">Un seul message privé au début, parcours des salons, puis retour au salon d’origine.</p>
+  <div class="row"><div class="fld"><label class="sr" for="wkT">Membre</label><input type="text" id="wkT" placeholder="@membre"></div><button class="btn" data-act="wake">Simuler</button></div>
+  <div id="wkOut" style="margin-top:10px"></div></div>
+ </div>`};
+
+/* --- Sécurité --- */
+const score=()=>Math.round(S.prot.filter(p=>p.on).length/S.prot.length*100);
+R.securite=()=>`<div class="grid">
+ <div class="blk c4"><h3>Score de sécurité</h3><div class="big tabnum" id="scoreBig">${score()}</div><div class="muted" style="margin:6px 0 12px">sur 100, selon les protections actives</div><div class="meter"><i id="scoreBar" style="width:${score()}%"></i></div>
+  <div class="row" style="margin-top:16px;flex-direction:column;align-items:stretch"><button class="btn ${S.locked?'pri':'danger'}" data-act="panic">${S.locked?'Lever le verrouillage d’urgence':'Verrouillage d’urgence'}</button></div></div>
+ <div class="blk c8"><h3>Protections <small>${S.prot.filter(p=>p.on).length} actives sur ${S.prot.length}</small></h3>${S.prot.map(p=>`<div class="tog"><div><b>${esc(p.l)}</b><small>${esc(p.d)}</small></div>${sw(p.on,'prot',`data-k="${p.k}"`,p.l)}</div>`).join('')}</div>
+ <div class="blk c6"><h3>Mode raid</h3>
+  <div class="tog"><div><b>Mode raid manuel</b><small>Ferme les invitations, durcit la vérification, met les comptes récents en quarantaine.</small></div>${sw(S.raid,'raid-toggle','','Mode raid')}</div>
+  <div class="row" style="margin-top:12px"><div class="fld"><label for="rj">Arrivées déclenchant l’alerte</label><input type="number" id="rj" min="2" max="200" value="${S.thr.joins}" data-in="thr" data-k="joins"></div><div class="fld"><label for="rs">Fenêtre en secondes</label><input type="number" id="rs" min="2" max="120" value="${S.thr.secs}" data-in="thr" data-k="secs"></div></div></div>
+ <div class="blk c6"><h3>Plafonds anti-nuke <small>par personne et par minute</small></h3>
+  <div class="row"><div class="fld"><label for="nd">Suppressions de rôles ou salons</label><input type="number" id="nd" min="1" max="50" value="${S.nuke.del}" data-in="nuke" data-k="del"></div><div class="fld"><label for="nb">Bans et kicks</label><input type="number" id="nb" min="1" max="50" value="${S.nuke.ban}" data-in="nuke" data-k="ban"></div></div>
+  <p class="muted" style="margin-top:10px">Au-delà du plafond, les pouvoirs de la personne sont retirés et le staff est alerté.</p>
+  <h3 style="margin:18px 0 8px">Salons pièges</h3>
+  <div class="row">${S.trap.map((t,i)=>`<span class="tag">${esc(t)} <button data-act="trap-del" data-i="${i}" aria-label="Retirer ${esc(t)}" style="margin-left:6px">×</button></span>`).join('')||'<span class="muted">Aucun salon piège.</span>'}</div>
+  <form id="fTrap" class="row" style="margin-top:10px"><div class="fld"><label class="sr" for="trapN">Nom du salon</label><input type="text" id="trapN" placeholder="#nom-du-salon"></div><button class="btn" type="submit">Ajouter</button></form></div>
+ </div>`;
+
+/* --- Journal --- */
+let logQ={q:'',cat:'',sev:'',bot:''};
+function logsHTML(){
+ const q=logQ.q.toLowerCase().trim();
+ const rows=S.logs.filter(e=>(!logQ.cat||e.cat===logQ.cat)&&(logQ.sev===''||e.sev===+logQ.sev)&&(!logQ.bot||e.bot===logQ.bot)&&(!q||(e.txt+' '+(e.dos?('#'+e.dos):'')+' '+e.act).toLowerCase().includes(q))).slice(0,150);
+ const c=$('#lcount');if(c)c.textContent=rows.length+' événement'+(rows.length>1?'s':'');
+ return rows.length?rows.map(e=>`<div class="log sev v${e.sev}"><time title="${new Date(e.ts).toLocaleString('fr-FR')}">${hhmm(e.ts)}</time><p>${esc(e.txt)}</p><div class="meta">${e.dos?`<span class="tag f">#${pad(e.dos,4)}</span>`:''}<span class="tag">${CATS[e.cat]}</span><span class="tag d">${esc(botN(e.bot)?.name||e.bot)}</span></div></div>`).join(''):`<div class="empty">Aucun événement ne correspond à ces filtres.</div>`}
+R.journal=()=>`<div class="grid"><div class="blk c12"><h3>Événements <small id="lcount"></small></h3>
+ <div class="row" style="margin-bottom:12px">
+  <div class="fld" style="flex:2 1 220px"><label class="sr" for="lq">Rechercher</label><input type="search" id="lq" placeholder="Texte, action ou numéro de dossier (#0432)" value="${esc(logQ.q)}" data-in="lq"></div>
+  <div class="fld"><label class="sr" for="lc">Catégorie</label><select id="lc" data-in="lc"><option value="">Toutes les catégories</option>${Object.entries(CATS).map(([k,v])=>`<option value="${k}" ${logQ.cat===k?'selected':''}>${v}</option>`).join('')}</select></div>
+  <div class="fld"><label class="sr" for="ls">Gravité</label><select id="ls" data-in="ls"><option value="">Toutes les gravités</option><option value="0" ${logQ.sev==='0'?'selected':''}>Info</option><option value="1" ${logQ.sev==='1'?'selected':''}>Attention</option><option value="2" ${logQ.sev==='2'?'selected':''}>Critique</option></select></div>
+  <div class="fld"><label class="sr" for="lb">Bot</label><select id="lb" data-in="lb"><option value="">Tous les bots</option>${S.bots.map(b=>`<option value="${b.id}" ${logQ.bot===b.id?'selected':''}>${esc(b.name)}</option>`).join('')}</select></div>
+ </div>
+ <div class="row" style="margin-bottom:10px;justify-content:space-between"><div class="row"><span class="muted">Gravité :</span><span class="sev" style="padding:2px 8px 2px 10px">info</span><span class="sev v1" style="padding:2px 8px 2px 10px">attention</span><span class="sev v2" style="padding:2px 8px 2px 10px">critique</span></div>
+  <div class="row">${isLive()?'':`<div class="muted" style="display:flex;gap:10px;align-items:center">Flux en direct ${sw(S.live,'live','','Flux en direct')}</div>`}<button class="btn sm" data-act="csv">Copier en CSV</button></div></div>
+ ${isLive()?'<p class="muted" style="margin-bottom:10px">Codes d’événements fixes envoyés par les bots, jamais le contenu des messages. 50 derniers par bot.</p>':''}
+ <div class="logs-wrap" id="logList">${logsHTML()}</div></div></div>`;
+
+/* --- Embeds --- */
+let lastActor='Owner';
+let embDraft={id:null,title:'',desc:'',foot:'',chan:'#règlement',tone:'blanc'};
+function guideDraft(){
+ const l=['Rangs, du plus rare au plus courant :',...TIERS.slice(0,5).map(t=>`${t.pct} ${t.name} : ${t.d}`),'','Quotas par palier :',...['all','adm','mod','test'].map(t=>`${TIER(t).name} : tempmute ${S.quotas[t].tm} par 30 min, kick ${S.quotas[t].kick} par jour, ban ${S.quotas[t].ban} par jour`),'L’Owner et les bots whitelistés ne sont jamais limités.','','Sanctions de tempmute :',...S.sanctions.map(s=>`${s.label} : ${dur(s.min)}`)];
+ return {title:'Guide des permissions',desc:l.join('\n'),foot:'Généré depuis la configuration, mis à jour le '+new Date().toLocaleDateString('fr-FR'),chan:'#guide',tone:'blanc'}}
+const TEMPL={reglement:()=>({title:'Règlement du serveur',desc:'1. Respect de chacun.\n2. Pas d’insultes ni de discrimination.\n3. Pas de publicité sans accord du staff.\n4. Les décisions du staff se contestent en privé.',foot:'Règlement',chan:'#règlement',tone:'blanc'}),
+ bienvenue:()=>({title:'Bienvenue sur le serveur',desc:'Lisez le règlement, acceptez-le, puis validez la vérification pour accéder aux salons.',foot:'Écran d’adhésion',chan:'#bienvenue',tone:'gris'}),guide:guideDraft};
+function embPrev(){const d=embDraft;const col=d.tone==='noir'?'#000':d.tone==='gris'?'#8c8c8c':'#f2f2f2';return `<div class="emb"><div class="bar" style="background:${col};${d.tone==='noir'?'border-right:1px solid #f2f2f2':''}"></div><div class="in"><div class="nm"><i class="dot on"></i>FWU · ${esc(d.chan)}</div>${d.title?`<h4>${esc(d.title)}</h4>`:''}<p>${esc(d.desc)||'<span style="opacity:.5">La description apparaît ici.</span>'}</p>${d.foot?`<div class="ft">${esc(d.foot)}</div>`:''}</div></div>`}
+R.embeds=()=>`<div class="grid">
+ <div class="blk c6"><h3>Composer ${embDraft.id?'<small>modification sur place</small>':''}</h3>
+  <div class="row" style="margin-bottom:12px"><button class="btn sm" data-act="tpl" data-k="reglement">Règlement</button><button class="btn sm" data-act="tpl" data-k="bienvenue">Bienvenue</button><button class="btn sm" data-act="tpl" data-k="guide">Guide des permissions</button></div>
+  <div class="fld"><label for="eT">Titre</label><input type="text" id="eT" value="${esc(embDraft.title)}" data-in="emb" data-k="title"></div>
+  <div class="fld" style="margin-top:10px"><label for="eD">Description</label><textarea id="eD" data-in="emb" data-k="desc">${esc(embDraft.desc)}</textarea></div>
+  <div class="row" style="margin-top:10px"><div class="fld"><label for="eF">Pied de page</label><input type="text" id="eF" value="${esc(embDraft.foot)}" data-in="emb" data-k="foot"></div>
+   <div class="fld"><label for="eC">Salon</label><select id="eC" data-in="emb" data-k="chan">${['#règlement','#bienvenue','#guide','#annonces'].map(c=>`<option ${embDraft.chan===c?'selected':''}>${c}</option>`).join('')}</select></div>
+   <div class="fld" style="flex:0 0 120px"><label for="eN">Barre</label><select id="eN" data-in="emb" data-k="tone">${['blanc','gris','noir'].map(c=>`<option ${embDraft.tone===c?'selected':''}>${c}</option>`).join('')}</select></div></div>
+  <div class="row" style="margin-top:14px"><button class="btn pri" data-act="emb-pub">${embDraft.id?'Mettre à jour sur place':'Publier'}</button>${embDraft.id?'<button class="btn" data-act="emb-new">Nouvel embed</button>':''}</div></div>
+ <div class="blk c6"><h3>Aperçu</h3><div id="embPrev">${embPrev()}</div>
+  <h3 style="margin:22px 0 8px">Publiés <small>${S.emb.length}</small></h3>
+  ${S.emb.length?S.emb.map(m=>`<div class="tog"><div><b>${esc(m.title)}</b><small>${esc(m.chan)} · ${m.upd?'mis à jour '+ago(m.upd):'publié '+ago(m.ts)}</small></div><button class="btn sm" data-act="emb-edit" data-id="${m.id}">Modifier</button></div>`).join(''):`<div class="empty">Rien n’est publié. Choisissez un modèle à gauche pour commencer.</div>`}</div>
+ </div>`;
+
+/* --- Commandes --- */
+let cmdQ={q:'',bot:'',st:''};
+function cmdsHTML(){const q=cmdQ.q.toLowerCase().trim();
+ const rows=S.cmds.filter(c=>(!cmdQ.bot||c.b===cmdQ.bot)&&(!cmdQ.st||(cmdQ.st==='off'?!c.on:c.s===cmdQ.st&&c.on))&&(!q||(c.n+' '+c.d).toLowerCase().includes(q)));
+ const k=$('#ccount');if(k)k.textContent=rows.length+' commande'+(rows.length>1?'s':'');
+ return rows.length?`<table class="tbl"><thead><tr><th>Commande</th><th>Bot</th><th>Description</th><th>État</th><th>Interrupteur</th></tr></thead><tbody>${rows.map(c=>{const b=botN(c.b);return `<tr><td><b>${esc((c.k!==undefined?c.k:c.b==='fwu'?'/':b.prefix)+c.n)}</b></td><td>${esc(b.name)}</td><td>${esc(c.d)}</td><td><span class="tag ${!c.on?'d':c.s==='actif'?'f':'d'}">${!c.on?'Coupée':c.s==='actif'?'En service':'Prévue'}</span></td><td>${isLive()?'<span class="muted">Lecture seule</span>':sw(c.on,'cmd-toggle',`data-k="${c.b}:${c.n}"`,'Activer '+c.n)}</td></tr>`}).join('')}</tbody></table>`:`<div class="empty">Aucune commande ne correspond.</div>`}
+R.commandes=()=>`<div class="grid"><div class="blk c12"><h3>Registre <small id="ccount"></small></h3>
+ <div class="row" style="margin-bottom:12px"><div class="fld" style="flex:2 1 200px"><label class="sr" for="cq">Rechercher</label><input type="search" id="cq" placeholder="Nom ou description" value="${esc(cmdQ.q)}" data-in="cq"></div>
+ <div class="fld"><label class="sr" for="cb">Bot</label><select id="cb" data-in="cb"><option value="">Tous les bots</option>${S.bots.map(b=>`<option value="${b.id}" ${cmdQ.bot===b.id?'selected':''}>${esc(b.name)}</option>`).join('')}</select></div>
+ <div class="fld"><label class="sr" for="cs">État</label><select id="cs" data-in="cs"><option value="">Tous les états</option><option value="actif" ${cmdQ.st==='actif'?'selected':''}>En service</option><option value="prévu" ${cmdQ.st==='prévu'?'selected':''}>Prévues</option><option value="off" ${cmdQ.st==='off'?'selected':''}>Coupées</option></select></div>
+ ${isLive()?'':'<button class="btn sm" data-act="cmd-all-on">Tout remettre en service</button>'}</div>
+ ${isLive()?'<p class="muted" style="margin-bottom:10px">Liste réelle, lue dans le code des bots. Les interrupteurs par commande ne sont pas encore reliés.</p>':''}
+ <div class="scroll-x" id="cmdList">${cmdsHTML()}</div></div></div>`;
+
+/* --- Réglages --- */
+R.reglages=()=>`<div class="grid">
+ <div class="blk c7"><h3>Connexion</h3>${isLive()?`
+  <div class="tog"><div><b>Lecture du site</b><small>/api/console/state toutes les 10 s, 3 s pendant un redémarrage. Dernière lecture à ${hhmm(L.at)}.</small></div></div>
+  <div class="tog"><div><b>Signal des bots</b><small>Chaque bot envoie son statut toutes les 20 s. Sans signal pendant 70 s, il est considéré hors ligne.</small></div></div>
+  <div class="tog"><div><b>Redémarrage à distance</b><small>Un seul ordre existe : redémarrer. Pour l’interdire sur un bot, mettez PND_REMOTE_RESTART=off dans son .env.</small></div></div>`
+  :L.mode==='auth'?`<p class="muted">Session absente ou expirée. <a href="/connexion" style="text-decoration:underline">Se connecter</a> pour lire les vrais bots.</p>`
+  :`<p class="muted">Aperçu hors du site : aucune donnée réelle. Ouvrez /console/ sur le site pour lire l’état des bots.</p>`}</div>
+ ${isLive()?'':` <div class="blk c5"><h3>Configuration</h3>
+  <p class="muted" style="margin-bottom:10px">Quotas, sanctions, interrupteurs, whitelist et protections. Copiez-la pour la sauvegarder ou la réimporter.</p>
+  <textarea id="cfg" aria-label="Configuration au format JSON" style="min-height:120px;font-size:12px"></textarea>
+  <div class="row" style="margin-top:10px"><button class="btn" data-act="cfg-copy">Copier</button><button class="btn pri" data-act="cfg-import">Importer</button><button class="btn danger" data-act="reset">Tout réinitialiser</button></div></div>`}
+ <div class="blk c12"><h3>Raccourcis</h3><div class="row" style="gap:28px"><span><b style="font-weight:500">Ctrl K</b> ou <b style="font-weight:500">/</b> : rechercher ou agir</span><span><b style="font-weight:500">Alt 1 à 0</b> : changer de section</span><span><b style="font-weight:500">Échap</b> : fermer, puis retour à l’accueil</span></div></div>
+ </div>`;
+
+/* =====================================================================
+   Rendu, navigation, transitions
+   ===================================================================== */
+const stage=$('#stage'),cbody=$('#cbody');
+let mode='h1',locked=true;
+function cfgJSON(){const o={};PERSIST.forEach(k=>o[k]=S[k]);return JSON.stringify(o,null,1)}
+function renderRail(){$('#rail').innerHTML=PANELS.map((p,i)=>`<button type="button" data-go="${p.id}" aria-label="${p.label}" aria-current="${mode==='s2'&&S.panel===p.id}"><svg viewBox="0 0 16 16" aria-hidden="true">${ICON[p.id]}</svg><span>${p.label}</span></button>`).join('')}
+function renderPanel(anim=true,keep=false){
+ const P=PANELS.find(p=>p.id===S.panel),y=cbody.scrollTop;
+ $('#ctitleIn').textContent=P.label;$('#csub').textContent=P.sub;
+ cbody.innerHTML=(isLive()&&UNSYNCED.includes(P.id)?'<p class="nb"><b>Aperçu non synchronisé.</b> Ces données sont des exemples locaux : rien de ce qui est fait ici n’atteint Discord pour l’instant.</p>':'')+R[P.id]();
+ afterRender(P.id);renderRail();cbody.scrollTop=keep?y:0;
+ if(anim&&!RM&&mode==='s2'){
+  $('#ctitleIn').animate([{transform:'translateY(105%)'},{transform:'none'}],{duration:480,easing:'cubic-bezier(.33,1,.68,1)'});
+  $$('.blk',cbody).slice(0,10).forEach((el,i)=>el.animate([{opacity:0,transform:'translateY(14px)'},{opacity:1,transform:'none'}],{duration:420,delay:60+i*45,easing:'cubic-bezier(.33,1,.68,1)',fill:'backwards'}));
+ }
+}
+function afterRender(id){
+ if(id==='moderation'){$('#hlist').innerHTML=histHTML()}
+ if(id==='vocal'){mvPrev()}
+ if(id==='reglages'){const c=$('#cfg');if(c)c.value=cfgJSON()}
+ if(id==='commandes'){const k=$('#ccount');if(k)k.textContent=$$('#cmdList tbody tr').length+' commandes'}
+ if(id==='journal'){logsHTML()}
+}
+function refreshGlobal(){
+ const n=online();$('#pillt').textContent=`${n}/${S.bots.length} en ligne`;$('#pill .dot').className='dot '+(n===S.bots.length?'on':n?'mt':'off');
+ $('#k1').textContent=pad(n);$('#k2').textContent=pad(isLive()?evt24():sanc24());$('#k2l').innerHTML=isLive()?'Événements<br>24 h':'Sanctions<br>24 h';$('#k3').textContent=pad(openAl());$('#k4').textContent=pad(cmdOn());
+ $('#mon').innerHTML=S.bots.map(b=>`<div class="row">${dotc(b.st)}<b>${esc(b.name)}</b><span style="opacity:.6;font-weight:400">${b.st==='off'?'—':isLive()?fmtUp(b.real&&b.real.uptimeSeconds):b.lat+' ms'}</span></div>`).join('')+(isLive()?'':`<div class="row" style="opacity:.55;font-weight:400">Données de démonstration</div>`)+`<div class="go"><span>Ouvrir la console</span><span aria-hidden="true">↓ ↗</span></div>`;
+ stage.classList.toggle('locked',S.locked);document.body.classList.toggle('locked',S.locked);
+}
+function go(id){
+ if(!PANELS.find(p=>p.id===id))id='controle';
+ S.panel=id;
+ try{history.replaceState(null,'','#'+id)}catch(e){try{location.hash=id}catch(_){}}
+ if(mode==='h1'){toS2()}else renderPanel();
+}
+function goHero(){if(mode==='s2')toH1();}
+
+/* ---------- animations ---------- */
+const QOUT='cubic-bezier(.25,1,.5,1)',COUT='cubic-bezier(.33,1,.68,1)',CIN='cubic-bezier(.32,0,.67,0)';
+const an=(el,kf,delay,duration,easing)=>el.animate(kf,{delay,duration,easing,fill:'both'});
+const cancelAll=()=>stage.getAnimations({subtree:true}).forEach(a=>a.cancel());
+function glideKF(dir){const H=innerHeight,kf=[];for(let k=0;k<=54;k++){const t=k/54*1.8;let f=t<.47?1-1.506*t:.293*Math.exp(-(t-.47)/.232);if(k===54)f=0;kf.push({transform:`translateY(${(dir>0?f:1-f)*H}px)`,opacity:1,offset:k/54})}return kf}
+const heroEls=()=>({plate:$('#plate'),mL:$('#mL'),mR:$('#mR'),links:$$('#links a'),navr:$('#navr'),mon:$('#mon'),rail:$('#rail'),letters:$$('#word i'),caps:$$('.cap .mi')});
+function intro(){
+ stage.classList.remove('pre');
+ if(RM){locked=false;return}
+ const e=heroEls();
+ an(e.plate,[{transform:'scale(1.3)'},{transform:'none'}],0,1350,QOUT);
+ an(e.mR,[{transform:'translateX(45%)'},{transform:'none'}],0,1700,QOUT);
+ an(e.mL,[{transform:'translateX(-45%)'},{transform:'none'}],40,1700,QOUT);
+ e.links.forEach((a,i)=>an(a,[{transform:'translateY(-110%)'},{transform:'none'}],100+i*100,300,COUT));
+ an(e.navr,[{opacity:0},{opacity:1}],530,260,'linear');
+ an(e.mon,[{opacity:0},{opacity:1}],570,300,'linear');
+
+ an(e.rail,[{opacity:0,transform:'translateX(10px)'},{opacity:1,transform:'none'}],600,400,COUT);
+ const ld=[0,100,270];e.letters.forEach((l,i)=>an(l,[{opacity:0,transform:'translateY(.06em)'},{opacity:1,transform:'none'}],630+ld[i],450,COUT));
+ e.caps.forEach((c,i)=>an(c,[{transform:'translateY(100%)'},{transform:'none'}],[730,870,970,1000][i],220,COUT));
+ setTimeout(()=>{locked=false},1800);
+}
+function camera(fwd,delay,duration){
+ const pl=$('#plate'),A='perspective(1400px) translateX(-9%) scale(1.22) rotateY(-6deg)';
+ if(RM)return;
+ an(pl,fwd?[{transform:'none'},{transform:A}]:[{transform:A},{transform:'none'}],delay,duration,COUT);
+}
+function toS2(){
+ if(locked)return;locked=true;cancelAll();
+ const e=heroEls(),fg=$('#fg'),w=$('#word');
+ if(RM){stage.classList.add('is-s2');mode='s2';locked=false;renderPanel(false);return}
+ const D=fg.getBoundingClientRect().bottom-w.getBoundingClientRect().top+8;
+ e.caps.forEach((c,i)=>an(c,[{transform:'none'},{transform:'translateY(100%)'}],i*20,260,CIN));
+ an(e.mon,[{opacity:1},{opacity:0}],350,130,'linear');
+ e.letters.forEach((l,i)=>an(l,[{transform:'none'},{transform:`translateY(${D}px)`}],i*65,450,CIN));
+ an(e.mL,[{transform:'none'},{transform:'translateX(-51%)'}],20,560,CIN);
+ an(e.mR,[{transform:'none'},{transform:'translateX(51%)'}],150,450,CIN);
+ /* console : courbe de glissement puis arrêt en douceur */
+ mode='s2';renderPanel(false);
+ const kf=glideKF(1);
+ [['#chead',0],['#cbody',100]].forEach(([s,lag])=>an($(s),kf,180+lag,1800,'linear'));
+ camera(true,550,1700);
+ setTimeout(()=>{stage.classList.add('is-s2');cancelAll();renderRail();locked=false},2300);
+}
+function toH1(){
+ if(locked)return;locked=true;cancelAll();
+ if(RM){stage.classList.remove('is-s2');mode='h1';locked=false;renderRail();return}
+ const kf=glideKF(-1);
+ [['#cbody',0],['#chead',100]].forEach(([s,lag])=>an($(s),kf,lag,1800,'linear'));
+ const e=heroEls();
+ stage.classList.remove('is-s2');mode='h1';
+ const base=800;
+ an(e.mR,[{transform:'translateX(51%)'},{transform:'none'}],base,1000,QOUT);
+ an(e.mL,[{transform:'translateX(-51%)'},{transform:'none'}],base+40,1000,QOUT);
+ an(e.mon,[{opacity:0},{opacity:1}],base+370,260,'linear');
+ const ld=[0,100,270];e.letters.forEach((l,i)=>an(l,[{opacity:0,transform:'translateY(.06em)'},{opacity:1,transform:'none'}],base+430+ld[i],450,COUT));
+ e.caps.forEach((c,i)=>an(c,[{transform:'translateY(100%)'},{transform:'none'}],base+530+[0,140,240,270][i],220,COUT));
+ camera(false,200,1700);
+ try{history.replaceState(null,'',location.pathname+location.search)}catch(_){}
+ renderRail();
+ setTimeout(()=>{cancelAll();locked=false},2300);
+}
+
+/* ---------- actions ---------- */
+function pushHour(){S.hours[23]++}
+const A={
+ 'restart':async el=>{
+  const b=botN(el.dataset.id);if(!b||!b.real||!isLive())return;
+  if(!confirm2(el))return;
+  el.disabled=true;
+  try{
+   const r=await fetch('/api/console/restart',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json','X-Console-Action':'restart'},body:JSON.stringify({bot:API_ID[b.id]})});
+   const j=await r.json().catch(()=>({}));
+   if(r.status===202)toast(`Redémarrage de ${b.name} demandé.`);
+   else if(r.status===401){L.err='Session expirée : reconnectez-vous.';paintBadge();toast('Session expirée : reconnectez-vous pour redémarrer un bot.',{err:1})}
+   else toast(j.error||'Redémarrage refusé.',{err:1});
+  }catch(e){toast('Le site ne répond pas. Réessayez dans quelques secondes.',{err:1})}
+  await pull();if(mode==='s2'&&S.panel==='bots')renderPanel(false,true)},
+ 'bot-open':el=>{S.bot=el.dataset.id;go('bots')},
+ 'bot-pick':el=>{S.bot=el.dataset.id;renderPanel(false)},
+ 'bot-conn':el=>{const b=botN(el.dataset.id);b.st=b.st==='off'?'on':'off';if(b.st==='off')b.mt='';addLog('systeme','conn',b.st==='off'?1:0,b.id,`${b.name} ${b.st==='off'?'déconnecté':'reconnecté'} depuis la console`);toast(`${b.name} : ${stLabel(b.st).toLowerCase()}.`);refreshGlobal();renderPanel(false)},
+ 'bot-mt':el=>{const b=botN(el.dataset.id);if(b.st==='off'){toast(`${b.name} est hors ligne. Reconnectez-le avant de le passer en maintenance.`,{err:1});return}b.st=b.st==='mt'?'on':'mt';addLog('systeme','maintenance',1,b.id,`Maintenance de ${b.name} : ${b.st==='mt'?'activée':'levée'}`);toast(`${b.name} : ${b.st==='mt'?'maintenance activée, les membres voient votre message.':'de nouveau en ligne.'}`);refreshGlobal();renderPanel(false)},
+ 'ack':el=>{const a=S.alerts.find(x=>x.id==el.dataset.id);if(a){a.open=false;if(isLive()){ACK.add(String(a.id));saveAck()}toast('Alerte acquittée.');refreshGlobal();renderPanel(false)}},
+ 'raid-on':()=>{S.raid=true;save();addLog('securite','raid',2,'guard','Mode raid activé depuis la console');toast('Mode raid activé : invitations fermées, vérification durcie.');renderPanel(false)},
+ 'raid-toggle':()=>{S.raid=!S.raid;save();addLog('securite','raid',S.raid?2:0,'guard',`Mode raid ${S.raid?'activé':'coupé'} depuis la console`);toast(S.raid?'Mode raid activé : invitations fermées, vérification durcie.':'Mode raid coupé.');renderPanel(false)},
+ 'panic':el=>{if(!S.locked&&!confirm2(el))return;S.locked=!S.locked;if(S.locked)S.raid=true;save();addLog('securite','panic',2,'guard',S.locked?'Verrouillage d’urgence activé':'Verrouillage d’urgence levé');toast(S.locked?'Serveur verrouillé : commandes sensibles suspendues, mode raid activé.':'Verrouillage levé.');refreshGlobal();renderPanel(false)},
+ 'cmd-toggle':el=>{const [b,n]=el.dataset.k.split(':');const c=S.cmds.find(x=>x.b===b&&x.n===n);c.on=!c.on;save();addLog('systeme','cmd',1,b,`Commande ${n} ${c.on?'remise en service':'coupée'} sans redémarrage`);toast(`${n} : ${c.on?'en service':'coupée'}.`);refreshGlobal();el.setAttribute('aria-checked',c.on);if(S.panel==='commandes')$('#cmdList').innerHTML=cmdsHTML();else renderPanel(false)},
+ 'cmd-all-on':()=>{S.cmds.forEach(c=>c.on=true);save();toast('Toutes les commandes sont remises en service.');refreshGlobal();renderPanel(false)},
+ 'wl':el=>{S.wl[el.dataset.id]=!S.wl[el.dataset.id];save();el.setAttribute('aria-checked',S.wl[el.dataset.id]);toast(`${botN(el.dataset.id).name} ${S.wl[el.dataset.id]?'contourne les quotas':'est soumis aux quotas'}.`)},
+ 'prot':el=>{const p=S.prot.find(x=>x.k===el.dataset.k);p.on=!p.on;save();addLog('securite','prot',p.on?0:1,'guard',`Protection « ${p.l} » ${p.on?'activée':'désactivée'}`);renderPanel(false)},
+ 'trap-del':el=>{S.trap.splice(+el.dataset.i,1);save();renderPanel(false)},
+ 'live':el=>{S.live=!S.live;save();el.setAttribute('aria-checked',S.live)},
+ 'csv':()=>{const rows=[['heure','categorie','action','gravite','bot','texte','dossier'],...S.logs.slice(0,150).map(e=>[new Date(e.ts).toISOString(),e.cat,e.act,e.sev,e.bot,'"'+e.txt.replace(/"/g,'""')+'"',e.dos||''])].map(r=>r.join(',')).join('\n');
+  navigator.clipboard.writeText(rows).then(()=>toast('Journal copié au format CSV.'),()=>toast('Copie refusée par le navigateur. Autorisez le presse-papiers puis réessayez.',{err:1}))},
+ 'unmute':el=>{const h=S.hist.find(x=>x.dos==el.dataset.d);h.lifted=true;addLog('moderation','unmute',0,'fwu',`Sanction #${pad(h.dos,4)} levée pour @${h.target}`,h.dos);toast(`Sanction #${pad(h.dos,4)} levée.`);refreshGlobal();$('#hlist').innerHTML=histHTML()},
+ 'blr-lift':el=>{const b=S.blr.splice(+el.dataset.i,1)[0];save();addLog('securite','blr',1,'guard',`BLR levé pour @${b.target}`);toast(`BLR levé pour @${b.target}. Les anciens rôles ne sont pas rendus automatiquement.`);renderPanel(false)},
+ 'accessall':el=>{const v=S.voice[+el.dataset.i];v.open=!v.open;addLog('vocal','accessall',0,'fdp',`${v.n} : accès ${v.open?'ouverts à tous':'restaurés'}`);toast(`${v.n} : ${v.open?'ouvert à tous. Les permissions précédentes sont sauvegardées.':'permissions précédentes restaurées.'}`);renderPanel(false)},
+ 'mvall':()=>{const s=+$('#mvS').value,t=+$('#mvT').value;if(s===t){toast('Choisissez deux salons différents.',{err:1});return}const n=S.voice[s].m.length;if(!n){toast(`${S.voice[s].n} est vide, rien à déplacer.`,{err:1});return}
+  S.undo.push({s,t,m:[...S.voice[s].m]});S.voice[t].m.push(...S.voice[s].m);S.voice[s].m=[];addLog('vocal','mvall',0,'fdp',`${n} membre${n>1?'s':''} déplacé${n>1?'s':''} de ${S.voice[s].n} vers ${S.voice[t].n}`);toast(`${n} membre${n>1?'s':''} déplacé${n>1?'s':''}. Vous pouvez annuler.`);renderPanel(false)},
+ 'undo':()=>{const u=S.undo.pop();if(!u)return;S.voice[u.t].m=S.voice[u.t].m.filter(x=>!u.m.includes(x));S.voice[u.s].m.push(...u.m);toast('Dernière action de masse annulée.');renderPanel(false)},
+ 'dog-del':el=>{S.dogs.splice(+el.dataset.i,1);renderPanel(false)},
+ 'wake':()=>{const t=$('#wkT').value.trim();if(!validTarget(t)){toast('Indiquez un membre : mention ou identifiant à 18 chiffres.',{err:1});return}
+  const path=S.voice.slice(0,3).map(v=>v.n);$('#wkOut').innerHTML=`<div class="muted">1 message privé envoyé à ${esc(t)}</div>${path.map((n,i)=>`<div class="sev" style="margin-top:6px">${i+1}. ${esc(n)}</div>`).join('')}<div class="sev v1" style="margin-top:6px">Retour au salon d’origine</div>`;addLog('vocal','wakeup',0,'fdp',`Réveil simulé pour ${t}`)},
+ 'tpl':el=>{embDraft={id:null,...TEMPL[el.dataset.k]()};renderPanel(false)},
+ 'emb-new':()=>{embDraft={id:null,title:'',desc:'',foot:'',chan:'#règlement',tone:'blanc'};renderPanel(false)},
+ 'emb-edit':el=>{const m=S.emb.find(x=>x.id===el.dataset.id);embDraft={...m};renderPanel(false)},
+ 'emb-pub':()=>{const d=embDraft;if(!d.title.trim()&&!d.desc.trim()){toast('Ajoutez un titre ou une description avant de publier.',{err:1});return}
+  if(d.id){const m=S.emb.find(x=>x.id===d.id);Object.assign(m,{title:d.title,desc:d.desc,foot:d.foot,chan:d.chan,tone:d.tone,upd:Date.now()});addLog('embeds','edit',0,'fwu',`Embed « ${d.title} » mis à jour sur place`);toast('Embed mis à jour sur place, sans republier de message.')}
+  else{S.emb.unshift({...d,id:'m-'+Date.now(),ts:Date.now(),upd:null});addLog('embeds','publish',0,'fwu',`Embed « ${d.title} » publié dans ${d.chan}`);toast(`Embed publié dans ${d.chan}.`)}
+  embDraft={id:null,title:'',desc:'',foot:'',chan:'#règlement',tone:'blanc'};save();renderPanel(false)},
+ 'cfg-copy':()=>{navigator.clipboard.writeText($('#cfg').value).then(()=>toast('Configuration copiée.'),()=>toast('Copie refusée. Sélectionnez le texte et copiez-le à la main.',{err:1}))},
+ 'cfg-import':()=>{try{const o=JSON.parse($('#cfg').value);PERSIST.forEach(k=>{if(o[k]!==undefined)S[k]=o[k]});save();refreshGlobal();toast('Configuration importée.');renderPanel(false)}catch(e){toast('Configuration illisible : le JSON est invalide. Recopiez-la depuis une sauvegarde.',{err:1})}},
+ 'reset':el=>{if(!confirm2(el))return;try{localStorage.removeItem(STORE)}catch(e){}location.reload()}
+};
+const IN={
+ mtmsg:el=>{botN(el.dataset.id).mt=el.value},pres:el=>{botN(el.dataset.id).pres=el.value},pfx:el=>{botN(el.dataset.id).prefix=el.value.trim();refreshGlobal()},
+ smin:el=>{S.sanctions[+el.dataset.i].min=Math.max(1,Math.min(1440,+el.value||1));save()},
+ quota:el=>{S.quotas[el.dataset.t][el.dataset.k]=Math.max(0,+el.value||0);save();$('#quotaUse').innerHTML=quotaUseHTML()},
+ hq:()=>{$('#hlist').innerHTML=histHTML()},hf:()=>{$('#hlist').innerHTML=histHTML()},
+ thr:el=>{S.thr[el.dataset.k]=+el.value;save()},nuke:el=>{S.nuke[el.dataset.k]=+el.value;save()},
+ lq:el=>{logQ.q=el.value;$('#logList').innerHTML=logsHTML()},lc:el=>{logQ.cat=el.value;$('#logList').innerHTML=logsHTML()},ls:el=>{logQ.sev=el.value;$('#logList').innerHTML=logsHTML()},lb:el=>{logQ.bot=el.value;$('#logList').innerHTML=logsHTML()},
+ cq:el=>{cmdQ.q=el.value;$('#cmdList').innerHTML=cmdsHTML()},cb:el=>{cmdQ.bot=el.value;$('#cmdList').innerHTML=cmdsHTML()},cs:el=>{cmdQ.st=el.value;$('#cmdList').innerHTML=cmdsHTML()},
+ emb:el=>{embDraft[el.dataset.k]=el.value;$('#embPrev').innerHTML=embPrev()},
+ mvprev:()=>mvPrev(),
+ dogmove:el=>{if(el.value==='')return;const d=S.dogs[+el.dataset.i],to=+el.value;S.voice.forEach(v=>v.m=v.m.filter(x=>x!==d.master&&x!==d.leash));
+  const hasL=S.voice.some(v=>v.m.includes(d.leash));S.voice[to].m.push(d.master);S.voice[to].m.push(d.leash);addLog('vocal','dog',0,'fdp',`Laisse : @${d.leash} a suivi @${d.master} vers ${S.voice[to].n}`);toast(`@${d.leash} a suivi @${d.master} dans ${S.voice[to].n}.`);renderPanel(false)}
+};
+function mvPrev(){const s=$('#mvS'),t=$('#mvT'),o=$('#mvPrev');if(!s||!o)return;const a=S.voice[+s.value],b=S.voice[+t.value];o.textContent=s.value===t.value?'Choisissez deux salons différents.':a.m.length?`${a.m.length} membre${a.m.length>1?'s':''} de ${a.n} iront dans ${b.n}.`:`${a.n} est vide.`}
+
+/* En mode réel, seules les actions branchées au site partent ; le reste (aperçu local) est refusé, jamais simulé. */
+const LIVE_OK=new Set(['bot-open','bot-pick','ack','restart','csv','tpl','emb-new','emb-edit','live']);
+const NOT_WIRED='Pas encore relié au bot : rien n’a été envoyé à Discord.';
+document.addEventListener('click',ev=>{
+ const g=ev.target.closest('[data-go]');if(g){ev.preventDefault();go(g.dataset.go);return}
+ const a=ev.target.closest('[data-act]');if(a&&A[a.dataset.act]){ev.preventDefault();if(isLive()&&!LIVE_OK.has(a.dataset.act)){toast(NOT_WIRED,{err:1});return}A[a.dataset.act](a)}
+});
+document.addEventListener('input',ev=>{const t=ev.target.closest('[data-in]');if(t&&IN[t.dataset.in])IN[t.dataset.in](t)});
+document.addEventListener('submit',ev=>{
+ ev.preventDefault();const id=ev.target.id;
+ if(isLive()){toast(NOT_WIRED,{err:1});return}
+ if(id==='fTm'){const a=$('#tmA').value,t=$('#tmT').value.trim(),k=$('#tmS').value,r=$('#tmR').value.trim();
+  if(!validTarget(t)){toast('Cible invalide : mentionnez le membre (@nom) ou collez son identifiant à 18 chiffres.',{err:1});return}
+  if(S.locked){toast('Le serveur est verrouillé. Levez le verrouillage d’urgence avant de sanctionner.',{err:1});return}
+  lastActor=a;const st=STAFF.find(s=>s.h===a),lim=qLimit(st.tier,'tm'),u=qUsage(a,'tm');
+  if(u>=lim){toast(`Refusé : ${a} a atteint son quota de ${lim} tempmute${lim>1?'s':''} par 30 min. Réessayez plus tard ou demandez un palier supérieur.`,{err:1});return}
+  const s=S.sanctions.find(x=>x.k===k),dos=S.dossier++;S.actions.push({actor:a,type:'tm',ts:Date.now()});
+  S.hist.unshift({dos,type:k,label:s.label,min:s.min,target:t.replace(/[<@!>]/g,''),actor:a,ts:Date.now(),reason:r,lifted:false});
+  addLog('moderation','tempmute',0,'fwu',`Tempmute de ${t} par @${a} : ${s.label.toLowerCase()} (${dur(s.min)})`,dos);pushHour();
+  toast(`Tempmute appliqué : dossier #${pad(dos,4)}, ${dur(s.min)}.`);refreshGlobal();renderPanel(false);return}
+ if(id==='fBlr'){const a=$('#bA').value,t=$('#bT').value.trim(),st=STAFF.find(s=>s.h===a);
+  if(!validTarget(t)){toast('Cible invalide : mentionnez le membre (@nom) ou collez son identifiant à 18 chiffres.',{err:1});return}
+  if(!['owner','all'].includes(st.tier)){toast(`Refusé : ${a} (${TIER(st.tier).pct}) ne peut pas poser de BLR. Seuls les paliers 0 % et 1 % le peuvent.`,{err:1});return}
+  S.blr.unshift({target:t.replace(/[<@!>]/g,''),actor:a,reason:'',ts:Date.now(),roles:[]});save();addLog('securite','blr',2,'guard',`BLR posé sur ${t} par @${a} : tous les rôles retirés sauf le rôle membre`);toast(`BLR posé sur ${t}. Tous ses rôles sont retirés sauf le rôle membre.`);renderPanel(false);return}
+ if(id==='fDog'){const m=$('#dM').value.trim().replace('@',''),l=$('#dL').value.trim().replace('@','');if(!m||!l||m===l){toast('Indiquez deux membres différents : le maître et celui en laisse.',{err:1});return}S.dogs.push({master:m,leash:l});toast(`@${l} est en laisse de @${m}.`);renderPanel(false);return}
+ if(id==='fTrap'){let n=$('#trapN').value.trim();if(!n){toast('Indiquez le nom du salon piège.',{err:1});return}if(n[0]!=='#')n='#'+n;S.trap.push(n);save();renderPanel(false)}
+});
+
+/* ---------- palette ---------- */
+let palSel=0,palItems=[];
+function palActions(){
+ const l=PANELS.map(p=>({t:'Aller à '+p.label,h:'section',f:()=>go(p.id)}));
+ if(isLive()){S.bots.forEach(b=>{l.push({t:'Ouvrir '+b.name,h:'bot',f:()=>{S.bot=b.id;go('bots')}})});l.push({t:'Retour à l’accueil',h:'scène',f:goHero});return l}
+ l.push({t:S.raid?'Couper le mode raid':'Activer le mode raid',h:'sécurité',f:A['raid-toggle']},{t:S.locked?'Lever le verrouillage d’urgence':'Verrouillage d’urgence',h:'sécurité',f:()=>{S.locked=!S.locked;if(S.locked)S.raid=true;save();addLog('securite','panic',2,'guard',S.locked?'Verrouillage d’urgence activé':'Verrouillage d’urgence levé');toast(S.locked?'Serveur verrouillé.':'Verrouillage levé.');refreshGlobal();if(mode==='s2')renderPanel(false)}});
+ S.bots.forEach(b=>{l.push({t:'Ouvrir '+b.name,h:'bot',f:()=>{S.bot=b.id;go('bots')}});l.push({t:(b.st==='mt'?'Sortir de maintenance : ':'Maintenance : ')+b.name,h:'bot',f:()=>{if(b.st==='off'){toast(b.name+' est hors ligne.',{err:1});return}b.st=b.st==='mt'?'on':'mt';toast(`${b.name} : ${stLabel(b.st).toLowerCase()}.`);refreshGlobal();if(mode==='s2')renderPanel(false)}})});
+ l.push({t:'Retour à l’accueil',h:'scène',f:goHero},{t:'Nouveau tempmute',h:'modération',f:()=>go('moderation')},{t:'Publier un embed',h:'embeds',f:()=>go('embeds')});
+ return l}
+function palRender(){const q=$('#palq').value.toLowerCase().trim();palItems=palActions().filter(a=>!q||(a.t+' '+a.h).toLowerCase().includes(q));palSel=Math.min(palSel,Math.max(0,palItems.length-1));
+ $('#pall').innerHTML=palItems.length?palItems.map((a,i)=>`<li><button type="button" data-pi="${i}" aria-selected="${i===palSel}">${esc(a.t)}<small>${esc(a.h)}</small></button></li>`).join(''):`<li><div class="empty" style="border:0">Aucune action ne correspond. Essayez « bot », « raid » ou le nom d’une section.</div></li>`}
+function palOpen(){$('#pal').classList.add('open');$('#palq').value='';palSel=0;palRender();setTimeout(()=>$('#palq').focus(),0)}
+function palClose(){$('#pal').classList.remove('open')}
+$('#palq').addEventListener('input',()=>{palSel=0;palRender()});
+$('#pall').addEventListener('click',e=>{const b=e.target.closest('[data-pi]');if(b){const a=palItems[+b.dataset.pi];palClose();a.f(a)}});
+$('#openPal').addEventListener('click',palOpen);
+$('#pal').addEventListener('click',e=>{if(e.target.id==='pal')palClose()});
+$('#logo').addEventListener('click',e=>{e.preventDefault();goHero()});
+$('#mon').addEventListener('click',()=>go('controle'));
+
+/* ---------- entrées de navigation ---------- */
+let touchY=null;
+addEventListener('wheel',e=>{if(mode==='h1'){e.preventDefault();if(Math.abs(e.deltaY)>4&&e.deltaY>0)go('controle')}},{passive:false});
+addEventListener('touchstart',e=>{touchY=e.touches[0].clientY},{passive:true});
+addEventListener('touchmove',e=>{if(mode==='h1'&&touchY!==null){e.preventDefault();if(touchY-e.touches[0].clientY>30){touchY=null;go('controle')}}},{passive:false});
+addEventListener('keydown',e=>{
+ const typing=/INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName);
+ if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='k'){e.preventDefault();$('#pal').classList.contains('open')?palClose():palOpen();return}
+ if($('#pal').classList.contains('open')){
+  if(e.key==='Escape')palClose();
+  else if(e.key==='ArrowDown'){e.preventDefault();palSel=Math.min(palItems.length-1,palSel+1);palRender()}
+  else if(e.key==='ArrowUp'){e.preventDefault();palSel=Math.max(0,palSel-1);palRender()}
+  else if(e.key==='Enter'){e.preventDefault();const a=palItems[palSel];if(a){palClose();a.f(a)}}
+  return}
+ if(typing)return;
+ if(e.key==='/'){e.preventDefault();palOpen();return}
+ if(e.altKey&&/^[0-9]$/.test(e.key)){e.preventDefault();const i=e.key==='0'?9:+e.key-1;if(PANELS[i])go(PANELS[i].id);return}
+ if(mode==='h1'&&['ArrowDown','PageDown',' ','Enter'].includes(e.key)&&!/BUTTON|A/.test(document.activeElement.tagName)){e.preventDefault();go('controle')}
+ if(e.key==='Escape'&&mode==='s2')goHero();
+});
+addEventListener('hashchange',()=>{const h=location.hash.slice(1);if(PANELS.find(p=>p.id===h)&&(h!==S.panel||mode==='h1'))go(h)});
+
+/* ---------- cendres (canvas) ---------- */
+(function(){const c=$('#fx'),x=c.getContext('2d');let W,H,P=[];
+ function size(){const r=devicePixelRatio||1;W=c.width=innerWidth*r;H=c.height=innerHeight*r;P=Array.from({length:70},()=>({x:Math.random()*W,y:Math.random()*H,r:(Math.random()*1.6+.4)*r,v:(Math.random()*.25+.08)*r,a:Math.random()*.5+.15,d:Math.random()*6}))}
+ size();addEventListener('resize',size);
+ function tick(t){x.clearRect(0,0,W,H);for(const p of P){p.y-=p.v;p.x+=Math.sin(t/2200+p.d)*.25;if(p.y<-4){p.y=H+4;p.x=Math.random()*W}x.globalAlpha=p.a*(.6+.4*Math.sin(t/900+p.d));x.fillStyle='#fff';x.beginPath();x.arc(p.x,p.y,p.r,0,6.283);x.fill()}if(!RM)requestAnimationFrame(tick)}
+ requestAnimationFrame(tick)})();
+
+/* ---------- vie du système (simulation) ---------- */
+setInterval(()=>{
+ if(isLive()){refreshGlobal();return}
+ S.bots.forEach(b=>{if(b.st==='off'){b.hist.push(b.hist[b.hist.length-1]);b.hist.shift();return}b.lat=Math.max(24,Math.min(160,b.lat+rnd(-9,9)));b.hist.push(b.lat);b.hist.shift()});
+ if(mode==='s2'&&S.panel==='controle'&&$('#tiles'))$('#tiles').innerHTML=tilesHTML();
+ if(mode==='s2'&&S.panel==='bots'&&$('#latBig')){const b=botN(S.bot);$('#latBig').textContent=b.st==='off'?'—':b.lat;$('#latSp').innerHTML=spark(b.hist,220,44)}
+ refreshGlobal();
+},2500);
+setInterval(()=>{if(!S.live||isLive())return;const e=mkEvent(Date.now());if(e.sev===2&&Math.random()>.35)return;S.logs.unshift(e);if(S.logs.length>400)S.logs.pop();S.hours[23]++;
+ if(mode==='s2'&&S.panel==='journal'&&$('#logList'))$('#logList').innerHTML=logsHTML()},6500);
+
+/* ---------- démarrage ---------- */
+load();seed();refreshGlobal();renderRail();paintBadge();
+const h0=location.hash.slice(1);
+const first=Promise.race([pull(),new Promise(r=>setTimeout(()=>r(false),900))]).then(ok=>{if(ok)loop();else retryDemo();return ok});
+first.then(()=>{
+if(PANELS.find(p=>p.id===h0)){S.panel=h0;mode='s2';stage.classList.remove('pre');stage.classList.add('is-s2');locked=false;renderPanel(false)}
+else{
+ let started=false;const start=()=>{if(started)return;started=true;requestAnimationFrame(()=>requestAnimationFrame(intro))};
+ Promise.race([document.fonts?document.fonts.ready:Promise.resolve(),new Promise(r=>setTimeout(r,900))]).then(start);
+ setTimeout(start,1200);
+}
+});
+</script>
+</body>
+</html>

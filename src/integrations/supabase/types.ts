@@ -107,6 +107,36 @@ export type Database = {
         }
         Relationships: []
       }
+      bot_control_commands: {
+        Row: {
+          action: string
+          delivered_at: string | null
+          id: string
+          profile: string
+          requested_at: string
+          requested_by: string | null
+          status: string
+        }
+        Insert: {
+          action?: string
+          delivered_at?: string | null
+          id?: string
+          profile: string
+          requested_at?: string
+          requested_by?: string | null
+          status?: string
+        }
+        Update: {
+          action?: string
+          delivered_at?: string | null
+          id?: string
+          profile?: string
+          requested_at?: string
+          requested_by?: string | null
+          status?: string
+        }
+        Relationships: []
+      }
       bot_runtime_status: {
         Row: {
           connected: boolean

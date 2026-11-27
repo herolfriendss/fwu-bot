@@ -1,5 +1,5 @@
 import { Link } from "@tanstack/react-router";
-import { Activity, Coins, FileKey, LayoutDashboard, Settings, Shield } from "lucide-react";
+import { Activity, Coins, FileKey, LayoutDashboard, Settings, Shield, Terminal } from "lucide-react";
 
 const LINKS = [
   { to: "/", label: "Tableau de bord", icon: LayoutDashboard },
@@ -22,6 +22,12 @@ export function SiteNav() {
             </Link>
           </li>
         ))}
+        {/* Page statique (public/console/) : pas une route typée, donc un lien ordinaire. */}
+        <li className="shrink-0">
+          <a href="/console/" className="site-nav-link">
+            <Terminal className="h-4 w-4" /> Console
+          </a>
+        </li>
       </ul>
     </nav>
   );
