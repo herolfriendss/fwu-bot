@@ -65,6 +65,10 @@ export const Route = createFileRoute("/api/auth/discord/callback")({
         const user = await userResponse.json() as DiscordUser;
         if (!user.id || !/^\d{5,25}$/.test(user.id)) return redirectToLogin("invalid_identity");
         await oauthSession.establish(user.id);
+        // Alerte de connexion à la console (webhook des alertes, s'il est configuré). Jamais bloquant.
+        void import("@/lib/ops-alert.server").then(({ describeDevice, postOpsAlert }) =>
+          postOpsAlert(`🔐 Connexion à la console du site (${describeDevice(request.headers.get("user-agent"))}) à ${new Date().toLocaleTimeString("fr-FR", { timeZone: "Europe/Paris" })}. Si ce n'est pas toi : change ton mot de passe Discord et régénère SESSION_SECRET.`),
+        ).catch(() => {});
         return new Response(null, { status: 303, headers: { Location: "/", "Cache-Control": "no-store" } });
       } catch (error) {
         console.error("Discord OAuth callback failed:", error instanceof Error ? error.message : "unknown error");

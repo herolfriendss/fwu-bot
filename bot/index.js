@@ -34,6 +34,8 @@ import { expireWaoufActions, handleWaoufInteraction, handleWaoufMessage } from "
 import { expireMalus, handleMalusInteraction, handleMalusMessage } from "./systems/malus/commands.js";
 import { handleExileVoiceState, handlePatateMessage } from "./systems/malus/voice-games.js";
 import { handleCibleMessage, handleRansomMessage } from "./systems/malus/economy-malus.js";
+import { cachedBans, createPermissionWatch, isPhishingExecution, matchBanEvader, missingPermissions, permissionLabel } from "./guard/extra-watch.js";
+import { quarantineMember } from "./guard/commands.js";
 import { astreinteMembers, expireFrozenChannels, handleGardeInteraction, msUntilWeeklyReport, sendSanctionEndReminders, sendWeeklyStaffReports } from "./systems/garde/commands.js";
 import { enforceLeashNickname, handleDogCommand, handleLeashVoiceState, handleUndogAllInteraction, reconcileLeashedMembers } from "./dog-commands.js";
 import { handleMusicExtrasInteraction, handleMusicMessage, handleMusicInteraction, handleRadioMessage, startConfiguredRadios } from "./music/music.js";
@@ -443,7 +445,7 @@ enableLearnMore((path) => `${LEARN_MORE_PREFIX}${String(path ?? "").slice(0, 80)
 const guardReport = (guild, { title, description, color }) => sendCentralLog(guild, settings[guild.id], systemLogEmbed({ category: "security", title, description, color }));
 const automod = createAutomod({ report: guardReport, record: (code) => record(code) });
 const client = new Client({
-  intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildVoiceStates, GatewayIntentBits.GuildMessages, GatewayIntentBits.GuildMessageReactions, GatewayIntentBits.GuildInvites, GatewayIntentBits.MessageContent, GatewayIntentBits.GuildMembers, GatewayIntentBits.GuildModeration, GatewayIntentBits.GuildWebhooks, GatewayIntentBits.DirectMessages],
+  intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildVoiceStates, GatewayIntentBits.GuildMessages, GatewayIntentBits.GuildMessageReactions, GatewayIntentBits.GuildInvites, GatewayIntentBits.MessageContent, GatewayIntentBits.GuildMembers, GatewayIntentBits.GuildModeration, GatewayIntentBits.GuildWebhooks, GatewayIntentBits.DirectMessages, GatewayIntentBits.AutoModerationExecution, GatewayIntentBits.GuildIntegrations],
   partials: [Partials.Channel, Partials.Message, Partials.Reaction],
 });
 
@@ -639,6 +641,31 @@ client.on("guildMemberAdd", (member) => {
   if (!guardWatch(member.guild)) return;
   void recordJoinForRaid(member, { settings: settings[member.guild.id] }).catch(() => record("guild_guard_error"));
   if (member.user?.bot && !fwuBotIds().has(member.id)) void handleBotAdded(member, { settings: settings[member.guild.id] }).catch(() => record("guild_guard_error"));
+  // Contournement de ban : compte récent avec le pseudo ou l'avatar d'un banni.
+  void cachedBans(member.guild).then((bans) => {
+    const hit = matchBanEvader(member, bans);
+    if (!hit) return;
+    record("ban_evader_suspected");
+    auditLog(member.guild, settings[member.guild.id], "🚩 Contournement de ban possible", `<@${member.id}> (compte créé <t:${Math.floor(member.user.createdTimestamp / 1000)}:R>) a ${hit.reason} que le banni **${String(hit.ban.username).replace(/[*_`~|]/g, "")}** (\`${hit.ban.id}\`).\nÀ vérifier : \`/garde enquete\`, puis \`/quarantaine\` si besoin.`, 0xef4444);
+  }).catch(() => {});
+});
+// AutoMod natif : un lien de phishing bloqué → l'auteur part en quarantaine (compte probablement piraté).
+client.on("autoModerationActionExecution", (execution) => {
+  if (!guardWatch(execution.guild) || execution.action?.type !== 1) return;
+  void (async () => {
+    const rule = execution.autoModerationRule ?? await execution.guild.autoModerationRules.fetch(execution.ruleId).catch(() => null);
+    if (!isPhishingExecution(execution, rule?.name)) return;
+    const member = execution.member ?? await execution.guild.members.fetch(execution.userId).catch(() => null);
+    if (!member || member.permissions.has(PermissionFlagsBits.ManageMessages)) return;
+    const result = await quarantineMember(execution.guild, member, { reason: "Lien de phishing bloqué par l'AutoMod (compte peut-être piraté)", actorId: client.user.id, settings: settings[execution.guild.id] });
+    record(result.ok ? "phishing_quarantine" : "guild_guard_error");
+    if (result.ok) auditLog(execution.guild, settings[execution.guild.id], "🎣 Phishing : auteur en quarantaine", `<@${member.id}> a tenté de poster un lien de phishing (bloqué par Discord). Il est en quarantaine : son compte est peut-être piraté.\n\`/quarantaine retirer\` quand c'est réglé.`, 0xef4444);
+  })().catch(() => record("guild_guard_error"));
+});
+client.on("guildIntegrationsUpdate", (guild) => {
+  if (!guardWatch(guild)) return;
+  record("integration_changed");
+  auditLog(guild, settings[guild.id], "🔌 Intégrations du serveur modifiées", "Une intégration (application, bot, webhook d'abonnement) a été ajoutée, modifiée ou retirée. Vérifie dans Paramètres du serveur → Intégrations que c'est voulu.", 0xf59e0b);
 });
 
 // A prefix command runs on behalf of its author, like a slash command: the OWNER shield's
@@ -1119,6 +1146,23 @@ async function installNativeAutomodOnce() {
     } catch { record("native_automod_error"); }
   }
 }
+
+// Permissions du bot : alerte quand ce bot perd (ou retrouve) une permission dont il a besoin.
+const permissionWatch = createPermissionWatch();
+function checkOwnPermissions() {
+  if (!client?.isReady?.()) return;
+  for (const guild of client.guilds.cache.values()) {
+    if (!guildAllowed(guild.id, ALLOWED_GUILDS) || isLogsHub(guild.id) || !guild.members.me) continue;
+    const change = permissionWatch.check(guild.id, missingPermissions(guild.members.me.permissions, RUNTIME.profile));
+    if (!change || (!change.lost.length && !change.regained.length)) continue;
+    if (change.lost.length) record("bot_permission_lost");
+    auditLog(guild, settings[guild.id], change.lost.length ? `⚠️ ${BOT_LABEL} : permission manquante` : `✅ ${BOT_LABEL} : permissions rétablies`,
+      [change.lost.length ? `Manquant : ${change.lost.map(permissionLabel).join(", ")}. Certaines protections ne marchent plus : rends ces permissions à mon rôle.` : null,
+        change.regained.length ? `Rétabli : ${change.regained.map(permissionLabel).join(", ")}.` : null].filter(Boolean).join("\n"), change.lost.length ? 0xef4444 : 0x22c55e);
+  }
+}
+setInterval(checkOwnPermissions, 10 * 60_000).unref?.();
+setTimeout(checkOwnPermissions, 90_000).unref?.();
 
 // Relais : quand ce bot couvre GUARD ou SUCK ME tombés, le staff est prévenu et, pour GUARD,
 // la vérification des arrivées est durcie jusqu'à son retour (PND_DEGRADED_MODE=off pour ne pas toucher au niveau).
