@@ -862,6 +862,25 @@ ${reason}`, ephemeral: true });
     return true;
   }
 
+  if (subcommand === "annuler") {
+    if (!canConfigureSysPlus(member)) {
+      await interaction.reply({ content: "⛔ Seul le Owner PND peut annuler une attribution SYS+.", ephemeral: true });
+      return true;
+    }
+    const grant = roleId ? lastUndoableGrant(guild.id, member.id, Date.now()) : null;
+    if (!grant) {
+      await interaction.reply({ content: "Rien à annuler : aucune attribution de SYS+ de ta part dans la dernière heure.", ephemeral: true });
+      return true;
+    }
+    const target = await guild.members.fetch({ user: grant.targetId, force: true }).catch(() => null);
+    if (target?.roles?.cache?.has(roleId)) await target.roles.remove(roleId, `Attribution SYS+ annulée par le propriétaire ${member.id}`);
+    forgetTemporary(guild.id, grant.targetId);
+    recordSysPlusAudit(guild.id, member.id, "sysplus.member.undo", grant.targetId, { undoes: grant.id });
+    audit(guild, "SYS+ — attribution annulée", `Propriétaire : <@${member.id}>\nMembre : <@${grant.targetId}>`);
+    record("sysplus_member_undo");
+    await interaction.reply({ content: `↩️ Attribution annulée : <@${grant.targetId}> n'a plus SYS+.`, ephemeral: true, allowedMentions: { parse: [] } });
+    return true;
+  }
   if (subcommand === "add" || subcommand === "remove") {
     if (!canConfigureSysPlus(member)) {
       await interaction.reply({ content: "⛔ Seul le Owner PND peut attribuer ou retirer SYS+.", ephemeral: true });

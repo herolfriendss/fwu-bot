@@ -29,7 +29,7 @@ function parseDetails(value) {
 
 // S1 : les actions qui changent des droits partent aussi au Logs Hub (RESUME les voit).
 const SENSITIVE_PREFIXES = Object.freeze([
-  "sysplus.role", "adminplus.", "whitelist.role", "sysplus.member_role", "sysplus.custom_role",
+  "sysplus.role", "sysplus.member.", "adminplus.", "whitelist.role", "sysplus.member_role", "sysplus.custom_role",
   "permission.", "staff.supervisor", "entitlement.", "sysplus.clone.apply", "owner.", "dog.whitelist_quota_exception",
 ]);
 let observer = null;
