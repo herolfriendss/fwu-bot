@@ -66,6 +66,7 @@ Logs typés : le module qui la traite journalise avec une catégorie. Tests : la
 | FDPDLAVOC | `/unmuteall` | ✅ | ✅ dédié | ✅ | ▫️ | ✅ | ✅ |
 | FDPDLAVOC | `/vclear` | ✅ | ✅ dédié | ✅ | ▫️ | ✅ | ✅ |
 | FDPDLAVOC | `/undo` | ✅ | ✅ dédié | ✅ | ▫️ | ✅ | ✅ |
+| FDPDLAVOC | `/blindtest` | ✅ | ✅ pont | ✅ | ▫️ | ✅ | ✅ |
 | SUCK ME | `/sysp` | ✅ | ✅ dédié | ✅ | ▫️ | ▫️ | ✅ |
 | SUCK ME | `/panel` | ✅ | ✅ pont | ✅ | ✅ | ✅ | ✅ |
 | SUCK ME | `/setup` | ✅ | ✅ pont | ✅ | ✅ | ▫️ | ✅ |

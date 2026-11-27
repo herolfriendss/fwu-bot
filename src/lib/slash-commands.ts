@@ -2384,6 +2384,22 @@ export const EXTRA_SLASH_COMMANDS: SlashCommandDef[] = [
     ] })],
   },
   {
+    name: "blindtest",
+    description: "FDPDLAVOC : blind test musical dans ton salon vocal",
+    usage: "/blindtest lancer [manches] [playlist] · stop · classement",
+    category: "Musique & radio",
+    dmPermission: false,
+    requiresBotProcess: true,
+    options: [
+      sub("lancer", "Lance une partie dans ton vocal (réponses écrites dans ce salon)", [
+        opt(4, "manches", "Nombre de manches (3 à 15, 8 par défaut)", { min_value: 3, max_value: 15 }),
+        opt(3, "playlist", "Une de tes playlists musique (sinon la liste par défaut)", { max_length: 40 }),
+      ]),
+      sub("stop", "Arrête la partie en cours (organisateur ou staff)"),
+      sub("classement", "Classement du blind test sur le serveur"),
+    ],
+  },
+  {
     name: "playlist",
     description: "FDPDLAVOC : tes playlists enregistrées",
     usage: "/playlist sauver nom · charger nom · liste · supprimer nom",
