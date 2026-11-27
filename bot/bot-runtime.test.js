@@ -71,7 +71,7 @@ test("every bot registers all its commands (no more skipped /afk) and retires th
   const suckme = slashRegistrationPlan({ profile: "suckme", delegated: [] }, SLASH_COMMANDS, EXTRA_SLASH_COMMANDS);
   assert.ok(suckme.register.some((c) => c.name === "afk"));
   const fwu = slashRegistrationPlan({ profile: "fwu", delegated: ["guard"] }, SLASH_COMMANDS, EXTRA_SLASH_COMMANDS);
-  assert.deepEqual(fwu.register.map((c) => c.name).sort(), ["aide", "status", "tempmute", "unmute", "warn", "warnings", "sanction", "sanction-type", "quota", "embed", "reglement", "screening", "snipe"].sort());
+  assert.deepEqual(fwu.register.map((c) => c.name).sort(), ["aide", "status", "tempmute", "unmute", "warn", "warnings", "sanction", "sanction-type", "quota", "embed", "reglement", "screening", "snipe", "heure", "citation", "archive", "resume-salon", "salon-temp", "sante", "defi", "export-config"].sort());
   assert.ok(fwu.retire.includes("afk") && fwu.retire.includes("ban") && fwu.retire.includes("play"), "FWU retire les commandes des autres bots");
   const guard = slashRegistrationPlan({ profile: "guard", delegated: [] }, SLASH_COMMANDS, EXTRA_SLASH_COMMANDS);
   assert.deepEqual(guard.register.map((c) => c.name).sort(), ["aide", "status", "guildguard", "kick", "ban", "tempban", "blacklist", "purge", "nettoyer", "slowmode", "lock", "unlock", "verify", "antinuke", "automod", "casier", "quarantaine", "bouclier", "piege", "raid", "scan", "panic", "doublecompte", "medias", "nuit"].sort());

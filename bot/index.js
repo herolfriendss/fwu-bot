@@ -36,10 +36,11 @@ import { handleExileVoiceState, handlePatateMessage } from "./systems/malus/voic
 import { handleCibleMessage, handleRansomMessage } from "./systems/malus/economy-malus.js";
 import { cachedBans, createPermissionWatch, isPhishingExecution, matchBanEvader, missingPermissions, permissionLabel } from "./guard/extra-watch.js";
 import { quarantineMember } from "./guard/commands.js";
+import { countChallengeMessage, expireTempChannels, handleBoost, handleFwuPlusInteraction, payChallenge, sendWeeklySummary } from "./features/fwu-plus.js";
 import { astreinteMembers, expireFrozenChannels, handleGardeInteraction, msUntilWeeklyReport, sendSanctionEndReminders, sendWeeklyStaffReports } from "./systems/garde/commands.js";
 import { enforceLeashNickname, handleDogCommand, handleLeashVoiceState, handleUndogAllInteraction, reconcileLeashedMembers } from "./dog-commands.js";
 import { handleMusicExtrasInteraction, handleMusicMessage, handleMusicInteraction, handleMusicPick, handleRadioMessage, startConfiguredRadios } from "./music/music.js";
-import { economySnapshot, handleEconomyMessage, handleEconomyInteraction, reconcilePendingEconomy, recoverBlackjackGames, settleExpiredEconomyAuctions, transferEconomyRole } from "./economy.js";
+import { economySnapshot, grantPnd, handleEconomyMessage, handleEconomyInteraction, reconcilePendingEconomy, recoverBlackjackGames, settleExpiredEconomyAuctions, transferEconomyRole } from "./economy.js";
 import { handleV4SlashInteraction, runPrefixFromSlash } from "./v4-commands.js";
 import { handleSocialMessage } from "./social.js";
 import { handleCardsMessage } from "./cards.js";
@@ -662,6 +663,9 @@ client.on("autoModerationActionExecution", (execution) => {
     if (result.ok) auditLog(execution.guild, settings[execution.guild.id], "🎣 Phishing : auteur en quarantaine", `<@${member.id}> a tenté de poster un lien de phishing (bloqué par Discord). Il est en quarantaine : son compte est peut-être piraté.\n\`/quarantaine retirer\` quand c'est réglé.`, 0xef4444);
   })().catch(() => record("guild_guard_error"));
 });
+client.on("guildMemberUpdate", (oldMember, newMember) => {
+  if (IS_FWU && guildAllowed(newMember.guild.id, ALLOWED_GUILDS) && !isLogsHub(newMember.guild.id)) void handleBoost(oldMember, newMember, { grant: grantPnd }).catch(() => record("fwu_plus_error"));
+});
 client.on("guildIntegrationsUpdate", (guild) => {
   if (!guardWatch(guild)) return;
   record("integration_changed");
@@ -793,6 +797,7 @@ async function handleMessageCreate(msg) {
   try {
     if (runCmd("guard") && await handleReactionVerificationCommand(msg)) return;
     if (serves("suckme") && await handleWaoufMessage(msg, settings, record)) return;
+    if (IS_FWU && !msg.author.bot) { const finished = countChallengeMessage(msg.guild.id, msg.author.id); if (finished) void payChallenge(msg.guild, finished, grantPnd).catch(() => record("fwu_plus_error")); }
     if (serves("suckme") && await handleRansomMessage(msg)) return;
     if (serves("suckme")) void handleCibleMessage(msg).catch(() => record("malus_error"));
     if (serves("suckme") && await handlePatateMessage(msg)) return;
@@ -1776,10 +1781,12 @@ client.once("clientReady", () => {
     void expireMalus(client, settings).then((count) => { if (count) record("malus_expired"); }).catch(() => record("malus_error"));
     void expireFrozenChannels(client).catch(() => record("garde_error"));
     if (IS_FWU) void sendSanctionEndReminders(client).catch(() => record("garde_error"));
+    if (IS_FWU) void expireTempChannels(client).catch(() => record("fwu_plus_error"));
   }, 30_000);
   // Bilan SYS+ du dimanche soir, en message privé (une fois par semaine et par serveur).
   const scheduleWeeklyStaffReport = () => setTimeout(() => {
     if (serves("suckme")) void sendWeeklyStaffReports(client, settings, { guildIds: ALLOWED_GUILDS.filter((id) => !isLogsHub(id)) }).catch(() => record("garde_error"));
+    if (IS_FWU) for (const guild of client.guilds.cache.values()) if (guildAllowed(guild.id, ALLOWED_GUILDS) && !isLogsHub(guild.id)) void sendWeeklySummary(guild, { grant: grantPnd }).catch(() => record("fwu_plus_error"));
     scheduleWeeklyStaffReport();
   }, Math.max(60_000, msUntilWeeklyReport())).unref?.();
   scheduleWeeklyStaffReport();
@@ -2119,6 +2126,7 @@ client.on("interactionCreate", (interaction) => {
     if (await handleWaoufInteraction(interaction, settings[interaction.guildId], record)) { auditSlashUsage(interaction, "WAOUF"); return; }
     if (await handleMalusInteraction(interaction, settings[interaction.guildId], record)) { auditSlashUsage(interaction, "MALUS"); return; }
     if (await handleGardeInteraction(interaction, settings[interaction.guildId], record)) { auditSlashUsage(interaction, "GARDE"); return; }
+    if (await handleFwuPlusInteraction(interaction, settings[interaction.guildId], { grant: grantPnd, record })) { auditSlashUsage(interaction, "Communauté"); return; }
     if (await handleSysPlusInteraction(interaction, settings, {
       apiUrl: API,
       secret: BOT_SYNC_SECRET,

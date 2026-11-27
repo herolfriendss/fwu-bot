@@ -79,7 +79,7 @@ export const SHARED_SLASH_COMMANDS: readonly string[] = ["aide", "status"];
 export const SLASH_COMMAND_OWNERS: Record<BotProfileId, readonly string[]> = {
   fwu: [
     "tempmute", "unmute", "warn", "warnings", "sanction", "sanction-type", "quota",
-    "embed", "reglement", "screening",
+    "embed", "reglement", "screening", "heure", "citation", "archive", "resume-salon", "salon-temp", "sante", "defi", "export-config",
     // 27/11 : dernier message supprimé ou modifié (staff)
     "snipe",
   ],

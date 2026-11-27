@@ -187,6 +187,7 @@ describe("bot wiring", () => {
       read("bot/guard/night-mode.js"),
       read("bot/systems/malus/commands.js"),
       read("bot/systems/garde/commands.js"),
+      read("bot/features/fwu-plus.js"),
     ]) {
       for (const name of commandNameChecks(source)) add(name);
     }
