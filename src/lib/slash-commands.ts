@@ -2261,6 +2261,18 @@ export const EXTRA_SLASH_COMMANDS: SlashCommandDef[] = [
     ],
   },
   {
+    name: "invitations",
+    description: "SUCK ME : tes invitations récompensées (PND si l'invité reste 7 jours) et le classement",
+    usage: "/invitations moi [membre] · classement",
+    category: "Communauté",
+    dmPermission: false,
+    requiresBotProcess: true,
+    options: [
+      sub("moi", "Tes invitations (ou celles d'un membre)", [opt(6, "membre", "Membre")]),
+      sub("classement", "Les meilleurs inviteurs du serveur"),
+    ],
+  },
+  {
     name: "braquage",
     description: "LE FISC : monte une équipe (3 à 5) pour braquer la caisse du serveur",
     usage: "/braquage",
