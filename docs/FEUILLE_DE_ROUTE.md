@@ -140,7 +140,7 @@ Déjà présentes, donc retirées de la liste : `/dossier`, `/casier`, `/staffhi
 - [ ] 83. Rapport mensuel de l'usage de l'IA (nombre de réponses, coût estimé).
 - [ ] 84. Export de toute la configuration en un fichier, envoyé en privé à l'owner, pour la restaurer si besoin.
 
-## I. Sécurité quand un bot tombe (27/11, à valider)
+## I. Sécurité quand un bot tombe (27/11, validé par l'owner)
 
 Constat dans le code : si Guard ne renouvelle plus son bail pendant 60 s, le bot principal reprend seul ses protections automatiques
 (automod, anti-raid, pièges, double compte), et de même pour le bouclier tier 0 de SUCK ME (`bot/bot-runtime.js`, `serves`).
@@ -162,3 +162,21 @@ Les commandes propres à Guard (`/ban`, `+ban`…) ne marchent plus, et si le bo
 - [ ] 95. **Remerciement des boosters** : message automatique, rôle et avantages tant que le boost dure.
 - [ ] 96. **`/calendrier`** : les événements à venir, avec rappel en privé aux inscrits.
 - [ ] 97. **Salon texte temporaire** pour un événement, supprimé tout seul après.
+
+## K. Validé par l'owner le 27/11 (à faire, dans cet ordre)
+
+- [ ] 98. **Anti-largage vocal** : quand plusieurs membres sont déconnectés d'un même salon en quelques secondes (attaque réseau qui fait « sauter » la vocale), le bot change aussitôt la région du salon pour forcer un autre serveur vocal Discord, prévient le staff et liste les membres arrivés juste avant. Limite à dire clairement : un bot ne peut pas bloquer une attaque réseau, il ne peut que faire changer de serveur vocal et repérer le suspect.
+- [ ] 99. **`/dogall`** (SYS+) : met en laisse tous les membres de son salon vocal, seulement si leur nombre ne dépasse pas sa limite de laisses restantes ; mêmes protections que `/dog` (tier 0, owner, hiérarchie, quotas, WHITELIST sans contournement), et `/undogall` pour tout retirer.
+- [ ] 100. **WOUAF retravaillé** : à chaque message du membre, une réponse différente tirée au hasard (aboiements générés, jamais deux fois la même d'affilée), en plus des phrases configurées.
+
+## L. Commandes « diaboliques » pour SYS+ (27/11, à valider)
+
+Garde-fous communs : SYS+ seulement, durée limitée, quotas partagés, tier 0 et owner intouchables, jamais sur un staff de rang égal ou supérieur, journalisé, levée possible à tout moment, aucune mention @everyone/@here.
+
+- [ ] 101. **`/perroquet @membre`** : chaque message est remplacé par sa version moqueuse (mOqUeUsE), à l'envers ou en majuscules, signée de son nom.
+- [ ] 102. **`/fantome @membre`** : ses messages disparaissent au bout de 5 s, il parle dans le vide.
+- [ ] 103. **`/mime @membre`** : il ne peut plus écrire qu'en émojis, le reste est effacé.
+- [ ] 104. **`/clown @membre`** : chacun de ses messages reçoit une réaction 🤡.
+- [ ] 105. **`/roulette` vocale** : dans le salon du SYS+, un membre tiré au sort (non protégé) est rendu muet 1 min.
+- [ ] 106. **`/patate-chaude`** : un membre reçoit la patate, il doit la passer en mentionnant quelqu'un en 30 s ; celui qui la garde à la fin est rendu muet en vocal 1 min.
+- [ ] 107. **`/taxe @membre`** (Le Fisc) : une part de ses gains va au SYS+ pendant 1 h.
