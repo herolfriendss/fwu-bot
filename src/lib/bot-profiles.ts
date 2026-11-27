@@ -88,8 +88,8 @@ export const SLASH_COMMAND_OWNERS: Record<BotProfileId, readonly string[]> = {
     "antinuke", "automod", "casier", "quarantaine", "bouclier",
     // V2 (26/11) : anti-raid
     "piege", "raid", "scan", "panic",
-    // 27/11 : doubles comptes (ressemblance avec un banni)
-    "doublecompte",
+    // 27/11 : doubles comptes (ressemblance avec un banni), salons médias
+    "doublecompte", "medias",
   ],
   fdpdlavoc: [
     "voice", "voc", "music", "radio", "effet", "playlist", "dj", "pv", "unpv",

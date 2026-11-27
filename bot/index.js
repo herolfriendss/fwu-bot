@@ -115,6 +115,7 @@ import { handleGhostPing } from "./guard/ghost-ping.js";
 import { handleSnipeInteraction, rememberDeleted, rememberEdited } from "./features/snipe.js";
 import { handleInviteRewardsInteraction, runInviteRewards } from "./features/invite-rewards.js";
 import { expireBounties, handleBountyInteraction } from "./features/bounty.js";
+import { handleMediaOnlyInteraction, handleMediaOnlyMessage, removeMediaChannel } from "./guard/media-only.js";
 import { handleVoiceMoveCommand } from "./voice-move.js";
 import { handleEmbedInteraction, EMBED_COMMANDS } from "./embeds.js";
 import { SHARED_DB_ALERTS, startSharedLayer } from "./shared/index.js";
@@ -682,6 +683,8 @@ async function handleMessageCreate(msg) {
   if (runCmd("guard") && await handleGuardianReviewMessage(msg)) return;
   // SUCK ME: keep the staff's sticky message at the bottom of its channel.
   if (serves("suckme")) onStickyChannelMessage(msg, { botUserId: client.user?.id, onError: () => record("sticky_error") });
+  // GUARD : salon médias uniquement (texte seul supprimé, fil de commentaires sous chaque média).
+  if (serves("guard")) { try { if (await handleMediaOnlyMessage(msg)) return; } catch { record("media_only_error"); } }
   // FDPDLAVOC blind test: an answer in the game channel scores and stops (no-op without a running game).
   try { if (await handleBlindtestMessage(msg)) return; } catch { record("blindtest_error"); }
   // FDPDLAVOC lecture vocale : un message du chat du vocal suivi est lu à voix haute (sans bloquer la suite).
@@ -1114,6 +1117,7 @@ client.on("channelDelete", (channel) => {
   if (serves("fwu")) handleTicketChannelDelete(channel, record);
   if (channel.guild && serves("investplus")) { try { handleInvestPlusChannelDelete(channel); } catch { record("investplus_job_error"); } }
   try { forgetStatChannel(channel.id); } catch { record("stat_channels_error"); }
+  try { removeMediaChannel(channel.id); } catch { record("media_only_error"); }
 });
 client.on("roleCreate", (role) => {
   if (serves("fwu") && guildAllowed(role.guild.id, ALLOWED_GUILDS)) auditLog(role.guild, settings[role.guild.id], "🎭 Rôle créé", `Rôle : **${role.name}**\nID : \`${role.id}\``);
@@ -1837,6 +1841,7 @@ client.on("interactionCreate", (interaction) => {
     if (await handleSnipeInteraction(interaction)) { auditSlashUsage(interaction, "Snipe"); return; }
     if (await handleInviteRewardsInteraction(interaction)) { auditSlashUsage(interaction, "Invitations"); return; }
     if (await handleBountyInteraction(interaction)) { auditSlashUsage(interaction, "LE FISC"); return; }
+    if (await handleMediaOnlyInteraction(interaction)) { auditSlashUsage(interaction, "Salons médias"); return; }
     if (await handleVersusInteraction(interaction)) { auditSlashUsage(interaction, "Jeux entre membres"); return; }
     if (await handleSelfUpdateInteraction(interaction)) { auditSlashUsage(interaction, "SUCK ME"); return; }
     if (await handleSuckmeInteraction(interaction, settings[interaction.guildId])) { auditSlashUsage(interaction, "SUCK ME"); return; }
