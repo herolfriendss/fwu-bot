@@ -10,6 +10,7 @@ import { ChannelType, PermissionFlagsBits as P } from "discord.js";
 import { db } from "../database.js";
 import { respondInPlaceSafe } from "../interaction-reply.js";
 import { grantPnd } from "../economy.js";
+import { isTtsRunning } from "./tts.js";
 
 export const BLINDTEST_COMMANDS = new Set(["blindtest"]);
 export const BT = Object.freeze({ roundMs: 30_000, pauseMs: 6_000, minRounds: 3, maxRounds: 15, defaultRounds: 8, titlePoints: 2, artistPoints: 1, skipIntroSeconds: 25, pndPerPoint: 20, winnerBonus: 100 });
@@ -274,7 +275,7 @@ export async function handleBlindtestInteraction(interaction) {
     const voiceChannel = interaction.member?.voice?.channel;
     if (!voiceChannel || voiceChannel.type !== ChannelType.GuildVoice) throw new Error("Rejoins un salon vocal classique pour lancer un blind test.");
     const me = guild.members.me ?? await guild.members.fetchMe();
-    if (me.voice?.channelId) throw new Error("Je suis déjà dans un vocal (musique ou radio) : arrête-la d'abord.");
+    if (me.voice?.channelId || isTtsRunning(guild.id)) throw new Error("Je suis déjà dans un vocal (musique, radio ou lecture vocale) : arrête-la d'abord.");
     if (!voiceChannel.permissionsFor(me)?.has([P.Connect, P.Speak])) throw new Error("Il me faut les permissions **Se connecter** et **Parler** dans ce vocal.");
     const rounds = Math.min(BT.maxRounds, Math.max(BT.minRounds, interaction.options.getInteger("manches", false) ?? BT.defaultRounds));
     const songs = pickSongs(songsFor(guild.id, interaction.user.id, interaction.options.getString("playlist", false)), rounds);

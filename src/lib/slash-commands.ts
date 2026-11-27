@@ -2413,6 +2413,18 @@ export const EXTRA_SLASH_COMMANDS: SlashCommandDef[] = [
     ],
   },
   {
+    name: "lecture",
+    description: "FDPDLAVOC : lit à voix haute le chat de ton vocal (pour qui ne peut pas parler)",
+    usage: "/lecture activer · desactiver",
+    category: "Musique & radio",
+    dmPermission: false,
+    requiresBotProcess: true,
+    options: [
+      sub("activer", "Le bot rejoint ton vocal et lit les messages écrits dans son chat"),
+      sub("desactiver", "Arrête la lecture vocale (celui qui l'a lancée ou le staff)"),
+    ],
+  },
+  {
     name: "playlist",
     description: "FDPDLAVOC : tes playlists enregistrées",
     usage: "/playlist sauver nom · charger nom · liste · supprimer nom",

@@ -23,6 +23,7 @@ import { autoplaySearch, resolveMusicInput } from "./music-resolver.js";
 import { normalizeAudioHost, validateAudioUrl } from "./audio-source-policy.js";
 import { brandEmbed } from "../theme.js";
 import { isBlindTestRunning } from "../features/blindtest.js";
+import { isTtsRunning } from "../features/tts.js";
 import { AUDIO_FILTERS, DJ_COMMANDS, FILTER_LABELS, createVoteSkip, deletePlaylist, djRoleId, isDj, listPlaylists, loadPlaylist, savePlaylist, setDjRole } from "./music-extras.js";
 
 const voteSkip = createVoteSkip();
@@ -141,6 +142,7 @@ async function updatePanel(state) {
 
 async function connectChannel(guild, channel, textChannel) {
   if (isBlindTestRunning(guild.id)) throw new Error("Un blind test est en cours : la musique reprendra après la partie.");
+  if (isTtsRunning(guild.id)) throw new Error("La lecture vocale est active : `/lecture desactiver` avant de lancer la musique.");
   if (!channel || channel.type !== ChannelType.GuildVoice) {
     throw new Error("La musique demande un salon vocal classique, pas un salon Stage.");
   }
