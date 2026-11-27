@@ -47,3 +47,20 @@ test("le bot principal (slash uniquement) ignore tous les préfixes", async () =
   const r = await runBotCommands("fwu", ["=pv", "+ban", "=aide", "-balance"]);
   for (const [command, replies] of Object.entries(r)) assert.deepEqual(replies, [], command);
 });
+
+// Balayage : chaque commande à préfixe de chaque bot, tapée par un simple membre, reçoit
+// une réponse (aide, refus…) et jamais une erreur de programmation.
+const PROGRAMMING_ERROR = /is not a function|is not defined|Cannot read propert|Cannot destructure|is not iterable|Received one or more errors|Invalid Form Body/;
+test("balayage : toutes les commandes à préfixe répondent, sans erreur de programmation", { timeout: 600_000 }, async () => {
+  const { PREFIX_COMMAND_OWNERS, BRIDGED_PREFIX_COMMANDS, DEFAULT_PREFIXES } = await import("./bot-runtime.js");
+  for (const profile of ["guard", "fdpdlavoc", "suckme", "fisc", "investplus"]) {
+    const prefix = DEFAULT_PREFIXES[profile];
+    const commands = [...PREFIX_COMMAND_OWNERS[profile], ...BRIDGED_PREFIX_COMMANDS[profile]].map((word) => `${prefix}${word}`);
+    const results = await runBotCommands(profile, commands, { as: "member", waitMs: 150, withLogs: true, timeoutMs: 300_000 });
+    const silent = commands.filter((command) => !(results[command] ?? []).length);
+    assert.deepEqual(silent, [], `${profile} : commandes sans réponse`);
+    const broken = commands.filter((command) => PROGRAMMING_ERROR.test((results[command] ?? []).join(" ")));
+    assert.deepEqual(broken, [], `${profile} : erreurs de programmation`);
+    assert.doesNotMatch(results.__stderr, PROGRAMMING_ERROR, `${profile} : erreur dans les journaux`);
+  }
+});

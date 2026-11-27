@@ -603,6 +603,10 @@ async function handleMessageCreate(msg) {
       return;
     }
   }
+  if (ownCommand && prefixed.word === "waouf") {
+    // Orthographe alternative de =wouaf (même commande).
+    prefixed.canonical = `=wouaf${prefixed.canonical.slice("=waouf".length)}`;
+  }
   if (ownCommand && SHARED_PREFIX_COMMANDS.includes(prefixed.word)) {
     // "+aide", ";help", "-commandes" : la liste des commandes de CE bot (même rendu que /aide).
     prefixed.canonical = `=aide${prefixed.canonical.slice(prefixed.word.length + 1)}`;
