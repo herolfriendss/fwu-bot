@@ -47,6 +47,28 @@ const sub = (name: string, description: string, options?: SlashOption[]): SlashO
   ...(options?.length ? { options } : {}),
 });
 
+// MALUS (SUCK ME) : une seule commande racine pour rester sous la limite de 100 commandes par bot.
+const MALUS_MESSAGE_SUBS: Array<[string, string]> = [
+  ["perroquet", "Ses messages deviennent moqueurs, à l'envers ou en majuscules"],
+  ["fantome", "Ses messages disparaissent au bout de 5 s"],
+  ["mime", "Il ne peut écrire qu'en émojis"],
+  ["clown", "Chacun de ses messages reçoit un 🤡"],
+  ["robot", "Ses messages deviennent BIP BOUP"],
+  ["bebe", "Ses messages en langage bébé"],
+  ["yoda", "Ses mots dans le désordre, hmm"],
+  ["chuchote", "Ses messages en tout petits caractères"],
+  ["sablier", "Un seul message par minute"],
+  ["malediction", "1 message sur 5 remplacé par une phrase gênante"],
+];
+const MALUS_STOP_CHOICES = [
+  ...MALUS_MESSAGE_SUBS.map(([value]) => ({ name: value, value })),
+  ...["sourdine-folle", "exil", "bouffon", "taxe", "rancon", "cible"].map((value) => ({ name: value, value })),
+].slice(0, 25);
+const malusTargetOptions = (): SlashOption[] => [
+  opt(6, "membre", "Membre visé", { required: true }),
+  opt(4, "minutes", "Durée (1 à 60 min, 10 par défaut)", { min_value: 1, max_value: 60 }),
+];
+
 /** The stake option shared by every casino game. */
 const MISE = opt(4, "mise", "Mise en PND", { required: true, min_value: 1, max_value: 1000000000 });
 
@@ -1429,6 +1451,22 @@ export const SLASH_COMMANDS: SlashCommandDef[] = [
       sub("proteger", "Mémorise le pseudonyme actuel d’un membre", [opt(6, "membre", "Membre concerné", { required: true })]),
       sub("retirer", "Désactive la protection d’un membre", [opt(6, "membre", "Membre concerné", { required: true })]),
       sub("liste", "Affiche les pseudonymes protégés de ce serveur"),
+    ],
+  },
+  {
+    name: "malus",
+    description: "SYS+ : malus temporaires sur un membre (perroquet, fantôme, mime, clown…)",
+    usage: "/malus <type> membre [minutes] | stop membre [type] | liste",
+    category: "SYS+",
+    dmPermission: false,
+    requiresBotProcess: true,
+    options: [
+      ...MALUS_MESSAGE_SUBS.map(([name, description]) => sub(name, description, malusTargetOptions())),
+      sub("stop", "Lève les malus d'un membre", [
+        opt(6, "membre", "Membre", { required: true }),
+        opt(3, "type", "Un seul malus (vide = tous)", { choices: MALUS_STOP_CHOICES }),
+      ]),
+      sub("liste", "Malus actifs sur le serveur"),
     ],
   },
   {

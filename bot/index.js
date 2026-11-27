@@ -31,6 +31,7 @@ import { createClientStudioSender, publishDueDrafts, recoverInterruptedStudioPub
 import { handleWhitelistInteraction } from "./systems/sysplus/whitelist-commands.js";
 import { enforceProtectedNickname, handleLocknameInteraction, handleLocknameMessage, reconcileProtectedNicknames } from "./systems/lockname/commands.js";
 import { expireWaoufActions, handleWaoufInteraction, handleWaoufMessage } from "./systems/waouf/commands.js";
+import { expireMalus, handleMalusInteraction, handleMalusMessage } from "./systems/malus/commands.js";
 import { enforceLeashNickname, handleDogCommand, handleLeashVoiceState, handleUndogAllInteraction, reconcileLeashedMembers } from "./dog-commands.js";
 import { handleMusicExtrasInteraction, handleMusicMessage, handleMusicInteraction, handleRadioMessage, startConfiguredRadios } from "./music/music.js";
 import { economySnapshot, handleEconomyMessage, handleEconomyInteraction, reconcilePendingEconomy, recoverBlackjackGames, settleExpiredEconomyAuctions, transferEconomyRole } from "./economy.js";
@@ -748,6 +749,7 @@ async function handleMessageCreate(msg) {
   try {
     if (runCmd("guard") && await handleReactionVerificationCommand(msg)) return;
     if (serves("suckme") && await handleWaoufMessage(msg, settings, record)) return;
+    if (serves("suckme") && await handleMalusMessage(msg, record)) return;
   } catch {
     record("waouf_error");
     return;
@@ -1706,6 +1708,7 @@ client.once("clientReady", () => {
   const waoufExpiryTimer = setInterval(() => {
     if (!serves("suckme")) return;
     void expireWaoufActions(client, settings).then((count) => { if (count) record("waouf_expired"); }).catch(() => record("waouf_expiration_error"));
+    void expireMalus(client, settings).then((count) => { if (count) record("malus_expired"); }).catch(() => record("malus_error"));
   }, 30_000);
   waoufExpiryTimer.unref?.();
   if (serves("fdpdlavoc")) void startConfiguredRadios(client).then((started) => {
@@ -2041,6 +2044,7 @@ client.on("interactionCreate", (interaction) => {
     if (await handleWhitelistInteraction(interaction, settings, { audit: (guild, title, description) => auditLog(guild, settings[guild?.id], title, description) })) return;
     if (await handleLocknameInteraction(interaction, settings[interaction.guildId])) { auditSlashUsage(interaction, "LOCKNAME"); return; }
     if (await handleWaoufInteraction(interaction, settings[interaction.guildId], record)) { auditSlashUsage(interaction, "WAOUF"); return; }
+    if (await handleMalusInteraction(interaction, settings[interaction.guildId], record)) { auditSlashUsage(interaction, "MALUS"); return; }
     if (await handleSysPlusInteraction(interaction, settings, {
       apiUrl: API,
       secret: BOT_SYNC_SECRET,

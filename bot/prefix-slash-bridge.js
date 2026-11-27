@@ -222,14 +222,23 @@ export function buildBridgedInteraction(message, definition, parsed, { client = 
  * Commande à préfixe sans traitement dédié : si c'est une commande slash du bot, elle est
  * relayée. `dispatch(interaction)` = le chemin interactionCreate. Retourne true si traitée.
  */
+export const PREFIX_ALIASES = Object.freeze(Object.fromEntries(
+  ["perroquet", "fantome", "mime", "clown", "robot", "bebe", "yoda", "chuchote", "sablier", "malediction",
+    "sourdine-folle", "exil", "bouffon", "roulette-vocale", "patate", "tribunal", "interrogatoire", "taxe", "rancon", "cible"]
+    .map((sub) => [sub, { root: "malus", sub }]),
+));
+
 export async function runPrefixAsSlash(message, { catalogue, ownsCommand, dispatch, prefix = "=" }) {
   const match = String(message?.content ?? "").trim().match(/^=([a-z0-9-]+)\b\s*([\s\S]*)$/i);
   if (!match) return false;
-  const name = match[1].toLowerCase();
+  let name = match[1].toLowerCase();
+  let args = match[2];
+  // Raccourcis : "+perroquet @x 10" = "/malus perroquet membre:@x minutes:10".
+  if (PREFIX_ALIASES[name]) { args = `${PREFIX_ALIASES[name].sub} ${args}`.trim(); name = PREFIX_ALIASES[name].root; }
   if (!ownsCommand(name)) return false;
   const definition = catalogue.find((command) => command.name === name);
   if (!definition) return false;
-  const parsed = parseBridgedCommand(definition, match[2], { prefix });
+  const parsed = parseBridgedCommand(definition, args, { prefix });
   if (parsed.error) {
     await message.reply({ content: parsed.error, allowedMentions: { parse: [] } }).catch(() => {});
     return true;

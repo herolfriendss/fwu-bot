@@ -38,6 +38,7 @@ export const HIERARCHY_TARGETS = Object.freeze({
   "lockname retirer": "membre",
   "wouaf activer": "membre",
   "wouaf stop": "membre",
+  ...Object.fromEntries(["perroquet", "fantome", "mime", "clown", "robot", "bebe", "yoda", "chuchote", "sablier", "malediction"].map((kind) => [`malus ${kind}`, "membre"])),
   menotte: "membre",
   unmenotte: "membre",
   "blacklist add": "membre",
