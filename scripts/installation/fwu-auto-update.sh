@@ -39,6 +39,9 @@ echo "Node utilisé : $(command -v node || echo introuvable) $(node -v 2>/dev/nu
 # A build and a test run need the dev dependencies, so the update starts from a
 # neutral environment instead of the bot's own.
 unset NODE_ENV
+# Le script peut être lancé par n'importe quel bot : son profil et son token ne doivent jamais passer
+# aux processus relancés avec --update-env (FWU est devenu un second SUCK ME à cause de ça).
+for _v in DISCORD_TOKEN PND_BOT_PROFILE PND_FWU_DELEGATED $(compgen -e | grep -E '^PND_[A-Z]+_(TOKEN|GUILD_IDS)$'); do unset "$_v"; done
 
 # --auto : lancé périodiquement par SUCK ME (mise à jour automatique) ; ne fait rien si
 # la version visée (commit de main ou version publiée) est déjà installée.

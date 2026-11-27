@@ -37,12 +37,25 @@ export function readInstalledVersion(dir = DATA()) {
   try { return readFileSync(`${dir}/version-installee`, "utf8").trim() || null; } catch { return null; }
 }
 
+/**
+ * The update script restarts the OTHER processes with `pm2 --update-env`: whatever this bot has in its
+ * environment would be copied into them (a SUCK ME launching the update turned her-v5-bot into a second
+ * SUCK ME). So the script only gets the environment without anything specific to one bot.
+ */
+export function cleanUpdateEnv(env = process.env) {
+  const out = { ...env };
+  for (const key of Object.keys(out)) {
+    if (key === "DISCORD_TOKEN" || key === "PND_BOT_PROFILE" || key === "PND_FWU_DELEGATED" || /^PND_[A-Z]+_(TOKEN|GUILD_IDS)$/.test(key)) delete out[key];
+  }
+  return out;
+}
+
 /** Detached launch: the script survives the PM2 restarts it triggers (reparented to init). */
 export function launchUpdate(spawnFn = spawn, script = SCRIPT(), version = null) {
   const args = version
     ? ["-c", 'setsid nohup bash "$0" "$1" >/dev/null 2>&1 < /dev/null &', script, version]
     : ["-c", 'setsid nohup bash "$0" >/dev/null 2>&1 < /dev/null &', script];
-  const child = spawnFn("bash", args, { detached: true, stdio: "ignore" });
+  const child = spawnFn("bash", args, { detached: true, stdio: "ignore", env: cleanUpdateEnv() });
   child.unref?.();
 }
 

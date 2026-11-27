@@ -218,6 +218,9 @@ fi
 command -v pm2 >/dev/null 2>&1 || fail "PM2 n'est pas disponible dans le PATH après installation."
 
 unset NODE_OPTIONS
+# Le script peut être lancé par n'importe quel bot : son profil et son token ne doivent jamais passer
+# aux processus relancés avec --update-env (FWU est devenu un second SUCK ME à cause de ça).
+for _v in DISCORD_TOKEN PND_BOT_PROFILE PND_FWU_DELEGATED $(compgen -e | grep -E '^PND_[A-Z]+_(TOKEN|GUILD_IDS)$'); do unset "$_v"; done
 info "Activation de la configuration PM2 V5"
 # Ne jamais supprimer les processus V4 historiques. Vérifier que les processus
 # V5 existants pointent déjà vers cette racine avant de les recharger.
