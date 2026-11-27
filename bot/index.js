@@ -118,6 +118,7 @@ import { expireBounties, handleBountyInteraction } from "./features/bounty.js";
 import { handleMediaOnlyInteraction, handleMediaOnlyMessage, removeMediaChannel } from "./guard/media-only.js";
 import { handleNightInteraction, runNightMode } from "./guard/night-mode.js";
 import { handleFlagReaction } from "./features/flag-translate.js";
+import { commandsByBot, handleHelpComponent, helpPayload } from "./features/help-panel.js";
 import { handleVoiceMoveCommand } from "./voice-move.js";
 import { handleEmbedInteraction, EMBED_COMMANDS } from "./embeds.js";
 import { SHARED_DB_ALERTS, startSharedLayer } from "./shared/index.js";
@@ -1599,6 +1600,13 @@ function commandGroupsForThisBot() {
   return [...groups.entries()].filter(([, commands]) => commands.length).map(([category, commands]) => ({ category, commands }));
 }
 
+let helpCommands = null;
+/** Données du panneau d'aide : profils, préfixes réels, commandes de chaque bot. */
+function helpContext() {
+  helpCommands ??= commandsByBot([...SLASH_COMMANDS, ...EXTRA_SLASH_COMMANDS], slashCommandOwner);
+  return { profiles: BOT_PROFILES, prefixes: BOT_PREFIXES, commands: helpCommands };
+}
+
 async function handleCoreSlashInteraction(interaction) {
   if (!interaction.isChatInputCommand()) return false;
 
@@ -1615,18 +1623,8 @@ async function handleCoreSlashInteraction(interaction) {
   }
 
   if (command === "aide") {
-    const embeds = commandGroupsForThisBot().map((group) => ({
-      title: group.category,
-      description: group.commands.map((c) => `**/${c.name}** — ${c.description}`).join("\n"),
-    }));
-    const otherBots = Object.values(BOT_PROFILES).filter((profile) => profile.id !== RUNTIME.profile && !serves(profile.id));
-    await interaction.reply({
-      content: IS_FWU && !otherBots.length
-        ? "🤖 **Commandes du bot principal**"
-        : `🤖 **Commandes de ${BOT_LABEL}**${otherBots.length ? `\nAutres bots : ${otherBots.map((profile) => `**${profile.label}** (${profile.summary})`).join(" · ")}` : ""}`.slice(0, 2000),
-      embeds,
-      ephemeral: true,
-    });
+    // Ouvre sur les commandes de CE bot ; le menu mène aux autres bots et aux permissions.
+    await interaction.reply({ content: IS_FWU ? "🤖 **Commandes du bot principal**" : `🤖 **Commandes de ${BOT_LABEL}**`, ...helpPayload({ section: RUNTIME.profile }, helpContext()), ephemeral: true });
     return true;
   }
 
@@ -1818,6 +1816,7 @@ client.on("interactionCreate", (interaction) => {
       await interaction.reply({ content: hierarchyRefusal, ephemeral: true, allowedMentions: { parse: [] } }).catch(() => {});
       return;
     }
+    if ((interaction.isButton?.() || interaction.isStringSelectMenu?.()) && await handleHelpComponent(interaction, helpContext())) return;
     if (await handleDossierButton(interaction, { settings: settings[interaction.guildId] })) return;
     if (await handleLogsInteraction(interaction, settings[interaction.guildId])) { auditSlashUsage(interaction, "Journaux"); return; }
     if (await handleBlrInteraction(interaction, settings[interaction.guildId])) { auditSlashUsage(interaction, "BLR"); return; }
