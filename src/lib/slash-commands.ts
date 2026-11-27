@@ -1462,6 +1462,13 @@ export const SLASH_COMMANDS: SlashCommandDef[] = [
     requiresBotProcess: true,
     options: [
       ...MALUS_MESSAGE_SUBS.map(([name, description]) => sub(name, description, malusTargetOptions())),
+      sub("sourdine-folle", "En vocal, son micro coupé et rendu au hasard (5 min au plus)", malusTargetOptions()),
+      sub("exil", "Renvoyé dans le salon AFK à chaque connexion vocale", malusTargetOptions()),
+      sub("bouffon", "Rôle « Bouffon du serveur » affiché à part (aucune permission)", malusTargetOptions()),
+      sub("roulette-vocale", "Un membre de ton salon vocal, tiré au sort, est rendu muet 1 min"),
+      sub("patate", "Patate chaude : à passer en mentionnant quelqu'un en 30 s", [opt(6, "membre", "Premier à recevoir la patate", { required: true })]),
+      sub("tribunal", "Vote public de 60 s : coupable ou innocent", [opt(6, "membre", "Accusé", { required: true })]),
+      sub("interrogatoire", "3 questions, 30 s pour répondre à chacune", [opt(6, "membre", "Membre interrogé", { required: true })]),
       sub("stop", "Lève les malus d'un membre", [
         opt(6, "membre", "Membre", { required: true }),
         opt(3, "type", "Un seul malus (vide = tous)", { choices: MALUS_STOP_CHOICES }),

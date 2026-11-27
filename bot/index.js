@@ -32,6 +32,7 @@ import { handleWhitelistInteraction } from "./systems/sysplus/whitelist-commands
 import { enforceProtectedNickname, handleLocknameInteraction, handleLocknameMessage, reconcileProtectedNicknames } from "./systems/lockname/commands.js";
 import { expireWaoufActions, handleWaoufInteraction, handleWaoufMessage } from "./systems/waouf/commands.js";
 import { expireMalus, handleMalusInteraction, handleMalusMessage } from "./systems/malus/commands.js";
+import { handleExileVoiceState, handlePatateMessage } from "./systems/malus/voice-games.js";
 import { enforceLeashNickname, handleDogCommand, handleLeashVoiceState, handleUndogAllInteraction, reconcileLeashedMembers } from "./dog-commands.js";
 import { handleMusicExtrasInteraction, handleMusicMessage, handleMusicInteraction, handleRadioMessage, startConfiguredRadios } from "./music/music.js";
 import { economySnapshot, handleEconomyMessage, handleEconomyInteraction, reconcilePendingEconomy, recoverBlackjackGames, settleExpiredEconomyAuctions, transferEconomyRole } from "./economy.js";
@@ -749,6 +750,7 @@ async function handleMessageCreate(msg) {
   try {
     if (runCmd("guard") && await handleReactionVerificationCommand(msg)) return;
     if (serves("suckme") && await handleWaoufMessage(msg, settings, record)) return;
+    if (serves("suckme") && await handlePatateMessage(msg)) return;
     if (serves("suckme") && await handleMalusMessage(msg, record)) return;
   } catch {
     record("waouf_error");
@@ -1166,6 +1168,7 @@ client.on("voiceStateUpdate", (oldState, newState) => {
   if (serves("guard") && VOICE_DROP_GUARD_ON) void handleVoiceDrop(oldState, newState).catch(() => record("voice_drop_guard_error"));
   if (serves("fdpdlavoc")) void handleWaitingVoiceState(oldState, newState).catch(() => record("support_waiting_error"));
   const suckme = serves("suckme");
+  if (suckme) void handleExileVoiceState(oldState, newState).catch(() => record("malus_error"));
   if (suckme) {
   void trackVoiceStateUpdate(oldState, newState, client).catch(() => record("voice_audit_error"));
   // Rôle 0 % intouchable : micro/casque coupés annulés aussitôt, déplacement forcé ramené (Anti-Move forcé).
