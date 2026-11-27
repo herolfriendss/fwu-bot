@@ -2238,6 +2238,20 @@ export const EXTRA_SLASH_COMMANDS: SlashCommandDef[] = [
     ],
   },
   {
+    name: "medias",
+    description: "GUARD : salons réservés aux médias (texte seul supprimé, fil de commentaires)",
+    usage: "/medias ajouter salon [fils] · retirer salon · liste",
+    category: "Modération",
+    dmPermission: false,
+    requiresBotProcess: true,
+    defaultMemberPermissions: manageChannels,
+    options: [
+      sub("ajouter", "Réserve un salon aux médias", [opt(7, "salon", "Salon", { required: true, channel_types: [0] }), opt(5, "fils", "Fil de commentaires sous chaque média (oui par défaut)")]),
+      sub("retirer", "Rend un salon normal", [opt(7, "salon", "Salon", { required: true, channel_types: [0] })]),
+      sub("liste", "Les salons médias du serveur"),
+    ],
+  },
+  {
     name: "doublecompte",
     description: "GUARD : ce compte ressemble-t-il à un membre banni ? (indice pour le staff)",
     usage: "/doublecompte membre",
