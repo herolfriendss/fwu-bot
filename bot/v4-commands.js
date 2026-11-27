@@ -283,6 +283,8 @@ function buildPlan(interaction) {
       if (!user) return { handler: "dog", content: "=doglist", mentions, ephemeral: true };
       return userPlan(`=dog <@${user.id}>`, user, { handler: "dog", ephemeral: true });
     }
+    case "dogall":
+      return { handler: "dog", content: "=dogall", mentions, ephemeral: true };
     case "undog": {
       const user = options.getUser("membre", true);
       return userPlan(`=undog <@${user.id}>`, user, { handler: "dog", ephemeral: true });

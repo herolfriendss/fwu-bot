@@ -101,7 +101,7 @@ export const SLASH_COMMAND_OWNERS: Record<BotProfileId, readonly string[]> = {
   suckme: [
     "sysp", "panel", "setup", "knowledge", "rank", "rankall", "removerole", "rolepanel",
     "staffhistory", "vocalpresence", "lockname", "webhook", "automation",
-    "anti-moove", "wakeup", "dog", "undog", "doginfo", "wouaf", "menotte", "unmenotte", "menotteinfo",
+    "anti-moove", "wakeup", "dog", "dogall", "undog", "doginfo", "wouaf", "menotte", "unmenotte", "menotteinfo",
     "dmall", "undogall", "roletemp", "annonce", "staff", "pseudo", "maj",
     // venues de FWU
     "ia", "ticket", "candidature", "sondage", "profil", "bio", "rep", "toprep", "color",
@@ -151,7 +151,7 @@ export const PREFIX_COMMAND_OWNERS: Record<BotProfileId, readonly string[]> = {
   suckme: [
     "sysp", "rank", "addrole", "removerole", "rankall", "rolepanel", "staffhistory", "vocalpresence",
     "lockname", "unlockname", "locknamelist", "automation", "autorule", "knowledge",
-    "dog", "undog", "doginfo", "doglist", "menotte", "unmenotte", "menotteinfo", "wakeup",
+    "dog", "dogall", "undog", "doginfo", "doglist", "menotte", "unmenotte", "menotteinfo", "wakeup",
     "anti-moove", "anti-move", "wouaf", "waouf", "dmall", "logs", "dossier", "blr", "guide", "pourquoi",
     // venues de FWU
     "ticket", "candidature", "candidatures", "ia", "pndia",

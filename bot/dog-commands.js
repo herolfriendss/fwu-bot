@@ -402,10 +402,138 @@ export async function handleLeashVoiceState(oldState, newState, options = {}) {
   return moved;
 }
 
+/**
+ * Puts one member on a leash. The caller holds the guild's dog-state lock and has checked
+ * the hierarchy. Returns { ok, text } and never replies itself (used by =dog and =dogall).
+ */
+async function leashMember({ guild, actor, author, target, guildSettings }) {
+  const id = key(guild.id, target.id);
+  const freshRecords = await loadState();
+  const freshExisting = freshRecords[id];
+  if (freshExisting && !freshExisting.releasing) {
+    return { ok: false, already: true, text: `🦮 Ce membre est déjà en laisse par **${freshExisting.ownerName}**. Utilise \`=undog @membre\` pour retirer la laisse.` };
+  }
+  const whitelisted = isWhitelistMember(actor, guildSettings?.sysPlus?.whitelistRoleId ?? null);
+  // Per-guild limit from /setup (dog.maxActiveLeashes); historical default 3 when unset.
+  const maxLeashes = resolveMaxActiveLeashes(guildSettings?.dog?.maxActiveLeashes);
+  const quota = leashQuotaStatus(freshRecords, guild.id, author.id, maxLeashes, whitelisted);
+  const activeCount = quota.activeCount;
+  if (!canCreateLeash(freshRecords, guild.id, author.id, maxLeashes, whitelisted)) {
+    return { ok: false, quota: true, text: `⛔ Tu as déjà **${activeCount}/${maxLeashes}** laisses actives. Libère-en une avec \`=undog @membre\` avant d'en ajouter une autre.` };
+  }
+  const menotte = db.prepare("SELECT channel_id FROM voice_menottes WHERE guild_id=? AND member_id=?").get(guild.id, target.id);
+  if (menotte) return { ok: false, text: "⛔ Ce membre est déjà soumis au système MENOTTE. Libère d'abord cette restriction." };
+  const nicknameLock = db.prepare("SELECT 1 FROM protected_nicknames WHERE guild_id=? AND member_id=?").get(guild.id, target.id);
+  if (nicknameLock) return { ok: false, text: "⛔ Retire d’abord LOCKNAME avant de modifier le pseudonyme avec DOG." };
+
+  const previousNickname = target.nickname;
+  const ownerName = actor.displayName || author.username;
+  let leashRole;
+  try {
+    leashRole = await getLeashRole(guild, author.id, ownerName, freshRecords);
+  } catch (error) {
+    return { ok: false, text: `❌ ${error.message} Vérifie les permissions et la position des rôles du bot.` };
+  }
+  freshRecords[id] = {
+    guildId: guild.id,
+    memberId: target.id,
+    previousNickname,
+    ownerId: author.id,
+    ownerName,
+    leashRoleId: leashRole.id,
+    since: Date.now(),
+  };
+  try {
+    await saveState();
+    await target.roles.add(leashRole, `Mis en laisse par ${author.tag}`);
+    await target.setNickname(dogNickname(ownerName), `Mis en laisse par ${author.tag}`);
+  } catch (error) {
+    delete freshRecords[id];
+    await saveState().catch(() => {});
+    await target.roles.remove(leashRole, "Annulation de la laisse DOG échouée").catch(() => {});
+    await releaseLeashRoleIfUnused(guild, leashRole.id, freshRecords).catch(() => {});
+    console.error("DOG command failed:", error.message);
+    return { ok: false, text: "❌ Impossible de mettre ce membre en laisse. Vérifie la hiérarchie des rôles et mes permissions." };
+  }
+  const returnedToOwner = await enforceLeashVoice(guild, target.id).catch(() => false);
+  const leashCount = quota.label;
+  if (quota.exceptionUsed) {
+    try {
+      recordSysPlusAudit(guild.id, author.id, "dog.whitelist_quota_exception", target.id, {
+        activeBefore: activeCount,
+        configuredLimit: maxLeashes,
+      });
+    } catch (error) {
+      console.error("DOG whitelist exception audit failed:", error.message);
+    }
+  }
+  await sendCentralLog(guild, guildSettings, systemLogEmbed({ category: "dog", title: "🦮 DOG — laisse attribuée", description: `Acteur : <@${author.id}>\nCible : <@${target.id}>\nLaisses actives : ${leashCount}` })).catch(() => {});
+  return {
+    ok: true,
+    text: `🦮 **${target.user.username}** est maintenant en laisse par **${ownerName}** (${leashCount}).${returnedToOwner ? " Il a été ramené dans ton salon vocal." : ""}`,
+  };
+}
+
+/**
+ * =dogall / /dogall (SYS+): leash every member of the actor's voice channel, but only when
+ * they all fit in the actor's remaining leashes — otherwise nothing is done. Each member
+ * goes through the same hierarchy and protection checks as =dog; refused ones are listed.
+ */
+async function handleDogAll(message, actor, guildSettings) {
+  const reply = (content) => message.reply({ content, allowedMentions: { parse: [] } });
+  const channel = actor.voice?.channel;
+  if (!channel) return reply("🎧 Rejoins d'abord un salon vocal : /dogall met en laisse les membres de ton salon.").then(() => true);
+  const botMember = await message.guild.members.fetchMe();
+  if (!botMember.permissions.has(PermissionFlagsBits.ManageNicknames)) return reply("❌ Il me manque la permission **Gérer les surnoms**.").then(() => true);
+  return withCommandLock(`${message.guild.id}:dog-state`, async () => {
+    await pruneDepartedLeashes(message.guild);
+    const records = await loadState();
+    const present = [...channel.members.values()].filter((member) => member.id !== actor.id && !member.user.bot);
+    const candidates = present.filter((member) => {
+      const record = records[key(message.guild.id, member.id)];
+      return !record || record.releasing;
+    });
+    if (!candidates.length) {
+      await reply(present.length ? "🐾 Tout le monde dans ton salon est déjà en laisse." : "🐾 Personne d'autre que toi dans ce salon.");
+      return true;
+    }
+    const remaining = await remainingLeashes(message.guild, actor, message.author.id, guildSettings);
+    if (candidates.length > remaining) {
+      await reply(`⛔ ${candidates.length} membres à mettre en laisse, mais il ne te reste que **${remaining}** laisse(s). Rien n'a été fait.`);
+      return true;
+    }
+    const pndOwnerId = parsePndOwnerId(process.env.PND_OWNER_DISCORD_ID);
+    const done = [];
+    const skipped = [];
+    for (const target of candidates) {
+      const hierarchy = evaluateTargetHierarchy({ actor, target, bot: botMember, guildOwnerId: message.guild.ownerId, pndOwnerId, enforceActorRank: true, allowSelf: false });
+      if (!hierarchy.allowed) { skipped.push(`<@${target.id}> (${String(hierarchy.reason).slice(0, 80)})`); continue; }
+      const result = await leashMember({ guild: message.guild, actor, author: message.author, target, guildSettings });
+      if (result.ok) done.push(`<@${target.id}>`);
+      else skipped.push(`<@${target.id}> (${result.text.replace(/^\S+\s/, "").slice(0, 80)})`);
+    }
+    const lines = [`🦮 **${done.length}** membre(s) de <#${channel.id}> mis en laisse.`];
+    if (done.length) lines.push(done.join(", "));
+    if (skipped.length) lines.push(`Non mis en laisse : ${skipped.join(" ; ")}`);
+    await reply(lines.join("\n").slice(0, 1900));
+    return true;
+  });
+}
+
+/** Remaining leashes an actor may still create (Infinity for WHITELIST, which only lifts this internal limit). */
+async function remainingLeashes(guild, actor, authorId, guildSettings) {
+  const records = await loadState();
+  const whitelisted = isWhitelistMember(actor, guildSettings?.sysPlus?.whitelistRoleId ?? null);
+  if (whitelisted) return Infinity;
+  const maxLeashes = resolveMaxActiveLeashes(guildSettings?.dog?.maxActiveLeashes);
+  const { activeCount } = leashQuotaStatus(records, guild.id, authorId, maxLeashes, false);
+  return Math.max(0, maxLeashes - activeCount);
+}
+
 export async function handleDogCommand(message, guildSettings = null) {
   const parts = message.content.trim().split(/\s+/);
   const command = parts[0]?.toLowerCase();
-  if (!["=dog", "=undog", "=doginfo", "=doglist"].includes(command)) return false;
+  if (!["=dog", "=undog", "=doginfo", "=doglist", "=dogall"].includes(command)) return false;
 
   if (!message.guild || !message.member) return true;
   const actor = await message.guild.members.fetch(message.author.id).catch(() => null);
@@ -430,6 +558,8 @@ export async function handleDogCommand(message, guildSettings = null) {
     });
     return true;
   }
+
+  if (command === "=dogall") return handleDogAll(message, actor, guildSettings);
 
   const targetId = message.mentions.members.first()?.id ?? parts[1]?.match(/^<@!?(\d+)>$/)?.[1];
   if (!targetId) {
@@ -501,94 +631,8 @@ export async function handleDogCommand(message, guildSettings = null) {
   if (command === "=dog") {
     return withCommandLock(`${message.guild.id}:dog-state`, async () => {
       await pruneDepartedLeashes(message.guild);
-      const freshRecords = await loadState();
-      const freshExisting = freshRecords[id];
-      if (freshExisting && !freshExisting.releasing) {
-        await message.reply({
-          content: `🦮 Ce membre est déjà en laisse par **${freshExisting.ownerName}**. Utilise \`=undog @membre\` pour retirer la laisse.`,
-          allowedMentions: { parse: [] },
-        });
-        return true;
-      }
-
-      const whitelisted = isWhitelistMember(actor, guildSettings?.sysPlus?.whitelistRoleId ?? null);
-      // Per-guild limit from /setup (dog.maxActiveLeashes); historical default 3 when unset.
-      const maxLeashes = resolveMaxActiveLeashes(guildSettings?.dog?.maxActiveLeashes);
-      const quota = leashQuotaStatus(freshRecords, message.guild.id, message.author.id, maxLeashes, whitelisted);
-      const activeCount = quota.activeCount;
-      if (!canCreateLeash(freshRecords, message.guild.id, message.author.id, maxLeashes, whitelisted)) {
-        await message.reply({
-          content: `⛔ Tu as déjà **${activeCount}/${maxLeashes}** laisses actives. Libère-en une avec \`=undog @membre\` avant d'en ajouter une autre.`,
-          allowedMentions: { parse: [] },
-        });
-        return true;
-      }
-
-      const menotte = db.prepare("SELECT channel_id FROM voice_menottes WHERE guild_id=? AND member_id=?").get(message.guild.id, target.id);
-      if (menotte) {
-        await message.reply({ content: "⛔ Ce membre est déjà soumis au système MENOTTE. Libère d'abord cette restriction.", allowedMentions: { parse: [] } });
-        return true;
-      }
-      const nicknameLock = db.prepare("SELECT 1 FROM protected_nicknames WHERE guild_id=? AND member_id=?").get(message.guild.id, target.id);
-      if (nicknameLock) {
-        await message.reply({ content: "⛔ Retire d’abord LOCKNAME avant de modifier le pseudonyme avec DOG.", allowedMentions: { parse: [] } });
-        return true;
-      }
-
-      const previousNickname = target.nickname;
-      const ownerName = actor.displayName || message.author.username;
-      let leashRole;
-      try {
-        leashRole = await getLeashRole(message.guild, message.author.id, ownerName, freshRecords);
-      } catch (error) {
-        await message.reply({
-          content: `❌ ${error.message} Vérifie les permissions et la position des rôles du bot.`,
-          allowedMentions: { parse: [] },
-        });
-        return true;
-      }
-      freshRecords[id] = {
-        guildId: message.guild.id,
-        memberId: target.id,
-        previousNickname,
-        ownerId: message.author.id,
-        ownerName,
-        leashRoleId: leashRole.id,
-        since: Date.now(),
-      };
-      try {
-        await saveState();
-        await target.roles.add(leashRole, `Mis en laisse par ${message.author.tag}`);
-        await target.setNickname(dogNickname(ownerName), `Mis en laisse par ${message.author.tag}`);
-      } catch (error) {
-        delete freshRecords[id];
-        await saveState().catch(() => {});
-        await target.roles.remove(leashRole, "Annulation de la laisse DOG échouée").catch(() => {});
-        await releaseLeashRoleIfUnused(message.guild, leashRole.id, freshRecords).catch(() => {});
-        console.error("DOG command failed:", error.message);
-        await message.reply({
-          content: "❌ Impossible de mettre ce membre en laisse. Vérifie la hiérarchie des rôles et mes permissions.",
-          allowedMentions: { parse: [] },
-        });
-        return true;
-      }
-      const returnedToOwner = await enforceLeashVoice(message.guild, target.id).catch(() => false);
-      const leashCount = quota.label;
-      if (quota.exceptionUsed) {
-        try {
-          recordSysPlusAudit(message.guild.id, message.author.id, "dog.whitelist_quota_exception", target.id, {
-            activeBefore: activeCount,
-            configuredLimit: maxLeashes,
-          });
-        } catch (error) {
-          console.error("DOG whitelist exception audit failed:", error.message);
-        }
-      }
-      await sendCentralLog(message.guild, guildSettings, systemLogEmbed({ category: "dog", title: "🦮 DOG — laisse attribuée", description: `Acteur : <@${message.author.id}>\nCible : <@${target.id}>\nLaisses actives : ${leashCount}` })).catch(() => {});
-      await message.reply({
-        content: `🦮 **${target.user.username}** est maintenant en laisse par **${ownerName}** (${leashCount}).${returnedToOwner ? " Il a été ramené dans ton salon vocal." : ""}`,
-        allowedMentions: { parse: [] },
-      });
+      const result = await leashMember({ guild: message.guild, actor, author: message.author, target, guildSettings });
+      await message.reply({ content: result.text, allowedMentions: { parse: [] } });
       return true;
     });
   }

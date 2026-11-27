@@ -3,6 +3,15 @@
 Ce qui est mis en ligne, du plus récent au plus ancien. Le site (Render) se déploie seul à chaque push sur `main` ;
 les bots du VPS prennent la mise à jour avec `/maj lancer` ou la mise à jour automatique de 5 h.
 
+## 27/11/2026 (après-midi)
+
+### Bots
+- Anti-largage vocal : 3 membres ou plus (et au moins la moitié du salon) déconnectés en 8 s → la région du salon change
+  (serveur vocal différent), le staff est prévenu avec les membres arrivés dans les 2 min avant. Une fois par salon toutes les 2 min.
+  `PND_VOICE_DROP_GUARD=off` le coupe. Le bot doit avoir « Gérer les salons ».
+- `/dogall` (SYS+) : met en laisse tout son salon vocal si tout le monde tient dans ses laisses restantes, sinon rien n'est fait.
+- WOUAF : une réponse différente et générée au hasard à chaque message, délai par défaut 3 s (réglable dès 2 s).
+
 ## 27/11/2026 (nuit)
 
 ### Bots

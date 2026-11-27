@@ -16,6 +16,7 @@ const EXTRA_SLASH_COMMANDS = slashCommandsModule.EXTRA_SLASH_COMMANDS ?? [];
 import { resolvePrefixCommand } from "./prefix-commands.js";
 import { handleVoiceMessage, handleVoiceInteraction, handleMenotteVoiceState, reconcileVoiceMenottes, expireVoiceMenottes, forgetVoicePanels, reconcilePrivateVoiceLocks, unlockPrivateVoiceChannel } from "./voice-commands.js";
 import { handleAntiMoveVoiceState, primeAntiMoveAuditSnapshots } from "./anti-move.js";
+import { createVoiceDropGuard, nextRegion } from "./voice-drop-guard.js";
 import { handleTier0Ban, handleTier0Kick, handleTier0MemberUpdate, handleTier0VoiceState, primeTier0Members } from "./tier0-shield.js";
 import { recoverInterruptedRankAllJobs } from "./rankall-runner.js";
 import { reportInteractionFailure } from "./interaction-reply.js";
@@ -1077,9 +1078,32 @@ client.on("guildMemberUpdate", (oldMember, newMember) => {
     .catch(() => record("dog_enforcement_error"));
 });
 
+// Anti-largage vocal : plusieurs membres déconnectés du même salon en quelques secondes
+// (attaque réseau sur le serveur vocal) → changement de région du salon, alerte au staff.
+const VOICE_DROP_GUARD_ON = String(process.env.PND_VOICE_DROP_GUARD ?? "").trim().toLowerCase() !== "off";
+const voiceDropGuard = createVoiceDropGuard();
+async function handleVoiceDrop(oldState, newState) {
+  if (newState.channelId && newState.channelId !== oldState.channelId) voiceDropGuard.join(newState.guild.id, newState.channelId, newState.id);
+  if (!oldState.channelId || newState.channelId) return;
+  const channel = oldState.channel;
+  if (!channel) return;
+  const hit = voiceDropGuard.disconnect(oldState.guild.id, channel.id, oldState.id, channel.members.size);
+  if (!hit) return;
+  const region = nextRegion(channel.rtcRegion ?? null);
+  let changed = false;
+  try { await channel.setRTCRegion(region, "Anti-largage vocal : déconnexion massive"); changed = true; record("voice_drop_guard"); }
+  catch { record("voice_drop_guard_error"); }
+  const suspects = hit.suspects.slice(0, 10).map((id) => `<@${id}>`).join(", ") || "aucun";
+  auditLog(oldState.guild, settings[oldState.guild.id], "🛡️ Anti-largage vocal",
+    `${hit.dropped.length} membres déconnectés de <#${channel.id}> en quelques secondes.\n`
+    + (changed ? `Région du salon changée (${region ?? "automatique"}) : tout le monde passe sur un autre serveur vocal.` : "Impossible de changer la région : le bot a-t-il « Gérer les salons » sur ce salon ?")
+    + `\nArrivés dans les 2 min avant : ${suspects}.`, 0xf59e0b);
+}
+
 client.on("voiceStateUpdate", (oldState, newState) => {
   const guildIdForVoice = newState.guild?.id ?? oldState.guild?.id;
   if (!guildAllowed(guildIdForVoice, ALLOWED_GUILDS) || isLogsHub(guildIdForVoice)) return;
+  if (serves("guard") && VOICE_DROP_GUARD_ON) void handleVoiceDrop(oldState, newState).catch(() => record("voice_drop_guard_error"));
   if (serves("fdpdlavoc")) void handleWaitingVoiceState(oldState, newState).catch(() => record("support_waiting_error"));
   const suckme = serves("suckme");
   if (suckme) {

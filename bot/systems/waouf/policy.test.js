@@ -43,3 +43,20 @@ test("WAOUF announcement always identifies the member whose message was replaced
   assert.equal(formatWaoufAnnouncement("@everyone", "Wouaf !"), "**\\@everyone** : Wouaf !");
   assert.equal(formatWaoufAnnouncement("", "Wouaf !"), "**Membre** : Wouaf !");
 });
+
+test("WOUAF answers each message with a different random bark", async () => {
+  const { randomWaoufResponse, generateBark } = await import("./policy.js");
+  let previous = null;
+  const seen = new Set();
+  for (let i = 0; i < 200; i++) {
+    const response = randomWaoufResponse({ phrases: ["Coucou {membre}"], memberId: "42", previous });
+    assert.notEqual(response, previous, "jamais deux fois la même réponse d'affilée");
+    assert.doesNotMatch(response, /@everyone|@here/);
+    seen.add(response);
+    previous = response;
+  }
+  assert.ok(seen.size > 20, `assez de variété (${seen.size})`);
+  assert.ok(seen.has("Coucou <@42>"), "les phrases configurées restent utilisées");
+  const fixed = [0.9, 0, 0, 0, 0];
+  assert.equal(generateBark(() => fixed.shift() ?? 0), "Wouaf !");
+});

@@ -22,7 +22,7 @@ export const SLASH_FOR_PREFIX = Object.freeze({
   sysp: "sysp", rank: "rank", addrole: "rank", removerole: "removerole", rankall: "rankall", rolepanel: "rolepanel",
   staffhistory: "staffhistory", vocalpresence: "vocalpresence", lockname: "lockname proteger",
   unlockname: "lockname retirer", locknamelist: "lockname liste", automation: "automation",
-  autorule: "automation regles creer", knowledge: "knowledge", dog: "dog", undog: "undog", doginfo: "doginfo",
+  autorule: "automation regles creer", knowledge: "knowledge", dog: "dog", dogall: "dogall", undog: "undog", doginfo: "doginfo",
   doglist: "dog", menotte: "menotte", unmenotte: "unmenotte", menotteinfo: "menotteinfo", wakeup: "wakeup",
   "anti-moove": "anti-moove", "anti-move": "anti-moove", wouaf: "wouaf", waouf: "wouaf", dmall: "dmall",
   balance: "balance", solde: "balance", daily: "daily", work: "work", job: "job", mission: "job mission status",

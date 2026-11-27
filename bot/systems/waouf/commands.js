@@ -8,12 +8,13 @@ import {
   isWaoufExpired,
   parseWaoufDuration,
   sanitizeWaoufPhrase,
-  waoufResponse,
+  randomWaoufResponse,
   formatWaoufAnnouncement,
 } from "./policy.js";
 
 const P = PermissionFlagsBits;
 const messageCooldowns = new Map();
+const lastResponses = new Map();
 
 function readArray(value, maximum) {
   try {
@@ -33,7 +34,7 @@ function getConfig(guildId) {
     phrases: readArray(row?.phrases ?? "[]", 20),
     durationMinutes: Number(row?.duration_minutes) || 10,
     repeatAfter: Number(row?.repeat_after) || 3,
-    cooldownSeconds: Number(row?.cooldown_seconds) || 15,
+    cooldownSeconds: Number(row?.cooldown_seconds) || 3,
   };
 }
 
@@ -196,7 +197,7 @@ async function executeWaouf(interaction, guildSettings) {
 
   if (subcommand === "cooldown") {
     config.cooldownSeconds = Math.max(
-      5,
+      2,
       Math.min(300, interaction.options.getInteger("secondes", true)),
     );
     saveConfig(guild.id, actor.id, config);
@@ -369,12 +370,12 @@ export async function handleWaoufMessage(message, settingsByGuild, record = () =
   const cooldownKey = `${message.guild.id}:${message.author.id}`;
   const lastResponse = messageCooldowns.get(cooldownKey) ?? 0;
   if (Date.now() - lastResponse >= config.cooldownSeconds * 1000) {
-    const response = waoufResponse(
-      Number(updated.deleted_count),
-      config.repeatAfter,
-      config.phrases,
-      message.author.id,
-    );
+    const response = randomWaoufResponse({
+      phrases: config.phrases,
+      memberId: message.author.id,
+      previous: lastResponses.get(cooldownKey) ?? null,
+    });
+    lastResponses.set(cooldownKey, response);
     messageCooldowns.set(cooldownKey, Date.now());
     const authorLabel = message.member?.displayName || message.author.globalName || message.author.username;
     await message.channel.send({
@@ -384,7 +385,7 @@ export async function handleWaoufMessage(message, settingsByGuild, record = () =
   }
   if (messageCooldowns.size > 5_000) {
     const cutoff = Date.now() - 60 * 60_000;
-    for (const [key, at] of messageCooldowns) if (at < cutoff) messageCooldowns.delete(key);
+    for (const [key, at] of messageCooldowns) if (at < cutoff) { messageCooldowns.delete(key); lastResponses.delete(key); }
   }
   return true;
 }

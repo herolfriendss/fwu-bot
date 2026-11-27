@@ -165,11 +165,11 @@ Les commandes propres à Guard (`/ban`, `+ban`…) ne marchent plus, et si le bo
 
 ## K. Validé par l'owner le 27/11 (à faire, dans cet ordre)
 
-- [ ] 98. **Anti-largage vocal** : quand plusieurs membres sont déconnectés d'un même salon en quelques secondes (attaque réseau qui fait « sauter » la vocale), le bot change aussitôt la région du salon pour forcer un autre serveur vocal Discord, prévient le staff et liste les membres arrivés juste avant. Limite à dire clairement : un bot ne peut pas bloquer une attaque réseau, il ne peut que faire changer de serveur vocal et repérer le suspect.
-- [ ] 99. **`/dogall`** (SYS+) : met en laisse tous les membres de son salon vocal, seulement si leur nombre ne dépasse pas sa limite de laisses restantes ; mêmes protections que `/dog` (tier 0, owner, hiérarchie, quotas, WHITELIST sans contournement), et `/undogall` pour tout retirer.
-- [ ] 100. **WOUAF retravaillé** : à chaque message du membre, une réponse différente tirée au hasard (aboiements générés, jamais deux fois la même d'affilée), en plus des phrases configurées.
+- [x] 98. **Anti-largage vocal** : quand plusieurs membres sont déconnectés d'un même salon en quelques secondes (attaque réseau qui fait « sauter » la vocale), le bot change aussitôt la région du salon pour forcer un autre serveur vocal Discord, prévient le staff et liste les membres arrivés juste avant. Limite à dire clairement : un bot ne peut pas bloquer une attaque réseau, il ne peut que faire changer de serveur vocal et repérer le suspect. _(Fait le 27/11 : `bot/voice-drop-guard.js`, assuré par Guard (ou le bot principal en relais) ; `PND_VOICE_DROP_GUARD=off` pour le couper)_
+- [x] 99. **`/dogall`** (SYS+) : met en laisse tous les membres de son salon vocal, seulement si leur nombre ne dépasse pas sa limite de laisses restantes ; mêmes protections que `/dog` (tier 0, owner, hiérarchie, quotas, WHITELIST sans contournement), et `/undogall` pour tout retirer. _(Fait le 27/11 : `/dogall` et `=dogall`, `bot/dog-commands.js`)_
+- [x] 100. **WOUAF retravaillé** : à chaque message du membre, une réponse différente tirée au hasard (aboiements générés, jamais deux fois la même d'affilée), en plus des phrases configurées. _(Fait le 27/11 : `bot/systems/waouf/policy.js` ; délai par défaut ramené à 3 s, réglable dès 2 s avec `/wouaf cooldown`)_
 
-## L. Commandes « diaboliques » pour SYS+ (27/11, à valider)
+## L. Commandes « diaboliques » pour SYS+ (27/11, validé par l'owner)
 
 Garde-fous communs : SYS+ seulement, durée limitée, quotas partagés, tier 0 et owner intouchables, jamais sur un staff de rang égal ou supérieur, journalisé, levée possible à tout moment, aucune mention @everyone/@here.
 
@@ -180,3 +180,19 @@ Garde-fous communs : SYS+ seulement, durée limitée, quotas partagés, tier 0 e
 - [ ] 105. **`/roulette` vocale** : dans le salon du SYS+, un membre tiré au sort (non protégé) est rendu muet 1 min.
 - [ ] 106. **`/patate-chaude`** : un membre reçoit la patate, il doit la passer en mentionnant quelqu'un en 30 s ; celui qui la garde à la fin est rendu muet en vocal 1 min.
 - [ ] 107. **`/taxe @membre`** (Le Fisc) : une part de ses gains va au SYS+ pendant 1 h.
+
+## M. Encore des commandes « diaboliques » (27/11, proposées, mêmes garde-fous que L)
+
+- [ ] 108. **`/robot @membre`** : ses messages deviennent « BIP BOUP » et du langage de robot.
+- [ ] 109. **`/bebe @membre`** : ses messages réécrits en langage bébé.
+- [ ] 110. **`/yoda @membre`** : l'ordre de ses mots est inversé.
+- [ ] 111. **`/chuchote @membre`** : ses messages en tout petits caractères (ᵗᵉˣᵗᵉ).
+- [ ] 112. **`/bouffon @membre`** : rôle coloré « Bouffon du serveur » affiché à part pendant 30 min (rôle sans aucune permission).
+- [ ] 113. **`/sablier @membre`** : un seul message par minute, le reste est effacé.
+- [ ] 114. **`/sourdine-folle @membre`** : en vocal, son micro est coupé puis rendu au hasard pendant 2 min.
+- [ ] 115. **`/exil @membre`** : chaque fois qu'il rejoint une vocale, il est renvoyé dans le salon AFK, pendant la durée choisie.
+- [ ] 116. **`/interrogatoire @membre`** : le bot lui pose 3 questions au hasard ; pas de réponse à temps, muet 1 min.
+- [ ] 117. **`/tribunal @membre`** : vote public de 60 s, coupable ou innocent ; coupable, muet 2 min.
+- [ ] 118. **`/rancon @membre`** : muet jusqu'à ce que quelqu'un paie la rançon en monnaie du serveur (plafond de durée).
+- [ ] 119. **`/malediction @membre`** : 1 message sur 5 est remplacé par une phrase gênante choisie au hasard.
+- [ ] 120. **`/cible @membre`** : pendant 10 min, chaque membre qui le mentionne gagne un peu de monnaie.

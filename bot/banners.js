@@ -28,7 +28,7 @@ const COMMAND_CATEGORY = Object.freeze({
   guildguard: "securite", antinuke: "securite", automod: "securite", quarantaine: "securite",
   verify: "verification",
   lock: "verrou", unlock: "verrou", lockname: "verrou", menotte: "verrou", unmenotte: "verrou",
-  menotteinfo: "verrou", dog: "verrou", undog: "verrou", doginfo: "verrou", undogall: "verrou",
+  menotteinfo: "verrou", dog: "verrou", dogall: "verrou", undog: "verrou", doginfo: "verrou", undogall: "verrou",
   wouaf: "verrou", "anti-moove": "verrou",
   play: "musique", pause: "musique", resume: "musique", skip: "musique", stop: "musique",
   queue: "musique", nowplaying: "musique", volume: "musique", loop: "musique", shuffle: "musique",

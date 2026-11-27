@@ -1401,6 +1401,15 @@ export const SLASH_COMMANDS: SlashCommandDef[] = [
     options: [opt(6, "membre", "Membre à mettre en laisse (vide pour afficher la liste)")],
   },
   {
+    name: "dogall",
+    description: "SYS+ : met en laisse tous les membres de ton salon vocal (dans la limite de tes laisses)",
+    usage: "/dogall",
+    category: "Vocal & DOG",
+    dmPermission: false,
+    requiresBotProcess: true,
+    options: [],
+  },
+  {
     name: "undog",
     description: "Retire la laisse d’un membre",
     usage: "/undog membre",
@@ -1436,7 +1445,7 @@ export const SLASH_COMMANDS: SlashCommandDef[] = [
       sub("phrase-retirer", "Retire une phrase par son numéro", [opt(4, "numero", "Numéro affiché par /wouaf statut", { required: true, min_value: 1, max_value: 20 })]),
       sub("duree", "Règle la durée par défaut", [opt(4, "minutes", "Durée entre 1 et 1 440 minutes", { required: true, min_value: 1, max_value: 1440 })]),
       sub("repetitions", "Règle après combien de messages utiliser les phrases", [opt(4, "nombre", "Nombre entre 2 et 20", { required: true, min_value: 2, max_value: 20 })]),
-      sub("cooldown", "Règle l’intervalle minimum des réponses", [opt(4, "secondes", "Durée entre 5 et 300 secondes", { required: true, min_value: 5, max_value: 300 })]),
+      sub("cooldown", "Règle l’intervalle minimum des réponses", [opt(4, "secondes", "Durée entre 2 et 300 secondes", { required: true, min_value: 2, max_value: 300 })]),
       sub("activer", "Active WAOUF temporairement pour un membre", [
         opt(6, "membre", "Membre cible", { required: true }),
         opt(4, "duree_minutes", "Durée facultative (1 à 1 440 minutes)", { min_value: 1, max_value: 1440 }),
