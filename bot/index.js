@@ -133,7 +133,8 @@ import { handleGuardInteraction } from "./guard/commands.js";
 import { communityAutoconfig, handleCommunityInteraction, handleLevelMessage, runBirthdays, runReminders, tickVoiceXp } from "./features/community.js";
 import { handleFiscInteraction, runLoanCollection, runWealthTax } from "./features/fisc.js";
 import { handleHeistInteraction } from "./features/heist.js";
-import { handleBlindtestInteraction, handleBlindtestMessage } from "./features/blindtest.js";
+import { handleBlindtestInteraction, handleBlindtestMessage, isBlindTestRunning } from "./features/blindtest.js";
+import { handleTtsInteraction, handleTtsMessage } from "./features/tts.js";
 import { handleModmailDm, handleToolsInteraction, onStickyChannelMessage } from "./features/tools-commands.js";
 import { handleVersusInteraction, runVersusExpiry } from "./features/versus.js";
 import { announceUpdateResult, handleSelfUpdateInteraction, startAutoUpdate } from "./features/self-update.js";
@@ -678,6 +679,8 @@ async function handleMessageCreate(msg) {
   if (serves("suckme")) onStickyChannelMessage(msg, { botUserId: client.user?.id, onError: () => record("sticky_error") });
   // FDPDLAVOC blind test: an answer in the game channel scores and stops (no-op without a running game).
   try { if (await handleBlindtestMessage(msg)) return; } catch { record("blindtest_error"); }
+  // FDPDLAVOC lecture vocale : un message du chat du vocal suivi est lu à voix haute (sans bloquer la suite).
+  try { handleTtsMessage(msg); } catch { record("tts_error"); }
   // SUCK ME animation: a number in the counting channel is handled here and stops.
   if (serves("suckme")) {
     try { if (await handleCountingMessage(msg)) return; } catch { record("counting_error"); }
@@ -1807,6 +1810,7 @@ client.on("interactionCreate", (interaction) => {
     if (await handleFiscInteraction(interaction)) { auditSlashUsage(interaction, "LE FISC"); return; }
     if (await handleHeistInteraction(interaction)) { auditSlashUsage(interaction, "LE FISC"); return; }
     if (await handleBlindtestInteraction(interaction)) { auditSlashUsage(interaction, "Blind test"); return; }
+    if (await handleTtsInteraction(interaction, { busy: isBlindTestRunning })) { auditSlashUsage(interaction, "Lecture vocale"); return; }
     if (await handleVersusInteraction(interaction)) { auditSlashUsage(interaction, "Jeux entre membres"); return; }
     if (await handleSelfUpdateInteraction(interaction)) { auditSlashUsage(interaction, "SUCK ME"); return; }
     if (await handleSuckmeInteraction(interaction, settings[interaction.guildId])) { auditSlashUsage(interaction, "SUCK ME"); return; }
