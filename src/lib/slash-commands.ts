@@ -272,6 +272,19 @@ export const SLASH_COMMANDS: SlashCommandDef[] = [
     ],
   },
   {
+    name: "tempban",
+    description: "Bannit un membre pour une durée, débanni automatiquement ensuite",
+    usage: "/tempban membre duree raison",
+    category: "Modération",
+    dmPermission: false,
+    requiresBotProcess: true,
+    options: [
+      opt(6, "membre", "Membre à bannir", { required: true }),
+      opt(3, "duree", "Durée : 30m, 12h, 7j, 1h30… (365 jours au plus)", { required: true, max_length: 20 }),
+      opt(3, "raison", "Raison", { required: true, max_length: 300 }),
+    ],
+  },
+  {
     name: "purge",
     description: "Supprime des messages de ce salon",
     usage: "/purge nombre",

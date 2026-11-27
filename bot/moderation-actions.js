@@ -108,7 +108,7 @@ async function logQuotaRefusal(guild, settings, actor, command, message) {
 export async function runModerationAction({
   guild, actor, command, bot, targetId, targetMember = null, targetUser = null, reason = "",
   durationSeconds = null, sanctionTypeId = null, sanctionLabel = null, settings = null,
-  execute, notify = NOTIFY.has(command), recordCase = null, appealButton = null,
+  execute, notify = NOTIFY.has(command), recordCase = null, appealButton = null, discardCase = null,
 }) {
   const actorTier = await memberTier(actor);
   await assertCanTarget({ guild, actor, actorTier, targetId, targetMember, command });
@@ -118,38 +118,52 @@ export async function runModerationAction({
     if (gate.decision?.reason === "quota") await logQuotaRefusal(guild, settings, actor, command, gate.message);
     throw new ModerationRefusal(gate.message);
   }
-  try {
-    await execute();
-  } catch (error) {
-    await gate.fail(error);
-    throw new ModerationRefusal(describeDiscordError(error));
-  }
-
   const cleanReason = String(reason ?? "").trim().slice(0, 500);
   const fullReason = sanctionLabel ? `${sanctionLabel}${cleanReason ? ` — ${cleanReason}` : ""}` : cleanReason;
   const supervisorId = (() => { try { return getStaffSupervisorId(guild.id, actor.id); } catch { return null; } })();
+  const user = targetUser ?? targetMember?.user ?? null;
+  const record = () => {
+    if (!recordCase || !CASE_ACTION[command]) return null;
+    try { return recordCase({ guildId: guild.id, userId: targetId, moderatorId: actor.id, action: CASE_ACTION[command], reason: fullReason || "Non précisée", details: { durationSeconds, durationMs: durationSeconds ? durationSeconds * 1000 : undefined, supervisorId, bot } }); } catch { return null; }
+  };
+  const decisionDm = (caseId) => new EmbedBuilder().setColor(0xef4444).setTitle(`Décision de modération · ${guild.name}`)
+    .setDescription([
+      `Sanction : **${ACTION_LABELS[command]}${command === "ban" && durationSeconds ? " temporaire" : ""}**${sanctionLabel ? ` (${sanctionLabel})` : ""}`,
+      durationSeconds ? `Durée : **${formatDurationFr(durationSeconds)}**` : null,
+      caseId ? `Dossier : **#${caseId}**` : null,
+      `Motif : ${(fullReason || "Non précisé").slice(0, 700)}`,
+      caseId ? "\nTu peux faire appel dans les 7 jours. L'appel ne suspend pas la sanction." : null,
+    ].filter(Boolean).join("\n"))
+    .setTimestamp(new Date());
+  const canDm = notify && user && typeof user.send === "function";
+  // Ban : le MP part AVANT le ban (après, Discord ne laisse plus écrire au membre, qui
+  // ne recevait donc jamais son bouton d'appel). En cas d'échec du ban, tout est annulé.
+  const dmFirst = command === "ban" && canDm;
   let caseId = null;
-  if (recordCase && CASE_ACTION[command]) {
-    try { caseId = recordCase({ guildId: guild.id, userId: targetId, moderatorId: actor.id, action: CASE_ACTION[command], reason: fullReason || "Non précisée", details: { durationSeconds, durationMs: durationSeconds ? durationSeconds * 1000 : undefined, supervisorId, bot } }); } catch { caseId = null; }
+  let earlyDm = null;
+  if (dmFirst) {
+    caseId = record();
+    earlyDm = await user.send({ embeds: [decisionDm(caseId)], components: caseId && appealButton ? [appealButton(caseId)] : [], allowedMentions: { parse: [] } }).catch(() => null);
   }
+  try {
+    await execute();
+  } catch (error) {
+    if (dmFirst) {
+      await earlyDm?.delete?.().catch?.(() => {});
+      if (caseId && discardCase) { try { discardCase(guild.id, caseId); } catch { /* dossier orphelin, sans effet */ } }
+    }
+    await gate.fail(error);
+    throw new ModerationRefusal(describeDiscordError(error));
+  }
+  if (!dmFirst) caseId = record();
   await recordSanction({
     guildId: guild.id, targetId, moderatorId: actor.id, action: command, sanctionTypeId, sanctionLabel,
     reason: cleanReason, durationSeconds, bot,
   }).catch(() => null);
   await gate.succeed(sanctionLabel ?? null);
 
-  const user = targetUser ?? targetMember?.user ?? null;
-  if (notify && user && typeof user.send === "function") {
-    const dm = new EmbedBuilder().setColor(0xef4444).setTitle(`Décision de modération · ${guild.name}`)
-      .setDescription([
-        `Sanction : **${ACTION_LABELS[command]}**${sanctionLabel ? ` (${sanctionLabel})` : ""}`,
-        durationSeconds ? `Durée : **${formatDurationFr(durationSeconds)}**` : null,
-        caseId ? `Dossier : **#${caseId}**` : null,
-        `Motif : ${(fullReason || "Non précisé").slice(0, 700)}`,
-        caseId ? "\nTu peux faire appel dans les 7 jours. L'appel ne suspend pas la sanction." : null,
-      ].filter(Boolean).join("\n"))
-      .setTimestamp(new Date());
-    await user.send({ embeds: [dm], components: caseId && appealButton ? [appealButton(caseId)] : [], allowedMentions: { parse: [] } }).catch(() => {});
+  if (canDm && !dmFirst) {
+    await user.send({ embeds: [decisionDm(caseId)], components: caseId && appealButton ? [appealButton(caseId)] : [], allowedMentions: { parse: [] } }).catch(() => {});
   }
   await sendLogs(guild, settings, sanctionEmbed({
     guild, command, actor, targetId, targetTag: user?.tag, reason: cleanReason, durationSeconds,

@@ -94,6 +94,7 @@ import { installBlrShield } from "./blr-shield.js";
 import { createErrorWatch, maintenanceState, runToolCommand, stabilityRefusal } from "./stability.js";
 import { handleSmashInteraction } from "./features/smash.js";
 import { handleFamilyInteraction } from "./features/family.js";
+import { expireTempbans } from "./guard/tempban.js";
 import { checkMfa, handleBotAdded, handleRoleDrift, handleTokenLeak, handleTrapPardon, handleWebhookCreated, isRaidActive, raidAutoExit, recordJoinForRaid, springBlrTrap } from "./guard/raid-protection.js";
 import { handleRaidInteraction, handleRaidPrefix } from "./guard/raid-commands.js";
 import { handleMassButton, handleMassInteraction, handleMassMessage } from "./voice-mass.js";
@@ -1409,6 +1410,22 @@ client.once("clientReady", () => {
     }).catch(() => record("auction_settlement_error"));
   }, 60_000);
   auctionSettlementTimer.unref?.();
+  // GUARD : fin des bans temporaires (reprise par le bot principal si GUARD est arrêté).
+  const tempbanTimer = setInterval(() => {
+    if (!client.isReady() || !serves("guard")) return;
+    void expireTempbans({
+      guildFor: (guildId) => (guildAllowed(guildId, ALLOWED_GUILDS) && !isLogsHub(guildId) ? client.guilds.cache.get(guildId) ?? null : null),
+      onLifted: (guild, row) => {
+        record("tempban_lifted");
+        void logEvent(guild, settings[guild.id], { category: "moderation", action: "unban", severity: "notice", targetId: row.user_id, details: `Fin du ban temporaire${row.case_id ? ` (dossier #${row.case_id})` : ""} : débanni automatiquement.`, bot: RUNTIME.profile }).catch(() => {});
+      },
+      onFailed: (guild, row) => {
+        record("tempban_error");
+        void logEvent(guild, settings[guild.id], { category: "moderation", action: "unban", severity: "warning", targetId: row.user_id, details: "Ban temporaire arrivé à échéance mais Discord refuse le débannissement après 5 essais : à faire à la main.", bot: RUNTIME.profile }).catch(() => {});
+      },
+    }).catch(() => record("tempban_error"));
+  }, 60_000);
+  tempbanTimer.unref?.();
   const runEconomyReconciliation = (minAgeMs) => reconcilePendingEconomy({
     minAgeMs,
     inspectRoles: async (guildId, { sellerId, buyerId, roleId }) => {

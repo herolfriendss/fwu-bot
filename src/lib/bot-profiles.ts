@@ -82,7 +82,7 @@ export const SLASH_COMMAND_OWNERS: Record<BotProfileId, readonly string[]> = {
     "embed", "reglement", "screening",
   ],
   guard: [
-    "guildguard", "kick", "ban", "blacklist", "purge", "nettoyer", "slowmode", "lock", "unlock", "verify",
+    "guildguard", "kick", "ban", "tempban", "blacklist", "purge", "nettoyer", "slowmode", "lock", "unlock", "verify",
     "antinuke", "automod", "casier", "quarantaine", "bouclier",
     // V2 (26/11) : anti-raid
     "piege", "raid", "scan", "panic",
@@ -131,7 +131,7 @@ export const SLASH_COMMAND_OWNERS: Record<BotProfileId, readonly string[]> = {
 export const PREFIX_COMMAND_OWNERS: Record<BotProfileId, readonly string[]> = {
   fwu: [],
   guard: [
-    "ban", "unban", "kick", "blacklist", "purge", "nettoyer", "slowmode", "lock", "unlock",
+    "ban", "tempban", "unban", "kick", "blacklist", "purge", "nettoyer", "slowmode", "lock", "unlock",
     "guardian-review", "verification", "piege", "raid", "scan", "panic",
   ],
   fdpdlavoc: [
