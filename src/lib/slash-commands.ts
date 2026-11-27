@@ -2302,6 +2302,24 @@ export const EXTRA_SLASH_COMMANDS: SlashCommandDef[] = [
     ],
   },
   {
+    name: "largage",
+    description: "LE FISC : coffre de PND qui tombe dans un salon actif, le premier qui clique gagne",
+    usage: "/largage etat · activer · desactiver · configurer [minimum] [maximum]",
+    category: "Économie",
+    dmPermission: false,
+    requiresBotProcess: true,
+    defaultMemberPermissions: manageServer,
+    options: [
+      sub("etat", "Réglages actuels"),
+      sub("activer", "Active les largages"),
+      sub("desactiver", "Coupe les largages"),
+      sub("configurer", "Montant tiré entre un minimum et un maximum", [
+        opt(4, "minimum", "PND au moins", { min_value: 1, max_value: 10000 }),
+        opt(4, "maximum", "PND au plus", { min_value: 1, max_value: 10000 }),
+      ]),
+    ],
+  },
+  {
     name: "compteurs",
     description: "SUCK ME : salons compteurs (membres, en vocal, boosts) mis à jour toutes les 10 min",
     usage: "/compteurs installer · retirer · actualiser",

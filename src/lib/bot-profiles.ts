@@ -125,7 +125,7 @@ export const SLASH_COMMAND_OWNERS: Record<BotProfileId, readonly string[]> = {
     // jeux entre membres (25/11) : une seule commande racine, /jeu morpion|puissance4|pendu
     "jeu",
     // 27/11 : braquage en équipe de la caisse du serveur, prime sur un membre
-    "braquage", "prime",
+    "braquage", "prime", "largage",
   ],
   investplus: ["abonnement", "investadmin"],
 };
