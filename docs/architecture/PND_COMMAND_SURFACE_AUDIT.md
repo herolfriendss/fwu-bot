@@ -12,7 +12,7 @@
 | Application | Commandes propres | Communes | Total | Limite |
 |---|---:|---:|---:|---:|
 | Bot principal | 10 | 2 | 12/100 | OK |
-| GUARD | 21 | 2 | 23/100 | OK |
+| GUARD | 20 | 2 | 22/100 | OK |
 | FDPDLAVOC | 19 | 2 | 21/100 | OK |
 | SUCK ME | 70 | 2 | 72/100 | OK |
 | LE FISC | 33 | 2 | 35/100 | OK |
@@ -53,7 +53,6 @@
 - /raid
 - /scan
 - /panic
-- /doublecompte
 
 ## FDPDLAVOC
 
@@ -190,7 +189,3 @@
 
 - /abonnement
 - /investadmin
-
-## Commandes attribuées mais absentes du catalogue
-
-- /doublecompte
