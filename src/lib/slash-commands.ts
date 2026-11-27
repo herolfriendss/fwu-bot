@@ -2667,8 +2667,8 @@ export const EXTRA_SLASH_COMMANDS: SlashCommandDef[] = [
   },
   {
     name: "reglement",
-    description: "Admins : génère le règlement avec l'IA, le valide puis le publie",
-    usage: "/reglement generer [consignes] [nombre] · apercu · publier salon",
+    description: "Admins : règlement écrit ou généré par l'IA, publié en embed",
+    usage: "/reglement generer [consignes] [nombre] · ecrire · apercu · publier salon",
     category: "Embeds & règlement",
     dmPermission: false,
     requiresBotProcess: true,
@@ -2677,6 +2677,7 @@ export const EXTRA_SLASH_COMMANDS: SlashCommandDef[] = [
         opt(3, "consignes", "Ton, thèmes à couvrir, points importants", { max_length: 1000 }),
         opt(4, "nombre", "Nombre de règles (5 à 20)", { min_value: 5, max_value: 20 }),
       ]),
+      sub("ecrire", "Écris ou corrige le règlement toi-même (sans IA), une règle par ligne"),
       sub("apercu", "Réaffiche le dernier brouillon et ses boutons de validation"),
       sub("publier", "Publie le dernier règlement validé", [
         opt(7, "salon", "Salon du règlement", { required: true, channel_types: [0, 5] }),
