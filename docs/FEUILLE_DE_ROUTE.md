@@ -49,3 +49,21 @@ Une tâche à la fois, dans l'ordre. Cocher au fur et à mesure.
 - [ ] 23. Tableau de modération dans la console (sanctions en cours, historique par membre) une fois l'étape 4 faite.
 - [ ] 24. Rapports d'activité exportables (CSV) depuis la page Analyse.
 - [ ] 25. Tâches planifiées (annonces, nettoyages, rappels) gérées depuis la console.
+
+## F. Confort et gain de temps (ajouté le 27/11)
+
+- [ ] 26. **Une seule commande pour déployer** sur le VPS (mise à jour du code, déploiement, redémarrage, vérification), au lieu de la longue ligne actuelle.
+- [ ] 27. **Installer `git` sur le VPS** : les mises à jour se feraient par `git pull` et non plus par archive téléchargée.
+- [ ] 28. **Raccourci SSH** (`ssh fwu` au lieu de l'adresse et de la clé à chaque fois), côté ordinateur.
+- [ ] 29. **Déploiement automatique du VPS** à chaque mise à jour validée de `main`, par une clé SSH dédiée aux droits limités. Plus besoin de taper quoi que ce soit.
+- [ ] 30. **Console installable sur le téléphone** (icône sur l'écran d'accueil, plein écran), pour redémarrer un bot en deux appuis.
+- [ ] 31. **Mode maintenance global** : un bouton qui annonce l'arrêt aux membres, coupe les commandes sensibles, puis remet tout en route.
+- [ ] 32. **Aide-mémoire dans la console** : les commandes utiles (PM2, logs, redémarrage) à copier en un clic, par bot.
+- [ ] 33. **Journal des changements** (`CHANGELOG`) tenu automatiquement, pour savoir ce qui a été mis en ligne et quand.
+- [ ] 34. **Mode d'emploi pour reprendre sans aide** : où est quoi (Render, VPS, Supabase, Discord), comment déployer, comment restaurer.
+- [ ] 35. **Gestion du staff depuis la console** : voir qui a quel palier et quels quotas, sans passer par les commandes.
+- [ ] 36. **Modèles prêts à l'emploi** : embeds (règlement, annonces), messages de sanction, réponses fréquentes.
+- [ ] 37. **Tests automatiques avant chaque mise en ligne** (la CI existe déjà : la rendre obligatoire avant de fusionner).
+- [ ] 38. **Rapport hebdomadaire par e-mail ou Discord** : état des bots, pannes, activité, sanctions de la semaine.
+- [ ] 39. **Vue « tout va bien ? »** : un seul voyant vert ou rouge en haut de la console, avec la raison quand il est rouge.
+- [ ] 40. **Recherche globale dans la console** (membre, commande, événement) depuis la palette `Ctrl K`.
