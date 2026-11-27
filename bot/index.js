@@ -149,6 +149,7 @@ import { forgetStatChannel, handleStatChannelsInteraction, runStatChannels } fro
 import { handleMemberOfMonthInteraction, runMemberOfMonth } from "./features/member-of-month.js";
 import { handleStaffLogInteraction } from "./systems/sysplus/staff-log.js";
 import { handleCharterInteraction } from "./systems/sysplus/charter.js";
+import { maybeAutoFreeze } from "./systems/sysplus/auto-freeze.js";
 import { handleDoubleValidationButton } from "./systems/sysplus/double-validation.js";
 import { handleTrialConfirm, runTemporarySysPlus } from "./systems/sysplus/temporary.js";
 import { handleStaffRoutineInteraction, runStaffRoutine } from "./systems/sysplus/staff-routine.js";
@@ -577,6 +578,9 @@ const antiNuke = createAntiNuke({
     const result = recordGuardIncident({ guildId: guild.id, botId: client.user.id, kind: "nuke", detail: `${action} par ${executorId}, mesure : ${outcome}` });
     const notice = autoIncidentNotice(result);
     if (notice) await guardReport(guild, { title: "📋 Incident SYS+", description: notice, color: 0xf59e0b });
+    // Gel automatique (opt-in) : un compte du staff est peut-être piraté, on suspend les commandes de pouvoir.
+    const frozen = await maybeAutoFreeze({ guildId: guild.id, botId: client.user.id, bot: RUNTIME.profile, reason: `${action} par ${executorId}` });
+    if (frozen.frozen) await guardReport(guild, { title: "🧊 Gel automatique du staff", description: `Attaque repoussée : le staff est gelé ${frozen.minutes} min (commandes de pouvoir suspendues, l'owner garde tout). \`/sysp degel\` pour lever.`, color: 0x3b82f6 });
   },
 });
 const guardWatch = (guild) => guild && serves("guard") && guildAllowed(guild.id, ALLOWED_GUILDS) && !isLogsHub(guild.id);
