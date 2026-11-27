@@ -167,6 +167,7 @@ describe("bot wiring", () => {
       read("bot/guard/alt-detect.js"),
       read("bot/features/tts.js"),
       read("bot/features/stat-channels.js"),
+      read("bot/features/member-of-month.js"),
       read("bot/features/snipe.js"),
       read("bot/features/invite-rewards.js"),
       read("bot/features/bounty.js"),
