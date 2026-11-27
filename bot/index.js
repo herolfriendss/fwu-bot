@@ -147,6 +147,7 @@ import { handleBlindtestInteraction, handleBlindtestMessage, isBlindTestRunning 
 import { handleTtsInteraction, handleTtsMessage } from "./features/tts.js";
 import { forgetStatChannel, handleStatChannelsInteraction, runStatChannels } from "./features/stat-channels.js";
 import { handleMemberOfMonthInteraction, runMemberOfMonth } from "./features/member-of-month.js";
+import { handleStaffLogInteraction } from "./systems/sysplus/staff-log.js";
 import { handleCharterInteraction } from "./systems/sysplus/charter.js";
 import { handleStaffRoutineInteraction, runStaffRoutine } from "./systems/sysplus/staff-routine.js";
 import { handleWaitingButton, handleWaitingInteraction, handleWaitingVoiceState } from "./features/support-waiting.js";
@@ -1883,6 +1884,7 @@ client.on("interactionCreate", (interaction) => {
     if (await handleBlindtestInteraction(interaction)) { auditSlashUsage(interaction, "Blind test"); return; }
     if (await handleTtsInteraction(interaction, { busy: isBlindTestRunning })) { auditSlashUsage(interaction, "Lecture vocale"); return; }
     if (await handleStatChannelsInteraction(interaction)) { auditSlashUsage(interaction, "Salons compteurs"); return; }
+    if (await handleStaffLogInteraction(interaction, { getSettings: (id) => settings[id] }).catch(() => { record("staff_log_error"); return true; })) return;
     if (await handleCharterInteraction(interaction, { getSettings: (id) => settings[id] }).catch(() => { record("charter_error"); return true; })) return;
     if (await handleStaffRoutineInteraction(interaction)) { auditSlashUsage(interaction, "Rapport du staff"); return; }
     if (await handleWaitingButton(interaction)) return;

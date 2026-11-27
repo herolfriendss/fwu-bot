@@ -2404,6 +2404,19 @@ export const EXTRA_SLASH_COMMANDS: SlashCommandDef[] = [
     ],
   },
   {
+    name: "courante",
+    description: "SUCK ME : main courante du staff, journal de bord partagé entre les gardes",
+    usage: "/courante ajouter texte · voir [jours] · retirer id",
+    category: "SYS+",
+    dmPermission: false,
+    requiresBotProcess: true,
+    options: [
+      sub("ajouter", "Note ce qui s'est passé (400 caractères, pas de données sensibles)", [opt(3, "texte", "Ce qui s'est passé", { required: true, max_length: 400 })]),
+      sub("voir", "Relis les dernières entrées", [opt(4, "jours", "Nombre de jours (1 à 30, 2 par défaut)", { min_value: 1, max_value: 30 })]),
+      sub("retirer", "Retire une entrée (la tienne, ou n'importe laquelle pour un admin)", [opt(4, "id", "Numéro de l'entrée", { required: true, min_value: 1 })]),
+    ],
+  },
+  {
     name: "compteurs",
     description: "SUCK ME : salons compteurs (membres, en vocal, boosts) mis à jour toutes les 10 min",
     usage: "/compteurs installer · retirer · actualiser",
