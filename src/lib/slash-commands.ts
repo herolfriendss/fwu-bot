@@ -1493,9 +1493,24 @@ export const SLASH_COMMANDS: SlashCommandDef[] = [
   },
   { name: "export-config", description: "Owner : reçois toute la configuration du serveur en fichier", usage: "/export-config", category: "Administration & sécurité", dmPermission: false, requiresBotProcess: true, options: [] },
   {
+    name: "vocal-plus",
+    description: "Préréglages de ton vocal temporaire et classement du temps en vocal",
+    usage: "/vocal-plus classement | preset-sauver | preset-charger | preset-liste | preset-supprimer",
+    category: "Vocal & DOG",
+    dmPermission: false,
+    requiresBotProcess: true,
+    options: [
+      sub("classement", "Top 10 du temps en vocal", [opt(3, "periode", "Période", { choices: [{ name: "Cette semaine", value: "semaine" }, { name: "30 jours", value: "mois" }, { name: "Depuis le début", value: "total" }] })]),
+      sub("preset-sauver", "Enregistre le nom et la limite de ton vocal actuel", [opt(3, "nom", "Nom du préréglage", { required: true, max_length: 30 })]),
+      sub("preset-charger", "Applique un préréglage à ton vocal", [opt(3, "nom", "Nom du préréglage", { required: true, max_length: 30 })]),
+      sub("preset-liste", "Tes préréglages"),
+      sub("preset-supprimer", "Supprime un préréglage", [opt(3, "nom", "Nom du préréglage", { required: true, max_length: 30 })]),
+    ],
+  },
+  {
     name: "garde",
     description: "SYS+ : tes outils de garde (relève, astreinte, enquête, appel, gel d'un salon…)",
-    usage: "/garde moi | releve | astreinte | enquete | bareme | appel | geler | demande-quota | bilan",
+    usage: "/garde moi | releve | astreinte | enquete | bareme | appel | geler | demande-quota | bilan | planning",
     category: "SYS+",
     dmPermission: false,
     requiresBotProcess: true,
@@ -1521,6 +1536,7 @@ export const SLASH_COMMANDS: SlashCommandDef[] = [
         opt(3, "raison", "Pourquoi", { required: true, max_length: 300 }),
       ]),
       sub("bilan", "Ton bilan de la semaine (aussi envoyé le dimanche soir)"),
+      sub("planning", "Planning du staff : indique tes dispos ou vois celles de tous", [opt(3, "dispos", "Tes disponibilités (ex. lun-ven 18h-23h) ; vide = voir le planning", { max_length: 120 })]),
     ],
   },
   {

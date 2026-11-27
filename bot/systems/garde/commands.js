@@ -12,7 +12,8 @@ const P = PermissionFlagsBits;
 db.exec(`CREATE TABLE IF NOT EXISTS garde_astreinte (guild_id TEXT NOT NULL, member_id TEXT NOT NULL, since INTEGER NOT NULL, PRIMARY KEY (guild_id, member_id));
   CREATE TABLE IF NOT EXISTS garde_frozen_channels (guild_id TEXT NOT NULL, channel_id TEXT PRIMARY KEY, previous_slowmode INTEGER NOT NULL, had_overwrite INTEGER NOT NULL, previous_send TEXT, until INTEGER NOT NULL, by_id TEXT NOT NULL);
   CREATE TABLE IF NOT EXISTS garde_weekly_sent (guild_id TEXT NOT NULL, week INTEGER NOT NULL, PRIMARY KEY (guild_id, week));
-  CREATE TABLE IF NOT EXISTS garde_end_reminders (case_id INTEGER PRIMARY KEY, sent_at INTEGER NOT NULL);`);
+  CREATE TABLE IF NOT EXISTS garde_end_reminders (case_id INTEGER PRIMARY KEY, sent_at INTEGER NOT NULL);
+  CREATE TABLE IF NOT EXISTS garde_planning (guild_id TEXT NOT NULL, member_id TEXT NOT NULL, dispos TEXT NOT NULL, updated_at INTEGER NOT NULL, PRIMARY KEY (guild_id, member_id));`);
 
 class GardeError extends Error {}
 const safe = (fn, fallback) => { try { return fn(); } catch { return fallback; } };
@@ -194,6 +195,15 @@ async function execute(interaction, settings) {
     await channel.send?.({ content: `🧊 Salon gelé ${minutes} min par le staff. On souffle un coup.`, allowedMentions: { parse: [] } }).catch(() => {});
     try { recordSysPlusAudit(guild.id, actor.id, "garde.geler", null, { channelId: channel.id, minutes }); } catch { /* best effort */ }
     return `🧊 <#${channel.id}> gelé pour ${minutes} min, rouverture automatique.`;
+  }
+  if (sub === "planning") {
+    const dispos = o.getString("dispos");
+    if (dispos) {
+      db.prepare("INSERT OR REPLACE INTO garde_planning VALUES (?,?,?,?)").run(guild.id, actor.id, String(dispos).replace(/[@`*_~|]/g, "").slice(0, 120), Date.now());
+      return `🗓️ Tes dispos sont enregistrées : ${String(dispos).replace(/[@`*_~|]/g, "").slice(0, 120)}`;
+    }
+    const rows = safe(() => db.prepare("SELECT member_id, dispos, updated_at FROM garde_planning WHERE guild_id=? ORDER BY updated_at DESC LIMIT 40").all(guild.id), []);
+    return rows.length ? `🗓️ **Planning du staff**\n${rows.map((r) => `• <@${r.member_id}> : ${r.dispos} (${ts(r.updated_at)})`).join("\n")}`.slice(0, 1900) : "Personne n'a encore indiqué ses dispos (`/garde planning dispos:`).";
   }
   throw new GardeError("Sous-commande inconnue.");
 }

@@ -37,6 +37,7 @@ import { handleCibleMessage, handleRansomMessage } from "./systems/malus/economy
 import { cachedBans, createPermissionWatch, isPhishingExecution, matchBanEvader, missingPermissions, permissionLabel } from "./guard/extra-watch.js";
 import { quarantineMember } from "./guard/commands.js";
 import { recordAiUsage, sendMonthlyAiReport } from "./ai-usage.js";
+import { handleVoicePlusInteraction } from "./features/voice-plus.js";
 import { awardRichestOfMonth } from "./features/richest-month.js";
 import { countChallengeMessage, expireTempChannels, handleBoost, handleFwuPlusInteraction, payChallenge, sendWeeklySummary } from "./features/fwu-plus.js";
 import { astreinteMembers, expireFrozenChannels, handleGardeInteraction, msUntilWeeklyReport, sendSanctionEndReminders, sendWeeklyStaffReports } from "./systems/garde/commands.js";
@@ -2132,6 +2133,7 @@ client.on("interactionCreate", (interaction) => {
     if (await handleMalusInteraction(interaction, settings[interaction.guildId], record)) { auditSlashUsage(interaction, "MALUS"); return; }
     if (await handleGardeInteraction(interaction, settings[interaction.guildId], record)) { auditSlashUsage(interaction, "GARDE"); return; }
     if (await handleFwuPlusInteraction(interaction, settings[interaction.guildId], { grant: grantPnd, record })) { auditSlashUsage(interaction, "Communauté"); return; }
+    if (await handleVoicePlusInteraction(interaction, record)) { auditSlashUsage(interaction, "Vocal"); return; }
     if (await handleSysPlusInteraction(interaction, settings, {
       apiUrl: API,
       secret: BOT_SYNC_SECRET,
