@@ -178,27 +178,9 @@ async function handleQuarantaine(interaction, settings) {
   if (!member) return "❌ Ce membre n'est pas sur le serveur.";
   const me = guild.members.me ?? await guild.members.fetchMe();
   if (sub === "ajouter") {
-    const roleId = quarantineRoleOf(guild.id, settings);
-    const role = roleId ? await guild.roles.fetch(roleId).catch(() => null) : null;
-    if (!role) return "❌ Aucun rôle de quarantaine : il sera créé automatiquement au prochain démarrage de GUARD (ou `/guildguard quarantine role:@Quarantaine`).";
-    if (role.position >= me.roles.highest.position) return "❌ Le rôle de quarantaine doit être sous mon rôle.";
-    const protectedReason = await roleGrantRefusal(guild, role, { automatic: true, settings });
-    if (protectedReason) return `❌ Rôle de quarantaine refusé : ${protectedReason}`;
-    if (db.prepare("SELECT 1 FROM guard_quarantine WHERE guild_id=? AND user_id=?").get(guild.id, user.id)) return "ℹ️ Ce membre est déjà en quarantaine.";
-    const removable = [...member.roles.cache.values()].filter((r) => r.id !== guild.id && !r.managed && r.id !== role.id && r.position < me.roles.highest.position);
-    const reason = interaction.options.getString("raison") ?? "Quarantaine manuelle";
-    db.prepare("INSERT INTO guard_quarantine(guild_id,user_id,saved_roles_json,reason,moderator_id,created_at) VALUES(?,?,?,?,?,?)").run(guild.id, user.id, JSON.stringify(removable.map((r) => r.id)), reason, interaction.user.id, Date.now());
-    try {
-      if (removable.length) await member.roles.remove(removable, `Quarantaine par ${interaction.user.id} : ${reason}`);
-      await member.roles.add(role, `Quarantaine par ${interaction.user.id} : ${reason}`);
-    } catch (error) {
-      db.prepare("DELETE FROM guard_quarantine WHERE guild_id=? AND user_id=?").run(guild.id, user.id);
-      if (removable.length) await member.roles.add(removable).catch(() => {});
-      throw error;
-    }
-    if (member.voice?.channelId) await member.voice.disconnect("Quarantaine").catch(() => {});
-    db.prepare("INSERT INTO moderation_cases(guild_id,user_id,moderator_id,action,reason,details_json,created_at) VALUES(?,?,?,?,?,?,?)").run(guild.id, user.id, interaction.user.id, "quarantine", reason, JSON.stringify({ roles: removable.length }), Date.now());
-    return `🔒 <@${user.id}> est en quarantaine (${removable.length} rôle(s) mis de côté). \`/quarantaine retirer\` les lui rendra.`;
+    const result = await quarantineMember(guild, member, { reason: interaction.options.getString("raison") ?? "Quarantaine manuelle", actorId: interaction.user.id, settings });
+    if (!result.ok) return result.message;
+    return `🔒 <@${user.id}> est en quarantaine (${result.saved} rôle(s) mis de côté). \`/quarantaine retirer\` les lui rendra.`;
   }
   const row = db.prepare("SELECT saved_roles_json FROM guard_quarantine WHERE guild_id=? AND user_id=?").get(guild.id, user.id);
   if (!row) return "ℹ️ Ce membre n'est pas en quarantaine.";
@@ -210,6 +192,33 @@ async function handleQuarantaine(interaction, settings) {
   db.prepare("DELETE FROM guard_quarantine WHERE guild_id=? AND user_id=?").run(guild.id, user.id);
   db.prepare("INSERT INTO moderation_cases(guild_id,user_id,moderator_id,action,reason,details_json,created_at) VALUES(?,?,?,?,?,?,?)").run(guild.id, user.id, interaction.user.id, "unquarantine", "Fin de quarantaine", JSON.stringify({ restored: saved.length }), Date.now());
   return `🔓 Quarantaine levée pour <@${user.id}> : ${saved.length} rôle(s) rendu(s).`;
+}
+
+
+/** Puts a member in quarantine (roles saved then removed, quarantine role given). Shared by
+ *  /quarantaine, /raid purge and the phishing guard. Returns { ok, message }. */
+export async function quarantineMember(guild, member, { reason, actorId, settings }) {
+  const me = guild.members.me ?? await guild.members.fetchMe();
+  const roleId = quarantineRoleOf(guild.id, settings);
+  const role = roleId ? await guild.roles.fetch(roleId).catch(() => null) : null;
+  if (!role) return { ok: false, message: "❌ Aucun rôle de quarantaine : il sera créé automatiquement au prochain démarrage de GUARD (ou `/guildguard quarantine role:@Quarantaine`)." };
+  if (role.position >= me.roles.highest.position) return { ok: false, message: "❌ Le rôle de quarantaine doit être sous mon rôle." };
+  const protectedReason = await roleGrantRefusal(guild, role, { automatic: true, settings });
+  if (protectedReason) return { ok: false, message: `❌ Rôle de quarantaine refusé : ${protectedReason}` };
+  if (db.prepare("SELECT 1 FROM guard_quarantine WHERE guild_id=? AND user_id=?").get(guild.id, member.id)) return { ok: false, message: "ℹ️ Ce membre est déjà en quarantaine." };
+  const removable = [...member.roles.cache.values()].filter((r) => r.id !== guild.id && !r.managed && r.id !== role.id && r.position < me.roles.highest.position);
+  db.prepare("INSERT INTO guard_quarantine(guild_id,user_id,saved_roles_json,reason,moderator_id,created_at) VALUES(?,?,?,?,?,?)").run(guild.id, member.id, JSON.stringify(removable.map((r) => r.id)), reason, actorId, Date.now());
+  try {
+    if (removable.length) await member.roles.remove(removable, `Quarantaine par ${actorId} : ${reason}`);
+    await member.roles.add(role, `Quarantaine par ${actorId} : ${reason}`);
+  } catch (error) {
+    db.prepare("DELETE FROM guard_quarantine WHERE guild_id=? AND user_id=?").run(guild.id, member.id);
+    if (removable.length) await member.roles.add(removable).catch(() => {});
+    throw error;
+  }
+  if (member.voice?.channelId) await member.voice.disconnect("Quarantaine").catch(() => {});
+  db.prepare("INSERT INTO moderation_cases(guild_id,user_id,moderator_id,action,reason,details_json,created_at) VALUES(?,?,?,?,?,?,?)").run(guild.id, member.id, actorId, "quarantine", reason, JSON.stringify({ roles: removable.length }), Date.now());
+  return { ok: true, message: null, saved: removable.length };
 }
 
 export async function handleGuardInteraction(interaction, settings = {}, context = {}) {

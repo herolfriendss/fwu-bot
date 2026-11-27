@@ -147,3 +147,11 @@ test("scan flags staff roles above the bot and a server without native AutoMod",
   assert.match(text, /AutoMod native/);
   assert.doesNotMatch(scanGuild(guild, { automodRuleCount: null }).findings.join("\n"), /AutoMod/, "non vérifiable : pas de pénalité");
 });
+
+test("raid purge targets only recent accounts that just joined, never protected members", async () => {
+  const { purgeCandidates } = await import("./raid-commands.js");
+  const now = 10 * 86_400_000;
+  const m = (id, joinedAgoMin, createdAgoDays, extra = {}) => ({ id, joinedTimestamp: now - joinedAgoMin * 60_000, user: { bot: false, createdTimestamp: now - createdAgoDays * 86_400_000 }, ...extra });
+  const list = [m("raider", 2, 1), m("vieux", 2, 300), m("ancien-membre", 600, 1), m("bot", 1, 1, { user: { bot: true, createdTimestamp: now } }), m("staff", 1, 1)];
+  assert.deepEqual(purgeCandidates(list, { now, minutes: 10, accountDays: 7, isProtected: (x) => x.id === "staff" }).map((x) => x.id), ["raider"]);
+});

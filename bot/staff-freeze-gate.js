@@ -15,7 +15,7 @@ import { getAdminPlusRoleId } from "./systems/sysplus/role-config.js";
 
 export const FROZEN_CATEGORIES = Object.freeze(new Set(["SYS+", "Modération", "Administration & sécurité", "Administration", "Embeds & règlement", "Automatisation"]));
 export const FROZEN_COMMANDS = Object.freeze(new Set([
-  "dog", "dogall", "undog", "undogall", "malus", "menotte", "demenotte", "rankall", "dmall", "roletemp", "role", "roles", "webhook", "webhooks",
+  "dog", "dogall", "undog", "undogall", "malus", "garde", "menotte", "demenotte", "rankall", "dmall", "roletemp", "role", "roles", "webhook", "webhooks",
   "annonce", "pseudo", "staff", "staffhistory", "wakeup", "lockname", "waouf", "accessall", "mv", "blacklist", "quota", "sanction",
   "casier", "quarantaine", "antinuke", "automod", "bouclier", "maj", "pnd-add", "pnd-remove",
 ]));

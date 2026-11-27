@@ -34,6 +34,7 @@ import { expireWaoufActions, handleWaoufInteraction, handleWaoufMessage } from "
 import { expireMalus, handleMalusInteraction, handleMalusMessage } from "./systems/malus/commands.js";
 import { handleExileVoiceState, handlePatateMessage } from "./systems/malus/voice-games.js";
 import { handleCibleMessage, handleRansomMessage } from "./systems/malus/economy-malus.js";
+import { astreinteMembers, expireFrozenChannels, handleGardeInteraction, msUntilWeeklyReport, sendWeeklyStaffReports } from "./systems/garde/commands.js";
 import { enforceLeashNickname, handleDogCommand, handleLeashVoiceState, handleUndogAllInteraction, reconcileLeashedMembers } from "./dog-commands.js";
 import { handleMusicExtrasInteraction, handleMusicMessage, handleMusicInteraction, handleRadioMessage, startConfiguredRadios } from "./music/music.js";
 import { economySnapshot, handleEconomyMessage, handleEconomyInteraction, reconcilePendingEconomy, recoverBlackjackGames, settleExpiredEconomyAuctions, transferEconomyRole } from "./economy.js";
@@ -390,6 +391,20 @@ function auditLog(guild, settingsForGuild, title, description, color = 0xe21d2f)
   // sendCentralLog routes to the isolated Logs Hub and, when configured, the
   // legacy local channel. Keep one call so events are never duplicated.
   void sendCentralLog(guild, settingsForGuild, embed).catch(() => record("central_log_error"));
+  notifyAstreinte(guild, title, description);
+}
+
+// Astreinte (/garde astreinte) : les alertes de sécurité partent aussi en message privé aux SYS+ d'astreinte.
+const SECURITY_ALERT = /raid|nuke|anti-largage|relais|piège|phishing|verrouillage|panic|urgence|quarantaine automatique/i;
+const astreinteLastDm = new Map();
+function notifyAstreinte(guild, title, description) {
+  if (!SECURITY_ALERT.test(String(title)) || !client?.isReady?.()) return;
+  for (const memberId of astreinteMembers(guild.id)) {
+    const k = `${guild.id}:${memberId}`;
+    if (Date.now() - (astreinteLastDm.get(k) ?? 0) < 60_000) continue;
+    astreinteLastDm.set(k, Date.now());
+    void client.users.fetch(memberId).then((user) => user.send({ content: `📟 **Astreinte — ${guild.name}**\n${title}\n${String(description).slice(0, 1500)}`, allowedMentions: { parse: [] } })).catch(() => {});
+  }
 }
 
 // Text exactly as the member typed it ("+ban"), before the routing rewrites it to "=ban".
@@ -1715,7 +1730,14 @@ client.once("clientReady", () => {
     if (!serves("suckme")) return;
     void expireWaoufActions(client, settings).then((count) => { if (count) record("waouf_expired"); }).catch(() => record("waouf_expiration_error"));
     void expireMalus(client, settings).then((count) => { if (count) record("malus_expired"); }).catch(() => record("malus_error"));
+    void expireFrozenChannels(client).catch(() => record("garde_error"));
   }, 30_000);
+  // Bilan SYS+ du dimanche soir, en message privé (une fois par semaine et par serveur).
+  const scheduleWeeklyStaffReport = () => setTimeout(() => {
+    if (serves("suckme")) void sendWeeklyStaffReports(client, settings, { guildIds: ALLOWED_GUILDS.filter((id) => !isLogsHub(id)) }).catch(() => record("garde_error"));
+    scheduleWeeklyStaffReport();
+  }, Math.max(60_000, msUntilWeeklyReport())).unref?.();
+  scheduleWeeklyStaffReport();
   waoufExpiryTimer.unref?.();
   if (serves("fdpdlavoc")) void startConfiguredRadios(client).then((started) => {
     if (started) record("radio_autostarted");
@@ -2051,6 +2073,7 @@ client.on("interactionCreate", (interaction) => {
     if (await handleLocknameInteraction(interaction, settings[interaction.guildId])) { auditSlashUsage(interaction, "LOCKNAME"); return; }
     if (await handleWaoufInteraction(interaction, settings[interaction.guildId], record)) { auditSlashUsage(interaction, "WAOUF"); return; }
     if (await handleMalusInteraction(interaction, settings[interaction.guildId], record)) { auditSlashUsage(interaction, "MALUS"); return; }
+    if (await handleGardeInteraction(interaction, settings[interaction.guildId], record)) { auditSlashUsage(interaction, "GARDE"); return; }
     if (await handleSysPlusInteraction(interaction, settings, {
       apiUrl: API,
       secret: BOT_SYNC_SECRET,

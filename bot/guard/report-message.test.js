@@ -21,7 +21,7 @@ test("traitement : une seule fois, tous les signalements du message fermés", ()
   assert.equal(closeReport(a, "deleted", "staff", 7), true);
   assert.equal(getReport(b).status, "deleted");
   assert.equal(closeReport(b, "ignored", "staff", 8), false);
-  assert.deepEqual(reportButtons("g2", a)[0].components.map((c) => c.custom_id), [`report:delete:g2:${a}`, `report:mute:g2:${a}`, `report:ignore:g2:${a}`]);
+  assert.deepEqual(reportButtons("g2", a)[0].components.map((c) => c.custom_id), [`report:claim:g2:${a}`, `report:delete:g2:${a}`, `report:mute:g2:${a}`, `report:ignore:g2:${a}`]);
 });
 
 test("clic droit → formulaire ; boutons réservés au staff ; Ignorer ferme le signalement", async () => {

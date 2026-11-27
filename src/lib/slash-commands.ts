@@ -1454,6 +1454,37 @@ export const SLASH_COMMANDS: SlashCommandDef[] = [
     ],
   },
   {
+    name: "garde",
+    description: "SYS+ : tes outils de garde (relève, astreinte, enquête, appel, gel d'un salon…)",
+    usage: "/garde moi | releve | astreinte | enquete | bareme | appel | geler | demande-quota | bilan",
+    category: "SYS+",
+    dmPermission: false,
+    requiresBotProcess: true,
+    options: [
+      sub("moi", "Ton quota, tes sanctions récentes, tes malus actifs"),
+      sub("releve", "Résumé des dernières heures pour prendre la suite", [opt(4, "heures", "Fenêtre (1 à 72 h, 12 par défaut)", { min_value: 1, max_value: 72 })]),
+      sub("astreinte", "Te déclarer d'astreinte : les alertes de sécurité t'arrivent en privé", [
+        opt(3, "etat", "Choix", { required: true, choices: [{ name: "Je prends l'astreinte", value: "on" }, { name: "Je termine", value: "off" }, { name: "Qui est d'astreinte ?", value: "liste" }] }),
+      ]),
+      sub("enquete", "Arrivée, invitation, vocal, casier et barème d'un membre", [opt(6, "membre", "Membre", { required: true })]),
+      sub("bareme", "Sanction suivante proposée selon le casier", [opt(6, "membre", "Membre", { required: true })]),
+      sub("appel", "Vote rapide des SYS+ avant une sanction lourde", [
+        opt(6, "membre", "Membre concerné", { required: true }),
+        opt(3, "sanction", "Sanction envisagée", { required: true, max_length: 80 }),
+        opt(3, "raison", "Motif", { required: true, max_length: 300 }),
+      ]),
+      sub("geler", "Couper l'écriture d'un salon pendant une dispute, réouverture automatique", [
+        opt(7, "salon", "Salon (celui-ci par défaut)", { channel_types: [0] }),
+        opt(4, "minutes", "Durée (1 à 120 min, 10 par défaut)", { min_value: 1, max_value: 120 }),
+      ]),
+      sub("demande-quota", "Demander à l'owner quelques sanctions de plus", [
+        opt(4, "nombre", "Sanctions en plus (1 à 20)", { required: true, min_value: 1, max_value: 20 }),
+        opt(3, "raison", "Pourquoi", { required: true, max_length: 300 }),
+      ]),
+      sub("bilan", "Ton bilan de la semaine (aussi envoyé le dimanche soir)"),
+    ],
+  },
+  {
     name: "malus",
     description: "SYS+ : malus temporaires sur un membre (perroquet, fantôme, mime, clown…)",
     usage: "/malus <type> membre [minutes] | stop membre [type] | liste",
@@ -3138,7 +3169,7 @@ export const EXTRA_SLASH_COMMANDS: SlashCommandDef[] = [
   {
     name: "raid",
     description: "Admins : mode raid (invitations fermées, comptes récents en quarantaine)",
-    usage: "/raid etat · on · off · seuils",
+    usage: "/raid etat · on · off · purge · seuils",
     category: "Administration & sécurité",
     dmPermission: false,
     requiresBotProcess: true,
@@ -3146,6 +3177,12 @@ export const EXTRA_SLASH_COMMANDS: SlashCommandDef[] = [
       sub("etat", "État et seuils du mode raid"),
       sub("on", "Active le mode raid à la main", [opt(3, "raison", "Raison", { max_length: 200 })]),
       sub("off", "Coupe le mode raid", [opt(3, "raison", "Raison", { max_length: 200 })]),
+      sub("purge", "Quarantaine ou expulsion d'un coup des comptes récents arrivés pendant un raid", [
+        opt(4, "minutes", "Arrivés dans les X dernières minutes (1 à 60, 10 par défaut)", { min_value: 1, max_value: 60 }),
+        opt(4, "anciennete_jours", "Comptes créés il y a moins de X jours (0 à 30, 7 par défaut)", { min_value: 0, max_value: 30 }),
+        opt(3, "action", "Quarantaine (défaut) ou expulsion", { choices: [{ name: "Quarantaine", value: "quarantaine" }, { name: "Expulsion", value: "expulsion" }] }),
+        opt(5, "confirmer", "Vrai pour exécuter (sinon simple aperçu)"),
+      ]),
       sub("seuils", "Seuils de détection automatique", [
         opt(4, "arrivees", "Arrivées déclenchant le mode raid", { required: true, min_value: 3, max_value: 100 }),
         opt(4, "secondes", "Fenêtre en secondes", { required: true, min_value: 5, max_value: 600 }),

@@ -47,9 +47,14 @@ export function closeReport(id, status, handledBy, now = Date.now()) {
   return true;
 }
 
-export const reportButtons = (guildId, id) => [{
+try { db.exec("ALTER TABLE guard_reports ADD COLUMN claimed_by TEXT"); } catch { /* déjà là */ }
+
+export const reportButtons = (guildId, id, claimedName = null) => [{
   type: 1,
   components: [
+    claimedName
+      ? { type: 2, style: 2, disabled: true, label: `👋 Pris par ${claimedName}`.slice(0, 80), custom_id: `report:claimed:${guildId}:${id}` }
+      : { type: 2, style: 3, label: "Je prends", emoji: { name: "👋" }, custom_id: `report:claim:${guildId}:${id}` },
     { type: 2, style: 4, label: "Supprimer le message", emoji: { name: "🗑️" }, custom_id: `report:delete:${guildId}:${id}` },
     { type: 2, style: 1, label: "Mute 10 min", emoji: { name: "🔇" }, custom_id: `report:mute:${guildId}:${id}` },
     { type: 2, style: 2, label: "Ignorer", emoji: { name: "✖️" }, custom_id: `report:ignore:${guildId}:${id}` },
@@ -93,7 +98,7 @@ export async function handleReportInteraction(interaction, { client, logReport, 
     await interaction.reply({ content: "✅ Merci, le staff a reçu ton signalement. Il reste anonyme pour l'auteur du message.", ephemeral: true }).catch(() => {});
     return true;
   }
-  if (!interaction?.isButton?.() || !/^report:(delete|mute|ignore):/.test(id)) return false;
+  if (!interaction?.isButton?.() || !/^report:(claim|delete|mute|ignore):/.test(id)) return false;
   const [, action, guildId, reportId] = id.split(":");
   const guild = client?.guilds?.cache?.get?.(guildId);
   const report = getReport(reportId);
@@ -101,6 +106,18 @@ export async function handleReportInteraction(interaction, { client, logReport, 
   const staff = await guild.members.fetch({ user: interaction.user.id, force: true }).catch(() => null);
   if (!isStaff(staff)) { await interaction.reply({ content: "⛔ Réservé au staff du serveur (Gérer les messages ou Modérer les membres).", ephemeral: true }).catch(() => {}); return true; }
   if (report.status !== "open") { await interaction.reply({ content: "Ce signalement a déjà été traité.", ephemeral: true }).catch(() => {}); return true; }
+  const claimer = db.prepare("SELECT claimed_by FROM guard_reports WHERE id=?").get(report.id)?.claimed_by ?? null;
+  if (action === "claim") {
+    if (claimer) { await interaction.reply({ content: `Déjà pris par <@${claimer}>.`, ephemeral: true, allowedMentions: { parse: [] } }).catch(() => {}); return true; }
+    db.prepare("UPDATE guard_reports SET claimed_by=? WHERE id=? AND claimed_by IS NULL").run(staff.id, report.id);
+    await interaction.update({ components: reportButtons(guildId, report.id, staff.displayName ?? staff.user?.username ?? "le staff") }).catch(() => {});
+    return true;
+  }
+  // Pris en charge : seul celui qui l'a pris (ou un administrateur) agit, pour ne pas sanctionner deux fois.
+  if (claimer && claimer !== staff.id && !staff.permissions?.has?.(P.Administrator)) {
+    await interaction.reply({ content: `Ce signalement est pris par <@${claimer}>.`, ephemeral: true, allowedMentions: { parse: [] } }).catch(() => {});
+    return true;
+  }
   let status = "ignored";
   if (action === "delete") {
     const message = await guild.channels.cache.get(report.channel_id)?.messages?.fetch?.(report.message_id).catch(() => null);

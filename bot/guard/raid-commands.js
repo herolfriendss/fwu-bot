@@ -19,6 +19,36 @@ async function scanPayload(guild) {
   };
 }
 
+export const PURGE_MAX = 100;
+/** Pure: which members a raid purge would hit. */
+export function purgeCandidates(members, { now = Date.now(), minutes = 10, accountDays = 7, isProtected = () => false } = {}) {
+  return members.filter((m) => !m.user?.bot && !isProtected(m)
+    && Number(m.joinedTimestamp ?? 0) >= now - minutes * 60_000
+    && Number(m.user?.createdTimestamp ?? 0) >= now - accountDays * 86_400_000).slice(0, PURGE_MAX);
+}
+
+async function purgeRaid(request) {
+  const { guild, member, settings } = request;
+  const minutes = Math.min(60, Math.max(1, request.purgeMinutes ?? 10));
+  const accountDays = Math.min(30, Math.max(0, request.purgeAccountDays ?? 7));
+  const action = request.purgeAction === "expulsion" ? "expulsion" : "quarantaine";
+  const ownerId = String(process.env.PND_OWNER_DISCORD_ID ?? "").trim();
+  const isProtected = (m) => m.id === guild.ownerId || m.id === ownerId || m.permissions?.has?.("ManageMessages") || m.permissions?.has?.("Administrator");
+  const members = [...(guild.members?.cache?.values?.() ?? [])];
+  const targets = purgeCandidates(members, { minutes, accountDays, isProtected });
+  if (!targets.length) return { visibility: "private", content: `Aucun compte de moins de ${accountDays} jour(s) arrivé dans les ${minutes} dernières minutes.` };
+  if (!request.confirm) return { visibility: "private", content: `⚠️ ${targets.length} membre(s) seraient touchés (${action}) : ${targets.slice(0, 20).map((m) => `<@${m.id}>`).join(", ")}${targets.length > 20 ? "…" : ""}\nRelance avec \`confirmer: vrai\` pour exécuter.` };
+  const { quarantineMember } = await import("./commands.js");
+  let done = 0;
+  for (const target of targets) {
+    try {
+      if (action === "expulsion") { await target.kick(`Purge de raid par ${member.id}`); done++; }
+      else if ((await quarantineMember(guild, target, { reason: "Purge de raid", actorId: member.id, settings })).ok) done++;
+    } catch { /* member left or above the bot */ }
+  }
+  return { content: `🧹 Purge de raid : ${done}/${targets.length} membre(s) ${action === "expulsion" ? "expulsé(s)" : "mis en quarantaine"}.` };
+}
+
 function raidText(guildId) {
   const c = raidConfig(guildId);
   return `**Mode raid** : ${c.active ? `🚨 actif${c.manual ? " (manuel)" : ""} depuis <t:${Math.floor((c.since ?? Date.now()) / 1000)}:R>` : "⚪ inactif"}\nSeuil : ${c.threshold} arrivées en ${c.windowSeconds} s • sortie après ${c.calmMinutes} min de calme`;
@@ -43,6 +73,7 @@ export async function runRaidCommand(request, { env = process.env } = {}) {
       case "raid on": await setRaidMode(guild, true, { manual: true, actorId: member.id, settings, reason: request.reason }); return { content: `🚨 Mode raid activé.\n${raidText(guild.id)}` };
       case "raid off": await setRaidMode(guild, false, { manual: true, actorId: member.id, settings, reason: request.reason }); return { content: `✅ Mode raid coupé.\n${raidText(guild.id)}` };
       case "raid etat": return { visibility: "private", content: raidText(guild.id) };
+      case "raid purge": return await purgeRaid(request);
       case "raid seuils": saveRaidSettings(guild.id, request); return { content: `✅ Seuils enregistrés.\n${raidText(guild.id)}` };
       case "scan": return await scanPayload(guild);
       case "panic": {
@@ -67,6 +98,7 @@ export async function handleRaidInteraction(interaction, settings) {
     guild: interaction.guild, member: interaction.member, sub, settings,
     channelId: o.getChannel?.("salon", false)?.id ?? null, reason: o.getString?.("raison", false) ?? null,
     threshold: o.getInteger?.("arrivees", false), windowSeconds: o.getInteger?.("secondes", false), calmMinutes: o.getInteger?.("calme", false),
+    purgeMinutes: o.getInteger?.("minutes", false), purgeAccountDays: o.getInteger?.("anciennete_jours", false), purgeAction: o.getString?.("action", false), confirm: o.getBoolean?.("confirmer", false),
   });
   await interaction.editReply({ ...payload, allowedMentions: { parse: [] } });
   return true;

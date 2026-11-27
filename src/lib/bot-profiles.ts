@@ -101,7 +101,7 @@ export const SLASH_COMMAND_OWNERS: Record<BotProfileId, readonly string[]> = {
   suckme: [
     "sysp", "panel", "setup", "knowledge", "rank", "rankall", "removerole", "rolepanel",
     "staffhistory", "vocalpresence", "lockname", "webhook", "automation",
-    "anti-moove", "wakeup", "malus", "dog", "dogall", "undog", "doginfo", "wouaf", "menotte", "unmenotte", "menotteinfo",
+    "anti-moove", "wakeup", "malus", "garde", "dog", "dogall", "undog", "doginfo", "wouaf", "menotte", "unmenotte", "menotteinfo",
     "dmall", "undogall", "roletemp", "annonce", "staff", "pseudo", "maj",
     // venues de FWU
     "ia", "ticket", "candidature", "sondage", "profil", "bio", "rep", "toprep", "color",
