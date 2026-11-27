@@ -147,6 +147,7 @@ import { handleBlindtestInteraction, handleBlindtestMessage, isBlindTestRunning 
 import { handleTtsInteraction, handleTtsMessage } from "./features/tts.js";
 import { forgetStatChannel, handleStatChannelsInteraction, runStatChannels } from "./features/stat-channels.js";
 import { handleMemberOfMonthInteraction, runMemberOfMonth } from "./features/member-of-month.js";
+import { handleWaitingButton, handleWaitingInteraction, handleWaitingVoiceState } from "./features/support-waiting.js";
 import { handleCountdownInteraction, runCountdowns } from "./features/event-countdown.js";
 import { handleSeniorityInteraction, runSeniority } from "./features/seniority.js";
 import { handleDropButton, handleDropInteraction, noteActivity, runPndDrops } from "./features/pnd-drop.js";
@@ -1051,6 +1052,7 @@ client.on("guildMemberUpdate", (oldMember, newMember) => {
 client.on("voiceStateUpdate", (oldState, newState) => {
   const guildIdForVoice = newState.guild?.id ?? oldState.guild?.id;
   if (!guildAllowed(guildIdForVoice, ALLOWED_GUILDS) || isLogsHub(guildIdForVoice)) return;
+  if (serves("fdpdlavoc")) void handleWaitingVoiceState(oldState, newState).catch(() => record("support_waiting_error"));
   const suckme = serves("suckme");
   if (suckme) {
   void trackVoiceStateUpdate(oldState, newState, client).catch(() => record("voice_audit_error"));
@@ -1878,6 +1880,8 @@ client.on("interactionCreate", (interaction) => {
     if (await handleBlindtestInteraction(interaction)) { auditSlashUsage(interaction, "Blind test"); return; }
     if (await handleTtsInteraction(interaction, { busy: isBlindTestRunning })) { auditSlashUsage(interaction, "Lecture vocale"); return; }
     if (await handleStatChannelsInteraction(interaction)) { auditSlashUsage(interaction, "Salons compteurs"); return; }
+    if (await handleWaitingButton(interaction)) return;
+    if (await handleWaitingInteraction(interaction)) { auditSlashUsage(interaction, "Salle d'attente"); return; }
     if (await handleCountdownInteraction(interaction)) { auditSlashUsage(interaction, "Compte à rebours"); return; }
     if (await handleSeniorityInteraction(interaction)) { auditSlashUsage(interaction, "Ancienneté"); return; }
     if (await handleDropButton(interaction)) return;

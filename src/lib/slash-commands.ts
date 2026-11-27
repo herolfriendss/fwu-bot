@@ -2357,6 +2357,24 @@ export const EXTRA_SLASH_COMMANDS: SlashCommandDef[] = [
     ],
   },
   {
+    name: "attente",
+    description: "FDPDLAVOC : salle d'attente du support vocal, le staff est alerté quand un membre attend",
+    usage: "/attente etat · configurer salle alerte [role] · desactiver",
+    category: "Musique & radio",
+    dmPermission: false,
+    requiresBotProcess: true,
+    defaultMemberPermissions: manageServer,
+    options: [
+      sub("etat", "Réglages actuels"),
+      sub("configurer", "Choisis la salle d'attente, le salon d'alerte et le rôle à prévenir", [
+        opt(7, "salle", "Salon vocal d'attente", { required: true, channel_types: [2, 13] }),
+        opt(7, "alerte", "Salon textuel des alertes staff", { required: true, channel_types: [0, 5] }),
+        opt(8, "role", "Rôle support à mentionner"),
+      ]),
+      sub("desactiver", "Coupe les alertes"),
+    ],
+  },
+  {
     name: "compteurs",
     description: "SUCK ME : salons compteurs (membres, en vocal, boosts) mis à jour toutes les 10 min",
     usage: "/compteurs installer · retirer · actualiser",
