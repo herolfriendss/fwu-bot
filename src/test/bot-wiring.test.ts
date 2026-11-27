@@ -181,7 +181,7 @@ describe("bot wiring", () => {
       "vocal-panel", "salut", "info-serveur",
       // Retired top-level commands remain in internal dispatch code for stale
       // registrations/compatibility, but are no longer published by the catalogue.
-      "access", "unaccess", "pv",
+      "access", "unaccess",
       "play", "pause", "resume", "skip", "stop", "queue", "nowplaying", "volume", "loop",
       "shuffle", "clearqueue", "remove", "join", "leave", "musicpanel",
     ]);

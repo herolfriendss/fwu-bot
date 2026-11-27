@@ -49,7 +49,8 @@ test("owner decisions of 2026-11-24 are encoded (FWU = staff + embeds, GUARD = b
   assert.equal(slashCommandOwner("play"), null, "/play est regroupée sous /music player play");
   assert.equal(slashCommandOwner("resume"), null, "/resume est regroupée sous /music player resume");
   assert.equal(slashCommandOwner("voice"), "fdpdlavoc");
-  for (const retired of ["access", "unaccess", "pv"]) assert.equal(slashCommandOwner(retired), null, retired);
+  for (const retired of ["access", "unaccess"]) assert.equal(slashCommandOwner(retired), null, retired);
+  for (const name of ["pv", "unpv"]) assert.equal(slashCommandOwner(name), "fdpdlavoc", `/${name} rétablie (27/11)`);
   assert.equal(slashCommandOwner("voc"), "fdpdlavoc");
   for (const name of ["sysp", "dog", "menotte", "wakeup", "anti-moove", "rankall", "lockname"]) assert.equal(slashCommandOwner(name), "suckme", name);
   for (const name of ["balance", "pay", "shop", "casino", "invest", "business"]) assert.equal(slashCommandOwner(name), "fisc", name);
@@ -313,4 +314,17 @@ test("every dedicated application resolves its own unique token, including optio
     DISCORD_TOKEN: "main-token",
     PND_BOT_PROFILE: "investplus",
   }), /PND_INVESTPLUS_TOKEN/);
+});
+
+test("mauvais préfixe : le bot propriétaire est trouvé, la commande n'est pas exécutée", async () => {
+  const { misprefixedCommand, parsePrefixedMessage, DEFAULT_PREFIXES } = await import("./bot-runtime.js");
+  assert.deepEqual(misprefixedCommand("=pv", DEFAULT_PREFIXES), { owner: "fdpdlavoc", typedPrefix: "=", word: "pv", correct: ";pv" });
+  assert.equal(misprefixedCommand("+dog @x", DEFAULT_PREFIXES).correct, "=dog");
+  assert.equal(misprefixedCommand(";pv", DEFAULT_PREFIXES), null, "bonne forme : pas d'indication");
+  assert.equal(misprefixedCommand("=bonjour", DEFAULT_PREFIXES), null, "mot inconnu : silence");
+  assert.equal(misprefixedCommand("- liste de courses", DEFAULT_PREFIXES), null);
+  for (const [text, owner] of [["+aide", "guard"], [";help", "fdpdlavoc"], ["=commandes", "suckme"], ["-aide", "fisc"], ["$aide", "investplus"]]) {
+    assert.equal(parsePrefixedMessage(text, DEFAULT_PREFIXES)?.owner, owner, text);
+  }
+  assert.equal(parsePrefixedMessage(";moveall #a", DEFAULT_PREFIXES)?.owner, "fdpdlavoc");
 });

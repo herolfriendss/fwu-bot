@@ -104,6 +104,21 @@ export function detectKind(payload) {
   return "info";
 }
 
+/**
+ * Aide ou information (« Utilisation : … », « ℹ️ … n'est pas banni ») : jamais
+ * présentée comme une action effectuée, même pour une commande sensible.
+ */
+export function isUsageOrNotice(payload) {
+  const raw = typeof payload === "string" ? payload : payload?.content;
+  let text = String(raw ?? "").trim();
+  if (!text && payload && typeof payload === "object") {
+    const first = payload.embeds?.[0];
+    const data = typeof first?.toJSON === "function" ? first.toJSON() : first;
+    text = String(data?.description ?? data?.title ?? "").trim();
+  }
+  return text.startsWith("ℹ") || /^(Utilisation|Usage|Syntaxe|Sous-commandes)\b/i.test(text);
+}
+
 export function isPlainText(payload) {
   if (typeof payload === "string") return payload.trim().length > 0;
   return Boolean(payload?.content?.trim?.()) && !(payload.embeds?.length) && !(payload.files?.length) && !payload.poll;
@@ -186,7 +201,7 @@ export function shapeReply(input, ctx = {}) {
   if (explicit === "private" || containsSecret(payload) || PRIVATE_COMMANDS.has(ctx.commandName)) level = "private";
   else if (ctx.surface === "component") level = requestedPrivate ? "private" : "normal";
   else if (explicit === "error" || kind === "refusal") level = "error";
-  else if (explicit === "sensitive" || ((SENSITIVE_ACTIONS[path] || SENSITIVE_ACTIONS[ctx.commandName]) && kind !== "warning")) level = "sensitive";
+  else if (explicit === "sensitive" || ((SENSITIVE_ACTIONS[path] || SENSITIVE_ACTIONS[ctx.commandName]) && kind !== "warning" && !isUsageOrNotice(payload))) level = "sensitive";
   else level = "normal";
 
   if (level === "private" && ctx.surface !== "prefix") payload.ephemeral = true;

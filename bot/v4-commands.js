@@ -328,6 +328,9 @@ function buildPlan(interaction) {
       const content = subcommand === "liste" ? "=pv liste" : subcommand === "retirer" ? "=unpv" : "=pv";
       return { handler: "voice", content, mentions, ephemeral: true };
     }
+    // /unpv : raccourci rétabli le 27/11, comme ;unpv.
+    case "unpv":
+      return { handler: "voice", content: "=unpv", mentions, ephemeral: true };
     case "vocal-panel":
       return { handler: "voice", content: "=panel", mentions, ephemeral: true };
 

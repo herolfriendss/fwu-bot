@@ -90,7 +90,10 @@ L'installateur de chaque bot lance `scripts/fwu-synchroniser.sh` : FWU retire de
 ## Préfixes (décision du 24/11, remplace « slash uniquement » du 23/11)
 - Chaque bot a son préfixe (GUARD `+`, FDPDLAVOC `;`, SUCK ME `=`, LE FISC `-`) ; FWU reste en slash uniquement.
 - Un seul fichier pour les 5 bots : `PND_DATA_DIR/bots.json` (modèle `bot/config/bots.example.json`), jamais écrasé par une mise à jour.
-- Une commande tapée avec le préfixe d'un autre bot n'existe pas (`=ban` ne fait rien : c'est `+ban`).
+- Une commande tapée avec le préfixe d'un autre bot n'est pas exécutée : le bot qui la possède répond avec la bonne forme (`=pv` → « tape `;pv` »), message effacé après 20 s (27/11).
+- `+aide`, `;aide`, `=aide`, `-aide`, `$aide` (ou `help`, `commandes`) : chaque bot liste ses commandes.
+- Vocal : `;pv`, `;unpv`, `;panel` (et `/pv`, `/unpv` en slash, rétablies le 27/11). `;moveall #salon` déplace tout ton vocal vers ce salon (`;moveall #source #cible` aussi, alias de `;mvall`).
+- `/status` de chaque bot affiche son préfixe et les commandes slash que Discord aurait refusées.
 - `PND_PREFIX_COMMANDS` n'est plus utilisé.
 
 ## Statut riche (25/11)
