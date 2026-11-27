@@ -50,6 +50,7 @@ Chaque choix se change sans toucher au code (variable d'environnement ou command
 | 10 | PV retiré à la main pendant l'arrêt du bot | Réappliqué au démarrage (la commande unpv reste possible et restaure l'état d'origine). | Utiliser unpv avant de modifier un salon à la main. |
 | 20 | Alertes LIVE | Réglables depuis Discord (`/live`, sur SUCK ME, OWNER et SYS+), avec un rôle mentionné à chaque annonce (ton choix du 23/11). Jamais @everyone. | `/live role @rôle` ou le site. |
 | 28 | Capital des prêts du FISC | Le prêt est créé à partir de rien et son capital est toujours détruit au remboursement. La caisse ne reçoit que les intérêts et la pénalité, que le remboursement soit volontaire ou forcé (choix du 26/11). | Rien. |
+| 32 | Braquage (`/braquage`, LE FISC) | Équipe de 3 à 5 membres formée en 3 minutes. Réussite 35 % à 3, jusqu'à 49 % à 5. Le butin vaut 10 % de la caisse du serveur (20 000 PND maximum), partagé à parts égales. En cas d'échec, chacun paie 200 PND d'amende (portefeuille puis banque, jamais en négatif), versés à la caisse. Un braquage toutes les 2 h par serveur, 6 h de repos par membre, caisse d'au moins 1 000 PND. | Constantes `HEIST` dans `bot/features/heist.js`. |
 
 ## Site et mises à jour
 

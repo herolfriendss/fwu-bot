@@ -25,19 +25,19 @@ db.exec(`
   );
 `);
 
-function walletOf(guildId, userId) {
+export function walletOf(guildId, userId) {
   db.prepare("INSERT OR IGNORE INTO wallets(guild_id,user_id,balance,bank) VALUES(?,?,0,0)").run(guildId, userId);
   const row = db.prepare("SELECT balance, bank FROM wallets WHERE guild_id=? AND user_id=?").get(guildId, userId);
   return { balance: Number(row.balance), bank: Number(row.bank) };
 }
-function move(guildId, userId, delta, reason) {
+export function move(guildId, userId, delta, reason) {
   db.prepare("INSERT OR IGNORE INTO wallets(guild_id,user_id,balance,bank) VALUES(?,?,0,0)").run(guildId, userId);
   const result = db.prepare("UPDATE wallets SET balance=balance+? WHERE guild_id=? AND user_id=? AND balance+?>=0").run(delta, guildId, userId, delta);
   if (!Number(result.changes)) throw new Error("Solde PND insuffisant.");
   db.prepare("INSERT INTO economy_ledger(guild_id,user_id,delta,reason,created_at) VALUES(?,?,?,?,?)").run(guildId, userId, delta, reason, Date.now());
 }
 /** Takes up to `amount` from wallet then bank; returns what was actually taken. */
-function seize(guildId, userId, amount, reason) {
+export function seize(guildId, userId, amount, reason) {
   const w = walletOf(guildId, userId);
   const fromWallet = Math.min(w.balance, amount);
   const fromBank = Math.min(w.bank, amount - fromWallet);

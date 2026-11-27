@@ -2234,6 +2234,14 @@ export const EXTRA_SLASH_COMMANDS: SlashCommandDef[] = [
     ],
   },
   {
+    name: "braquage",
+    description: "LE FISC : monte une équipe (3 à 5) pour braquer la caisse du serveur",
+    usage: "/braquage",
+    category: "Économie",
+    dmPermission: false,
+    requiresBotProcess: true,
+  },
+  {
     name: "impots",
     description: "LE FISC : impôts sur les transferts et la fortune, caisse du serveur",
     usage: "/impots etat · config · verser",
