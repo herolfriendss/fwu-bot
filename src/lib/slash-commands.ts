@@ -2285,6 +2285,23 @@ export const EXTRA_SLASH_COMMANDS: SlashCommandDef[] = [
     options: [opt(6, "membre", "Compte à vérifier", { required: true })],
   },
   {
+    name: "membredumois",
+    description: "Vote pour le membre du mois : rôle pendant 30 jours et prime en PND",
+    usage: "/membredumois voter membre · classement · configurer [role] [salon] [prime]",
+    category: "Communauté",
+    dmPermission: false,
+    requiresBotProcess: true,
+    options: [
+      sub("voter", "Vote (une fois par mois, modifiable) pour un membre", [opt(6, "membre", "Ton choix", { required: true })]),
+      sub("classement", "Votes du mois en cours"),
+      sub("configurer", "Admins : rôle du gagnant, salon d'annonce, prime", [
+        opt(8, "role", "Rôle donné pendant 30 jours"),
+        opt(7, "salon", "Salon de l'annonce", { channel_types: [0, 5] }),
+        opt(4, "prime", "Prime en PND (0 à 100 000)", { min_value: 0, max_value: 100000 }),
+      ]),
+    ],
+  },
+  {
     name: "compteurs",
     description: "SUCK ME : salons compteurs (membres, en vocal, boosts) mis à jour toutes les 10 min",
     usage: "/compteurs installer · retirer · actualiser",

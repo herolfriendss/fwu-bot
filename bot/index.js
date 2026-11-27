@@ -146,6 +146,7 @@ import { handleHeistInteraction } from "./features/heist.js";
 import { handleBlindtestInteraction, handleBlindtestMessage, isBlindTestRunning } from "./features/blindtest.js";
 import { handleTtsInteraction, handleTtsMessage } from "./features/tts.js";
 import { forgetStatChannel, handleStatChannelsInteraction, runStatChannels } from "./features/stat-channels.js";
+import { handleMemberOfMonthInteraction, runMemberOfMonth } from "./features/member-of-month.js";
 import { handleModmailDm, handleToolsInteraction, onStickyChannelMessage } from "./features/tools-commands.js";
 import { handleVersusInteraction, runVersusExpiry } from "./features/versus.js";
 import { announceUpdateResult, handleSelfUpdateInteraction, startAutoUpdate } from "./features/self-update.js";
@@ -1267,6 +1268,12 @@ client.once("clientReady", () => {
   // GUARD : mode nuit planifié (mode lent, verrouillage, anti-raid renforcé), vérifié chaque minute.
   setInterval(() => { if (serves("guard")) void runNightMode(client, { isAllowedGuild: (id) => guildAllowed(id, ALLOWED_GUILDS) && !isLogsHub(id), notify: async (guild, text) => auditLog(guild, settings[guild.id], "🌙 Mode nuit", text) }).catch(() => record("night_mode_error")); }, 60_000).unref?.();
   // SUCK ME : salons compteurs (membres, en vocal, boosts), renommés au plus toutes les 10 minutes.
+  // Membre du mois : clôture le 1er (heure de Paris), rôles expirés retirés ; contrôle toutes les heures.
+  const motmAnnounce = async (guild, channelId, content, winnerId) => {
+    const channel = guild.channels.cache.get(channelId) ?? await guild.channels.fetch(channelId).catch(() => null);
+    await channel?.send?.({ content, allowedMentions: { users: [winnerId] } });
+  };
+  setInterval(() => { if (serves("suckme")) void runMemberOfMonth(client, { isAllowedGuild: (id) => guildAllowed(id, ALLOWED_GUILDS) && !isLogsHub(id), announce: motmAnnounce }).catch(() => record("motm_error")); }, 60 * 60_000).unref?.();
   setInterval(() => { if (serves("suckme")) void runStatChannels(client, { isAllowedGuild: (id) => guildAllowed(id, ALLOWED_GUILDS) && !isLogsHub(id) }).catch(() => record("stat_channels_error")); }, 60_000).unref?.();
   // SUCK ME jobs: expired temporary roles and scheduled announcements (every minute).
   setInterval(() => {
@@ -1864,6 +1871,7 @@ client.on("interactionCreate", (interaction) => {
     if (await handleBlindtestInteraction(interaction)) { auditSlashUsage(interaction, "Blind test"); return; }
     if (await handleTtsInteraction(interaction, { busy: isBlindTestRunning })) { auditSlashUsage(interaction, "Lecture vocale"); return; }
     if (await handleStatChannelsInteraction(interaction)) { auditSlashUsage(interaction, "Salons compteurs"); return; }
+    if (await handleMemberOfMonthInteraction(interaction)) { auditSlashUsage(interaction, "Membre du mois"); return; }
     if (await handleSnipeInteraction(interaction)) { auditSlashUsage(interaction, "Snipe"); return; }
     if (await handleInviteRewardsInteraction(interaction)) { auditSlashUsage(interaction, "Invitations"); return; }
     if (await handleBountyInteraction(interaction)) { auditSlashUsage(interaction, "LE FISC"); return; }
