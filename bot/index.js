@@ -36,6 +36,8 @@ import { handleExileVoiceState, handlePatateMessage } from "./systems/malus/voic
 import { handleCibleMessage, handleRansomMessage } from "./systems/malus/economy-malus.js";
 import { cachedBans, createPermissionWatch, isPhishingExecution, matchBanEvader, missingPermissions, permissionLabel } from "./guard/extra-watch.js";
 import { quarantineMember } from "./guard/commands.js";
+import { recordAiUsage, sendMonthlyAiReport } from "./ai-usage.js";
+import { awardRichestOfMonth } from "./features/richest-month.js";
 import { countChallengeMessage, expireTempChannels, handleBoost, handleFwuPlusInteraction, payChallenge, sendWeeklySummary } from "./features/fwu-plus.js";
 import { astreinteMembers, expireFrozenChannels, handleGardeInteraction, msUntilWeeklyReport, sendSanctionEndReminders, sendWeeklyStaffReports } from "./systems/garde/commands.js";
 import { enforceLeashNickname, handleDogCommand, handleLeashVoiceState, handleUndogAllInteraction, reconcileLeashedMembers } from "./dog-commands.js";
@@ -143,7 +145,7 @@ import { describePndAiFailure } from "./ai-error-messages.js";
 import { checkLiveAlerts } from "./live-alerts.js";
 import { handleWebhookInteraction } from "./webhooks.js";
 import { handlePanelSetupInteraction } from "./systems/setup/panel-setup.js";
-import { getPndPrivilegedIds } from "./pnd-owner-policy.js";
+import { getPndPrivilegedIds, parsePndOwnerId } from "./pnd-owner-policy.js";
 import { checkInteractionHierarchy, checkPrefixHierarchy, prefixTargetId } from "./hierarchy-guard.js";
 import { createAntiNuke, fwuBotIds, registerBotIdentity } from "./guard/anti-nuke.js";
 import { createAutomod } from "./guard/automod.js";
@@ -957,6 +959,7 @@ async function handleMessageCreate(msg) {
           }),
         });
         const data = await res.json().catch(() => ({}));
+        if (typeof data.reply === "string" && data.reply.trim()) recordAiUsage("chat");
         reply = typeof data.reply === "string" && data.reply.trim()
           ? data.reply.trim()
           : describePndAiFailure(res.status, data, "chat");
@@ -1782,6 +1785,8 @@ client.once("clientReady", () => {
     void expireFrozenChannels(client).catch(() => record("garde_error"));
     if (IS_FWU) void sendSanctionEndReminders(client).catch(() => record("garde_error"));
     if (IS_FWU) void expireTempChannels(client).catch(() => record("fwu_plus_error"));
+    if (IS_FWU) void sendMonthlyAiReport(client, parsePndOwnerId(process.env.PND_OWNER_DISCORD_ID)).catch(() => {});
+    if (serves("fisc")) for (const guild of client.guilds.cache.values()) if (guildAllowed(guild.id, ALLOWED_GUILDS) && !isLogsHub(guild.id)) void awardRichestOfMonth(guild, { settings: settings[guild.id] }).catch(() => record("fwu_plus_error"));
   }, 30_000);
   // Bilan SYS+ du dimanche soir, en message privé (une fois par semaine et par serveur).
   const scheduleWeeklyStaffReport = () => setTimeout(() => {

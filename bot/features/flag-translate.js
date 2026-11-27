@@ -3,6 +3,7 @@
 // pour le règlement). Une seule traduction par message et par langue, 10 s entre deux demandes
 // par membre, 1 500 caractères au plus. Désactivable avec PND_FLAG_TRANSLATE=off.
 import Anthropic from "@anthropic-ai/sdk";
+import { recordAiUsage } from "../ai-usage.js";
 
 export const TRANSLATE_MODEL = "claude-haiku-5-5";
 export const TRANSLATE = Object.freeze({ maxChars: 1_500, userCooldownMs: 10_000, cacheSize: 2_000 });
@@ -64,6 +65,7 @@ export async function translate(text, language, { anthropic = defaultClient() } 
   });
   const out = response.content.filter((block) => block.type === "text").map((block) => block.text).join("").trim();
   if (!out || response.stop_reason === "refusal") throw new Error("traduction refusée");
+  recordAiUsage("traduction");
   return out.slice(0, 1_900);
 }
 

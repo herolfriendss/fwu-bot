@@ -5,6 +5,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { AttachmentBuilder, ChannelType, PermissionFlagsBits as P } from "discord.js";
 import { db } from "../database.js";
+import { recordAiUsage } from "../ai-usage.js";
 import { BOT_PROFILE_IDS, listDomainLeases } from "../bot-runtime.js";
 import { parsePndOwnerId } from "../pnd-owner-policy.js";
 import { isSysPlus } from "../systems/sysplus/permissions.js";
@@ -61,6 +62,7 @@ export async function summarise(lines, { client = aiClient() } = {}) {
   });
   const out = response.content.filter((b) => b.type === "text").map((b) => b.text).join("").trim();
   if (!out || response.stop_reason === "refusal") throw new UserError("Le résumé a été refusé.");
+  recordAiUsage("resume");
   return out.slice(0, 1800);
 }
 
