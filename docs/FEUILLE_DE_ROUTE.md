@@ -202,4 +202,4 @@ Garde-fous communs : SYS+ seulement, durée limitée, quotas partagés, tier 0 e
 - [x] Musique : `/music recherche` (5 résultats à choisir) et `/radio station` (FIP, FIP Rock/Jazz/Groove/Electro, Mouv', France Inter).
 - [x] `/vocal-plus` : préréglages nommés du vocal temporaire, classement du temps en vocal ; `/garde planning`.
 - [x] Audit de sécurité : liens retirés des messages reposés par les malus (pas de phishing via le bot), paiement de rançon sans création d'argent, `/archive` exige l'accès au salon, dépendances sans vulnérabilité, aucun secret dans le dépôt ni dans `bot-oracle.zip`.
-- [ ] Supabase signale `pg_net` dans le schéma public (avertissement) : le déplacer demande ta confirmation (supprimer puis recréer l'extension dans `extensions`).
+- [x] Supabase : `pg_net` rangé dans `extensions`, règles « server only » explicites sur les tables réservées au serveur ; plus aucun avertissement de sécurité.
