@@ -209,7 +209,7 @@ describe("bot wiring", () => {
       // registrations/compatibility, but are no longer published by the catalogue.
       "access", "unaccess",
       "play", "pause", "resume", "skip", "stop", "queue", "nowplaying", "volume", "loop",
-      "shuffle", "clearqueue", "remove", "join", "leave", "musicpanel",
+      "shuffle", "clearqueue", "remove", "join", "leave", "musicpanel", "recherche",
     ]);
     expect([...handled].filter((name) => !registered.includes(name) && !LEGACY_ALIASES.has(name))).toEqual([]);
   });

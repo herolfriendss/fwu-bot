@@ -64,7 +64,7 @@ describe("V4 slash commands", () => {
     expect(music?.options).toHaveLength(1);
     expect(music?.options?.[0]).toMatchObject({ type: 2, name: "player" });
     expect(leafNames(music?.options as SlashOptionLike[] | undefined)).toEqual([
-      "play", "pause", "resume", "skip", "stop", "queue", "nowplaying", "volume",
+      "play", "recherche", "pause", "resume", "skip", "stop", "queue", "nowplaying", "volume",
       "loop", "shuffle", "clearqueue", "remove", "join", "leave", "panel",
     ]);
     const names = SLASH_COMMANDS.map((command) => command.name);

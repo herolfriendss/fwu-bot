@@ -19,7 +19,8 @@ import {
   scheduleConfiguredRadioRetry,
 } from "./music-engine.js";
 import { openAuthorizedAudioStream } from "./audio-source.js";
-import { autoplaySearch, resolveMusicInput } from "./music-resolver.js";
+import { autoplaySearch, resolveMusicInput, searchMusic } from "./music-resolver.js";
+import { randomUUID } from "node:crypto";
 import { normalizeAudioHost, validateAudioUrl } from "./audio-source-policy.js";
 import { brandEmbed } from "../theme.js";
 import { isBlindTestRunning } from "../features/blindtest.js";
@@ -312,6 +313,17 @@ export async function startConfiguredRadios(client) {
   return started;
 }
 
+// Stations prêtes à l'emploi (flux HTTPS publics de Radio France) : `/radio station`.
+export const RADIO_STATIONS = Object.freeze({
+  fip: { label: "FIP", url: "https://icecast.radiofrance.fr/fip-midfi.mp3" },
+  "fip-rock": { label: "FIP Rock", url: "https://icecast.radiofrance.fr/fiprock-midfi.mp3" },
+  "fip-jazz": { label: "FIP Jazz", url: "https://icecast.radiofrance.fr/fipjazz-midfi.mp3" },
+  "fip-groove": { label: "FIP Groove", url: "https://icecast.radiofrance.fr/fipgroove-midfi.mp3" },
+  "fip-electro": { label: "FIP Electro", url: "https://icecast.radiofrance.fr/fipelectro-midfi.mp3" },
+  mouv: { label: "Mouv'", url: "https://icecast.radiofrance.fr/mouv-midfi.mp3" },
+  franceinter: { label: "France Inter", url: "https://icecast.radiofrance.fr/franceinter-midfi.mp3" },
+});
+
 export async function handleRadioMessage(message) {
   if (!message.guild || !message.member) return false;
   const parts = message.content.trim().split(/\s+/);
@@ -340,15 +352,24 @@ export async function handleRadioMessage(message) {
     } else if (action === "host-list") {
       const hosts = Array.isArray(config?.allowedHosts) ? config.allowedHosts : [];
       await message.reply({ content: hosts.length ? `Hôtes audio autorisés : ${hosts.map((host) => `\`${host}\``).join(", ")}` : "Aucun hôte audio n’est autorisé.", allowedMentions: { parse: [] } });
-    } else if (action === "set") {
+    } else if (action === "set" || action === "station") {
       const channelId = message.mentions.channels.first()?.id ?? parts[2]?.match(/^<#(\d{5,25})>$/)?.[1] ?? parts[2];
-      const streamUrl = parts.slice(3).join(" ");
-      if (!/^\d{5,25}$/.test(channelId ?? "")) throw new Error("Utilisation : `=radio set #salon https://audio.example.org/stream`.");
-      const hosts = Array.isArray(config?.allowedHosts) ? config.allowedHosts : [];
+      let streamUrl = parts.slice(3).join(" ");
+      if (action === "station") {
+        const preset = RADIO_STATIONS[String(parts[3] ?? "").toLowerCase()];
+        if (!preset) throw new Error(`Stations : ${Object.keys(RADIO_STATIONS).join(", ")}. Exemple : \`=radio station #salon fip\`.`);
+        streamUrl = preset.url;
+        const host = new URL(preset.url).hostname;
+        const allowed = new Set(Array.isArray(config?.allowedHosts) ? config.allowedHosts : []);
+        if (!allowed.has(host)) { allowed.add(host); configs[message.guild.id] = { ...(config ?? {}), allowedHosts: [...allowed] }; }
+      }
+      const configNow = configs[message.guild.id] ?? config;
+      if (!/^\d{5,25}$/.test(channelId ?? "")) throw new Error("Utilisation : `=radio set #salon https://audio.example.org/stream` ou `=radio station #salon fip`.");
+      const hosts = Array.isArray(configNow?.allowedHosts) ? configNow.allowedHosts : [];
       const track = resolveInput(streamUrl, hosts)[0];
       const channel = await message.guild.channels.fetch(channelId).catch(() => null);
       if (!channel || channel.type !== ChannelType.GuildVoice) throw new Error("Choisis un salon vocal classique de ce serveur.");
-      configs[message.guild.id] = { ...(config ?? {}), allowedHosts: hosts, voiceChannelId: channel.id, streamUrl: track.url, textChannelId: message.channel.id, updatedAt: Date.now() };
+      configs[message.guild.id] = { ...(configNow ?? {}), allowedHosts: hosts, voiceChannelId: channel.id, streamUrl: track.url, textChannelId: message.channel.id, updatedAt: Date.now() };
       radioConfigs = configs;
       await saveRadioConfigs();
       await startRadioWithRetry(message.guild, configs[message.guild.id], [track]);
@@ -414,7 +435,7 @@ export async function handleMusicMessage(message) {
   const known = new Set([
     "=play", "=p", "=pause", "=resume", "=skip", "=stop", "=queue",
     "=nowplaying", "=np", "=volume", "=vol", "=loop", "=shuffle",
-    "=clearqueue", "=remove", "=join", "=leave", "=musicpanel",
+    "=clearqueue", "=remove", "=join", "=leave", "=musicpanel", "=search", "=recherche",
   ]);
   if (!known.has(command)) return false;
 
@@ -442,6 +463,23 @@ export async function handleMusicMessage(message) {
       const panel = await message.channel.send(buildPanel(state));
       state.panelMessage = panel;
       await message.reply(`✅ **${added.length}** titre(s) ajouté(s) à la file d'attente.`);
+      return true;
+    }
+
+    if (command === "=search" || command === "=recherche") {
+      if (!input) throw new Error("Utilisation : `=recherche <titre>`.");
+      await message.channel.sendTyping?.();
+      const results = await searchMusic(input);
+      if (!results.length) throw new Error("Aucun résultat pour cette recherche.");
+      const token = randomUUID().slice(0, 8);
+      searchPicks.set(token, { results, userId: message.author.id, guildId: message.guild.id, channel: message.channel, expiresAt: Date.now() + 2 * 60_000 });
+      for (const [key, pick] of searchPicks) if (pick.expiresAt < Date.now()) searchPicks.delete(key);
+      const fmt = (s) => (s == null ? "" : ` (${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")})`);
+      await message.reply({
+        content: `🔎 **Résultats pour « ${input.slice(0, 80).replace(/[*_`~|]/g, "")} »** — choisis un numéro (2 min) :\n${results.map((r, i) => `**${i + 1}.** ${r.title.replace(/[*_`~|]/g, "")}${r.channel ? ` · ${r.channel.replace(/[*_`~|]/g, "")}` : ""}${fmt(r.duration)}`).join("\n")}`,
+        components: [{ type: 1, components: results.map((_, i) => ({ type: 2, style: 1, label: String(i + 1), custom_id: `musicpick:${token}:${i}` })) }],
+        allowedMentions: { parse: [] },
+      });
       return true;
     }
 
@@ -533,6 +571,29 @@ export async function handleMusicMessage(message) {
     await message.reply({ content: `❌ ${error.message}`, allowedMentions: { parse: [] } }).catch(() => {});
     return true;
   }
+}
+
+const searchPicks = new Map(); // token -> { results, userId, guildId, channel, expiresAt }
+
+/** Button "1…5" under a search: queues the chosen result as if =play <url> was typed. */
+export async function handleMusicPick(interaction) {
+  if (!interaction.isButton?.() || !String(interaction.customId ?? "").startsWith("musicpick:")) return false;
+  const [, token, index] = interaction.customId.split(":");
+  const pick = searchPicks.get(token);
+  if (!pick || pick.expiresAt < Date.now()) { searchPicks.delete(token); await interaction.reply({ content: "⌛ Recherche expirée : relance `/music recherche`.", ephemeral: true }).catch(() => {}); return true; }
+  if (interaction.user.id !== pick.userId) { await interaction.reply({ content: "⛔ Ce choix appartient à celui qui a lancé la recherche.", ephemeral: true }).catch(() => {}); return true; }
+  const result = pick.results[Number(index)];
+  if (!result) return true;
+  searchPicks.delete(token);
+  await interaction.update({ content: `🎵 Choisi : **${result.title.replace(/[*_`~|]/g, "")}**`, components: [], allowedMentions: { parse: [] } }).catch(() => {});
+  const member = await interaction.guild.members.fetch(interaction.user.id).catch(() => null);
+  if (!member) return true;
+  await handleMusicMessage({
+    guild: interaction.guild, member, author: interaction.user, channel: pick.channel,
+    content: `=play ${result.url}`,
+    reply: (payload) => pick.channel.send(typeof payload === "string" ? { content: payload, allowedMentions: { parse: [] } } : { ...payload, allowedMentions: { parse: [] } }),
+  });
+  return true;
 }
 
 export async function handleMusicInteraction(interaction) {

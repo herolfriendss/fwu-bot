@@ -339,6 +339,8 @@ function buildPlan(interaction) {
     // ── Musique ─────────────────────────────────────────────────────────────
     case "play":
       return { handler: "music", content: `=play ${options.getString("recherche", true)}`, mentions };
+    case "recherche":
+      return { handler: "music", content: `=recherche ${options.getString("titre", true)}`, mentions };
     case "pause":
       return { handler: "music", content: "=pause", mentions };
     case "resume":
@@ -382,6 +384,10 @@ function buildPlan(interaction) {
           mentions: { ...emptyMentions(), channels: [channel] },
           ephemeral: true,
         };
+      }
+      if (subcommand === "station") {
+        const channel = options.getChannel("salon", true);
+        return { handler: "radio", content: `=radio station <#${channel.id}> ${options.getString("station", true)}`, mentions: { ...emptyMentions(), channels: [channel] }, ephemeral: true };
       }
       if (subcommand === "host-add" || subcommand === "host-remove") {
         const host = options.getString("hote", true);

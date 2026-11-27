@@ -90,3 +90,44 @@ export function autoplaySearch(track) {
   if (!seed) return null;
   return `ytsearch6:${seed.slice(0, 120)} ${artist ? "mix" : "similaire"}`;
 }
+
+/** Parses yt-dlp's flat search output into at most `limit` safe results. Pure. */
+export function parseSearchResults(json, limit = 5) {
+  const entries = Array.isArray(json?.entries) ? json.entries : [];
+  return entries.map((entry) => {
+    const id = String(entry?.id ?? "");
+    const url = /^[\w-]{11}$/.test(id) ? `https://www.youtube.com/watch?v=${id}` : null;
+    return url ? {
+      url,
+      title: String(entry.title ?? "Sans titre").replace(/[\r\n]/g, " ").slice(0, 90),
+      channel: String(entry.channel ?? entry.uploader ?? "").slice(0, 40),
+      duration: Number.isFinite(Number(entry.duration)) ? Number(entry.duration) : null,
+    } : null;
+  }).filter(Boolean).slice(0, limit);
+}
+
+/** Searches YouTube for a title and returns up to 5 results (no download). */
+export async function searchMusic(input, options = {}) {
+  const value = String(input ?? "").trim();
+  if (!value || value.length > 200 || /^https?:\/\//i.test(value)) throw new Error("Indique un titre à rechercher (1 à 200 caractères, pas un lien).");
+  const spawnProcess = options.spawn ?? spawn;
+  const binary = options.ytDlpPath ?? process.env.PND_YTDLP_PATH ?? "yt-dlp";
+  const args = ["--dump-single-json", "--flat-playlist", "--no-warnings", "--no-call-home", "--", `ytsearch5:${value}`];
+  const json = await new Promise((resolve, reject) => {
+    let child;
+    try { child = spawnProcess(binary, args, { stdio: ["ignore", "pipe", "pipe"], windowsHide: true }); }
+    catch { reject(new Error("Le moteur yt-dlp est indisponible.")); return; }
+    let stdout = "";
+    const timer = setTimeout(() => { child.kill("SIGKILL"); reject(new Error("La recherche a dépassé le délai autorisé.")); }, options.timeoutMs ?? 20_000);
+    timer.unref?.();
+    child.stdout.on("data", (chunk) => { stdout += chunk.toString("utf8"); if (stdout.length > 1_000_000) child.kill("SIGKILL"); });
+    child.stderr.on("data", () => {});
+    child.once("error", (error) => { clearTimeout(timer); reject(new Error(error.code === "ENOENT" ? "yt-dlp n'est pas installé sur le serveur du bot." : "Impossible de lancer la recherche.")); });
+    child.once("close", (code) => {
+      clearTimeout(timer);
+      if (code !== 0) return reject(new Error("Recherche impossible pour le moment. Réessaie."));
+      try { resolve(JSON.parse(stdout)); } catch { reject(new Error("Réponse de recherche invalide.")); }
+    });
+  });
+  return parseSearchResults(json, 5);
+}

@@ -38,7 +38,7 @@ import { cachedBans, createPermissionWatch, isPhishingExecution, matchBanEvader,
 import { quarantineMember } from "./guard/commands.js";
 import { astreinteMembers, expireFrozenChannels, handleGardeInteraction, msUntilWeeklyReport, sendSanctionEndReminders, sendWeeklyStaffReports } from "./systems/garde/commands.js";
 import { enforceLeashNickname, handleDogCommand, handleLeashVoiceState, handleUndogAllInteraction, reconcileLeashedMembers } from "./dog-commands.js";
-import { handleMusicExtrasInteraction, handleMusicMessage, handleMusicInteraction, handleRadioMessage, startConfiguredRadios } from "./music/music.js";
+import { handleMusicExtrasInteraction, handleMusicMessage, handleMusicInteraction, handleMusicPick, handleRadioMessage, startConfiguredRadios } from "./music/music.js";
 import { economySnapshot, handleEconomyMessage, handleEconomyInteraction, reconcilePendingEconomy, recoverBlackjackGames, settleExpiredEconomyAuctions, transferEconomyRole } from "./economy.js";
 import { handleV4SlashInteraction, runPrefixFromSlash } from "./v4-commands.js";
 import { handleSocialMessage } from "./social.js";
@@ -2184,6 +2184,7 @@ client.on("interactionCreate", (interaction) => {
       return;
     }
     if (await handleEconomyInteraction(interaction)) { auditSlashUsage(interaction, "Économie PND"); return; }
+    if (await handleMusicPick(interaction)) return;
     if (await handleMusicInteraction(interaction)) { auditSlashUsage(interaction, "Musique & radio"); return; }
     await handleVoiceInteraction(interaction, settings[interaction.guildId]);
     await handleSavedSlashCommand(interaction);

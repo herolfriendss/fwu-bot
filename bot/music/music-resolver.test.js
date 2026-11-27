@@ -42,3 +42,16 @@ test("resolver rejects an untrusted extractor media host", async () => {
     spawn: fakeSpawn({ title: "bad", url: "https://127.0.0.1/private" }),
   }), /source audio non autorisée/);
 });
+
+test("search results: only valid YouTube ids, at most 5, clean titles", async () => {
+  const { parseSearchResults } = await import("./music-resolver.js");
+  const json = { entries: [
+    { id: "dQw4w9WgXcQ", title: "Never\nGonna", channel: "Rick", duration: 213 },
+    { id: "bad id", title: "x" },
+    ...Array.from({ length: 6 }, (_, i) => ({ id: `abcdefghij${i}`, title: `T${i}` })),
+  ] };
+  const results = parseSearchResults(json);
+  assert.equal(results.length, 5);
+  assert.deepEqual(results[0], { url: "https://www.youtube.com/watch?v=dQw4w9WgXcQ", title: "Never Gonna", channel: "Rick", duration: 213 });
+  assert.equal(parseSearchResults(null).length, 0);
+});

@@ -1710,6 +1710,7 @@ export const SLASH_COMMANDS: SlashCommandDef[] = [
     requiresBotProcess: true,
     options: groupSubcommands([
       sub("play", "Joue un lien YouTube/SoundCloud ou recherche un titre", [opt(3, "recherche", "Lien YouTube/SoundCloud ou titre à rechercher", { required: true, max_length: 500 })]),
+      sub("recherche", "Cherche un titre et choisis parmi 5 résultats", [opt(3, "titre", "Titre, artiste…", { required: true, max_length: 200 })]),
       sub("pause", "Met la musique en pause"),
       sub("resume", "Reprend la lecture de la musique"),
       sub("skip", "Passe au titre suivant"),
@@ -1733,7 +1734,7 @@ export const SLASH_COMMANDS: SlashCommandDef[] = [
       sub("panel", "Affiche le panneau de contrôle musical"),
     ], [
       { group: "player", description: "Lecture, file d’attente et contrôles du lecteur", members: [
-        "play", "pause", "resume", "skip", "stop", "queue", "nowplaying", "volume",
+        "play", "recherche", "pause", "resume", "skip", "stop", "queue", "nowplaying", "volume",
         "loop", "shuffle", "clearqueue", "remove", "join", "leave", "panel",
       ] },
     ]),
@@ -1743,7 +1744,7 @@ export const SLASH_COMMANDS: SlashCommandDef[] = [
   {
     name: "radio",
     description: "Gère la radio PND 24/7 et ses hôtes autorisés",
-    usage: "/radio status | host-add | host-remove | host-list | set | start | stop | clear",
+    usage: "/radio status | station | set | host-add | host-remove | host-list | start | stop | clear",
     category: "Musique & radio",
     dmPermission: false,
     requiresBotProcess: true,
@@ -1752,6 +1753,13 @@ export const SLASH_COMMANDS: SlashCommandDef[] = [
       sub("set", "Configure et lance la radio (administration)", [
         opt(7, "salon", "Salon vocal de diffusion", { required: true, channel_types: [2] }),
         opt(3, "source", "URL de flux audio HTTPS direct", { required: true, max_length: 2000 }),
+      ]),
+      sub("station", "Lance une station prête à l'emploi (FIP, Mouv', France Inter…)", [
+        opt(7, "salon", "Salon vocal de diffusion", { required: true, channel_types: [2] }),
+        opt(3, "station", "Station", { required: true, choices: [
+          { name: "FIP", value: "fip" }, { name: "FIP Rock", value: "fip-rock" }, { name: "FIP Jazz", value: "fip-jazz" },
+          { name: "FIP Groove", value: "fip-groove" }, { name: "FIP Electro", value: "fip-electro" }, { name: "Mouv'", value: "mouv" }, { name: "France Inter", value: "franceinter" },
+        ] }),
       ]),
       sub("host-add", "Autorise un hôte audio HTTPS pour ce serveur", [
         opt(3, "hote", "Nom DNS exact, par exemple audio.example.org", { required: true, max_length: 253 }),
