@@ -2340,6 +2340,23 @@ export const EXTRA_SLASH_COMMANDS: SlashCommandDef[] = [
     ],
   },
   {
+    name: "decompte",
+    description: "SUCK ME : compte à rebours d'un événement, rappel aux inscrits à J-1 et H-1",
+    usage: "/decompte demarrer id salon · arreter id",
+    category: "Jeux & événements",
+    dmPermission: false,
+    requiresBotProcess: true,
+    options: [
+      sub("demarrer", "Publie un message qui se met à jour jusqu'au début de l'événement", [
+        opt(4, "id", "Identifiant de l'événement (/event liste)", { required: true, min_value: 1 }),
+        opt(7, "salon", "Salon du compte à rebours", { required: true, channel_types: [0, 5] }),
+      ]),
+      sub("arreter", "Arrête le compte à rebours d'un événement", [
+        opt(4, "id", "Identifiant de l'événement", { required: true, min_value: 1 }),
+      ]),
+    ],
+  },
+  {
     name: "compteurs",
     description: "SUCK ME : salons compteurs (membres, en vocal, boosts) mis à jour toutes les 10 min",
     usage: "/compteurs installer · retirer · actualiser",

@@ -147,6 +147,7 @@ import { handleBlindtestInteraction, handleBlindtestMessage, isBlindTestRunning 
 import { handleTtsInteraction, handleTtsMessage } from "./features/tts.js";
 import { forgetStatChannel, handleStatChannelsInteraction, runStatChannels } from "./features/stat-channels.js";
 import { handleMemberOfMonthInteraction, runMemberOfMonth } from "./features/member-of-month.js";
+import { handleCountdownInteraction, runCountdowns } from "./features/event-countdown.js";
 import { handleSeniorityInteraction, runSeniority } from "./features/seniority.js";
 import { handleDropButton, handleDropInteraction, noteActivity, runPndDrops } from "./features/pnd-drop.js";
 import { handleModmailDm, handleToolsInteraction, onStickyChannelMessage } from "./features/tools-commands.js";
@@ -1273,6 +1274,7 @@ client.once("clientReady", () => {
   // SUCK ME : salons compteurs (membres, en vocal, boosts), renommés au plus toutes les 10 minutes.
   setInterval(() => { if (serves("fisc")) void runPndDrops(client, { isAllowedGuild: (id) => guildAllowed(id, ALLOWED_GUILDS) && !isLogsHub(id) }).catch(() => record("drop_error")); }, 60_000).unref?.();
   setInterval(() => { if (serves("suckme")) void runSeniority(client, { isAllowedGuild: (id) => guildAllowed(id, ALLOWED_GUILDS) && !isLogsHub(id), announce: motmAnnounce }).catch(() => record("seniority_error")); }, 60 * 60_000).unref?.();
+  setInterval(() => { if (serves("suckme")) void runCountdowns(client, { isAllowedGuild: (id) => guildAllowed(id, ALLOWED_GUILDS) && !isLogsHub(id) }).catch(() => record("countdown_error")); }, 60_000).unref?.();
   // Membre du mois : clôture le 1er (heure de Paris), rôles expirés retirés ; contrôle toutes les heures.
   const motmAnnounce = async (guild, channelId, content, winnerId) => {
     const channel = guild.channels.cache.get(channelId) ?? await guild.channels.fetch(channelId).catch(() => null);
@@ -1876,6 +1878,7 @@ client.on("interactionCreate", (interaction) => {
     if (await handleBlindtestInteraction(interaction)) { auditSlashUsage(interaction, "Blind test"); return; }
     if (await handleTtsInteraction(interaction, { busy: isBlindTestRunning })) { auditSlashUsage(interaction, "Lecture vocale"); return; }
     if (await handleStatChannelsInteraction(interaction)) { auditSlashUsage(interaction, "Salons compteurs"); return; }
+    if (await handleCountdownInteraction(interaction)) { auditSlashUsage(interaction, "Compte à rebours"); return; }
     if (await handleSeniorityInteraction(interaction)) { auditSlashUsage(interaction, "Ancienneté"); return; }
     if (await handleDropButton(interaction)) return;
     if (await handleDropInteraction(interaction)) { auditSlashUsage(interaction, "Largage PND"); return; }
