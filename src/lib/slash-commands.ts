@@ -2619,6 +2619,18 @@ export const EXTRA_SLASH_COMMANDS: SlashCommandDef[] = [
     ],
   },
   {
+    name: "snipe",
+    description: "Staff : dernier message supprimé ou modifié d'un salon (10 dernières minutes)",
+    usage: "/snipe [type] [salon]",
+    category: "Modération",
+    dmPermission: false,
+    requiresBotProcess: true,
+    options: [
+      opt(3, "type", "Supprimé (par défaut) ou modifié", { choices: [{ name: "Supprimé", value: "supprime" }, { name: "Modifié", value: "modifie" }] }),
+      opt(7, "salon", "Salon (par défaut : celui-ci)", { channel_types: [0, 2, 5, 11, 12] }),
+    ],
+  },
+  {
     name: "screening",
     description: "Admins : écran d'adhésion alimenté par le règlement validé",
     usage: "/screening configurer salon role · synchroniser · etat",

@@ -112,6 +112,7 @@ import { handleStaffModerationInteraction, STAFF_COMMANDS } from "./staff-modera
 import { handleGuardPrefixCommand } from "./guard-commands.js";
 import { checkAltOnJoin, forgetBanList, handleAltInteraction, handleAltMessage } from "./guard/alt-detect.js";
 import { handleGhostPing } from "./guard/ghost-ping.js";
+import { handleSnipeInteraction, rememberDeleted, rememberEdited } from "./features/snipe.js";
 import { handleVoiceMoveCommand } from "./voice-move.js";
 import { handleEmbedInteraction, EMBED_COMMANDS } from "./embeds.js";
 import { SHARED_DB_ALERTS, startSharedLayer } from "./shared/index.js";
@@ -885,6 +886,8 @@ const ghostPing = (before, after = null) => {
 client.on("messageDelete", (message) => {
   const guild = message.guild;
   ghostPing(message);
+  // Bot principal : /snipe (mémoire seulement, 10 min).
+  if (serves("fwu") && guild && guildAllowed(guild.id, ALLOWED_GUILDS) && !isLogsHub(guild.id)) { try { rememberDeleted(message); } catch { /* sans effet */ } }
   if (serves("suckme") && guild && guildAllowed(guild.id, ALLOWED_GUILDS) && !isLogsHub(guild.id)) {
     void handleCountingDelete(message).catch(() => record("counting_error"));
   }
@@ -1146,6 +1149,7 @@ client.on("guildDelete", (guild) => { forgetGuildTempVoices(guild.id); if (!IS_F
 client.on("messageUpdate", (oldMessage, newMessage) => {
   const guild = newMessage.guild;
   ghostPing(oldMessage, newMessage);
+  if (serves("fwu") && guild && guildAllowed(guild.id, ALLOWED_GUILDS) && !isLogsHub(guild.id)) { try { rememberEdited(oldMessage, newMessage); } catch { /* sans effet */ } }
   if (!serves("fwu") || !guild || !guildAllowed(guild.id, ALLOWED_GUILDS) || isLogsHub(guild.id) || newMessage.author?.bot) return;
   // Embeds unfurling also emit messageUpdate: only log a real text edit. Content is never copied.
   if (oldMessage.partial || oldMessage.content == null || oldMessage.content === newMessage.content) return;
@@ -1824,6 +1828,7 @@ client.on("interactionCreate", (interaction) => {
     if (await handleBlindtestInteraction(interaction)) { auditSlashUsage(interaction, "Blind test"); return; }
     if (await handleTtsInteraction(interaction, { busy: isBlindTestRunning })) { auditSlashUsage(interaction, "Lecture vocale"); return; }
     if (await handleStatChannelsInteraction(interaction)) { auditSlashUsage(interaction, "Salons compteurs"); return; }
+    if (await handleSnipeInteraction(interaction)) { auditSlashUsage(interaction, "Snipe"); return; }
     if (await handleVersusInteraction(interaction)) { auditSlashUsage(interaction, "Jeux entre membres"); return; }
     if (await handleSelfUpdateInteraction(interaction)) { auditSlashUsage(interaction, "SUCK ME"); return; }
     if (await handleSuckmeInteraction(interaction, settings[interaction.guildId])) { auditSlashUsage(interaction, "SUCK ME"); return; }
