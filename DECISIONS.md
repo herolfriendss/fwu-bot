@@ -69,6 +69,7 @@ Chaque choix se change sans toucher au code (variable d'environnement ou command
 | 48 | Note des tickets (SUCK ME) | À la fermeture, l'auteur reçoit en MP cinq boutons (1 à 5 ★). La note va au membre du staff qui a pris le ticket, sinon à celui qui l'a fermé ; rien si l'auteur ferme seul. Une note par ticket, 7 jours pour noter. `/ticket notes` (staff) : moyenne et nombre de notes par modérateur. | MP fermés : pas de note. |
 | 49 | Membre du mois (SUCK ME + LE FISC) | `/membredumois voter` : un vote par membre et par mois (heure de Paris), modifiable, ni pour soi ni pour un bot. Le 1er, le plus voté du mois passé (3 votes au moins, égalité au premier arrivé) reçoit le rôle choisi pendant 30 jours (via le garde des rôles), 2 000 PND par défaut et une annonce. | `/membredumois configurer`. |
 | 50 | Largage PND (LE FISC) | Désactivé tant qu'un admin ne l'active pas (`/largage activer`). Un coffre tombe toutes les 2 à 5 h au hasard dans un salon actif (3 membres et 5 messages sur 10 min), montant tiré entre 50 et 300 PND par défaut (max 10 000). Le premier qui clique gagne, le coffre se referme après 2 min, et le dernier gagnant ne peut pas ouvrir le coffre suivant. | `/largage configurer`. |
+| 51 | Badges d'ancienneté (SUCK ME) | `/anciennete` : rôles choisis à 1 mois, 6 mois et 1 an (un seul badge à la fois, le plus haut remplace le précédent, garde des rôles respecté) et message le jour anniversaire d'arrivée (1 an et plus, une fois par an). Désactivé par défaut, contrôle toutes les heures. | `/anciennete configurer`. |
 
 ## Site et mises à jour
 
