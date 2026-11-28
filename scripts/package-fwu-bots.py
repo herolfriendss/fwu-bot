@@ -222,7 +222,7 @@ Dézippe la nouvelle version au même endroit (`unzip -o`), puis relance `instal
 - Arrêt d'urgence : `pm2 stop fwu-{profile}`. FWU reprend son travail en moins d'une minute.
 """
 
-MEMORY = {"fdpdlavoc": "220M"}
+MEMORY = {"fdpdlavoc": "600M"}
 
 
 def bot_files():
@@ -297,7 +297,7 @@ def main():
         token_name = "_".join(plain).upper()
         top = f"fwu-{profile}"
         target = OUT / f"FWU-{zipname}.zip"
-        values = dict(profile=profile, label=label, token_env=token_env, token_name=token_name, summary=summary, zipname=zipname, memory=MEMORY.get(profile, "160M"))
+        values = dict(profile=profile, label=label, token_env=token_env, token_name=token_name, summary=summary, zipname=zipname, memory=MEMORY.get(profile, "600M"))
         with zipfile.ZipFile(target, "w", zipfile.ZIP_DEFLATED) as archive:
             for source, name in sources:
                 archive.write(source, f"{top}/{name}")
