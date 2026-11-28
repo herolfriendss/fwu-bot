@@ -163,3 +163,27 @@ test("decision re-reads the request after acquiring the write lock", () => {
   assert.equal(hasException({ guildId: G, userId: MEMBER, permission: "voice.room.extra" }, { db: base, env, now: 20 }), false);
   assert.deepEqual(requestHistory(G, r.number, { db: base }).map((event) => event.kind), ["request"]);
 });
+
+test("request eligibility is rechecked after acquiring the write lock", () => {
+  const base = mem();
+  let injected = false;
+  const db = {
+    prepare: (...args) => base.prepare(...args),
+    exec: (sql) => {
+      if (sql === "BEGIN IMMEDIATE" && !injected) {
+        injected = true;
+        // Simulate another request committing after the first caller's preflight.
+        const competing = ask(base);
+        assert.ok(competing.number);
+      }
+      return base.exec(sql);
+    },
+  };
+  const result = createRequest({
+    guildId: G, requesterId: MEMBER, beneficiaryId: MEMBER,
+    permission: "voice.room.extra", justification: "Demande simultanée de test",
+    durationMs: 2 * H,
+  }, { db, env, now: 1 });
+  assert.match(result.error, /existe déjà/);
+  assert.equal(base.prepare("SELECT COUNT(*) AS n FROM authority_requests WHERE guild_id = ? AND beneficiary_id = ? AND permission = ?").get(G, MEMBER, "voice.room.extra").n, 1);
+});
