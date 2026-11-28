@@ -107,7 +107,9 @@ async function ticketTemplateButton(interaction, guildSettings) {
       allowedMentions: { parse: [] },
     });
   } catch (error) {
-    await interaction.reply({ content: error?.message ?? "Impossible d'ouvrir les modèles.", ephemeral: true, allowedMentions: { parse: [] } }).catch(() => {});
+    const payload = { content: error?.message ?? "Impossible d'ouvrir les modèles.", ephemeral: true, allowedMentions: { parse: [] } };
+    if (interaction.deferred || interaction.replied) await interaction.followUp(payload).catch(() => {});
+    else await interaction.reply(payload).catch(() => {});
   }
   return true;
 }
@@ -139,7 +141,9 @@ async function ticketTemplateSelect(interaction, guildSettings) {
     modal.addComponents(new ActionRowBuilder().addComponents(input));
     await interaction.showModal(modal);
   } catch (error) {
-    await interaction.reply({ content: error?.message ?? "Impossible de préparer cette réponse.", ephemeral: true, allowedMentions: { parse: [] } }).catch(() => {});
+    const payload = { content: error?.message ?? "Impossible de préparer cette réponse.", ephemeral: true, allowedMentions: { parse: [] } };
+    if (interaction.deferred || interaction.replied) await interaction.followUp(payload).catch(() => {});
+    else await interaction.reply(payload).catch(() => {});
   }
   return true;
 }
