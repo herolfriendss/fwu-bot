@@ -29,4 +29,5 @@ for file in "$ROOT/bot/.env" "$ROOT/.env"; do
 done
 pm2 restart her-v5-bot her-v5-web --update-env >/dev/null
 pm2 save >/dev/null
+# shellcheck disable=SC1112 # French typographic apostrophe in a message, not a shell quote.
 printf '✅ FWU synchronisé (PND_FWU_DELEGATED=%s). Les commandes slash se mettent à jour dans Discord (jusqu’à 1 h).\n' "${ONLINE:-}"

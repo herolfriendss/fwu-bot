@@ -180,7 +180,7 @@ Catégorie : Modération · Utilisation : `/warn membre raison [expire]`
 
 - `membre` (membre, obligatoire) — Membre à avertir
 - `raison` (texte, obligatoire, 300 caractères max) — Raison de l’avertissement
-- `expire` (nombre entier, facultatif) — Expiration en jours (0 = jamais)
+- `expire` (nombre entier, facultatif) — Expiration en jours (0 = jamais, vide = réglage du serveur)
 
 ### /warnings
 

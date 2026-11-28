@@ -124,7 +124,7 @@ fi
 echo "Installée : ${INSTALLED:-inconnue} · visée : $REF"
 if [[ -z "$WANTED" && "$REF" != "main" && "$REF" == "$INSTALLED" ]]; then
   echo "✅ Déjà à jour ($REF)."
-  status done "Déjà à jour ($REF)"
+  status "done" "Déjà à jour ($REF)"
   exit 0
 fi
 
@@ -164,7 +164,7 @@ for extra in fwu-sauvegarde.sh fwu-surveillance.mjs; do
   [[ -f "$REPO/scripts/installation/$extra" ]] && install -m 700 "$REPO/scripts/installation/$extra" "$H/$extra.new" && mv "$H/$extra.new" "$H/$extra"
 done
 
-if [[ "${FWU_UPDATE_DRY_RUN:-}" == "1" ]]; then echo "Essai à blanc : paquets prêts."; status done "Essai à blanc"; exit 0; fi
+if [[ "${FWU_UPDATE_DRY_RUN:-}" == "1" ]]; then echo "Essai à blanc : paquets prêts."; status "done" "Essai à blanc"; exit 0; fi
 
 status running "Mise à jour de FWU et du site (10 à 30 min)"
 echo "==> FWU + site"
@@ -214,4 +214,4 @@ pm2 ls --no-color || true
 printf '%s\n' "$REF" > "$INSTALLED_FILE"
 [[ -n "$TARGET_COMMIT" ]] && printf '%s\n' "$TARGET_COMMIT" > "$COMMIT_FILE"
 echo "✅ Mise à jour terminée."
-status done "Terminée ($REF · $(basename "$REPO"))"
+status "done" "Terminée ($REF · $(basename "$REPO"))"

@@ -1,6 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireOwner, snowflake } from "./discord.server";
-import { DASHBOARD_SECTION_KEYS, sanitizeSettings, type BotSettings, type DashboardSectionPatch } from "./bot-settings";
+import { DASHBOARD_SECTION_KEYS, type DashboardSectionPatch } from "./bot-settings";
 import { z } from "zod";
 import { prefixCommandFormSchema } from "./prefix-commands";
 
@@ -10,14 +10,6 @@ export const getBotSettings = createServerFn({ method: "GET" })
     await requireOwner();
     const { readBotSettings } = await import("./bot-settings.server");
     return readBotSettings(data.guildId);
-  });
-
-export const saveBotSettings = createServerFn({ method: "POST" })
-  .inputValidator((d: { guildId: string; settings: BotSettings }) => ({ guildId: snowflake(d.guildId), settings: sanitizeSettings(d.settings) }))
-  .handler(async ({ data }) => {
-    await requireOwner();
-    const { writeBotSettings } = await import("./bot-settings.server");
-    return writeBotSettings(data.guildId, data.settings);
   });
 
 // Dashboard saves: only the changed sections, refused if one was modified elsewhere meanwhile.

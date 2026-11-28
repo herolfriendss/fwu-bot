@@ -60,6 +60,11 @@ jobs:
       - name: Check interaction reply safety
         run: npm --prefix bot run audit:replies
 
+      # Every slash and prefix command, run as OWNER, SYS+ member and a member without any role:
+      # no programming error, no reply over Discord limits, no Discord action without permission.
+      - name: Smoke-test every command
+        run: npm --prefix bot run smoke
+
   dashboard-quality:
     name: Dashboard tests, types, lint and build
     runs-on: ubuntu-latest
@@ -203,6 +208,14 @@ jobs:
               -not -path './.git/*' \
               -not -path '*/node_modules/*'
           )
+
+      # Static analysis of every shell script (unquoted heredocs, unassigned variables, unsafe cd…).
+      - name: Shellcheck
+        shell: bash
+        run: |
+          set -euo pipefail
+          find . -type f -name '*.sh' -not -path './.git/*' -not -path '*/node_modules/*' -print0 \
+            | xargs -0 shellcheck -S warning
 
       - name: Validate packaging scripts
         run: |
