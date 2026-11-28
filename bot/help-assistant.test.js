@@ -81,6 +81,7 @@ test("command reference validator rejects invented roots, subcommands and prefix
     { name: "ban", prefix: "+", paths: ["ban"] },
   ];
   assert.equal(hasUnknownCommandReference("Utilise `/aide`, `=ia question` ou `+ban membre: @id`.", commands), false);
+  assert.equal(hasUnknownCommandReference("Utilise `/ia question`.", commands), false, "slash subcommands remain valid even when the bot also has a prefix");
   assert.equal(hasUnknownCommandReference("Utilise `/commande-inventee`.", commands), true);
   assert.equal(hasUnknownCommandReference("Utilise `=ia admin`.", commands), true);
   assert.equal(hasUnknownCommandReference("Utilise `!ban`.", commands), true);
