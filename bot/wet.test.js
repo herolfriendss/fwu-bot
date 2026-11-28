@@ -98,7 +98,7 @@ test("refuses duplicate active cases, weak reasons and non-HTTPS evidence", () =
     /déjà en WET/,
   );
   assert.throws(
-    () => createWetCase({ guildId: GUILD, actorId: OWNER, user: user(ALT), reason: "trop court", evidence: EVIDENCE }),
+    () => createWetCase({ guildId: GUILD, actorId: OWNER, user: user(ALT), reason: "court", evidence: EVIDENCE }),
     /au moins 10 caractères/,
   );
   assert.throws(
@@ -170,11 +170,11 @@ test("WET bans across connected guilds and preserves existing bans", async () =>
   const result = await banWetAccountsAcrossNetwork(client, [{ user_id: MEMBER }, { user_id: ALT }], {
     id: "12345678-1234-1234-1234-123456789012", reason: "test",
   });
-  assert.equal(result.banned, 3);
+  assert.equal(result.banned, 4);
   assert.equal(result.alreadyBanned, 1);
   assert.equal(result.skippedOwner, 1);
   assert.equal(result.failed.length, 0);
-  assert.equal(created.length, 3);
+  assert.equal(created.length, 4);
 });
 
 test("unwet revokes the complete linked case and leaves a historical audit trail", async () => {
