@@ -236,6 +236,20 @@ export const Route = createFileRoute("/api/public/bot-sync")({
             ephemeral: saved.ephemeral,
           });
         }
+        if (body.action === "ai-summary") {
+          const guildId = String(body.guildId ?? "");
+          const userId = String(body.userId ?? "");
+          const guildName = String(body.guildName ?? "").trim().slice(0, 100);
+          const channelId = String(body.channelId ?? "");
+          const transcript = String(body.transcript ?? "").trim().slice(-12_000);
+          if (!isDiscordSnowflake(guildId) || !isDiscordSnowflake(userId) || !isDiscordSnowflake(channelId)
+            || !guildName || transcript.length < 50) {
+            return json({ error: "invalid summary input" }, 400);
+          }
+          const { botAiSummarise } = await import("@/lib/bot-ai.server");
+          const result = await botAiSummarise({ guildId, userId, guildName, channelId, transcript });
+          return json(result.summary !== undefined ? { summary: result.summary } : { error: result.error ?? "summary failed" }, result.status);
+        }
         if (body.action === "ai-rules") {
           const guildId = String(body.guildId ?? "");
           const userId = String(body.userId ?? "");
