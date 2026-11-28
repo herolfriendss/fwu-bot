@@ -1765,7 +1765,7 @@ export const SLASH_COMMANDS: SlashCommandDef[] = [
   {
     name: "music",
     description: "Contrôle la lecture, la file et le lecteur vocal",
-    usage: "/play, /pause, /resume, /skip, /stop, /queue, /nowplaying, /volume, /loop, /shuffle, /clearqueue, /remove, /join, /leave, /musicpanel (alias : /music player ...)",
+    usage: "/music player play|pause|resume|skip|stop|queue|nowplaying|volume|loop|shuffle|clearqueue|remove|join|leave|panel (alias historique ; préférer les commandes directes)",
     category: "Musique & radio",
     dmPermission: false,
     requiresBotProcess: true,
