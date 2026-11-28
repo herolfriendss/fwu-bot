@@ -42,7 +42,7 @@ test("every catalogue command has exactly one owner (or is shared by all bots)",
 
 test("owner decisions of 2026-11-24 are encoded (FWU = staff + embeds, GUARD = ban/kick)", () => {
   for (const name of ["tempmute", "unmute", "warn", "warnings", "sanction", "sanction-type", "quota", "embed", "reglement", "screening"]) assert.equal(slashCommandOwner(name), "fwu", name);
-  for (const name of ["ban", "kick", "blacklist", "guildguard", "purge", "nettoyer", "lock", "unlock", "verify"]) assert.equal(slashCommandOwner(name), "guard", name);
+  for (const name of ["ban", "kick", "blacklist", "wet", "unwet", "guildguard", "purge", "nettoyer", "lock", "unlock", "verify"]) assert.equal(slashCommandOwner(name), "guard", name);
   for (const name of ["afk", "ticket", "ia", "live", "giveaway", "profil", "sondage"]) assert.equal(slashCommandOwner(name), "suckme", name);
   for (const name of ["dice", "coinflip", "trivia", "cards", "pack", "trade"]) assert.equal(slashCommandOwner(name), "fisc", name);
   assert.equal(slashCommandOwner("music"), "fdpdlavoc");
@@ -73,7 +73,7 @@ test("every bot registers all its commands (no more skipped /afk) and retires th
   assert.deepEqual(fwu.register.map((c) => c.name).sort(), ["aide", "status", "tempmute", "unmute", "warn", "warnings", "sanction", "sanction-type", "quota", "embed", "reglement", "screening", "snipe", "heure", "citation", "archive", "resume-salon", "salon-temp", "sante", "defi", "export-config", "ui"].sort());
   assert.ok(fwu.retire.includes("afk") && fwu.retire.includes("ban") && fwu.retire.includes("play"), "FWU retire les commandes des autres bots");
   const guard = slashRegistrationPlan({ profile: "guard", delegated: [] }, SLASH_COMMANDS, EXTRA_SLASH_COMMANDS);
-  assert.deepEqual(guard.register.map((c) => c.name).sort(), ["aide", "status", "guildguard", "kick", "ban", "tempban", "blacklist", "purge", "nettoyer", "slowmode", "lock", "unlock", "verify", "antinuke", "automod", "casier", "quarantaine", "bouclier", "piege", "raid", "scan", "panic", "doublecompte", "medias", "nuit"].sort());
+  assert.deepEqual(guard.register.map((c) => c.name).sort(), ["aide", "status", "guildguard", "kick", "ban", "tempban", "blacklist", "wet", "unwet", "purge", "nettoyer", "slowmode", "lock", "unlock", "verify", "antinuke", "automod", "casier", "quarantaine", "bouclier", "piege", "raid", "scan", "panic", "doublecompte", "medias", "nuit"].sort());
 });
 
 test("prefix ownership follows the first word only (canonical = form)", () => {
