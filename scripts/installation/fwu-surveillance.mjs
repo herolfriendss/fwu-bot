@@ -24,6 +24,7 @@ import {
 } from "node:fs";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
+import { cpus, freemem, loadavg, totalmem } from "node:os";
 
 export const PROCESSES = Object.freeze([
   { name: "her-v5-bot", label: "Bot principal", marker: "her-v5-production/bot/.connected" }, // never "FWU" in Discord (identity rule)
@@ -44,6 +45,11 @@ export const OUTBOX_LIMIT = 50;
 export const DISK_LIMIT_PERCENT = 90;
 export const BACKUP_MAX_AGE_MS = 36 * 60 * 60_000;
 export const FLAP_RESTARTS = 3;
+export const MEMORY_LIMIT_PERCENT = 90;
+export const MEMORY_RECOVERY_PERCENT = 85;
+export const LOAD_LIMIT_PER_CPU = 2;
+export const LOAD_RECOVERY_PER_CPU = 1.5;
+export const RESOURCE_GRACE_MS = 5 * 60_000;
 
 const minutes = (ms) => Math.max(1, Math.round(ms / 60_000));
 
@@ -58,6 +64,10 @@ export function evaluate(previous = {}, observed, now = Date.now()) {
     diskAlert: Boolean(previous.diskAlert),
     backupAlert: Boolean(previous.backupAlert),
     pm2Alert: Boolean(previous.pm2Alert),
+    memoryAlert: Boolean(previous.memoryAlert),
+    memoryHighSince: previous.memoryHighSince ?? null,
+    loadAlert: Boolean(previous.loadAlert),
+    loadHighSince: previous.loadHighSince ?? null,
   };
   const messages = [];
 
@@ -168,6 +178,32 @@ export function evaluate(previous = {}, observed, now = Date.now()) {
       state.diskAlert = false;
     }
   }
+  if (observed.memoryPercent != null) {
+    if (observed.memoryPercent >= MEMORY_LIMIT_PERCENT) {
+      state.memoryHighSince ??= now;
+      if (!state.memoryAlert && now - state.memoryHighSince >= RESOURCE_GRACE_MS) {
+        messages.push(`🟧 Mémoire du VPS élevée depuis 5 min : ${observed.memoryPercent} % utilisés.`);
+        state.memoryAlert = true;
+      }
+    } else if (observed.memoryPercent < MEMORY_RECOVERY_PERCENT) {
+      if (state.memoryAlert) messages.push(`🟢 Mémoire du VPS revenue à ${observed.memoryPercent} %.`);
+      state.memoryAlert = false;
+      state.memoryHighSince = null;
+    }
+  }
+  if (observed.load1 != null && observed.cpuCount != null && observed.cpuCount > 0) {
+    if (observed.load1 >= observed.cpuCount * LOAD_LIMIT_PER_CPU) {
+      state.loadHighSince ??= now;
+      if (!state.loadAlert && now - state.loadHighSince >= RESOURCE_GRACE_MS) {
+        messages.push(`🟧 Charge système élevée depuis 5 min : load 1 min ${observed.load1.toFixed(1)} pour ${observed.cpuCount} cœur(s).`);
+        state.loadAlert = true;
+      }
+    } else if (observed.load1 < observed.cpuCount * LOAD_RECOVERY_PER_CPU) {
+      if (state.loadAlert) messages.push(`🟢 Charge système revenue à un niveau normal (load ${observed.load1.toFixed(1)}).`);
+      state.loadAlert = false;
+      state.loadHighSince = null;
+    }
+  }
   if (observed.backup) {
     const stale =
       !observed.backup.at ||
@@ -273,6 +309,17 @@ async function countOutbox(home) {
   }
 }
 
+function systemMetrics() {
+  const total = totalmem();
+  const free = freemem();
+  const cpuCount = Math.max(1, cpus().length);
+  return {
+    memoryPercent: total > 0 ? Math.round(100 * (1 - free / total)) : null,
+    load1: Number.isFinite(loadavg()[0]) ? loadavg()[0] : null,
+    cpuCount,
+  };
+}
+
 function diskPercent(path) {
   try {
     const s = statfsSync(path);
@@ -348,6 +395,7 @@ async function main() {
     processes: applyMarkerReadiness(pm2Processes, markerStatus),
     outbox: await countOutbox(home),
     diskPercent: diskPercent(home),
+    ...systemMetrics(),
     backup,
   };
 
