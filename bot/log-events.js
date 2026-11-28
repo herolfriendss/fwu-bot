@@ -224,6 +224,14 @@ export function buildLogSummary(guildId, since, until = Date.now()) {
   const byCategory = db.prepare("SELECT COALESCE(category, '—') AS category, COUNT(*) AS n FROM log_archive WHERE guild_id = ? AND created_at BETWEEN ? AND ? GROUP BY category ORDER BY n DESC").all(String(guildId), since, until);
   const bySeverity = db.prepare("SELECT severity, COUNT(*) AS n FROM log_archive WHERE guild_id = ? AND severity IS NOT NULL AND created_at BETWEEN ? AND ? GROUP BY severity").all(String(guildId), since, until);
   const cases = Number(db.prepare("SELECT COUNT(*) AS n FROM log_cases WHERE guild_id = ? AND created_at BETWEEN ? AND ?").get(String(guildId), since, until)?.n ?? 0);
+  const sanctions = Number(db.prepare("SELECT COUNT(*) AS n FROM log_archive WHERE guild_id = ? AND action IN ('ban','unban','kick','tempmute','unmute','warn','blacklist_add','blacklist_remove','quarantine_add','quarantine_remove','blr_set','blr_lift','sanction') AND created_at BETWEEN ? AND ?").get(String(guildId), since, until)?.n ?? 0);
+  const activity = { messages: 0, joins: 0, leaves: 0 };
+  try {
+    const fromDay = new Date(since).toISOString().slice(0, 10);
+    const toDay = new Date(until).toISOString().slice(0, 10);
+    const rows = db.prepare("SELECT metric, SUM(metric_value) AS total FROM analytics_daily WHERE guild_id = ? AND day_key BETWEEN ? AND ? AND metric IN ('messages','joins','leaves') GROUP BY metric").all(String(guildId), fromDay, toDay);
+    for (const row of rows) activity[row.metric] = Number(row.total) || 0;
+  } catch { /* anciennes bases sans analytics_daily : le résumé des journaux reste disponible */ }
   const total = byCategory.reduce((sum, row) => sum + Number(row.n), 0);
   return {
     color: 0x5865f2,
@@ -232,6 +240,10 @@ export function buildLogSummary(guildId, since, until = Date.now()) {
       ? `${total} événement(s) du <t:${Math.floor(since / 1000)}:f> au <t:${Math.floor(until / 1000)}:f>.\n${byCategory.map((row) => `• ${row.category} : ${row.n}`).join("\n")}`
       : "Aucun événement sur la période.",
     fields: [
+      { name: "Messages", value: String(activity.messages), inline: true },
+      { name: "Arrivées", value: String(activity.joins), inline: true },
+      { name: "Départs", value: String(activity.leaves), inline: true },
+      { name: "Sanctions", value: String(sanctions), inline: true },
       { name: "Dossiers ouverts", value: String(cases), inline: true },
       ...bySeverity.map((row) => ({ name: `${SEVERITY_ICONS[row.severity] ?? ""} ${row.severity}`, value: String(row.n), inline: true })),
     ],
@@ -243,7 +255,7 @@ export function buildLogSummary(guildId, since, until = Date.now()) {
  * Maintenance (bot principal) : purge selon la conservation, résumé quotidien ou
  * hebdomadaire vers chaque serveur source actif (salon « bot » du hub).
  */
-export function startLogMaintenance({ client, record = () => {}, sources = () => [], intervalMs = 60 * 60_000 }) {
+export function startLogMaintenance({ client, record = () => {}, sources = () => [], intervalMs = 60 * 60_000, send = sendCentralLog, now = () => Date.now() }) {
   const tick = async () => {
     try { pruneLogArchive(); } catch { record("log_retention_error"); }
     try {
@@ -251,15 +263,32 @@ export function startLogMaintenance({ client, record = () => {}, sources = () =>
       const frequency = logSummaryFrequency();
       if (frequency === "off") return;
       const period = frequency === "weekly" ? 7 * 86_400_000 : 86_400_000;
-      const now = Date.now();
-      const last = lastSummaryAt();
-      if (last && now - last < period) return;
-      markSummarySent(now);
-      for (const guildId of sources()) {
+      const current = now();
+      const globalLast = lastSummaryAt();
+      const guildIds = [...new Set(sources().map(String))];
+      if (!guildIds.length) return;
+      let complete = true;
+      for (const guildId of guildIds) {
+        const last = lastSummaryAt(guildId) || globalLast;
+        if (last && current - last < period) continue;
         const guild = client.guilds.cache.get(guildId);
-        if (!guild) continue;
-        await sendCentralLog(guild, null, buildLogSummary(guildId, last || now - period, now), [], [], [], { category: "system", archived: true }).catch(() => record("log_summary_error"));
+        if (!guild) {
+          complete = false;
+          record("log_summary_guild_unavailable");
+          continue;
+        }
+        try {
+          const delivered = await send(guild, null, buildLogSummary(guildId, last || current - period, current), [], [], [], { category: "system", archived: true, noQueue: true });
+          if (delivered !== true) throw new Error("Résumé non confirmé par le transport de logs.");
+          markSummarySent(current, guildId);
+        } catch {
+          complete = false;
+          record("log_summary_error");
+        }
       }
+      // Advance the global fallback only when every due source was processed. Per-source
+      // checkpoints ensure successful servers are not sent the same digest again on retry.
+      if (complete) markSummarySent(current);
     } catch {
       record("log_summary_error");
     }

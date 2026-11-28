@@ -107,3 +107,64 @@ test("retention prunes old copies and the summary counts by category and severit
   assert.match(summary.description, /moderation|Modération/i);
   assert.ok(summary.fields.length >= 1);
 });
+
+test("community digest includes daily activity and sanction counts", async () => {
+  db.exec(`CREATE TABLE IF NOT EXISTS analytics_daily (
+    guild_id TEXT NOT NULL, day_key TEXT NOT NULL, metric TEXT NOT NULL,
+    metric_value INTEGER NOT NULL, updated_at INTEGER NOT NULL,
+    PRIMARY KEY(guild_id, day_key, metric)
+  )`);
+  const now = Date.UTC(2026, 10, 28, 12);
+  const day = new Date(now).toISOString().slice(0, 10);
+  const insert = db.prepare("INSERT OR REPLACE INTO analytics_daily(guild_id,day_key,metric,metric_value,updated_at) VALUES(?,?,?,?,?)");
+  insert.run(GUILD.id, day, "messages", 123, now);
+  insert.run(GUILD.id, day, "joins", 4, now);
+  insert.run(GUILD.id, day, "leaves", 2, now);
+  const send = async () => true;
+  await events.logEvent(GUILD, null, { category: "moderation", action: "ban", severity: "critical", targetId: "300000000000000088" }, { send, now });
+  const summary = events.buildLogSummary(GUILD.id, now - 60_000, now + 60_000);
+  const fields = Object.fromEntries(summary.fields.map((field) => [field.name, field.value]));
+  assert.equal(fields.Messages, "123");
+  assert.equal(fields.Arrivées, "4");
+  assert.equal(fields.Départs, "2");
+  assert.equal(fields.Sanctions, "1");
+});
+
+test("scheduled digest retries only failed sources without duplicating successful deliveries", async () => {
+  config.setLogSummaryFrequency("daily");
+  config.markSummarySent(1_000);
+  db.exec("DELETE FROM log_summary_deliveries");
+  const now = 10 * 86_400_000;
+  const secondGuild = { id: "1562643485981544560", name: "Second" };
+  const client = { guilds: { cache: new Map([[GUILD.id, GUILD], [secondGuild.id, secondGuild]]) } };
+  const records = [];
+  const firstAttempts = [];
+  const first = events.startLogMaintenance({
+    client, sources: () => [GUILD.id, secondGuild.id], intervalMs: 60_000, now: () => now,
+    record: (code) => records.push(code),
+    send: async (guild) => {
+      firstAttempts.push(guild.id);
+      if (guild.id === GUILD.id) return false; // sendCentralLog reports unconfirmed delivery without throwing.
+      return true;
+    },
+  });
+  await first.tick();
+  first.stop();
+  assert.deepEqual(firstAttempts, [GUILD.id, secondGuild.id]);
+  assert.equal(config.lastSummaryAt(), 1_000, "global checkpoint stays behind while one source failed");
+  assert.equal(config.lastSummaryAt(GUILD.id), 0, "failed source remains due");
+  assert.equal(config.lastSummaryAt(secondGuild.id), now, "successful source is checkpointed");
+  assert.ok(records.includes("log_summary_error"));
+
+  const retryAttempts = [];
+  const retry = events.startLogMaintenance({
+    client, sources: () => [GUILD.id, secondGuild.id], intervalMs: 60_000, now: () => now + 60_000,
+    send: async (guild) => { retryAttempts.push(guild.id); return true; },
+  });
+  await retry.tick();
+  retry.stop();
+  assert.deepEqual(retryAttempts, [GUILD.id], "only the failed source is retried");
+  assert.equal(config.lastSummaryAt(GUILD.id), now + 60_000);
+  assert.equal(config.lastSummaryAt(secondGuild.id), now);
+  assert.equal(config.lastSummaryAt(), now + 60_000);
+});
