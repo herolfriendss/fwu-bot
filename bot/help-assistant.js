@@ -4,6 +4,28 @@ import { describePndAiFailure } from "./ai-error-messages.js";
 const rateLimiter = createPndIntelligenceRateLimiter({ windowMs: 60_000, maxRequests: 3, maxKeys: 10_000 });
 const noMentions = { parse: [] };
 
+/** Reject command syntax that is not present in the authoritative slash catalogue. */
+export function hasUnknownCommandReference(reply, commands = []) {
+  const mentions = String(reply ?? "").matchAll(/(?:^|[\\s([\`])([/=+;!$-][a-z0-9_-]+(?:\\s+[a-z0-9_-]+){0,2})/gi);
+  for (const match of mentions) {
+    const [token, ...parts] = match[1].trim().split(/\\s+/);
+    const prefix = token[0];
+    const name = token.slice(1).toLowerCase();
+    const command = commands.find((entry) => String(entry.name).toLowerCase() === name);
+    if (!command) return true;
+    if (prefix !== "/" && String(command.prefix ?? "/") !== prefix) return true;
+    const paths = Array.isArray(command.paths) ? command.paths : [name];
+    const subcommandPaths = paths.map((path) => String(path).split(" ").slice(1)).filter((path) => path.length);
+    if (parts.length && subcommandPaths.length) {
+      const firstExtra = parts[0];
+      if (firstExtra.includes(":") || firstExtra.startsWith("@") || firstExtra.startsWith("<") || firstExtra.startsWith("#")) continue;
+      const valid = subcommandPaths.some((path) => path.every((part, index) => parts[index] === part));
+      if (!valid) return true;
+    }
+  }
+  return false;
+}
+
 /**
  * Answers member questions from the public command catalogue and this guild's
  * public /knowledge pages. No conversation history, user profile, or private
@@ -45,6 +67,13 @@ export async function handleHelpAssistantInteraction(interaction, { apiUrl, secr
     const data = await response.json().catch(() => ({}));
     if (!response.ok || typeof data.reply !== "string" || !data.reply.trim()) {
       throw new Error(describePndAiFailure(response.status, data, "chat"));
+    }
+    if (hasUnknownCommandReference(data.reply, commands)) {
+      await interaction.editReply({
+        content: "Je ne peux pas confirmer la commande ou la sous-commande proposée. Consulte `/aide` pour le catalogue officiel ou utilise le panneau de support.",
+        allowedMentions: noMentions,
+      });
+      return true;
     }
     await interaction.editReply({ content: data.reply.slice(0, 1900), allowedMentions: noMentions });
   } catch (error) {
