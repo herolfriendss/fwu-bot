@@ -115,7 +115,12 @@ export async function readMemberState(guild, userId) {
 /** Shared core: refusal text for `actorId` acting on `targetId` in `guild`, or null. */
 export async function checkTargetHierarchy(guild, actorId, targetId, { pndOwnerId = parsePndOwnerId(process.env.PND_OWNER_DISCORD_ID), path = null } = {}) {
   if (!guild || !targetId) return null;
-  if (hasFullAccess(actorId, { guildOwnerId: guild.ownerId, pndOwnerId }) && targetId !== pndOwnerId) return null;
+  if (hasFullAccess(actorId, { guildOwnerId: guild.ownerId, pndOwnerId }) && targetId !== pndOwnerId) {
+    const targetState = await readMemberState(guild, targetId);
+    if (targetState.state === "unreadable") return HIERARCHY_MESSAGES.unreadable;
+    if (targetState.state === "absent" && !ABSENT_TARGET_ALLOWED_PATHS.has(path)) return HIERARCHY_MESSAGES.targetMissing;
+    return null;
+  }
   const [actorState, targetState] = await Promise.all([readMemberState(guild, actorId), readMemberState(guild, targetId)]);
   const actor = actorState.state === "member" ? actorState.member : null;
   const position = (member) => {
