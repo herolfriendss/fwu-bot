@@ -383,7 +383,7 @@ export async function handleWetInteraction(interaction, settings = null, network
       const userId = interaction.options.getString("compte", true).trim();
       if (!validSnowflake(userId) || !validSnowflake(sourceUserId)) throw new Error("Identifiant Discord invalide.");
       const user = await interaction.client.users.fetch(userId).catch(() => null);
-      ensureTargetAllowed(user, interaction.client, interaction.client.guilds.cache.values());
+      ensureTargetAllowed(user, interaction.client, networkGuilds);
       const reason = interaction.options.getString("raison", true);
       const evidence = interaction.options.getString("preuve", true);
       const caseId = linkWetAccount({ guildId: interaction.guild.id, actorId: interaction.user.id, sourceUserId, user, reason, evidence });
