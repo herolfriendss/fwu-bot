@@ -291,9 +291,10 @@ export async function unbanWetAccountsAcrossNetwork(client, accounts, actorId, c
         results.failed.push({ guildId: guild.id, userId: account.user_id, code: Number(error?.code) || null, reason: "ban_lookup_failed" });
         continue;
       }
+      if (!existingBan) { results.notBanned++; continue; }
       // Never lift a manual or pre-existing ban: only remove a ban whose audit
       // reason proves it was created by this exact WET case.
-      if (!String(existingBan?.reason ?? "").startsWith(ownedBanPrefix)) {
+      if (!String(existingBan.reason ?? "").startsWith(ownedBanPrefix)) {
         results.preservedOtherBan++;
         continue;
       }
@@ -431,11 +432,11 @@ export async function handleWetInteraction(interaction, settings = null, network
       await sendCentralLog(interaction.guild, settings, systemLogEmbed({
         category: "moderation",
         title: "♻️ WET — dossier levé",
-        description: `Dossier : ${revoked.id}\nComptes : ${revoked.accounts.map((a) => a.user_id).join(", ")}\nMotif de levée : ${reason}\nDébannissements WET : ${result.unbanned} · bans indépendants conservés : ${result.preservedOtherBan} · échecs : ${result.failed.length}`,
+        description: `Dossier : ${revoked.id}\nComptes : ${revoked.accounts.map((a) => a.user_id).join(", ")}\nMotif de levée : ${reason}\nDébannissements WET : ${result.unbanned} · bans indépendants conservés : ${result.preservedOtherBan} · WET encore actif : ${result.stillWet} · blacklist locale : ${result.stillBlacklisted} · échecs : ${result.failed.length}`,
         color: 0x22c55e,
       })).catch(() => {});
       await interaction.editReply({
-        content: `♻️ Dossier WET ${revoked.id.slice(0, 8)} levé pour ${revoked.accounts.length} compte(s). Débannissements WET : **${result.unbanned}** · sanctions indépendantes conservées : **${result.preservedOtherBan}** · WET encore actif : **${result.stillWet}** · blacklist locale : **${result.stillBlacklisted}** · autres bans conservés : **${result.preservedOtherBan}** · déjà absents : **${result.notBanned}** · échecs : **${result.failed.length}**.`,
+        content: `♻️ Dossier WET ${revoked.id.slice(0, 8)} levé pour ${revoked.accounts.length} compte(s). Débannissements WET : **${result.unbanned}** · sanctions indépendantes conservées : **${result.preservedOtherBan}** · WET encore actif : **${result.stillWet}** · blacklist locale : **${result.stillBlacklisted}** · déjà absents : **${result.notBanned}** · échecs : **${result.failed.length}**.`,
         allowedMentions: { parse: [] },
       });
       return true;
