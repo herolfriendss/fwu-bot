@@ -2402,7 +2402,6 @@ client.on("interactionCreate", (interaction) => {
     if (await handleCasinoInteraction(interaction)) { auditSlashUsage(interaction, "PND Casino"); return; }
     if (await handlePerkInteraction(interaction)) { auditSlashUsage(interaction, "Avantages"); return; }
     if (await handleGamesInteraction(interaction, settings[interaction.guildId], record)) { auditSlashUsage(interaction, "Jeux & événements"); return; }
-    if (await handleGamesInteraction(interaction, settings[interaction.guildId], record)) { auditSlashUsage(interaction, "Jeux & événements"); return; }
     if (interaction.isChatInputCommand?.() && interaction.commandName === "ia" && interaction.options.getSubcommand(false) === "question") {
       if (await handleHelpAssistantInteraction(interaction, { apiUrl: API, secret: BOT_SYNC_SECRET, ...buildAiHelpContext(interaction.guildId) })) {
         auditSlashUsage(interaction, "Assistant d'aide");
