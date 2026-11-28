@@ -112,7 +112,7 @@ export function captureGuild(guild) {
     .filter((role) => !role.managed && role.id !== guild.id)
     .sort((a, b) => b.position - a.position)
     .map((role) => ({
-      id: role.id, name: role.name, color: role.color, hoist: role.hoist,
+      id: role.id, name: role.name, colors: { primaryColor: role.color }, hoist: role.hoist,
       mentionable: role.mentionable, position: role.position, permissions: String(role.permissions?.bitfield ?? 0n),
     }));
   const channels = [...guild.channels.cache.values()]
