@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { handleHelpAssistantInteraction, hasUnknownCommandReference } from "./help-assistant.js";
+import { containsSecretInput, handleHelpAssistantInteraction, hasUnknownCommandReference, redactPrivateText } from "./help-assistant.js";
 
 function interaction({ guildId = "123456789012345678", userId = "222222222222222222", command = "ia", sub = "question", question = "Comment utiliser le guide ?" } = {}) {
   const calls = { replies: [], edits: [], deferred: [] };
@@ -83,4 +83,23 @@ test("command reference validator rejects invented roots, subcommands and prefix
   assert.equal(hasUnknownCommandReference("Utilise `/commande-inventee`.", commands), true);
   assert.equal(hasUnknownCommandReference("Utilise `=ia admin`.", commands), true);
   assert.equal(hasUnknownCommandReference("Utilise `!ban`.", commands), true);
+});
+
+test("assistant redacts identifiers and blocks secrets before contacting the model", async () => {
+  assert.equal(containsSecretInput("token: abcdefghijklmnop"), true);
+  assert.equal(containsSecretInput("question ordinaire sur les tickets"), false);
+  const redacted = redactPrivateText("Contact user@example.com, mention <@123456789012345678>, IP 192.168.1.4.");
+  assert.doesNotMatch(redacted, /user@example.com|123456789012345678|192\\.168\\.1\\.4/);
+  assert.match(redacted, /adresse e-mail masquée/);
+  assert.match(redacted, /@membre/);
+
+  const secretQuestion = interaction({ guildId: "555555555555555555", userId: "666666666666666666", question: "Voici mon token: abcdefghijklmnop" });
+  let fetched = false;
+  await handleHelpAssistantInteraction(secretQuestion, {
+    apiUrl: "https://example.invalid/api/public/bot-sync",
+    secret: "server-secret",
+    fetchImpl: async () => { fetched = true; return { ok: true, json: async () => ({ reply: "no" }) }; },
+  });
+  assert.equal(fetched, false);
+  assert.match(secretQuestion.calls.replies[0].content, /ne partage jamais de token/);
 });
