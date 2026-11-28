@@ -141,7 +141,7 @@ function consumeRuleGenerationSlot(guildId: string, userId: string): boolean {
   ruleGenerationBuckets.set(key, recent);
   if (ruleGenerationBuckets.size > 5_000) {
     for (const [entry, timestamps] of ruleGenerationBuckets) {
-      const latest = timestamps[timestamps.length - 1];
+      const latest = timestamps.at(-1);
       if (latest === undefined || now - latest > 60_000) ruleGenerationBuckets.delete(entry);
       if (ruleGenerationBuckets.size <= 4_000) break;
     }
