@@ -269,9 +269,10 @@ export async function banWetAccountsAcrossNetwork(client, accounts, entry, netwo
 
 export async function unbanWetAccountsAcrossNetwork(client, accounts, actorId, caseId, networkGuilds = null) {
   const guilds = [...(networkGuilds ?? client?.guilds?.cache?.values?.() ?? [])];
-  const results = { unbanned: 0, notBanned: 0, stillBlacklisted: 0, preservedOtherBan: 0, failed: [] };
+  const results = { unbanned: 0, notBanned: 0, stillBlacklisted: 0, stillWet: 0, preservedOtherBan: 0, failed: [] };
   const ownedBanPrefix = `WET · dossier ${caseId.slice(0, 8)} ·`;
   for (const account of accounts) {
+    if (isWet(account.user_id)) { results.stillWet++; continue; }
     for (const guild of guilds) {
       if (guild.ownerId === account.user_id) continue;
       try {
@@ -427,11 +428,11 @@ export async function handleWetInteraction(interaction, settings = null, network
       await sendCentralLog(interaction.guild, settings, systemLogEmbed({
         category: "moderation",
         title: "♻️ WET — dossier levé",
-        description: `Dossier : ${revoked.id}\nComptes : ${revoked.accounts.map((a) => a.user_id).join(", ")}\nMotif de levée : ${reason}\nDébannissements : ${result.unbanned} · échecs : ${result.failed.length}`,
+        description: `Dossier : ${revoked.id}\nComptes : ${revoked.accounts.map((a) => a.user_id).join(", ")}\nMotif de levée : ${reason}\nDébannissements WET : ${result.unbanned} · bans indépendants conservés : ${result.preservedOtherBan} · échecs : ${result.failed.length}`,
         color: 0x22c55e,
       })).catch(() => {});
       await interaction.editReply({
-        content: `♻️ Dossier WET ${revoked.id.slice(0, 8)} levé pour ${revoked.accounts.length} compte(s). Débannissements WET : **${result.unbanned}** · sanctions indépendantes conservées : **${result.preservedOtherBan}** · blacklist locale : **${result.stillBlacklisted}** · déjà absents : **${result.notBanned}** · échecs : **${result.failed.length}**.`,
+        content: `♻️ Dossier WET ${revoked.id.slice(0, 8)} levé pour ${revoked.accounts.length} compte(s). Débannissements WET : **${result.unbanned}** · sanctions indépendantes conservées : **${result.preservedOtherBan}** · WET encore actif : **${result.stillWet}** · blacklist locale : **${result.stillBlacklisted}** · autres bans conservés : **${result.preservedOtherBan}** · déjà absents : **${result.notBanned}** · échecs : **${result.failed.length}**.`,
         allowedMentions: { parse: [] },
       });
       return true;
