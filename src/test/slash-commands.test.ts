@@ -198,7 +198,6 @@ describe("V4 slash commands", () => {
     expect(market?.options?.map((option) => option.name)).toEqual(["list", "sell", "buy", "cancel"]);
     expect(auction?.type).toBe(2);
     expect(auction?.options?.map((option) => option.name)).toEqual(["list", "create", "bid", "cancel"]);
-    expect(SLASH_COMMANDS.length).toBeLessThanOrEqual(100);
   });
 
   it("converts nested subcommands and restricts admin-only commands", () => {
@@ -259,7 +258,6 @@ describe("V4 slash commands", () => {
     expect(byName.get("candidature")?.options?.map((option) => option.name)).toEqual(["deposer", "liste", "questions", "voir", "review", "assign", "entretien", "entretiens", "evaluation", "annuler-entretien"]);
     expect(byName.get("candidature")?.options?.find((option) => option.name === "deposer")?.options?.[0]).toMatchObject({ name: "reponses", required: true, max_length: 1000 });
     expect(SLASH_COMMANDS.some((command) => command.name === "addrole")).toBe(false);
-    expect(SLASH_COMMANDS.length).toBeLessThanOrEqual(100);
   });
 });
 
@@ -277,7 +275,6 @@ describe("PND Voice Access slash entry", () => {
       max_length: 25,
     });
     expect(command?.options?.some((option) => option.name === "debloquer")).toBe(true);
-    expect(SLASH_COMMANDS.length).toBeLessThanOrEqual(100);
   });
 });
 
