@@ -2166,6 +2166,8 @@ client.on("interactionCreate", (interaction) => {
       const active = Boolean(globalMaintenanceState());
       const changed = action === "on" ? active : !active;
       let announcementError = false;
+      // Accusé immédiat : l'annonce publique peut dépasser les 3 s accordées par Discord (limite de débit).
+      const deferred = await interaction.deferUpdate().then(() => true).catch(() => false);
       if (changed) {
         const channel = interaction.channel;
         const announcement = action === "on"
@@ -2177,7 +2179,8 @@ client.on("interactionCreate", (interaction) => {
       }
       const status = runToolCommand({ member: interaction.member, sub: "etat", profile: RUNTIME.profile });
       const reply = announcementError ? `${status}\n⚠️ L'annonce publique n'a pas pu être envoyée dans ce salon.` : status;
-      await interaction.update({ content: reply, components: [globalMaintenanceActionRow(ownerId, active)], allowedMentions: { parse: [] } }).catch(() => {});
+      const panel = { content: reply, components: [globalMaintenanceActionRow(ownerId, active)], allowedMentions: { parse: [] } };
+      await (deferred ? interaction.editReply(panel) : interaction.update(panel)).catch(() => {});
       return;
     }
     // Note de ticket (bouton reçu en MP, sans serveur).
