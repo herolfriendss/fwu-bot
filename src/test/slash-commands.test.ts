@@ -97,6 +97,20 @@ describe("V4 slash commands", () => {
     expect(names).not.toContain("waouf");
   });
 
+  it("registers WET and UNWET on GUARD with owner-controlled durable sanctions", () => {
+    const wet = SLASH_COMMANDS.find((command) => command.name === "wet");
+    const unwet = SLASH_COMMANDS.find((command) => command.name === "unwet");
+    expect(wet?.requiresBotProcess).toBe(true);
+    expect(wet?.dmPermission).toBe(false);
+    expect(wet?.options?.map((option) => option.name)).toEqual(["ajouter", "lier", "verifier", "liste"]);
+    expect(wet?.options?.find((option) => option.name === "ajouter")?.options?.map((option) => option.name)).toEqual(["id", "raison", "preuve"]);
+    expect(wet?.options?.find((option) => option.name === "lier")?.options?.map((option) => option.name)).toEqual(["source", "compte", "raison", "preuve"]);
+    expect(unwet?.requiresBotProcess).toBe(true);
+    expect(unwet?.options?.map((option) => option.name)).toEqual(["id", "raison"]);
+    expect(slashCommandNamesForProfile("guard")).toEqual(expect.arrayContaining(["wet", "unwet"]));
+    expect(slashCommandNamesForProfile("fwu")).not.toEqual(expect.arrayContaining(["wet", "unwet"]));
+  });
+
   it("registers WHITELIST commands and limits them to the live bot process", () => {
     const sysp = SLASH_COMMANDS.find((command) => command.name === "sysp");
     const names = leafNames(sysp?.options as SlashOptionLike[] | undefined);
