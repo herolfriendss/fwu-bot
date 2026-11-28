@@ -284,6 +284,29 @@ test("durable WET unban queue waits while a local blacklist remains active", asy
   assert.equal(removed, 1);
 });
 
+test("WET unban recovery never removes a ban from a guild owner", async () => {
+  const caseId = createWetCase({
+    guildId: GUILD, actorId: OWNER, user: user(MEMBER),
+    reason: "Contournement documenté des sanctions répétées", evidence: EVIDENCE,
+  });
+  revokeWetCase(MEMBER, {
+    guildId: GUILD, actorId: OWNER, reason: "Réexamen complet et décision de levée",
+    guildIds: [GUILD], now: 1_800_000_000_000,
+  });
+  let fetched = false;
+  const guild = {
+    id: GUILD, ownerId: MEMBER,
+    bans: {
+      fetch: async () => { fetched = true; throw new Error("must not inspect owner ban"); },
+      remove: async () => { throw new Error("must not unban owner"); },
+    },
+  };
+  const result = await processPendingWetUnbans({ guilds: { cache: new Map([[GUILD, guild]]) } }, { now: 1_800_000_000_000 });
+  assert.equal(fetched, false);
+  assert.equal(result.preservedOtherBan, 1);
+  assert.equal(db.prepare("SELECT status FROM wet_unban_jobs WHERE case_id=?").get(caseId).status, "preserved");
+});
+
 test("unwet lifts only bans created by this exact WET case and preserves independent bans", async () => {
   const caseId = "12345678-1234-1234-1234-123456789012";
   db.exec(`
