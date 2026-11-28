@@ -59,6 +59,10 @@ test("WET service functions independently enforce the single configured OWNER", 
     /Seul l'OWNER technique/,
   );
   assert.throws(
+    () => createWetCase({ guildId: GUILD, actorId: OWNER, user: user(OWNER), reason: "Compte OWNER protégé et non sanctionnable", evidence: EVIDENCE }),
+    /OWNER technique est protégé/,
+  );
+  assert.throws(
     () => linkWetAccount({ guildId: GUILD, actorId: SYS, sourceUserId: MEMBER, user: user(ALT), reason: "Preuve du lien entre les deux comptes", evidence: EVIDENCE }),
     /Seul l'OWNER technique/,
   );
@@ -161,11 +165,14 @@ test("WET bans across connected guilds and preserves existing bans", async () =>
     ["a", makeGuild("300000000000000001")],
     ["b", makeGuild("300000000000000002")],
   ]) } };
+  const ownerGuild = makeGuild("300000000000000003", MEMBER);
+  client.guilds.cache.set("owner", ownerGuild);
   const result = await banWetAccountsAcrossNetwork(client, [{ user_id: MEMBER }, { user_id: ALT }], {
     id: "12345678-1234-1234-1234-123456789012", reason: "test",
   });
   assert.equal(result.banned, 3);
   assert.equal(result.alreadyBanned, 1);
+  assert.equal(result.skippedOwner, 1);
   assert.equal(result.failed.length, 0);
   assert.equal(created.length, 3);
 });
