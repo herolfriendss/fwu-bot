@@ -331,5 +331,5 @@ test("the /unwet interaction passes the revoked case to exact-reason unban", asy
   };
   assert.equal(await handleWetInteraction(interaction, null), true);
   assert.deepEqual(removed, [MEMBER]);
-  assert.match(replies.at(-1).content, /Débannissements WET : \\*\\*1\\*\\*/);
+  assert.ok(replies.at(-1).content.includes("Débannissements WET : **1**"));
 });
