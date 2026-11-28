@@ -18,7 +18,7 @@ export function redactPrivateText(value) {
     .replace(/\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi, "[adresse e-mail masquée]")
     .replace(/\b\d{17,20}\b/g, "[identifiant masqué]")
     .replace(/\b(?:\d{1,3}\.){3}\d{1,3}\b/g, "[adresse IP masquée]")
-    .replace(/\+?\d[\d\s().-]{7,}\d/g, (match) => {
+    .replace(/\+?\d[\d\s().:-]{7,}\d/g, (match) => {
       const digits = match.replace(/\D/g, "");
       const dateLike = /^\d{4}-\d{2}-\d{2}(?:\s+\d{2}:\d{2}(?::\d{2})?)?$/.test(match.trim());
       return digits.length >= 9 && digits.length <= 15 && !dateLike ? "[numéro masqué]" : match;
