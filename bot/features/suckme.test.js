@@ -219,3 +219,27 @@ test("meeting reminders go to the planning channel of the same server, never mas
   assert.deepEqual(sent[0].allowedMentions, { parse: [] });
   assert.equal(await s.runMeetingReminders(client, now), 0);
 });
+
+test("STAFF CENTER: training exercises and certification of a finished Academy track", async () => {
+  const { createAcademyTrack, completeAcademyStep } = await import("../organization.js");
+  const G = "200000000000000002";
+  const A = "300000000000000003"; const B = "300000000000000004"; const OWNER = "100000000000000001";
+  s.saveLadder(G, ["staffrole"]);
+  const run = async (userId, sub, options = {}) => {
+    const i = staffInteraction({ userId, sub, group: "formation", options, guildId: G, staffRoleMembers: [A, B] });
+    await s.handleSuckmeInteraction(i, {});
+    return i.replies[0];
+  };
+  assert.match(await run(A, "exercice", { type: "conflit", membre: B }), /Seuls les SYS\+/);
+  const ex = await run(OWNER, "exercice", { type: "conflit", membre: B });
+  const id = ex.match(/exercice `([0-9a-f]{8})`/)[1];
+  assert.match(await run(A, "reponse", { id, reponses: "B,B,B,B" }), /Seul le stagiaire/);
+  assert.match(await run(B, "reponse", { id, reponses: "B,B,B,B" }), /4\/4/);
+  const track = createAcademyTrack(G, OWNER, "Modération 1", [{ title: "Bases", quiz: [{ prompt: "Q ?", choices: ["a", "b"], answerIndex: 1 }] }]);
+  const short = track.trackId.slice(0, 8);
+  assert.match(await run(OWNER, "valider", { membre: B, parcours: short }), /0\/1/);
+  completeAcademyStep(G, track.trackId, B, 0, [1]);
+  assert.match(await run(A, "valider", { membre: B, parcours: short }), /réservée/);
+  assert.match(await run(OWNER, "valider", { membre: B, parcours: short }), /certifié.*aucun rôle/);
+  assert.match(await run(A, "certifications", { membre: B }), /Modération 1.*\n.*Exercice de gestion de conflit 4\/4/);
+});

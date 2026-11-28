@@ -8,6 +8,8 @@ import { parseDuration } from "./community.js";
 import { roleGrantRefusal as protectedGrantRefusal } from "../role-grant-guard.js";
 import { addEvidence, addNote, assignIntervention, closeIntervention, formatIntervention, getIntervention, listInterventions, openIntervention, STATUSES, validateIntervention } from "../staff-interventions.js";
 import { addMinutes, cancelMeeting, createMission, finishMission, listMeetings, listMissions, parseParisDate, planMeeting, takeDueMeetingReminders } from "../staff-missions.js";
+import { answerExercise, certify, formatExercise, startExercise, trainingRecord } from "../staff-training.js";
+import { getAcademyProgress, listAcademyTracks } from "../organization.js";
 import { activeOnCall, addHandover, availabilityOf, endOnCall, expireOnCall, formatCoverage, formatSlots, parseSlots, reachableStaff, recentHandovers, saveAvailability, startOnCall, weeklyCoverage } from "../staff-availability.js";
 
 export const SUCKME_COMMANDS = new Set(["roletemp", "annonce", "staff", "pseudo"]);
@@ -327,9 +329,48 @@ async function missionsAndMeetings(interaction, settings, group, sub, guild) {
   return "❌ Action inconnue.";
 }
 
+async function training(interaction, settings, sub, guild) {
+  await guild.members.fetch().catch(() => null);
+  const staffIds = staffMemberIds(guild, ladderOf(guild.id), settings?.sysPlus?.roleId ?? null);
+  const canManage = allowed(interaction.member, settings);
+  const o = interaction.options;
+  const actorId = interaction.user.id;
+  if (sub === "reponse") {
+    // The trainee may be a future staff member: the run itself says who may answer.
+    const r = answerExercise({ guildId: guild.id, id: o.getString("id"), userId: actorId, answers: o.getString("reponses") });
+    if (r.error) return `❌ ${r.error}`;
+    return `🎓 **${r.scenario}** : ${r.score}/${r.total}\n${r.details.join("\n")}`.slice(0, 1900);
+  }
+  if (!staffIds.has(actorId) && !canManage) return "⛔ Réservé au staff (rôles de l'échelle `/staff echelle`), aux SYS+ et à l'OWNER.";
+  if (sub === "exercice") {
+    const trainee = o.getUser?.("membre") ?? interaction.user;
+    if (trainee.id !== actorId && !canManage) return "⛔ Seuls les SYS+ et l'OWNER lancent un exercice pour quelqu'un d'autre.";
+    const run = startExercise({ guildId: guild.id, traineeId: trainee.id, trainerId: actorId, scenario: o.getString("type") ?? "raid" });
+    return run.error ? `❌ ${run.error}` : { public: true, content: formatExercise(run.id, run.scenario, trainee.id) };
+  }
+  if (sub === "valider") {
+    const member = o.getUser?.("membre");
+    const wanted = String(o.getString("parcours") ?? "").trim().toLowerCase();
+    const found = wanted.length >= 4 ? listAcademyTracks(guild.id, 100).find((t) => String(t.trackId ?? t.track_id).toLowerCase().startsWith(wanted)) : null;
+    const track = found ? { trackId: found.trackId ?? found.track_id, title: found.title } : null;
+    let progress = null;
+    try { progress = track && member ? getAcademyProgress(guild.id, track.trackId, member.id) : null; } catch { progress = null; }
+    const r = certify({ guildId: guild.id, memberId: member?.id, actorId, canManage, track, progress });
+    return r.error ? `❌ ${r.error}` : `🏅 Parcours **${track.title}** certifié pour <@${member.id}>. Rappel : une certification ne donne aucun rôle ; la promotion reste une décision (\`/staff promouvoir\`).`;
+  }
+  const member = o.getUser?.("membre") ?? interaction.user;
+  const record = trainingRecord(guild.id, member.id);
+  return [
+    `🎓 **Formation de <@${member.id}>**`,
+    `🏅 Parcours certifiés : ${record.certifications.map((c) => `${c.track_title} (par <@${c.certified_by}>)`).join(", ") || "aucun"}`,
+    `🧪 Exercices : ${record.exercises.map((e) => `${e.title} ${e.score}/${e.total}`).join(" · ") || "aucun"}`,
+  ].join("\n");
+}
+
 async function staff(interaction, settings) {
   const sub = interaction.options.getSubcommand();
   const group = interaction.options.getSubcommandGroup?.(false);
+  if (group === "formation") return training(interaction, settings, sub, interaction.guild);
   if (group === "mission" || group === "reunion") return missionsAndMeetings(interaction, settings, group, sub, interaction.guild);
   if (interaction.options.getSubcommandGroup?.(false) === "intervention") return interventions(interaction, settings, sub, interaction.guild);
   if (["dispo", "astreinte", "disponibles", "planning", "passation"].includes(sub)) return staffCenter(interaction, settings, sub, interaction.guild);
@@ -404,7 +445,9 @@ async function pseudo(interaction, settings) {
 export async function handleSuckmeInteraction(interaction, settings = {}) {
   if (!interaction.isChatInputCommand?.() || !SUCKME_COMMANDS.has(interaction.commandName)) return false;
   if (!interaction.guild) { await interaction.reply({ content: "Cette commande s'utilise sur un serveur.", ephemeral: true }); return true; }
-  await interaction.deferReply({ ephemeral: !(interaction.commandName === "staff" && interaction.options.getSubcommand(false) === "liste") });
+  const publicReply = interaction.commandName === "staff" && (interaction.options.getSubcommand(false) === "liste"
+    || (interaction.options.getSubcommandGroup?.(false) === "formation" && interaction.options.getSubcommand(false) === "exercice"));
+  await interaction.deferReply({ ephemeral: !publicReply });
   try {
     const result = await { roletemp, annonce, staff, pseudo }[interaction.commandName](interaction, settings);
     const payload = typeof result === "string" ? { content: result } : { ...result };

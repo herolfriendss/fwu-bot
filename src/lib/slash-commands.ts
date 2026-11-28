@@ -2722,7 +2722,7 @@ export const EXTRA_SLASH_COMMANDS: SlashCommandDef[] = [
   {
     name: "staff",
     description: "SUCK ME : échelle, promotions, absences, disponibilités, astreintes, planning, passation",
-    usage: "/staff liste · echelle · promouvoir · retrograder · absence · retour · dispo · astreinte · disponibles · planning · passation · intervention · mission · reunion",
+    usage: "/staff liste · echelle · promouvoir · retrograder · absence · retour · dispo · astreinte · disponibles · planning · passation · intervention · mission · reunion · formation",
     category: "SYS+",
     dmPermission: false,
     requiresBotProcess: true,
@@ -2783,6 +2783,18 @@ export const EXTRA_SLASH_COMMANDS: SlashCommandDef[] = [
           sub("liste", "Réunions à venir et derniers comptes rendus"),
           sub("compte-rendu", "Ajoute le compte rendu d'une réunion", [opt(4, "numero", "Numéro de la réunion", { required: true, min_value: 1 }), opt(3, "texte", "Compte rendu", { required: true, max_length: 1500 })]),
           sub("annuler", "Annule une réunion", [opt(4, "numero", "Numéro de la réunion", { required: true, min_value: 1 })]),
+        ],
+      },
+      {
+        type: 2, name: "formation", description: "Formation du staff : exercices, validation des parcours Academy",
+        options: [
+          sub("exercice", "Lance un cas pratique (raid, conflit, signalement)", [
+            opt(3, "type", "Exercice", { choices: [{ name: "Raid", value: "raid" }, { name: "Conflit entre membres", value: "conflit" }, { name: "Signalement sensible", value: "signalement" }] }),
+            opt(6, "membre", "Stagiaire (SYS+ ; vide = toi)"),
+          ]),
+          sub("reponse", "Réponds à un exercice", [opt(3, "id", "Identifiant de l'exercice", { required: true, max_length: 12 }), opt(3, "reponses", "Tes lettres, ex. B,A,C,B", { required: true, max_length: 30 })]),
+          sub("valider", "SYS+ : certifie un parcours Academy terminé (aucun rôle donné)", [opt(6, "membre", "Membre", { required: true }), opt(3, "parcours", "Identifiant du parcours (/academy liste)", { required: true, max_length: 40 })]),
+          sub("certifications", "Parcours certifiés et exercices d'un membre", [opt(6, "membre", "Membre (vide = toi)")]),
         ],
       },
     ],
