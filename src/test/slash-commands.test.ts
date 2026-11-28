@@ -221,7 +221,7 @@ describe("V4 slash commands", () => {
     expect(slashCommandsByCategory().map((group) => group.category)).toContain("Économie PND");
   });
 
-  it("fits /aide into Discord embeds", () => {
+  it("keeps help categories within Discord embed limits", () => {
     const groups = slashCommandsByCategory();
     const descriptions = groups.map((group) => group.commands.map((c) => `**/${c.name}** — ${c.description}`).join("\n"));
     expect(groups.length).toBeLessThanOrEqual(10);
