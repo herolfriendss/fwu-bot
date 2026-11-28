@@ -35,7 +35,7 @@ PY
 
 write_env_value() {
   local file="$1" key="$2" value="$3"
-  FWU_ENV_VALUE="$value" python3 - "$file" "$key" <<'PY'
+  FWU_ENV_VALUE="$value" python3 - "$file" "$key" <<'PY' || return 1
 import os, pathlib, sys, tempfile
 path, key = pathlib.Path(sys.argv[1]), sys.argv[2]
 value = os.environ["FWU_ENV_VALUE"]
@@ -56,7 +56,7 @@ with os.fdopen(fd, "w", encoding="utf-8") as stream:
 os.chmod(temp_name, 0o600)
 os.replace(temp_name, path)
 PY
-  chmod 600 "$file"
+  chmod 600 "$file" || return 1
 }
 
 is_configured() {
@@ -67,8 +67,9 @@ sync_specialized_bot_env() {
   local bot="$1" env_file="$BOTS_DIR/fwu-$1/.env" key value
   [[ -f "$env_file" ]] || return 0
   for key in PND_DATA_DIR SITE_URL BOT_SYNC_SECRET PND_OWNER_DISCORD_ID SHARED_DATABASE_URL; do
-    value="$(read_env_value "$ROOT/bot/.env" "$key")"
-    [[ -n "$value" ]] && write_env_value "$env_file" "$key" "$value"
+    value="$(read_env_value "$ROOT/bot/.env" "$key")" || return 1
+    [[ -n "$value" ]] || return 1
+    write_env_value "$env_file" "$key" "$value" || return 1
   done
   if pm2 describe "fwu-$bot" >/dev/null 2>&1; then
     pm2 restart "fwu-$bot" --update-env >/dev/null || return 1
@@ -139,9 +140,9 @@ else
   WEB_SECRET="$BOT_SECRET"
 fi
 (( ${#BOT_SECRET} >= 32 )) || fail "BOT_SYNC_SECRET doit contenir au moins 32 caractères."
-write_env_value "$ROOT/.env" BOT_SYNC_SECRET "$BOT_SECRET"
-write_env_value "$ROOT/bot/.env" BOT_SYNC_SECRET "$BOT_SECRET"
-write_env_value "$ROOT/.env" PND_OWNER_DISCORD_ID "$OWNER_ID"
+write_env_value "$ROOT/.env" BOT_SYNC_SECRET "$BOT_SECRET" || fail "Impossible d'écrire BOT_SYNC_SECRET dans .env."
+write_env_value "$ROOT/bot/.env" BOT_SYNC_SECRET "$BOT_SECRET" || fail "Impossible d'écrire BOT_SYNC_SECRET dans bot/.env."
+write_env_value "$ROOT/.env" PND_OWNER_DISCORD_ID "$OWNER_ID" || fail "Impossible de synchroniser PND_OWNER_DISCORD_ID dans .env."
 AI_PROVIDER_KEY="$(read_env_value "$ROOT/.env" LOVABLE_API_KEY)"
 if ! is_configured "$AI_PROVIDER_KEY"; then AI_PROVIDER_KEY="$(read_env_value "$ROOT/.env" AI_GATEWAY_API_KEY)"; fi
 if ! is_configured "$AI_PROVIDER_KEY"; then
