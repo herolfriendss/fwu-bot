@@ -199,3 +199,11 @@ test("prefix =ticket transcript is refused to keep transcripts private", async (
   );
   assert.match(JSON.stringify(replies), /commande slash/);
 });
+
+test("staff quick replies are recorded in the ticket timeline", () => {
+  const id = openTicketRow("830000000000000502");
+  assert.equal(records.recordTicketEvent({ guildId: g, ticketId: id, action: "template_sent", actorId: staffId }), true);
+  const events = records.listTicketEvents(g, id);
+  assert.equal(events.length, 1);
+  assert.match(records.formatTicketTimeline(id, events), /réponse rapide envoyée/);
+});
