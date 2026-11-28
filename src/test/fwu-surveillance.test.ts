@@ -26,15 +26,16 @@ function processStates(state: Record<string, unknown>): ProcessStates {
 
 describe("surveillance FWU", () => {
   it("détecte un processus PM2 en ligne dont la connexion Discord n'est pas prête", () => {
-    let r = evaluate(
-      {},
-      { processes: allOnline(), outbox: 0, diskPercent: 50, backup: null },
-      0,
-    );
     const notReady = {
       ...allOnline(),
       "fwu-guard": { online: true, ready: false, restarts: 0 },
     };
+    let r = evaluate(
+      {},
+      { processes: notReady, outbox: 0, diskPercent: 50, backup: null },
+      0,
+    );
+    expect(r.messages).toEqual([]);
     r = evaluate(
       r.state,
       { processes: notReady, outbox: 0, diskPercent: 50, backup: null },
