@@ -9,17 +9,17 @@ test("ticket response templates are reviewed, selectable and non-empty", () => {
 });
 
 test("response templates render known placeholders and neutralize mentions", () => {
-  const rendered = renderResponseTemplate("ticket", "need-info", {
+  const rendered = renderResponseTemplate("ticket", "received", {
     member: "<@123456789012345678>",
     staff: "@everyone",
     ticket_id: 42,
-    subject: "Compte bloqué",
   });
   assert.match(rendered, /@membre/);
   assert.match(rendered, /@​everyone/);
   assert.match(rendered, /#42/);
-  assert.match(rendered, /Compte bloqué/);
   assert.doesNotMatch(rendered, /<@123456789012345678>/);
+  const needInfo = renderResponseTemplate("ticket", "need-info", { subject: "Compte bloqué" });
+  assert.match(needInfo, /Compte bloqué/);
 });
 
 test("unknown templates fail closed", () => {
