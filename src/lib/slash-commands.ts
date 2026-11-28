@@ -3186,8 +3186,8 @@ export const EXTRA_SLASH_COMMANDS: SlashCommandDef[] = [
   },
   {
     name: "stabilite",
-    description: "OWNER/admins : couper une commande défaillante ou mettre un bot en maintenance",
-    usage: "/stabilite commande-off commande [raison] · commande-on commande · maintenance-on bot [raison] · maintenance-off bot · etat",
+    description: "OWNER/admins : couper une commande ou mettre un bot en maintenance ; OWNER : maintenance globale",
+    usage: "/stabilite commande-off commande [raison] · commande-on commande · maintenance-on bot [raison] · maintenance-off bot · maintenance-global-on|off [salon] · etat",
     category: "Administration & sécurité",
     dmPermission: false,
     requiresBotProcess: true,
