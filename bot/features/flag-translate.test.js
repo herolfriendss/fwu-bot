@@ -56,7 +56,6 @@ test("réaction : réponse sous le message, sans mention ; échec = rien de post
   assert.equal(await handleFlagReaction(reaction, { id: "u", bot: false }, { apiUrl: "https://fwu.example/api/public/bot-sync", secret: "bot-sync-secret", fetchImpl: fakeFetch("Hi everyone"), now: 0 }), true);
   assert.match(replies[0].content, /Traduction.*<@u>[\s\S]*Hi everyone/);
   assert.deepEqual(replies[0].allowedMentions, { parse: [], repliedUser: false });
-  const failing = { messages: { create: async () => { throw new Error("down"); } } };
   assert.equal(await handleFlagReaction({ emoji: { name: "🇪🇸" }, message }, { id: "v" }, { apiUrl: "https://fwu.example/api/public/bot-sync", secret: "bot-sync-secret", fetchImpl: async () => { throw new Error("down"); }, now: 0 }), false);
   assert.equal(await handleFlagReaction({ emoji: { name: "🇪🇸" }, message }, { id: "w" }, { apiUrl: "https://fwu.example/api/public/bot-sync", secret: "bot-sync-secret", fetchImpl: fakeFetch("Hola"), now: 0 }), true, "réessai après échec");
   assert.equal(await handleFlagReaction({ emoji: { name: "🇬🇧" }, message }, { id: "x" }, { env: { PND_FLAG_TRANSLATE: "off" } }), false);
