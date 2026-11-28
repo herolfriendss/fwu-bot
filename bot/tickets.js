@@ -4,7 +4,7 @@
 // serveur. Les permissions sont revérifiées à chaque bouton et commande.
 import { askTicketRating, formatRatingStats, ratingStats } from "./features/ticket-rating.js";
 import {
-  ActionRowBuilder, ButtonBuilder, ButtonStyle, ChannelType, EmbedBuilder, PermissionFlagsBits,
+  ActionRowBuilder, ButtonBuilder, ButtonStyle, ChannelType, EmbedBuilder, ModalBuilder, PermissionFlagsBits, StringSelectMenuBuilder, TextInputBuilder, TextInputStyle,
 } from "discord.js";
 import { AttachmentBuilder } from "discord.js";
 import { db } from "./database.js";
@@ -17,6 +17,7 @@ import { recordSysPlusAudit } from "./systems/sysplus/audit.js";
 import { canUseAdminPlusScope, getAdminPlusScope } from "./systems/sysplus/admin-plus-scopes.js";
 import { getAdminPlusRoleId } from "./systems/sysplus/role-config.js";
 import { parsePndOwnerId } from "./pnd-owner-policy.js";
+import { listResponseTemplates, renderResponseTemplate } from "./response-templates.js";
 import {
   canActOnTicket, sanitizeTicketSubject, ticketChannelName, ticketDuration, ticketOpenAllowed, ticketStatusLabel, ticketSetupIssue, parseTicketPrefixCommand,
 } from "./tickets-policy.js";
@@ -72,8 +73,102 @@ function panelButtons() {
 function ticketButtons() {
   return new ActionRowBuilder().addComponents(
     new ButtonBuilder().setCustomId("ticket:claim").setLabel("Prendre en charge").setEmoji("🙋").setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder().setCustomId("ticket:templates").setLabel("Réponse rapide").setEmoji("📝").setStyle(ButtonStyle.Secondary),
     new ButtonBuilder().setCustomId("ticket:close").setLabel("Fermer").setEmoji("🔒").setStyle(ButtonStyle.Danger),
   );
+}
+
+async function ticketTemplateContext(interaction, guildSettings) {
+  const guild = interaction.guild;
+  if (!guild) throw new Error("Cette action doit être utilisée dans un ticket de serveur.");
+  const member = interaction.member ?? guild.members.cache.get(interaction.user.id) ?? null;
+  if (!member || !isTicketStaff(member, guildSettings)) throw new Error("Réservé au staff support.");
+  const row = ticketRow(interaction.channelId, guild.id);
+  if (!row || row.status !== "open") throw new Error("Ce ticket est déjà fermé.");
+  return { guild, member, row };
+}
+
+async function ticketTemplateButton(interaction, guildSettings) {
+  try {
+    await ticketTemplateContext(interaction, guildSettings ?? {});
+    const options = listResponseTemplates("ticket").map((template) => ({
+      label: template.label,
+      description: template.description,
+      value: template.id,
+    }));
+    const menu = new StringSelectMenuBuilder()
+      .setCustomId("ticket:template:select")
+      .setPlaceholder("Choisir une réponse à préparer")
+      .addOptions(options);
+    await interaction.reply({
+      content: "Choisis un modèle. Tu pourras modifier le texte avant de l'envoyer.",
+      components: [new ActionRowBuilder().addComponents(menu)],
+      ephemeral: true,
+      allowedMentions: { parse: [] },
+    });
+  } catch (error) {
+    const payload = { content: error?.message ?? "Impossible d'ouvrir les modèles.", ephemeral: true, allowedMentions: { parse: [] } };
+    if (interaction.deferred || interaction.replied) await interaction.followUp(payload).catch(() => {});
+    else await interaction.reply(payload).catch(() => {});
+  }
+  return true;
+}
+
+async function ticketTemplateSelect(interaction, guildSettings) {
+  try {
+    const { guild, member, row } = await ticketTemplateContext(interaction, guildSettings ?? {});
+    const templateId = interaction.values?.[0];
+    // Modal responses must be acknowledged within Discord’s 3-second window; use cache only here.
+    const target = guild.members.cache.get(row.user_id) ?? null;
+    const body = renderResponseTemplate("ticket", templateId, {
+      member: target?.displayName ?? "bonjour",
+      staff: member.displayName ?? interaction.user.username,
+      ticket_id: row.id,
+      subject: row.subject,
+      server: guild.name,
+    });
+    if (!body) throw new Error("Ce modèle n'existe plus.");
+    const modal = new ModalBuilder()
+      .setCustomId("ticket:template:modal")
+      .setTitle("Modifier la réponse");
+    const input = new TextInputBuilder()
+      .setCustomId("body")
+      .setLabel("Message à envoyer")
+      .setStyle(TextInputStyle.Paragraph)
+      .setRequired(true)
+      .setMaxLength(1900)
+      .setValue(body);
+    modal.addComponents(new ActionRowBuilder().addComponents(input));
+    await interaction.showModal(modal);
+  } catch (error) {
+    const payload = { content: error?.message ?? "Impossible de préparer cette réponse.", ephemeral: true, allowedMentions: { parse: [] } };
+    if (interaction.deferred || interaction.replied) await interaction.followUp(payload).catch(() => {});
+    else await interaction.reply(payload).catch(() => {});
+  }
+  return true;
+}
+
+async function ticketTemplateModal(interaction, guildSettings, record = () => {}) {
+  try {
+    const { guild, row } = await ticketTemplateContext(interaction, guildSettings ?? {});
+    const body = String(interaction.fields.getTextInputValue("body") ?? "").trim().slice(0, 1900);
+    if (!body) throw new Error("Le message ne peut pas être vide.");
+    await interaction.deferReply({ ephemeral: true });
+    const channel = interaction.channel ?? await guild.channels.fetch(row.channel_id).catch(() => null);
+    if (!channel?.isTextBased?.() || typeof channel.send !== "function") throw new Error("Salon du ticket introuvable.");
+    await channel.send({ content: body, allowedMentions: { parse: [] } });
+    recordTicketEvent({ guildId: guild.id, ticketId: row.id, action: "template_sent", actorId: interaction.user.id });
+    await interaction.editReply({ content: "Réponse envoyée dans le ticket.", allowedMentions: { parse: [] } });
+    record("ticket_template_sent");
+  } catch (error) {
+    const message = error?.message ?? "Impossible d'envoyer cette réponse.";
+    if (interaction.deferred || interaction.replied) {
+      await interaction.editReply({ content: message, allowedMentions: { parse: [] } }).catch(() => {});
+    } else {
+      await interaction.reply({ content: message, ephemeral: true, allowedMentions: { parse: [] } }).catch(() => {});
+    }
+  }
+  return true;
 }
 
 function panelEmbed(settings, guild) {
@@ -130,6 +225,15 @@ export async function handleTicketsInteraction(interaction, guildSettings = {}, 
   }
   if (interaction.isButton() && (interaction.customId === "ticket:claim" || interaction.customId === "ticket:close")) {
     return ticketButton(interaction, guildSettings, record);
+  }
+  if (interaction.isButton() && interaction.customId === "ticket:templates") {
+    return ticketTemplateButton(interaction, guildSettings);
+  }
+  if (interaction.isStringSelectMenu?.() && interaction.customId === "ticket:template:select") {
+    return ticketTemplateSelect(interaction, guildSettings);
+  }
+  if (interaction.isModalSubmit?.() && interaction.customId === "ticket:template:modal") {
+    return ticketTemplateModal(interaction, guildSettings, record);
   }
   if (!interaction.isChatInputCommand() || interaction.commandName !== "ticket") return false;
   const guild = interaction.guild;
