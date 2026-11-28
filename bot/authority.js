@@ -79,13 +79,19 @@ export function createRequest({ guildId, requesterId, beneficiaryId, permission,
   if (why.length < 10) return { error: "La justification est obligatoire (au moins 10 caractères)." };
   const duration = Number(durationMs);
   if (!Number.isFinite(duration) || duration < MIN_DURATION_MS || duration > MAX_DURATION_MS) return { error: "Durée : entre 1 heure et 30 jours." };
-  const pending = Number(db.prepare("SELECT COUNT(*) AS n FROM authority_requests WHERE guild_id = ? AND requester_id = ? AND status = 'pending'").get(String(guildId), requesterId).n);
-  if (pending >= MAX_PENDING_PER_REQUESTER) return { error: `Tu as déjà ${pending} demandes en attente.` };
-  if (db.prepare("SELECT 1 FROM authority_requests WHERE guild_id = ? AND beneficiary_id = ? AND permission = ? AND status IN ('pending', 'active', 'suspended')").get(String(guildId), beneficiaryId, permission)) {
-    return { error: "Une demande ou une dérogation existe déjà pour ce membre et cette autorisation." };
-  }
   db.exec("BEGIN IMMEDIATE");
   try {
+    // These checks belong inside the write transaction: otherwise two simultaneous
+    // requests can both pass the checks and create duplicate live exceptions.
+    const pending = Number(db.prepare("SELECT COUNT(*) AS n FROM authority_requests WHERE guild_id = ? AND requester_id = ? AND status = 'pending'").get(String(guildId), requesterId).n);
+    if (pending >= MAX_PENDING_PER_REQUESTER) {
+      db.exec("ROLLBACK");
+      return { error: `Tu as déjà ${pending} demandes en attente.` };
+    }
+    if (db.prepare("SELECT 1 FROM authority_requests WHERE guild_id = ? AND beneficiary_id = ? AND permission = ? AND status IN ('pending', 'active', 'suspended')").get(String(guildId), beneficiaryId, permission)) {
+      db.exec("ROLLBACK");
+      return { error: "Une demande ou une dérogation existe déjà pour ce membre et cette autorisation." };
+    }
     const number = Number(db.prepare("SELECT COALESCE(MAX(number), 0) + 1 AS n FROM authority_requests WHERE guild_id = ?").get(String(guildId)).n);
     const uid = randomUUID();
     const info = db.prepare(`INSERT INTO authority_requests(uid, guild_id, number, requester_id, beneficiary_id, permission, service, justification, duration_ms, nonce, created_at)
