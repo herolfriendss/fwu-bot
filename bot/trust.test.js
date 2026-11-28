@@ -102,7 +102,7 @@ test("a sanction freezes one capability and lifts on its own", () => {
 
 test("the longest sanction wins and lifting is explicit", () => {
   const guild = "100000000000000003";
-  applySanction({ guildId: guild, userId: USER, scope: "casino", durationMs: 600_000 });
+  applySanction({ guildId: guild, userId: USER, scope: "casino", durationMs: 600_000, reason: "Décision staff documentée" });
   const shorter = applySanction({ guildId: guild, userId: USER, scope: "casino", durationMs: 1000 });
   assert.ok(sanctionUntil(guild, USER, "casino") > shorter - 1, "une sanction courte ne raccourcit pas une longue");
   assert.equal(liftSanction(guild, USER, "casino"), 1);
