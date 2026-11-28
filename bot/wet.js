@@ -431,7 +431,7 @@ export async function handleWetInteraction(interaction, settings = null, network
         await interaction.editReply({ content: `ℹ️ ${userId} n'appartient à aucun dossier WET actif.`, allowedMentions: { parse: [] } });
         return true;
       }
-      const result = await unbanWetAccountsAcrossNetwork(interaction.client, revoked.accounts, interaction.user.id, revoked.id, networkGuilds);
+      const result = await unbanWetAccountsAcrossNetwork(interaction.client, revoked.accounts, interaction.user.id, revoked, networkGuilds);
       await sendCentralLog(interaction.guild, settings, systemLogEmbed({
         category: "moderation",
         title: "♻️ WET — dossier levé",
