@@ -199,7 +199,7 @@ export function listDomainLeases(now = Date.now()) {
 // Second line of defence for the security domains when FWU is down too.
 export const BACKUP_FOR = Object.freeze({ guard: "suckme", suckme: "guard" });
 
-export function createDomainGate({ profile, holder = `${profile}:${process.pid}:${randomUUID().slice(0, 8)}`, now = () => Date.now(), ttlMs = LEASE_TTL_MS, cacheMs = 2_000 } = {}) {
+export function createDomainGate({ profile, holder = `${profile}:${process.pid}:${randomUUID().slice(0, 8)}`, now = () => Date.now(), ttlMs = LEASE_TTL_MS, cacheMs = 2_000, readLease = liveDomainLease } = {}) {
   if (!isBotProfileId(profile)) throw new Error(`Profil inconnu : ${profile}`);
   let held = false;
   const cache = new Map();
@@ -208,12 +208,14 @@ export function createDomainGate({ profile, holder = `${profile}:${process.pid}:
     const at = now();
     const cached = cache.get(domain);
     if (cached && at - cached.at < cacheMs) return cached.value;
-    let value = false;
+    // false = confirmed no foreign lease; true = another holder; null = unknown.
+    // A database outage must never make FWU assume it owns a dedicated bot's domain.
+    let value = null;
     try {
-      const lease = liveDomainLease(domain, at);
+      const lease = readLease(domain, at);
       value = Boolean(lease && lease.holder !== holder);
     } catch {
-      value = false; // A read error must never silence FWU: it stays the fallback.
+      value = null;
     }
     cache.set(domain, { at, value });
     return value;
@@ -236,11 +238,11 @@ export function createDomainGate({ profile, holder = `${profile}:${process.pid}:
       held = false;
     },
     serves(domain) {
-      if (profile === "fwu") return domain === "fwu" || !foreignLease(domain);
+      if (profile === "fwu") return domain === "fwu" || foreignLease(domain) === false;
       if (domain === profile) return held;
       // Relais en chaîne : the backup bot of a security domain serves it when both the
       // dedicated bot and FWU are gone (no live lease for either).
-      return BACKUP_FOR[domain] === profile && held && !foreignLease(domain) && !foreignLease("fwu");
+      return BACKUP_FOR[domain] === profile && held && foreignLease(domain) === false && foreignLease("fwu") === false;
     },
     /** Domains this process currently covers for another bot (relay), for alerts. */
     relayedDomains() {
@@ -248,7 +250,7 @@ export function createDomainGate({ profile, holder = `${profile}:${process.pid}:
     },
     /** True when this process handles every domain: the historical single-bot mode. */
     servesAll() {
-      return profile === "fwu" && BOT_PROFILE_IDS.every((domain) => domain === "fwu" || !foreignLease(domain));
+      return profile === "fwu" && BOT_PROFILE_IDS.every((domain) => domain === "fwu" || foreignLease(domain) === false);
     },
     forgetCache() { cache.clear(); },
   };
