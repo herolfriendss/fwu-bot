@@ -62,7 +62,8 @@ import { handleGamesInteraction, handleGamesMessage, startGamesScheduler } from 
 import { handleTicketChannelDelete, handleTicketsInteraction, handleTicketsMessage } from "./tickets.js";
 import { buildWelcomePayload, buildDeparturePayload } from "./welcome.js";
 import { purgeExpiredTranscripts } from "./ticket-records.js";
-import { getKnowledgePage, handleKnowledgeInteraction, handleKnowledgeMessage, KNOWLEDGE_TOPICS } from "./pnd-knowledge.js";
+import { getKnowledgePage, handleKnowledgeInteraction, handleKnowledgeMessage } from "./pnd-knowledge.js";
+import { KNOWLEDGE_TOPICS } from "./pnd-knowledge-policy.js";
 import { handleHelpAssistantInteraction } from "./help-assistant.js";
 import { handleAutomationInteraction, handleAutomationJoin, handleAutomationMessage, startAutomationScheduler } from "./automation.js";
 import { handleRoleInteraction, handleRoleMessage } from "./role-commands.js";
