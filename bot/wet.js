@@ -232,11 +232,15 @@ export async function banWetAccountsAcrossNetwork(client, accounts, entry) {
     for (const guild of guilds) {
       if (guild.ownerId === account.user_id) { results.skippedOwner++; continue; }
       try {
+        const existing = await guild.bans.fetch(account.user_id).catch((error) => {
+          if (Number(error?.code) === 10026) return null;
+          throw error;
+        });
+        if (existing) { results.alreadyBanned++; continue; }
         await guild.bans.create(account.user_id, { reason: banReason(entry) });
         results.banned++;
       } catch (error) {
-        if (Number(error?.code) === 40032 || Number(error?.code) === 10026) results.alreadyBanned++;
-        else results.failed.push({ guildId: guild.id, userId: account.user_id, code: Number(error?.code) || null });
+        results.failed.push({ guildId: guild.id, userId: account.user_id, code: Number(error?.code) || null });
       }
     }
   }
@@ -245,10 +249,14 @@ export async function banWetAccountsAcrossNetwork(client, accounts, entry) {
 
 export async function unbanWetAccountsAcrossNetwork(client, accounts, actorId, caseId) {
   const guilds = [...(client?.guilds?.cache?.values?.() ?? [])];
-  const results = { unbanned: 0, notBanned: 0, failed: [] };
+  const results = { unbanned: 0, notBanned: 0, stillBlacklisted: 0, failed: [] };
   for (const account of accounts) {
     for (const guild of guilds) {
       if (guild.ownerId === account.user_id) continue;
+      try {
+        const stillBlacklisted = db.prepare("SELECT 1 FROM blacklist_entries WHERE guild_id=? AND user_id=?").get(guild.id, account.user_id);
+        if (stillBlacklisted) { results.stillBlacklisted++; continue; }
+      } catch { /* Older databases without the local blacklist table are treated as not blacklisted. */ }
       try {
         await guild.bans.remove(account.user_id, `WET levé par ${actorId} · dossier ${caseId.slice(0, 8)}`.slice(0, 500));
         results.unbanned++;
@@ -276,15 +284,9 @@ export async function enforceWetOnJoin(member, record = () => {}) {
   return true;
 }
 
-function accountAge(user) {
-  if (!Number.isFinite(user?.createdTimestamp)) return "inconnue";
-  const days = Math.max(0, Math.floor((Date.now() - user.createdTimestamp) / 86_400_000));
-  return `${days} jour(s)`;
-}
-
 function formatCase(entry) {
   const accounts = entry.accounts.map((account) =>
-    `• <@${account.user_id}> (` + "`" + `${account.user_id}` + "`" + `)${account.linked_from_id ? ` — lié à ${account.linked_from_id}` : " — compte principal"}`,
+    `• <@${account.user_id}> (\\`${account.user_id}\\`)${account.linked_from_id ? ` — lié à ${account.linked_from_id}` : " — compte principal"}`,
   ).join("\n");
   return [
     `**Dossier WET ${entry.id.slice(0, 8)}**`,
@@ -339,7 +341,6 @@ export async function handleWetInteraction(interaction, settings = null) {
       const caseId = createWetCase({ guildId: interaction.guild.id, actorId: interaction.user.id, user, reason, evidence });
       const accounts = getWetCaseAccounts(caseId);
       const result = await banWetAccountsAcrossNetwork(interaction.client, accounts, { id: caseId, reason });
-      const entry = getActiveWetCase(userId);
       await sendCentralLog(interaction.guild, settings, systemLogEmbed({
         category: "moderation",
         title: "⛔ WET — dossier créé",
@@ -389,7 +390,7 @@ export async function handleWetInteraction(interaction, settings = null) {
         color: 0x22c55e,
       })).catch(() => {});
       await interaction.editReply({
-        content: `♻️ Dossier WET ${revoked.id.slice(0, 8)} levé pour ${revoked.accounts.length} compte(s). Débannissements envoyés : **${result.unbanned}** · déjà absents des listes : **${result.notBanned}** · échecs : **${result.failed.length}**.`,
+        content: `♻️ Dossier WET ${revoked.id.slice(0, 8)} levé pour ${revoked.accounts.length} compte(s). Débannissements envoyés : **${result.unbanned}** · déjà absents : **${result.notBanned}** · toujours blacklistés : **${result.stillBlacklisted}** · échecs : **${result.failed.length}**.`,
         allowedMentions: { parse: [] },
       });
       return true;
