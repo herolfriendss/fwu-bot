@@ -51,7 +51,7 @@ export async function translate(text, language, {
   fetchImpl = fetch,
 } = {}) {
   if (!String(apiUrl ?? "").trim() || !String(secret ?? "").trim()) {
-    throw new Error("Passerelle IA FWU non configurée.");
+    throw new Error("Passerelle IA non configurée.");
   }
   let response;
   try {
@@ -68,13 +68,13 @@ export async function translate(text, language, {
       signal: AbortSignal.timeout(30_000),
     });
   } catch {
-    throw new Error("Service IA FWU inaccessible.");
+    throw new Error("Service IA inaccessible.");
   }
   const payload = await response.json().catch(() => null);
   if (!response.ok) {
     if (response.status === 429) throw new Error("Limite de traduction atteinte.");
-    if (response.status === 503) throw new Error("Fournisseur IA FWU indisponible.");
-    if (response.status === 402) throw new Error("Budget IA FWU épuisé.");
+    if (response.status === 503) throw new Error("Fournisseur IA indisponible.");
+    if (response.status === 402) throw new Error("Budget IA épuisé.");
     throw new Error("Traduction indisponible.");
   }
   const out = String(payload?.translation ?? "").trim();
