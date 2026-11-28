@@ -51,3 +51,10 @@ Aucune branche ne peut être choisie par une variable.
 - `FWU_KEEP_PREVIOUS=3` dans le `.env` de SUCK ME (le bot qui lance les mises à jour) garde les 3 plus récentes
   de chaque sorte et supprime les plus anciennes, uniquement après une mise à jour réussie. Les sauvegardes de
   `docs/SAUVEGARDES.md` restent la vraie copie de sécurité des données.
+
+## Migrations Supabase et mise à jour automatique (28/11/2026)
+
+- Si la version à installer ajoute un fichier dans `supabase/migrations/`, la mise à jour automatique s'arrête avant
+  tout changement (« Nouvelles migrations Supabase à appliquer d'abord : … »). Applique-les dans Supabase, dans
+  l'ordre des noms, puis `/maj lancer` : une mise à jour lancée à la main les considère comme appliquées et le note
+  dans `maj.log`.
