@@ -48,7 +48,7 @@ export function globalMaintenanceState() {
 
 /** Validate a global-maintenance panel action against the configured sole OWNER. */
 export function parseGlobalMaintenanceButton(customId, actorId, env = process.env) {
-  const match = /^stability:global:(on|off):(\\d{5,25})$/.exec(String(customId ?? ""));
+  const match = /^stability:global:(on|off):(\d{5,25})$/.exec(String(customId ?? ""));
   const ownerId = parsePndOwnerId(env.PND_OWNER_DISCORD_ID);
   if (!match || !ownerId || actorId !== ownerId || match[2] !== ownerId) return null;
   return match[1];
