@@ -176,7 +176,7 @@ import { handleDropButton, handleDropInteraction, noteActivity, runPndDrops } fr
 import { handleModmailDm, handleToolsInteraction, onStickyChannelMessage } from "./features/tools-commands.js";
 import { handleVersusInteraction, runVersusExpiry } from "./features/versus.js";
 import { announceUpdateResult, handleSelfUpdateInteraction, startAutoUpdate } from "./features/self-update.js";
-import { handleSuckmeInteraction, ladderOf, runAnnouncements, runTempRoles, saveLadder } from "./features/suckme.js";
+import { handleSuckmeInteraction, ladderOf, runAnnouncements, runStaffShiftExpiry, runTempRoles, saveLadder } from "./features/suckme.js";
 import { armSlowCommandWatchdog } from "./interaction-watchdog.js";
 import { STAFF_ONLY_MESSAGE, isServerStaff } from "./server-staff.js";
 import { installOwnerShield, runAsActor } from "./owner-shield.js";
@@ -1553,6 +1553,7 @@ client.once("clientReady", () => {
     if (!serves("suckme")) return;
     void runTempRoles(client).catch(() => record("suckme_job_error"));
     void runAnnouncements(client).catch(() => record("suckme_job_error"));
+    try { runStaffShiftExpiry(); } catch { record("suckme_job_error"); }
   }, 60_000).unref?.();
   // LE FISC: /jeu invitations (2 min), idle players (3 min) and idle hangman games (10 min).
   setInterval(() => { if (serves("fisc")) void runVersusExpiry(client).catch(() => record("versus_error")); }, 60_000).unref?.();

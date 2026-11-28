@@ -4,6 +4,9 @@ Ce qui est mis en ligne, du plus récent au plus ancien. Le site (Render) se dé
 les bots du VPS prennent la mise à jour avec `/maj lancer` ou la mise à jour automatique de 5 h.
 
 ## 28/11/2026 (nuit)
+- Tous les bots : garde de budget de connexions Discord (pause croissante après 6 démarrages en 6 h, réserve des 10 dernières connexions du jour, plus de retour arrière déclenché par une attente volontaire).
+- Bot principal et SUCK ME : alerte au staff quand un bot tombe, attend son budget de connexions, s'arrête définitivement ou revient (MP à l'OWNER pour un arrêt définitif).
+- SUCK ME (STAFF CENTER) : `/staff dispo` (créneaux habituels), `/staff astreinte` (prendre, terminer, voir ; aucun rôle donné), `/staff disponibles` (qui est joignable maintenant), `/staff planning` (couverture de la semaine et trous), `/staff passation` (notes de relève). Aussi en préfixe `=staff`.
 - Bot principal : alerte au staff quand le disque, la mémoire ou le processeur du VPS saturent (et quand ça revient).
 - GUARD : alerte quand les arrivées ou les départs d'une heure dépassent nettement la normale.
 - Console : voyant global vert, orange ou rouge avec les raisons (aussi dans le badge « En direct »), historique des redémarrages.
