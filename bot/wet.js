@@ -269,7 +269,8 @@ export async function banWetAccountsAcrossNetwork(client, accounts, entry, netwo
 
 export async function unbanWetAccountsAcrossNetwork(client, accounts, actorId, caseId, networkGuilds = null) {
   const guilds = [...(networkGuilds ?? client?.guilds?.cache?.values?.() ?? [])];
-  const results = { unbanned: 0, notBanned: 0, stillBlacklisted: 0, failed: [] };
+  const results = { unbanned: 0, notBanned: 0, stillBlacklisted: 0, preservedOtherBan: 0, failed: [] };
+  const ownedBanPrefix = `WET · dossier ${caseId.slice(0, 8)} ·`;
   for (const account of accounts) {
     for (const guild of guilds) {
       if (guild.ownerId === account.user_id) continue;
@@ -279,6 +280,20 @@ export async function unbanWetAccountsAcrossNetwork(client, accounts, actorId, c
       } catch (error) {
         // Fail closed: never lift a ban when the local blacklist cannot be read.
         results.failed.push({ guildId: guild.id, userId: account.user_id, code: Number(error?.code) || null, reason: "blacklist_unreadable" });
+        continue;
+      }
+      let existingBan;
+      try {
+        existingBan = await guild.bans.fetch(account.user_id);
+      } catch (error) {
+        if (Number(error?.code) === 10026) { results.notBanned++; continue; }
+        results.failed.push({ guildId: guild.id, userId: account.user_id, code: Number(error?.code) || null, reason: "ban_lookup_failed" });
+        continue;
+      }
+      // Never lift a manual or pre-existing ban: only remove a ban whose audit
+      // reason proves it was created by this exact WET case.
+      if (!String(existingBan?.reason ?? "").startsWith(ownedBanPrefix)) {
+        results.preservedOtherBan++;
         continue;
       }
       try {
