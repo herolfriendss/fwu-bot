@@ -2,12 +2,13 @@ import { createOpenAI } from "@ai-sdk/openai";
 import { generateText, streamText } from "ai";
 import { parsePndIntelligenceModelPlan } from "../../bot/pnd-intelligence-model-plan.js";
 import { resolvePndAiGatewayConfig } from "../../bot/pnd-ai-provider-config.js";
+import { buildRulesPrompt, RULES_SYSTEM_PROMPT, validateRules } from "../../bot/rules-ai.js";
 
 // AI calls are server-only. Lovable Cloud uses LOVABLE_API_KEY and its curated
 // gateway models; an optional Vercel AI Gateway key unlocks the newer GPT-6.2 IDs.
 export type BotAiHistoryMessage = { role: "user" | "assistant"; content: string };
 
-type PndAiTask = "chat" | "action";
+type PndAiTask = "chat" | "action" | "rules";
 
 function createPndAiModel(task: PndAiTask) {
   const config = resolvePndAiGatewayConfig(process.env, task);
@@ -125,5 +126,76 @@ export async function botAiActionPlan(
     if (status === 402) return { error: "credits", status: 402 };
     console.error("PND Intelligence planner failed:", error instanceof Error ? error.message : "unknown error");
     return { error: "action planning failed", status: 502 };
+  }
+}
+
+
+const ruleGenerationBuckets = new Map<string, number[]>();
+
+function consumeRuleGenerationSlot(guildId: string, userId: string): boolean {
+  const now = Date.now();
+  const key = `${guildId}:${userId}`;
+  const recent = (ruleGenerationBuckets.get(key) ?? []).filter((timestamp) => now - timestamp < 60_000);
+  if (recent.length >= 2) return false;
+  recent.push(now);
+  ruleGenerationBuckets.set(key, recent);
+  if (ruleGenerationBuckets.size > 5_000) {
+    for (const [entry, timestamps] of ruleGenerationBuckets) {
+      if (!timestamps.length || now - timestamps[timestamps.length - 1] > 60_000) ruleGenerationBuckets.delete(entry);
+      if (ruleGenerationBuckets.size <= 4_000) break;
+    }
+  }
+  return true;
+}
+
+export async function botAiGenerateRules(input: {
+  guildId: string;
+  userId: string;
+  guildName: string;
+  instructions: string;
+  count: number;
+}): Promise<{ rules?: { title: string; description: string }[]; error?: string; status: number }> {
+  const configured = createPndAiModel("rules");
+  if (!configured) return { error: "ai not configured", status: 503 };
+  if (!consumeRuleGenerationSlot(input.guildId, input.userId)) return { error: "rate_limited", status: 429 };
+
+  const count = Math.min(20, Math.max(5, Math.trunc(input.count) || 10));
+  let problems: string[] = [];
+  try {
+    for (let attempt = 0; attempt < 2; attempt++) {
+      const result = await generateText({
+        model: configured.model,
+        system: RULES_SYSTEM_PROMPT,
+        prompt: buildRulesPrompt({
+          guildName: input.guildName,
+          consignes: input.instructions,
+          count,
+          previousProblems: problems,
+        }),
+        maxOutputTokens: 1_800,
+        maxRetries: 1,
+        abortSignal: AbortSignal.timeout(30_000),
+        providerOptions: {
+          openai: { forceReasoning: true, reasoningEffort: "low", reasoningSummary: "auto", store: false },
+        },
+      });
+      const output = result.text.trim().replace(/^\`\`\`(?:json)?/i, "").replace(/\`\`\`$/, "").trim();
+      const parsed: unknown = JSON.parse(output);
+      const rawRules = Array.isArray(parsed)
+        ? parsed
+        : parsed && typeof parsed === "object" && "rules" in parsed
+          ? (parsed as { rules?: unknown }).rules
+          : null;
+      const checked = validateRules(rawRules, count);
+      if (checked.ok) return { rules: checked.rules, status: 200 };
+      problems = checked.problems;
+    }
+    return { error: "invalid_rules", status: 502 };
+  } catch (error) {
+    const status = aiErrorStatus(error);
+    if (status === 429) return { error: "rate_limited", status: 429 };
+    if (status === 402) return { error: "credits", status: 402 };
+    console.error("FWU rules generation failed:", error instanceof Error ? error.message : "unknown error");
+    return { error: "rules generation failed", status: 502 };
   }
 }
