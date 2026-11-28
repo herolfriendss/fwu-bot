@@ -116,7 +116,8 @@ async function ticketTemplateSelect(interaction, guildSettings) {
   try {
     const { guild, member, row } = await ticketTemplateContext(interaction, guildSettings ?? {});
     const templateId = interaction.values?.[0];
-    const target = await guild.members.fetch(row.user_id).catch(() => null);
+    // Modal responses must be acknowledged within Discord’s 3-second window; use cache only here.
+    const target = guild.members.cache.get(row.user_id) ?? null;
     const body = renderResponseTemplate("ticket", templateId, {
       member: target?.displayName ?? "bonjour",
       staff: member.displayName ?? interaction.user.username,
