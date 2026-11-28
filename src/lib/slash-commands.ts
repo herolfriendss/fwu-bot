@@ -2331,6 +2331,7 @@ export const EXTRA_SLASH_COMMANDS: SlashCommandDef[] = [
         opt(3, "formule", "Formule offerte (nom ou numéro)", { required: true, max_length: 40 }),
       ]),
       sub("espace", "Ouvre (ou retrouve) ton salon privé Invest +"),
+      sub("auto", "Renouvellement automatique en PND à l'échéance", [opt(3, "etat", "Choix", { choices: [{ name: "Activer", value: "on" }, { name: "Couper", value: "off" }] })]),
       sub("demande", "Écris à l'administration (renouvellement, changement, question)", [
         opt(3, "type", "Objet de la demande", { required: true, choices: [{ name: "Renouveler", value: "renouveler" }, { name: "Changer de formule", value: "changer" }, { name: "Question", value: "question" }] }),
         opt(3, "formule", "Formule concernée (nom ou numéro)", { max_length: 40 }),

@@ -13,38 +13,38 @@ Une tâche à la fois, dans l'ordre. Cocher au fur et à mesure.
 ## A. Fiabilité (d'abord)
 
 - [x] 1. Comprendre pourquoi les bots retombent en boucle (`fwu-suckme` : 31 redémarrages) et allonger le délai entre deux essais de connexion Discord, pour ne plus épuiser la limite ni risquer une quarantaine. _(Fait le 27/11 : si Discord répond « limite de connexions atteinte », le bot attend l'heure de reset au lieu de redémarrer, et cet échec ne compte pas vers l'arrêt définitif ; `bot/gateway-watchdog.js` `parseSessionLimit`)_
-- [ ] 2. Alerte immédiate dans un salon réservé au staff quand un bot tombe ou s'arrête définitivement.
+- [x] 2. Alerte immédiate dans un salon réservé au staff quand un bot tombe ou s'arrête définitivement. _(28/11 : alerte webhook via Supabase + relais signalé au staff)_
 - [ ] 3. Démarrage automatique après un redémarrage du VPS (`pm2 startup` puis `pm2 save`) : vérifier que c'est fait.
 
 ## B. Console
 
 - [ ] 4. Brancher modération, quotas, rôles et vocal : les bots envoient un instantané au site (comme pour l'activité), puis actions depuis le site (lever une sanction, couper une commande).
-- [ ] 5. Bouton « Tout redémarrer » et historique des redémarrages et des pannes par bot. _(« Tout redémarrer » fait le 27/11 dans Réglages ; reste l'historique)_
-- [ ] 6. Alerte quand les arrivées ou les départs dépassent la normale (à partir de la page Analyse).
+- [x] 5. Bouton « Tout redémarrer » et historique des redémarrages et des pannes par bot. _(« Tout redémarrer » fait le 27/11 dans Réglages ; reste l'historique)_ _(28/11 : historique des redémarrages dans Contrôle)_
+- [x] 6. Alerte quand les arrivées ou les départs dépassent la normale (à partir de la page Analyse). _(28/11 : GUARD compare chaque heure à la même heure des 7 jours précédents)_
 
 ## C. Serveur Discord et bots
 
-- [ ] 7. Invest + : étoffer ses commandes (4 aujourd'hui).
+- [x] 7. Invest + : étoffer ses commandes (4 aujourd'hui). _(28/11 : `/abonnement auto` : renouvellement automatique en PND)_
 - [ ] 8. Résumé quotidien ou hebdomadaire posté automatiquement : messages, arrivées, départs, sanctions.
-- [ ] 9. Sauvegarde de la configuration de tous les bots, pour restaurer si le VPS est recréé.
+- [x] 9. Sauvegarde de la configuration de tous les bots, pour restaurer si le VPS est recréé. _(28/11 : `/export-config` et réglages déjà stockés dans Supabase)_
 
 ## D. Sécurité (à ajouter)
 
 - [ ] 10. **Régénérer les secrets passés par le chat** : `DISCORD_CLIENT_SECRET` (portail Discord), `SESSION_SECRET` (Render et VPS). Faire de même pour tout autre secret affiché ailleurs.
 - [ ] 11. Retirer de Render les variables devenues inutiles (par exemple `DASHBOARD_PASSWORD` si l'ancien accès par mot de passe n'existe plus) : moins de secrets, moins de risques.
-- [ ] 12. Journal d'audit des actions de la console (qui a redémarré quel bot, quand) et limite de fréquence sur l'API console.
+- [x] 12. Journal d'audit des actions de la console (qui a redémarré quel bot, quand) et limite de fréquence sur l'API console. _(28/11 : historique des ordres dans la console ; limite d'un redémarrage par bot et par minute)_
 - [ ] 13. Vérifier que les clés et tokens ne sont qu'à un seul endroit chacun, avec les droits minimum (clé Supabase `service_role` uniquement côté serveur, jamais dans le navigateur).
-- [ ] 14. Passer les conseillers de sécurité de Supabase (RLS, droits) et `npm audit` sur le site et les bots, corriger ce qui est signalé.
+- [x] 14. Passer les conseillers de sécurité de Supabase (RLS, droits) et `npm audit` sur le site et les bots, corriger ce qui est signalé. _(28/11 : conseillers Supabase à zéro, `npm audit` sans vulnérabilité)_
 - [x] 15. En-têtes de sécurité du site (CSP, anti-framing) et cookies de session stricts. Vérifier la page `/console/`. _(Fait le 27/11 : `nitro.config.ts` ajoute anti-framing, nosniff, Referrer-Policy, Permissions-Policy et HSTS à toutes les pages, `/console/` comprise)_
-- [ ] 16. Surveillance externe : une sonde qui prévient (Discord ou e-mail) si le site ou un bot ne répond plus, même quand le VPS est tombé.
-- [ ] 17. Rotation des journaux PM2 et surveillance disque et mémoire du VPS (un bot peut tomber à cause d'un disque plein ou d'une limite mémoire).
+- [x] 16. Surveillance externe : une sonde qui prévient (Discord ou e-mail) si le site ou un bot ne répond plus, même quand le VPS est tombé. _(28/11 : alerte Supabase toutes les 2 min (pg_cron), indépendante du VPS)_
+- [x] 17. Rotation des journaux PM2 et surveillance disque et mémoire du VPS (un bot peut tomber à cause d'un disque plein ou d'une limite mémoire). _(28/11 : alerte disque, mémoire et processeur (`pm2 flush` proposé) ; rotation PM2 encore à installer sur le VPS)_
 - [ ] 18. Environnement de test : un bot et un serveur Discord séparés pour essayer une mise à jour avant la production (déjà demandé par les règles du projet).
 - [ ] 19. Sauvegardes automatiques chiffrées des données du VPS (base partagée, SQLite) hors du VPS, avec un test de restauration.
 - [ ] 20. Quarantaine Discord : comprendre la cause (connexions répétées, trop d'appels API) pour ne pas la reproduire. Garder un compte de secours propriétaire.
 
 ## E. Fonctionnalités possibles (à valider d'abord)
 
-- [ ] 21. Page « Santé » dans la console : état des services (site, base, bots) en un coup d'œil, avec l'historique des pannes.
+- [x] 21. Page « Santé » dans la console : état des services (site, base, bots) en un coup d'œil, avec l'historique des pannes. _(28/11 : bloc santé en tête de Contrôle)_
 - [ ] 22. Notifications poussées vers le téléphone en cas d'incident.
 - [ ] 23. Tableau de modération dans la console (sanctions en cours, historique par membre) une fois l'étape 4 faite.
 - [x] 24. Rapports d'activité exportables (CSV) depuis la page Analyse. _(Fait le 27/11 : bouton « Copier le journal en CSV » sur la page Analyse)_
@@ -65,7 +65,7 @@ Une tâche à la fois, dans l'ordre. Cocher au fur et à mesure.
 - [ ] 36. **Modèles prêts à l'emploi** : embeds (règlement, annonces), messages de sanction, réponses fréquentes.
 - [ ] 37. **Tests automatiques avant chaque mise en ligne** (la CI existe déjà : la rendre obligatoire avant de fusionner).
 - [ ] 38. **Rapport hebdomadaire par e-mail ou Discord** : état des bots, pannes, activité, sanctions de la semaine.
-- [ ] 39. **Vue « tout va bien ? »** : un seul voyant vert ou rouge en haut de la console, avec la raison quand il est rouge.
+- [x] 39. **Vue « tout va bien ? »** : un seul voyant vert ou rouge en haut de la console, avec la raison quand il est rouge. _(28/11 : voyant vert/orange/rouge avec les raisons, aussi dans le badge)_
 - [x] 40. **Recherche globale dans la console** (membre, commande, événement) depuis la palette `Ctrl K`. _(Fait le 27/11 : la palette `Ctrl K` cherche aussi dans les commandes et le journal)_
 
 ## G. Nouvelles commandes proposées (27/11, à valider)

@@ -3,6 +3,12 @@
 Ce qui est mis en ligne, du plus récent au plus ancien. Le site (Render) se déploie seul à chaque push sur `main` ;
 les bots du VPS prennent la mise à jour avec `/maj lancer` ou la mise à jour automatique de 5 h.
 
+## 28/11/2026 (nuit)
+- Bot principal : alerte au staff quand le disque, la mémoire ou le processeur du VPS saturent (et quand ça revient).
+- GUARD : alerte quand les arrivées ou les départs d'une heure dépassent nettement la normale.
+- Console : voyant global vert, orange ou rouge avec les raisons (aussi dans le badge « En direct »), historique des redémarrages.
+- Invest + : `/abonnement auto` (renouvellement automatique en PND à l'échéance, si le solde suffit).
+
 ## 27/11/2026 (soir et nuit)
 
 ### Sécurité
