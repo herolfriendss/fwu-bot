@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { SLASH_COMMANDS, slashCommandsByCategory, toDiscordCommand } from "@/lib/slash-commands";
+import { BOT_PROFILE_IDS, slashCommandNamesForProfile } from "@/lib/bot-profiles";
 
 // Leaf subcommand names of a command, looking inside Discord subcommand groups too.
 function leafNames(options: SlashOptionLike[] | undefined): string[] {
@@ -10,12 +11,20 @@ type CommandPayload = { options?: PayloadOption[]; default_member_permissions?: 
 type SlashOptionLike = { type: number; name: string; options?: SlashOptionLike[] };
 
 describe("V4 slash commands", () => {
+  it("enforces Discord's 100-root-command limit per application, not across the shared catalogue", () => {
+    for (const profile of BOT_PROFILE_IDS) {
+      const names = slashCommandNamesForProfile(profile);
+      expect(new Set(names).size).toBe(names.length);
+      expect(names.length).toBeLessThanOrEqual(100);
+    }
+  });
+
   it("keeps low-priority greeting and server-info shortcuts out of the root catalogue", () => {
     const names = SLASH_COMMANDS.map((command) => command.name);
     expect(names).not.toContain("salut");
     expect(names).not.toContain("info-serveur");
     expect(names).toContain("music");
-    expect(names).not.toContain("musicpanel");
+    expect(names).toContain("musicpanel");
     expect(names).toContain("voice");
     expect(names).not.toContain("access");
     expect(names).not.toContain("unaccess");
@@ -28,7 +37,6 @@ describe("V4 slash commands", () => {
   it("keeps every top-level command name unique and Discord-compatible", () => {
     const names = SLASH_COMMANDS.map((command) => command.name);
     expect(new Set(names).size).toBe(names.length);
-    expect(names.length).toBeLessThanOrEqual(100);
     for (const command of SLASH_COMMANDS) {
       expect(command.name).toMatch(/^[a-z0-9_-]{1,32}$/);
       expect(command.description.length).toBeGreaterThan(0);
@@ -58,7 +66,7 @@ describe("V4 slash commands", () => {
     }
   });
 
-  it("consolidates all player actions under /music without dropping a subcommand", () => {
+  it("keeps /music player as a compatibility alias and exposes direct player shortcuts", () => {
     const music = SLASH_COMMANDS.find((command) => command.name === "music");
     expect(music?.requiresBotProcess).toBe(true);
     expect(music?.options).toHaveLength(1);
@@ -68,10 +76,10 @@ describe("V4 slash commands", () => {
       "loop", "shuffle", "clearqueue", "remove", "join", "leave", "panel",
     ]);
     const names = SLASH_COMMANDS.map((command) => command.name);
-    for (const retired of [
-      "play", "pause", "resume", "skip", "stop", "queue", "nowplaying", "volume", "loop",
-      "shuffle", "clearqueue", "remove", "join", "leave", "musicpanel",
-    ]) expect(names).not.toContain(retired);
+    expect(names).toEqual(expect.arrayContaining([
+      "play", "recherche", "pause", "resume", "skip", "stop", "queue", "nowplaying",
+      "volume", "loop", "shuffle", "clearqueue", "remove", "join", "leave", "musicpanel",
+    ]));
   });
 
   it("groups vocal access and private-salon controls under /voice", () => {
@@ -180,10 +188,9 @@ describe("V4 slash commands", () => {
     expect(names).toContain("supervisor-list");
     expect(names).toContain("blueprint");
     expect(names).toContain("incident");
-    expect(SLASH_COMMANDS.length).toBeLessThanOrEqual(100);
   });
 
-  it("keeps the PND market under shop so the global catalogue cap stays stable", () => {
+  it("keeps the PND market under shop to avoid unnecessary root commands", () => {
     const shop = SLASH_COMMANDS.find((command) => command.name === "shop");
     const market = shop?.options?.find((option) => option.name === "market");
     const auction = shop?.options?.find((option) => option.name === "auction");
