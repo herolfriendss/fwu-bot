@@ -49,7 +49,7 @@ export async function handleHelpAssistantInteraction(interaction, { apiUrl, secr
     await interaction.editReply({ content: data.reply.slice(0, 1900), allowedMentions: noMentions });
   } catch (error) {
     const message = error instanceof Error ? error.message : "L'assistant est indisponible.";
-    await interaction.editReply({ content: `⚠️ ${message} Utilise `/aide` ou le support si besoin.`, allowedMentions: noMentions }).catch(() => {});
+    await interaction.editReply({ content: `⚠️ ${message} Utilise \`/aide\` ou le support si besoin.`, allowedMentions: noMentions }).catch(() => {});
   }
   return true;
 }
