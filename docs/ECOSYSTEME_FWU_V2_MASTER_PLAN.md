@@ -68,7 +68,7 @@ Mécanismes communs déjà en place (réutilisables pour FWU CORE) :
 
 | Profil | Nom Discord | PM2 | Commandes slash (limite 100) | Préfixe | Rôle aujourd'hui |
 |---|---|---|---|---|---|
-| fwu | Bot principal | her-v5-bot | 21 | — | IA, modération à quota (warn, tempmute…), sanctions, accueil/screening, secours de tous les domaines |
+| fwu | Bot principal | her-v5-bot | 22 (dont `/ui`) | — | IA, modération à quota (warn, tempmute…), sanctions, accueil/screening, secours de tous les domaines |
 | guard | GUARD | fwu-guard | 25 | `+` | ban/kick/blacklist/purge, anti-raid, anti-nuke, automod, quarantaine, casier |
 | fdpdlavoc | FDPDLAVOC | fwu-fdpdlavoc | 24 | `;` | musique, radio, vocaux temporaires, accès vocaux, déplacements |
 | suckme | SUCK ME | fwu-suckme | **84** (dont `/authority`, provisoire) | `=` | SYS+, rôles, DOG, MENOTTE, tickets, staff, giveaways, IA, social, logs, `/maj` |
@@ -362,7 +362,9 @@ récompenses ; le centre d'aide peut avancer en parallèle de CORE car il lit le
 | 3.1 Registre AUTHORITY | fusionné (#87) | `claude/fwu-v2-authority-core` |
 | 3.3 Commandes AUTHORITY | fusionné (#88) | `claude/fwu-v2-authority-commands` |
 | 3.2 Quotas et AUTHORITY | fusionné (#89) | `claude/fwu-v2-authority-quota` |
-| 3.4 Console AUTHORITY | terminé | `claude/fwu-v2-authority-console` |
+| 3.4 Console AUTHORITY | fusionné (#90) | `claude/fwu-v2-authority-console` |
+| Demande OWNER : `/ui` (fiche membre) | terminé | `claude/fwu-v2-ui-card` |
+| Demande OWNER : panneau « rôle perso » | à faire ensuite | — |
 
 ## 15. Reprise du travail (pour une nouvelle session)
 

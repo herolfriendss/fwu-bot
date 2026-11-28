@@ -1,7 +1,7 @@
 # Audit du catalogue slash FWU
 
 - Applications Discord : **6**.
-- Définitions racine : **185** commandes uniques.
+- Définitions racine : **186** commandes uniques.
 - Commandes communes à chaque application : **/aide, /status**.
 - Doublons de définition : **0**.
 - Commandes attribuées à plusieurs bots : **0**.
@@ -11,7 +11,7 @@
 
 | Application | Commandes propres | Communes | Total | Limite |
 |---|---:|---:|---:|---:|
-| Bot principal | 19 | 2 | 21/100 | OK |
+| Bot principal | 20 | 2 | 22/100 | OK |
 | GUARD | 23 | 2 | 25/100 | OK |
 | FDPDLAVOC | 22 | 2 | 24/100 | OK |
 | SUCK ME | 82 | 2 | 84/100 | OK |
@@ -39,6 +39,7 @@
 - /defi
 - /export-config
 - /snipe
+- /ui
 
 ## GUARD
 
