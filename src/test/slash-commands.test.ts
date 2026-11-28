@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { SLASH_COMMANDS, slashCommandsByCategory, toDiscordCommand } from "@/lib/slash-commands";
+import { EXTRA_SLASH_COMMANDS, SLASH_COMMANDS, slashCommandsByCategory, toDiscordCommand } from "@/lib/slash-commands";
+import { BOT_PROFILE_IDS, isBridgedPrefixCommand, slashCommandNamesForProfile } from "@/lib/bot-profiles";
 
 // Leaf subcommand names of a command, looking inside Discord subcommand groups too.
 function leafNames(options: SlashOptionLike[] | undefined): string[] {
@@ -10,12 +11,20 @@ type CommandPayload = { options?: PayloadOption[]; default_member_permissions?: 
 type SlashOptionLike = { type: number; name: string; options?: SlashOptionLike[] };
 
 describe("V4 slash commands", () => {
+  it("enforces Discord's 100-root-command limit per application, not across the shared catalogue", () => {
+    for (const profile of BOT_PROFILE_IDS) {
+      const names = slashCommandNamesForProfile(profile);
+      expect(new Set(names).size).toBe(names.length);
+      expect(names.length).toBeLessThanOrEqual(100);
+    }
+  });
+
   it("keeps low-priority greeting and server-info shortcuts out of the root catalogue", () => {
     const names = SLASH_COMMANDS.map((command) => command.name);
     expect(names).not.toContain("salut");
     expect(names).not.toContain("info-serveur");
     expect(names).toContain("music");
-    expect(names).not.toContain("musicpanel");
+    expect(names).toContain("musicpanel");
     expect(names).toContain("voice");
     expect(names).not.toContain("access");
     expect(names).not.toContain("unaccess");
@@ -28,7 +37,6 @@ describe("V4 slash commands", () => {
   it("keeps every top-level command name unique and Discord-compatible", () => {
     const names = SLASH_COMMANDS.map((command) => command.name);
     expect(new Set(names).size).toBe(names.length);
-    expect(names.length).toBeLessThanOrEqual(100);
     for (const command of SLASH_COMMANDS) {
       expect(command.name).toMatch(/^[a-z0-9_-]{1,32}$/);
       expect(command.description.length).toBeGreaterThan(0);
@@ -58,7 +66,7 @@ describe("V4 slash commands", () => {
     }
   });
 
-  it("consolidates all player actions under /music without dropping a subcommand", () => {
+  it("keeps /music player as a compatibility alias and exposes direct player shortcuts", () => {
     const music = SLASH_COMMANDS.find((command) => command.name === "music");
     expect(music?.requiresBotProcess).toBe(true);
     expect(music?.options).toHaveLength(1);
@@ -68,10 +76,10 @@ describe("V4 slash commands", () => {
       "loop", "shuffle", "clearqueue", "remove", "join", "leave", "panel",
     ]);
     const names = SLASH_COMMANDS.map((command) => command.name);
-    for (const retired of [
-      "play", "pause", "resume", "skip", "stop", "queue", "nowplaying", "volume", "loop",
-      "shuffle", "clearqueue", "remove", "join", "leave", "musicpanel",
-    ]) expect(names).not.toContain(retired);
+    expect(names).toEqual(expect.arrayContaining([
+      "play", "recherche", "pause", "resume", "skip", "stop", "queue", "nowplaying",
+      "volume", "loop", "shuffle", "clearqueue", "remove", "join", "leave", "musicpanel",
+    ]));
   });
 
   it("groups vocal access and private-salon controls under /voice", () => {
@@ -87,6 +95,25 @@ describe("V4 slash commands", () => {
     const names = SLASH_COMMANDS.map((command) => command.name);
     expect(names).toContain("wouaf");
     expect(names).not.toContain("waouf");
+  });
+
+  it("registers WET and UNWET on GUARD with owner-controlled durable sanctions", () => {
+    const wet = EXTRA_SLASH_COMMANDS.find((command) => command.name === "wet");
+    const unwet = EXTRA_SLASH_COMMANDS.find((command) => command.name === "unwet");
+    expect(wet?.requiresBotProcess).toBe(true);
+    expect(wet?.prefixEnabled).toBe(false);
+    expect(wet?.dmPermission).toBe(false);
+    expect(wet?.options?.map((option) => option.name)).toEqual(["ajouter", "lier", "verifier", "liste"]);
+    expect(wet?.options?.find((option) => option.name === "ajouter")?.options?.map((option) => option.name)).toEqual(["id", "raison", "preuve"]);
+    expect(wet?.options?.find((option) => option.name === "lier")?.options?.map((option) => option.name)).toEqual(["source", "compte", "raison", "preuve"]);
+    expect(unwet?.requiresBotProcess).toBe(true);
+    expect(unwet?.options?.map((option) => option.name)).toEqual(["id", "raison"]);
+    expect(slashCommandNamesForProfile("guard")).toEqual(expect.arrayContaining(["wet", "unwet"]));
+    expect(isBridgedPrefixCommand("guard", "wet")).toBe(false);
+    expect(isBridgedPrefixCommand("guard", "unwet")).toBe(false);
+    expect(slashCommandNamesForProfile("fwu")).not.toContain("wet");
+    expect(slashCommandNamesForProfile("fwu")).not.toContain("unwet");
+    expect([...SLASH_COMMANDS, ...EXTRA_SLASH_COMMANDS].some((command) => command.name === "whois")).toBe(false);
   });
 
   it("registers WHITELIST commands and limits them to the live bot process", () => {
@@ -180,10 +207,9 @@ describe("V4 slash commands", () => {
     expect(names).toContain("supervisor-list");
     expect(names).toContain("blueprint");
     expect(names).toContain("incident");
-    expect(SLASH_COMMANDS.length).toBeLessThanOrEqual(100);
   });
 
-  it("keeps the PND market under shop so the global catalogue cap stays stable", () => {
+  it("keeps the PND market under shop to avoid unnecessary root commands", () => {
     const shop = SLASH_COMMANDS.find((command) => command.name === "shop");
     const market = shop?.options?.find((option) => option.name === "market");
     const auction = shop?.options?.find((option) => option.name === "auction");
@@ -191,7 +217,6 @@ describe("V4 slash commands", () => {
     expect(market?.options?.map((option) => option.name)).toEqual(["list", "sell", "buy", "cancel"]);
     expect(auction?.type).toBe(2);
     expect(auction?.options?.map((option) => option.name)).toEqual(["list", "create", "bid", "cancel"]);
-    expect(SLASH_COMMANDS.length).toBeLessThanOrEqual(100);
   });
 
   it("converts nested subcommands and restricts admin-only commands", () => {
@@ -215,12 +240,12 @@ describe("V4 slash commands", () => {
     expect(slashCommandsByCategory().map((group) => group.category)).toContain("Économie PND");
   });
 
-  it("fits /aide into Discord embeds", () => {
+  it("keeps help categories within Discord embed limits", () => {
     const groups = slashCommandsByCategory();
     const descriptions = groups.map((group) => group.commands.map((c) => `**/${c.name}** — ${c.description}`).join("\n"));
     expect(groups.length).toBeLessThanOrEqual(10);
     for (const description of descriptions) expect(description.length).toBeLessThanOrEqual(4096);
-    expect(descriptions.reduce((total, description) => total + description.length, 0)).toBeLessThanOrEqual(6000);
+    // /aide is a per-bot paginated panel; the 6,000-character aggregate limit only applied to the retired all-in-one embed.
   });
 
   it("exposes Guardian human-review tools under the existing GuildGuard command", () => {
@@ -252,7 +277,6 @@ describe("V4 slash commands", () => {
     expect(byName.get("candidature")?.options?.map((option) => option.name)).toEqual(["deposer", "liste", "questions", "voir", "review", "assign", "entretien", "entretiens", "evaluation", "annuler-entretien"]);
     expect(byName.get("candidature")?.options?.find((option) => option.name === "deposer")?.options?.[0]).toMatchObject({ name: "reponses", required: true, max_length: 1000 });
     expect(SLASH_COMMANDS.some((command) => command.name === "addrole")).toBe(false);
-    expect(SLASH_COMMANDS.length).toBeLessThanOrEqual(100);
   });
 });
 
@@ -270,7 +294,6 @@ describe("PND Voice Access slash entry", () => {
       max_length: 25,
     });
     expect(command?.options?.some((option) => option.name === "debloquer")).toBe(true);
-    expect(SLASH_COMMANDS.length).toBeLessThanOrEqual(100);
   });
 });
 

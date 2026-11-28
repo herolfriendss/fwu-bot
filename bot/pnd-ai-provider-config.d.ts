@@ -1,4 +1,4 @@
-export type PndAiTask = "chat" | "action";
+export type PndAiTask = "chat" | "action" | "rules";
 export type PndAiGatewayConfig = {
   apiKey: string;
   baseURL: string;

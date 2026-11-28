@@ -8,6 +8,7 @@ import {
   toDiscordCommand,
   type SlashOption,
 } from "@/lib/slash-commands";
+import { BOT_PROFILE_IDS, slashCommandNamesForProfile } from "@/lib/bot-profiles";
 
 type Node = { type: number; name: string; options?: Node[] };
 const sub = (name: string): SlashOption => ({ type: 1, name, description: `Sous-commande ${name}` });
@@ -77,8 +78,12 @@ describe("Discord limits", () => {
     }
   });
 
-  it("keeps the number of top-level commands within Discord's global limit", () => {
-    expect(SLASH_COMMANDS.length).toBeLessThanOrEqual(DISCORD_MAX_ROOT_COMMANDS);
+  it("keeps each bot application within Discord's 100-root-command limit", () => {
+    for (const profile of BOT_PROFILE_IDS) {
+      const names = slashCommandNamesForProfile(profile);
+      expect(names.length).toBeLessThanOrEqual(DISCORD_MAX_ROOT_COMMANDS);
+      expect(new Set(names).size).toBe(names.length);
+    }
     expect(new Set(SLASH_COMMANDS.map((command) => command.name)).size).toBe(SLASH_COMMANDS.length);
   });
 

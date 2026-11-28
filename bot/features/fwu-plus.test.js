@@ -40,3 +40,27 @@ test("fwu-plus helpers", async (context) => {
   assert.deepEqual(grants, [["g", "b", 500, "boost_merci"]]);
   assert.equal(await m.handleBoost({ premiumSinceTimestamp: 1 }, { premiumSinceTimestamp: 1 }, { grant: () => {} }), false);
 });
+
+
+test("résumé IA : utilise la passerelle FWU et son secret bot, sans clé fournisseur locale", async () => {
+  let request;
+  const summary = await m.summarise("Conversation publique à résumer.", {
+    apiUrl: "https://fwu.example/api/public/bot-sync",
+    secret: "bot-sync-secret",
+    guildId: "100000000000000001",
+    userId: "200000000000000002",
+    guildName: "FWU",
+    channelId: "300000000000000003",
+    fetchImpl: async (url, options) => {
+      request = { url, options };
+      return { ok: true, status: 200, json: async () => ({ summary: "• Décision : conserver les fonctions existantes." }) };
+    },
+  });
+  assert.equal(summary, "• Décision : conserver les fonctions existantes.");
+  assert.equal(request.options.headers.Authorization, "Bearer bot-sync-secret");
+  assert.equal(JSON.parse(request.options.body).action, "ai-summary");
+});
+
+test("résumé IA : refuse si la passerelle centrale est absente", async () => {
+  await assert.rejects(m.summarise("Conversation publique."), /passerelle IA centrale/i);
+});

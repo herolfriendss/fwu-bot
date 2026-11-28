@@ -1,5 +1,5 @@
 import { spawn } from "node:child_process";
-import { normalizeAudioHost } from "./audio-source-policy.js";
+import { normalizeAudioHost, sanitizeAudioRequestHeaders } from "./audio-source-policy.js";
 
 const TRUSTED_MEDIA_SUFFIXES = ["googlevideo.com", "youtube.com", "sndcdn.com", "soundcloud.com"];
 const TRUSTED_PAGE_HOSTS = new Set(["youtube.com", "www.youtube.com", "music.youtube.com", "youtu.be", "www.youtu.be", "soundcloud.com", "www.soundcloud.com", "m.soundcloud.com"]);
@@ -69,6 +69,16 @@ export async function resolveMusicInput(input, options = {}) {
   let parsed;
   try { parsed = new URL(mediaUrl); } catch { throw new Error("Le flux audio retourné est invalide."); }
   if (parsed.protocol !== "https:" || !isTrustedMediaHost(parsed.hostname)) throw new Error("Le moteur a retourné une source audio non autorisée.");
+  let webpageUrl = null;
+  if (typeof entry.webpage_url === "string") {
+    try {
+      const normalizedPage = normalizeMusicQuery(entry.webpage_url);
+      if (normalizedPage.startsWith("https://")) webpageUrl = normalizedPage;
+    } catch {
+      // Never persist an extractor-provided page URL outside the supported source hosts.
+    }
+  }
+  const httpHeaders = sanitizeAudioRequestHeaders(entry.http_headers);
   return {
     title: String(entry.title ?? "Titre inconnu").slice(0, 250),
     artist: String(entry.uploader ?? entry.artist ?? "").slice(0, 150),
@@ -76,7 +86,8 @@ export async function resolveMusicInput(input, options = {}) {
     duration: Number.isFinite(Number(entry.duration)) ? Number(entry.duration) : 0,
     thumbnail: typeof entry.thumbnail === "string" && /^https:\/\//i.test(entry.thumbnail) ? entry.thumbnail : null,
     source: entry.extractor_key ?? "YouTube",
-    webpageUrl: typeof entry.webpage_url === "string" ? entry.webpage_url : null,
+    webpageUrl,
+    ...(Object.keys(httpHeaders).length ? { httpHeaders } : {}),
     allowedMediaHost: normalizeAudioHost(parsed.hostname),
   };
 }

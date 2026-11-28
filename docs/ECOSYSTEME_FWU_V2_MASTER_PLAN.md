@@ -421,3 +421,187 @@ d'un message membre comme venant d'un administrateur (`pnd-intelligence-policy.j
 Décisions OWNER nécessaires : serveur et bot Discord de test (LAB) ; application Discord pour
 chacun des 5 nouveaux bots ; activation de l'intent Presence (si « En train de » est voulu) ;
 toute ouverture commerciale ; accès VPS pour RECOVERY et la rotation des journaux.
+
+
+## 17. Mandat ULTIMATE confirmé par l'OWNER (28/11/2026)
+
+Ce mandat complète les phases précédentes et les demandes déjà inscrites dans
+`docs/specs/CAHIER_DES_CHARGES_FWU_V2.md` et `docs/specs/EXTENSION_ULTIMATE.md`.
+Il ne remplace aucune fonctionnalité, aucun système ni aucune décision antérieure.
+
+### 17.1 Règles de conservation et de livraison
+
+- Portée : tout l'écosystème ; autonomie technique maximale dans les limites d'accès et de sécurité.
+- Ne supprimer, désactiver ni dégrader aucune fonctionnalité existante sans décision explicite de l'OWNER.
+- Avant toute refonte, inventorier le comportement actuel, les commandes, les données, les permissions et les dépendances.
+- Toute migration de données est additive, versionnée, testée et réversible ; sauvegarde avant toute migration risquée.
+- Aucun changement de salons, rôles, permissions ou configuration Discord de production pendant le développement.
+- Aucun secret, token, identifiant privé ou export de données réelles dans le dépôt, les tests ou les rapports.
+- `main` est une voie de déploiement automatique : développement sur branche dédiée ; aucune fusion avant CI verte, audit et recette appropriée.
+- Les opérations qui exigent une application Discord supplémentaire, un token, un accès VPS, une migration distante, une dépense ou une action irréversible restent bloquées jusqu'à l'intervention de l'OWNER.
+
+### 17.2 Musique — refonte de l'expérience et fiabilisation
+
+**État initial observé sur main au 28/11 :** `bot/music/music.js`, `music-engine.js`,
+`music-resolver.js`, `audio-source.js`, contrôles interactifs, radios, playlists,
+DJ, effets et blind test existent déjà. Le catalogue expose une racine `/music`
+avec un groupe `player`; le pont V4 traduit les commandes slash vers les handlers
+historiques. Les prérequis de production documentés comprennent FFmpeg/libopus et
+yt-dlp. La documentation des sources est contradictoire entre `bot/music/README.md`
+et `docs/modules/music-radio.md` : elle doit être unifiée après vérification du code.
+
+Travail demandé :
+- Simplifier l'usage avec des commandes directes et mémorisables : `/play`, `/pause`,
+  `/resume`, `/skip`, `/stop`, `/queue`, `/nowplaying`, `/volume`, `/loop`,
+  `/shuffle`, `/remove`, `/clearqueue`, `/join`, `/leave` et un panneau interactif.
+- Conserver les anciens chemins slash et préfixés comme compatibilité durant la migration ;
+  aucune commande ne disparaît avant que son remplacement soit testé et documenté.
+- Auditer le routage des commandes, les options, les réponses Discord, les permissions DJ,
+  les votes skip, les files par serveur, les connexions vocales et les interactions.
+- Auditer yt-dlp, FFmpeg/libopus, les dépendances et les sources réellement autorisées ;
+  diagnostiquer les erreurs d'installation, de résolution, de flux, de codec et de Gateway.
+- Ajouter des tests de transitions, concurrence, reconnexion, erreurs, file, radio, permissions
+  et absence de fuite de processus ; vérifier que chaque ressource FFmpeg est arrêtée.
+- Garder une recette Discord isolée pour prouver une lecture audible, une pause/reprise,
+  un skip, une erreur contrôlée et une reconnexion. Les tests unitaires seuls ne prouvent pas
+  qu'un morceau est audible en production.
+
+### 17.3 IA — fournisseur indépendant, aucune dépendance à l'abonnement Claude
+
+- Ne jamais utiliser l'abonnement personnel Claude Code/Claude.ai comme mécanisme d'accès
+  à l'IA en production ; une souscription utilisateur n'est pas une clé API.
+- Unifier les appels IA derrière l'abstraction serveur déjà présente
+  (`resolvePndAiGatewayConfig`, `bot-ai.server.ts`, `/api/public/bot-sync`).
+- Remplacer l'appel Anthropic direct de `bot/rules-ai.js` pour `/reglement generer`
+  par le fournisseur IA serveur déjà configuré, afin que cette fonction n'exige plus
+  `ANTHROPIC_API_KEY`.
+- Garder les clés côté serveur uniquement ; ne jamais les demander dans Discord ni les
+  renvoyer au bot ou au navigateur.
+- Prévoir fournisseurs configurables, modèle par tâche, délais, retries bornés,
+  bascule contrôlée, plafonds par serveur et budget global, suivi des coûts et réponses
+  claires en cas de quota épuisé.
+- Un fournisseur IA indisponible ne doit jamais bloquer modération, sécurité, commandes
+  essentielles ou reprise après panne.
+- Le mode local reste une option future si les ressources du VPS le permettent ; aucun
+  téléchargement de modèle ni consommation de RAM sans mesure préalable.
+
+### 17.4 SENTINEL — supervision indépendante de bout en bout
+
+SENTINEL est le superviseur opérationnel de l'écosystème. Réutiliser d'abord
+`fleet-watch.js`, `session-budget.js`, `gateway-watchdog.js`, `health-report.js`,
+`vps-health.js`, `stability.js`, les baux de domaines, `core-queue.js`, l'outbox
+et la surveillance externe déjà documentée. Ne pas créer un doublon de watchdog.
+
+Capacités à compléter :
+- Santé des processus, connexions Discord, baux, files, synchronisation, API, DB,
+  permissions, dépendances système, espace disque, CPU/RAM et sauvegardes.
+- Santé fonctionnelle : commandes en erreur, interactions non acquittées, taux d'échec,
+  tâches bloquées, retards de files, événements perdus et régressions après mise à jour.
+- Diagnostic corrélé : incident unique avec gravité, horodatage, services affectés,
+  symptômes, hypothèses séparées des faits, actions tentées et résultat.
+- Réparation automatique uniquement pour les actions sûres, préautorisées et idempotentes :
+  reconnexion, reprise de file, redémarrage borné, nettoyage de ressources temporaires.
+- Mode dégradé explicite lorsque la couverture de sécurité est partielle ; ne jamais afficher
+  « protégé » si les bots de protection sont indisponibles.
+- Continuité : relais de domaines, verrous/leases, anti-double exécution, watchdog externe
+  au processus supervisé et alertes quand SENTINEL lui-même est indisponible.
+- Tester les scénarios : panne d'un bot, panne du principal, panne de SENTINEL, panne réseau,
+  panne DB, quota Gateway épuisé, rollback et retour du service.
+
+**Déploiement :** commencer par un service/processus de supervision indépendant des bots
+Discord et réutiliser les canaux d'alerte existants. Ne créer une nouvelle application Discord
+ou un nouveau token SENTINEL que si une nécessité technique est démontrée et après action
+explicite de l'OWNER. Cela évite d'ajouter une connexion Gateway et un point de panne inutile.
+
+### 17.5 Staff Command et outils hauts gradés
+
+Étendre les systèmes existants (`/staff centre`, dossiers, missions, passations,
+sanctions, tickets, `staff-stats.js`, `staff-audit.js`, `staff-interventions.js`)
+sans créer de systèmes parallèles.
+
+À compléter :
+- `STAFF ANALYTICS` : volumes et durées de sanctions, temps de mute, avertissements,
+  bans, dossiers, délais de résolution, appels, charge par période et tendances.
+- `SANCTION MANAGER` : lever/ajuster une sanction, motif, auteur, historique, preuves,
+  notes internes et journalisation ; revalidation des permissions au moment de l'action.
+- `CASES` : dossier unifié reliant sanctions, tickets, appels, preuves et interventions.
+- `DAILY BRIEFING` : synthèse périodique des incidents, dossiers en retard, charge,
+  sanctions à échéance, alertes et événements à venir.
+- `DECISION ASSIST` : résumer un dossier et rappeler les règles/cas comparables ; aucune
+  décision disciplinaire automatique basée sur une prédiction IA.
+- `SHIFT` : disponibilité, relais, passation et tâches non terminées.
+- `APPROVALS` : file de validation pour opérations sensibles, avec expiration, nonce,
+  validation par l'acteur autorisé et audit.
+- `ACCESS REVIEW` : audit des accès et permissions excessives, proposition de correction ;
+  aucune modification automatique des rôles/permissions de production.
+- `BLACKBOX` et `TIMELINE` : chronologie technique et événements d'audit utiles,
+  minimisation des données et rétention bornée.
+- `CONTROL ROOM` : vue synthétique des bots, incidents, sanctions, demandes, tâches,
+  sauvegardes et validations en attente.
+
+Les statistiques doivent être contextualisées et ne pas servir de classement punitif
+automatique du staff. Respecter la vie privée et la durée de conservation configurée.
+
+### 17.6 WET — registre réseau de sanctions durables et de comptes liés
+
+WET est un niveau supérieur à la blacklist locale. Il s'appuie sur le SQLite partagé par les
+processus FWU et s'applique aux serveurs accessibles aux bots GUARD. Ce n'est pas un nouveau
+bot : c'est un service de sécurité porté par GUARD, relayable par le domaine de protection
+déjà existant.
+
+- `/wet ajouter` crée un dossier durable avec un motif, un lien HTTPS de preuve, l'auteur,
+  le serveur d'origine et les seules métadonnées Discord publiques utiles.
+- `/wet lier` ajoute un compte alternatif à un dossier uniquement après vérification humaine
+  et preuve documentée. Tous les comptes du dossier actif sont rebannis à leur arrivée.
+- `/wet verifier` et `/wet liste` donnent une lecture réservée à l'OWNER et aux SYS+.
+- `/unwet` est réservé à l'OWNER : il révoque le dossier complet, conserve son historique
+  et débannit les comptes liés sur les serveurs accessibles. Une blacklist locale encore active
+  reste prioritaire et empêche le débannissement de ce serveur.
+- Les écritures WET sont OWNER uniquement, protégées aussi dans la couche service (pas seulement
+  dans le handler Discord), avec journal append-only des créations, liens et révocations.
+- Les signaux de `/doublecompte` restent des alertes et ne créent jamais de lien WET
+  automatiquement. Une ressemblance de nom, d'avatar ou un compte récent ne suffit jamais
+  à bannir.
+- Collecte interdite : adresse IP, adresse MAC, empreinte matérielle/appareil, adresse e-mail
+  non fournie ou toute donnée inaccessible par les API Discord autorisées. Limiter les données
+  stockées à l'ID, au nom observé au moment de la décision, à la date publique de création,
+  au motif et aux liens de preuve.
+- Toute défaillance de permission Discord est affichée comme un échec partiel ; ne jamais
+  annoncer une protection complète si un serveur n'a pas pu appliquer le bannissement.
+
+La levée WET doit être testée avec des dossiers multi-comptes, des comptes déjà bannis,
+des permissions manquantes, un membre propriétaire de serveur, un chevauchement blacklist/WET
+et un redémarrage des bots. Aucun déploiement sans recette staging et validation OWNER.
+
+### 17.7 API prête pour le futur site — sans construire ni déployer le site
+
+Le site/dashboard existant est développé séparément. Pendant ce chantier :
+- Ne pas créer un second site, ne pas modifier le design ou le déploiement du site existant.
+- Préparer uniquement des contrats API versionnés, des services serveur réutilisables,
+  une authentification forte, des permissions par domaine et des événements de résultat.
+- Prévoir les opérations autorisées depuis le futur site : lever un mute, consulter les
+  sanctions et leur durée, consulter les statistiques staff, suivre les dossiers et incidents,
+  piloter les automatisations et voir la santé des bots.
+- Chaque mutation suit le même service métier que Discord ; pas de logique parallèle.
+- Revalider OWNER/rang/permission, serveur cible, hiérarchie Discord, état courant et
+  idempotence côté serveur à chaque requête.
+- Les endpoints sensibles sont protégés, audités, limités en débit et conçus contre le rejeu.
+- Aucun endpoint de site ne doit accorder de privilège au-delà de `core-permissions.js`
+  et `authority.js`. Le site ne reçoit jamais les tokens Discord ou les clés IA.
+
+### 17.8 Critères d'acceptation supplémentaires
+
+- Inventaire avant/après : 0 commande/fonctionnalité retirée sans équivalent validé.
+- Audit des commandes : aucune racine dupliquée, aucune commande sans propriétaire,
+  limite Discord de 100 racines par application respectée.
+- Tests bot, dashboard, types, lint, build, audit commandes/réponses, smoke, packaging
+  et audit de dépendances entièrement verts.
+- Tests dédiés d'isolation par serveur, permissions, OWNER unique, rejeu, idempotence,
+  panne et récupération.
+- Archive de livraison inspectée : aucun `.env`, token, base, donnée de production,
+  dépendance ou dossier Git.
+- Recette staging pour tout ce qui dépend du Gateway, de l'audio, des migrations distantes
+  ou des opérations Discord réelles.
+- Aucune mise en production tant que les points qui nécessitent un accès OWNER ne sont
+  pas explicitement vérifiés.
+

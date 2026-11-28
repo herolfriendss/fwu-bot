@@ -2,6 +2,8 @@
 // Surveillance extérieure des bots (scripts/installation/fwu-surveillance.mjs) : logique pure.
 import { describe, expect, it } from "vitest";
 import {
+  applyMarkerReadiness,
+  connectedMarkerMatchesPid,
   evaluate,
   parsePm2List,
   PROCESSES,
@@ -23,6 +25,33 @@ function processStates(state: Record<string, unknown>): ProcessStates {
 }
 
 describe("surveillance FWU", () => {
+  it("détecte un processus PM2 en ligne dont la connexion Discord n'est pas prête", () => {
+    const notReady = {
+      ...allOnline(),
+      "fwu-guard": { online: true, ready: false, restarts: 0 },
+    };
+    let r = evaluate(
+      {},
+      { processes: notReady, outbox: 0, diskPercent: 50, backup: null },
+      0,
+    );
+    expect(r.messages).toEqual([]);
+    r = evaluate(
+      r.state,
+      { processes: notReady, outbox: 0, diskPercent: 50, backup: null },
+      3 * MIN,
+    );
+    expect(r.messages.join()).toMatch(/GUARD.*processus PM2 en ligne mais connexion Discord non confirmée/);
+  });
+
+  it("valide le marqueur de connexion avec le PID courant et refuse les marqueurs périmés", () => {
+    expect(connectedMarkerMatchesPid("123 2026-11-28T12:00:00.000Z", 123)).toBe(true);
+    expect(connectedMarkerMatchesPid("122 2026-11-28T12:00:00.000Z", 123)).toBe(false);
+    expect(connectedMarkerMatchesPid("", 123)).toBe(false);
+    const processes = { "fwu-guard": { online: true, pid: 123, restarts: 0 } };
+    expect(applyMarkerReadiness(processes, { "fwu-guard": false })?.["fwu-guard"]?.ready).toBe(false);
+  });
+
   it("prévient après 2 min d'arrêt seulement, une fois, puis au retour", () => {
     let r = evaluate(
       {},
@@ -189,6 +218,28 @@ describe("surveillance FWU", () => {
     expect(r.messages.join()).toMatch(/plus de 36 h/);
   });
 
+  it("alerte sur une pression mémoire et une charge CPU durables, puis confirme le retour à la normale", () => {
+    const base = {
+      processes: allOnline(),
+      outbox: 0,
+      diskPercent: 50,
+      backup: null,
+      memoryPercent: 92,
+      load1: 9,
+      cpuCount: 4,
+    };
+    let r = evaluate({}, base, 0);
+    expect(r.messages).toEqual([]);
+    r = evaluate(r.state, base, 4 * MIN);
+    expect(r.messages).toEqual([]);
+    r = evaluate(r.state, base, 5 * MIN);
+    expect(r.messages.join("\n")).toMatch(/Mémoire du VPS élevée depuis 5 min : 92 %/);
+    expect(r.messages.join("\n")).toMatch(/Charge système élevée depuis 5 min/);
+    r = evaluate(r.state, { ...base, memoryPercent: 84, load1: 5 }, 6 * MIN);
+    expect(r.messages.join("\n")).toMatch(/Mémoire du VPS revenue à 84 %/);
+    expect(r.messages.join("\n")).toMatch(/Charge système revenue à un niveau normal/);
+  });
+
   it("lit la sortie de pm2 jlist", () => {
     expect(
       parsePm2List(
@@ -199,7 +250,7 @@ describe("surveillance FWU", () => {
           },
         ]),
       ),
-    ).toEqual({ "fwu-guard": { online: false, restarts: 4 } });
+    ).toEqual({ "fwu-guard": { online: false, restarts: 4, pid: null } });
     expect(parsePm2List("pas du json")).toBeNull();
   });
 });

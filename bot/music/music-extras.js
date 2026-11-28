@@ -62,7 +62,17 @@ export function createVoteSkip() {
 }
 
 const cleanName = (name) => String(name ?? "").replace(/\s+/g, " ").trim().slice(0, 40);
-const storable = (track) => ({ title: String(track.title ?? "Titre").slice(0, 200), url: track.url, duration: Number(track.duration) || 0, ...(track.allowedMediaHost ? { allowedMediaHost: track.allowedMediaHost } : {}) });
+const storable = (track) => {
+  const sourcePageUrl = typeof track.webpageUrl === "string" && track.webpageUrl ? track.webpageUrl : null;
+  return {
+    title: String(track.title ?? "Titre").slice(0, 200),
+    // Extractor CDN URLs are signed and expire; persist the supported page URL and resolve a fresh stream on playback.
+    url: sourcePageUrl ?? track.url,
+    duration: Number(track.duration) || 0,
+    ...(sourcePageUrl ? { resolveOnPlay: true } : {}),
+    ...(!sourcePageUrl && track.allowedMediaHost ? { allowedMediaHost: track.allowedMediaHost } : {}),
+  };
+};
 
 export function savePlaylist(guildId, userId, name, tracks) {
   const clean = cleanName(name);

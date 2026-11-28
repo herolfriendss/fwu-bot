@@ -6,6 +6,7 @@ import {
   isPlayableAudioContentType,
   isPublicIpv4,
   validateAudioUrl,
+  sanitizeAudioRequestHeaders,
 } from "./audio-source-policy.js";
 
 export async function resolvePublicAudioIpv4(host, dnsLookup = lookup) {
@@ -26,18 +27,26 @@ export async function openAuthorizedAudioStream(sourceUrl, allowedHosts, options
   const spawnProcess = options.spawn ?? spawn;
   const ffmpegPath = options.ffmpegPath ?? process.env.PND_FFMPEG_PATH ?? "ffmpeg";
   const timeoutMs = options.timeoutMs ?? 15_000;
+  const requestHeaders = sanitizeAudioRequestHeaders(options.headers);
 
   return new Promise((resolve, reject) => {
     let settled = false;
     let request;
     let response;
     let transcoder;
+    let killTimer;
 
     const stop = () => {
       response?.destroy();
       request?.destroy();
       transcoder?.stdin?.destroy();
-      if (transcoder && transcoder.exitCode === null) transcoder.kill("SIGTERM");
+      if (transcoder && transcoder.exitCode === null) {
+        transcoder.kill("SIGTERM");
+        killTimer = setTimeout(() => {
+          if (transcoder?.exitCode === null) transcoder.kill("SIGKILL");
+        }, 1_500);
+        killTimer.unref?.();
+      }
     };
     const fail = (error) => {
       if (settled) {
@@ -56,7 +65,7 @@ export async function openAuthorizedAudioStream(sourceUrl, allowedHosts, options
         port: 443,
         path: `${url.pathname}${url.search}`,
         method: "GET",
-        headers: { accept: "audio/*, application/octet-stream" },
+        headers: { accept: "audio/*, application/octet-stream", ...requestHeaders },
         timeout: timeoutMs,
         lookup: (_hostname, lookupOptions, callback) => {
           if (lookupOptions?.all) callback(null, [{ address: ipv4, family: 4 }]);
@@ -80,9 +89,14 @@ export async function openAuthorizedAudioStream(sourceUrl, allowedHosts, options
           stdio: ["pipe", "pipe", "ignore"],
           windowsHide: true,
         });
-        transcoder.once("error", fail);
+        transcoder.once("error", (error) => {
+          fail(error?.code === "ENOENT"
+            ? new Error("FFmpeg n'est pas installé ou PND_FFMPEG_PATH est incorrect sur le serveur du bot.")
+            : new Error("Impossible de démarrer FFmpeg pour convertir le flux audio."));
+        });
         transcoder.once("close", (code) => {
-          if (code !== 0) fail(new Error("audio_transcoder_exit"));
+          if (killTimer) clearTimeout(killTimer);
+          if (code !== 0) fail(new Error("FFmpeg n'a pas pu convertir ce flux audio. Vérifie sa version et la présence de l'encodeur libopus."));
         });
         transcoder.stdout.once("error", fail);
         transcoder.stdout.once("readable", () => {

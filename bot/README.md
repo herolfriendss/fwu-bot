@@ -1,6 +1,6 @@
-# PND Assist + — processus Discord
+# FWU — processus Discord
 
-Nécessite Node.js 24 LTS. Le bot synchronise les réglages depuis le backend, applique DOG/vocal/modération, lit les flux audio HTTPS autorisés, répond aux commandes slash et conserve le portefeuille PND dans `data/economy.sqlite`.
+Nécessite Node.js 24 LTS. Les profils FWU synchronisent leurs réglages depuis le backend, appliquent leurs modules de sécurité, vocal, musique et modération, et partagent l'économie PND ainsi que les registres réseau dans SQLite.
 
 ## Installation isolée
 
@@ -12,11 +12,20 @@ chmod 600 .env
 npm start
 ```
 
-Pour PM2, le fichier `ecosystem.v5.config.cjs` à la racine du projet démarre le dashboard et le bot ensemble. Ne lance jamais plusieurs processus bot sur la même base SQLite.
+`ecosystem.v5.config.cjs` reste le mode historique mono-bot. En mode multi-bot, utilise l'installateur inclus dans chaque paquet spécialisé. Tous les profils doivent partager le même `PND_DATA_DIR` ; SQLite utilise WAL et un délai d'attente pour les écritures concurrentes. Ne lance pas deux instances du même profil sur les mêmes serveurs.
+
+## Intelligence artificielle
+
+Les réponses de assistant IA et la génération assistée du règlement passent par
+`/api/public/bot-sync`, authentifié avec `BOT_SYNC_SECRET`. Les clés de fournisseur
+(`LOVABLE_API_KEY` ou `AI_GATEWAY_API_KEY`) restent exclusivement côté serveur web.
+Aucune clé Anthropic/Claude personnelle n'est nécessaire dans `bot/.env` ; l'utilisation
+de l'IA est facturée par le fournisseur API configuré, indépendamment d'un abonnement
+Claude Code ou Claude.ai.
 
 ## Commandes slash V4
 
-Le bot enregistre les commandes au démarrage en fusionnant chaque définition (jamais de `PUT` global). Les commandes interactives (économie, DOG, vocal, musique, radio, SYS+) nécessitent ce processus 24/7.
+Le bot enregistre les commandes au démarrage en fusionnant chaque définition (jamais de `PUT` global). Les commandes interactives (économie, DOG, vocal, musique, radio, SYS+, WET) nécessitent le processus du profil concerné 24/7.
 
 - Économie : `/balance [membre]`, `/daily`, `/pay membre montant`, `/leaderboard`, `/shop voir|ajouter|retirer`, `/shop market list|sell|buy|cancel`, `/shop auction list|create|bid|cancel`, `/buy rôle`, `/inventory`, `/job mission ...` et `/job contract ...`. Les contrats réservent leur récompense jusqu’à validation par leur auteur; le marché revend des rôles achetés et requiert Gérer les rôles et une hiérarchie compatible côté bot. Les enchères retiennent l’offre haute puis règlent automatiquement le rôle et les PND à l’échéance. Les ajustements `/pnd`, `/pnd-add`, `/pnd-remove`, `/pnd-history` et `/pnd-audit` exigent `PND_OWNER_DISCORD_ID` dans la configuration du processus bot et refusent tout autre identifiant, y compris SYS+/ADMIN+.
 - Jeux : `/roulette mise choix`, `/blackjack mise` puis boutons **Tirer** / **Rester**.
@@ -45,9 +54,18 @@ serveur absent de la liste ; `guildCreate` refuse les invitations suivantes.
 Les données SQLite restent indexées par `guild_id` et ne sont jamais supprimées
 lorsqu’un serveur est retiré.
 
-Les commandes préfixées `=` restent disponibles pendant la transition et partagent exactement la même logique métier.
+Les commandes préfixées `=` restent disponibles pendant la transition et partagent la même logique métier, sauf les commandes explicitement slash-only comme `/wet` et `/unwet`.
 
-MZ est exclu de l’allowlist même si son identifiant s’y trouve, sauf si `PND_MZ_ENABLED=true` est explicitement défini après validation humaine. PND demeure le serveur actif par défaut.
+## WET — registre réseau GUARD
+
+WET est un registre de sanctions durable partagé entre les profils FWU via le même dossier `PND_DATA_DIR`.
+
+- `/wet ajouter id raison preuve` crée un dossier WET et tente de bannir le compte sur les serveurs accessibles à GUARD.
+- `/wet lier source compte raison preuve` relie un compte alternatif à un dossier existant, uniquement après vérification humaine et avec une preuve HTTPS.
+- `/wet verifier id` et `/wet liste` consultent les dossiers ; OWNER et SYS+ peuvent lire, seul l'OWNER technique peut créer, relier ou lever.
+- `/unwet id raison` révoque le dossier. Il ne retire que les bannissements dont le motif Discord correspond exactement à ce dossier ; les bannissements manuels, les blacklists locales et les autres dossiers WET restent actifs.
+
+Les ressemblances de pseudo ou d'avatar détectées par GUARD ne créent jamais automatiquement un lien WET. Aucun IP, adresse MAC, identifiant matériel ou empreinte d'appareil n'est collecté. Les comptes alternatifs sont reliés manuellement sur preuve documentée.
 
 ## Export de l’économie
 
@@ -83,9 +101,13 @@ Le module `live-alerts.js` vérifie toutes les 60 secondes les flux RSS/Atom HTT
 
 Pour TikTok, Twitch ou les autres plateformes, fournir un flux RSS/Atom compatible avec les événements de démarrage LIVE (par exemple un flux produit par un service de notification que l'administrateur héberge ou auquel il fait confiance). Les flux de publications classiques ne garantissent pas le signalement du début d'un direct. Aucun scraping de pages privées ni identifiant/mot de passe de réseau social n'est utilisé.
 
+## Identité FWU
+
+Les panneaux, embeds et messages utilisent l'identité FWU rouge sombre. Les anciens pieds de page et les visuels violet historiques ne doivent plus être réintroduits.
+
 ## Gestionnaire Webhooks
 
-La commande `/webhook` permet aux membres SYS+ (ainsi qu'au propriétaire et aux administrateurs Discord) de créer, lister, supprimer, publier et modifier le dernier message d'un webhook géré par PND Assist +. Les secrets sont chiffrés avec AES-256-GCM dans SQLite.
+La commande `/webhook` permet aux membres SYS+ (ainsi qu'au propriétaire et aux administrateurs Discord) de créer, lister, supprimer, publier et modifier le dernier message d'un webhook géré par FWU. Les secrets sont chiffrés avec AES-256-GCM dans SQLite.
 
 Avant d'activer le module, définir `WEBHOOK_ENCRYPTION_KEY` dans `bot/.env` avec une clé aléatoire de 32 octets encodée en hexadécimal :
 
@@ -97,7 +119,7 @@ openssl rand -hex 32
 
 ## Identité visuelle et animation des webhooks
 
-Les panneaux de contrôle utilisent l'identité noire/violette PND Assist + et la bannière animée publiée sur le dashboard à `/media/her-v5-city-loop.gif`. Les nouveaux webhooks sont animés par défaut.
+Les panneaux de contrôle utilisent l'identité FWU rouge sombre. Les nouveaux webhooks sont animés par défaut.
 
 - `/webhook animation etat:off` désactive l'animation pour tous les webhooks du serveur.
 - `/webhook animation etat:on` la réactive.

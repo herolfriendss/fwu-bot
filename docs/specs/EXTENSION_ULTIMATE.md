@@ -231,6 +231,23 @@ FWU IDENTITY
 * Succès et contributions.
 * Identification cohérente entre les services.
 
+FWU WET — REGISTRE DE PROTECTION RÉSEAU
+
+* Niveau supérieur à la blacklist locale.
+* Dossiers durables avec motif, preuves, auteur et historique.
+* Comptes alternatifs reliés uniquement après examen humain et preuve.
+* Application des bannissements sur les serveurs FWU connectés.
+* Réapplication au retour d'un compte déjà inscrit dans un dossier actif.
+* Commandes `/wet` et `/unwet`, levée complète réservée à l'OWNER.
+* Consultation par les SYS+ ; aucune modification du registre sans OWNER.
+* Les alertes de ressemblance restent des indices et ne déclenchent aucune sanction seules.
+* Aucune collecte d'IP, de MAC ou d'empreinte matérielle ; uniquement les données publiques
+  et les preuves nécessaires accessibles par les API Discord autorisées.
+
+WET doit rester un service de GUARD, adossé au registre partagé FWU CORE et au journal d'audit.
+Il doit préserver la blacklist locale existante et expliquer clairement les cas où une sanction
+locale empêche encore un débannissement après `/unwet`.
+
 FWU CASES
 
 * Dossiers centralisés.

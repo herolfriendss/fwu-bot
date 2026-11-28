@@ -124,6 +124,7 @@ import { handleLogsInteraction, handleLogsMessage } from "./logs-commands.js";
 import { logEvent, startLogMaintenance } from "./log-events.js";
 import { activeSourceGuildIds } from "./logs-config.js";
 import { enforceBlacklistOnJoin, handleBlacklistInteraction, handleBlacklistMessage, isBlacklisted } from "./blacklist.js";
+import { enforceWetOnJoin, handleWetInteraction, processPendingWetUnbans } from "./wet.js";
 import { handleDmAllInteraction, handleDmAllMessage, recoverInterruptedDmAllJobs } from "./dmall.js";
 import { handleResumeInteraction, handleResumeMessage, pruneResumeEvents, recordResumeEvent } from "./resume.js";
 import { handleStaffModerationInteraction, STAFF_COMMANDS } from "./staff-moderation.js";
@@ -1152,7 +1153,7 @@ client.on("messageReactionAdd", async (reaction, user) => {
     const guildId = reaction.message.guildId ?? reaction.message.guild?.id;
     if (guildId && (!guildAllowed(guildId, ALLOWED_GUILDS) || isLogsHub(guildId))) return;
     if (guildId && serves("suckme")) void handleStarboardReaction(reaction, user).catch(() => record("starboard_error"));
-    if (guildId && serves("suckme")) void handleFlagReaction(reaction, user).catch(() => record("flag_translate_error"));
+    if (guildId && serves("suckme")) void handleFlagReaction(reaction, user, { apiUrl: API, secret: BOT_SYNC_SECRET }).catch(() => record("flag_translate_error"));
     if (!serves("guard")) return;
     await handleReactionVerificationReaction(reaction, user);
   } catch {
@@ -1192,6 +1193,11 @@ client.on("guildMemberAdd", async (member) => {
   if (serves("suckme") && !isLogsHub(member.guild.id)) void handleBlrMemberAdd(member, { record }).catch(() => record("blr_error"));
   const s = settings[member.guild.id];
   const allDomains = gate.servesAll();
+  // WET is the network-level sanction registry; confirmed linked accounts are enforced first.
+  if (serves("guard") && await enforceWetOnJoin(member, record)) {
+    auditLog(member.guild, s, "⛔ WET — compte détecté à son arrivée (bannissement tenté)", `Compte : <@${member.id}>\nID : \`${member.id}\` · vérifier l'événement wet_reban_error en cas d'échec`, 0x991b1b);
+    return;
+  }
   // Blacklisted accounts are banned again before anything else (GUARD owns ban and the blacklist;
   // FWU takes this protection over while GUARD is offline).
   if (serves("guard") && await enforceBlacklistOnJoin(member, record)) {
@@ -1564,6 +1570,9 @@ client.once("clientReady", () => {
   // expiration automatique (contrôle chaque minute).
   // GUARD : double authentification non exigée → alerte ; sortie automatique du mode raid.
   if (serves("guard")) {
+    // Resume durable /unwet jobs after restarts and retry Discord permission/network failures.
+    void processPendingWetUnbans(client, { record }).catch(() => record("wet_unban_recovery_error"));
+    setInterval(() => { void processPendingWetUnbans(client, { record }).catch(() => record("wet_unban_recovery_error")); }, 60_000).unref?.();
     for (const guild of client.guilds.cache.values()) if (guardWatch(guild)) void checkMfa(guild, { settings: settings[guild.id] }).catch(() => {});
     setInterval(() => { void raidAutoExit(client, { getSettings: (guildId) => settings[guildId] }).catch(() => record("guild_guard_error")); }, 60_000).unref?.();
     // AutoMod natif de Discord, posé une seule fois par serveur (jamais recréé si le staff le supprime).
@@ -2300,6 +2309,7 @@ client.on("interactionCreate", (interaction) => {
     if (await handleResumeInteraction(interaction, settings[interaction.guildId])) { auditSlashUsage(interaction, "RESUME"); return; }
     if (await handleDmAllInteraction(interaction, settings[interaction.guildId])) return;
     if (await handleUndogAllInteraction(interaction, settings[interaction.guildId])) return;
+    if (await handleWetInteraction(interaction, settings[interaction.guildId], [...client.guilds.cache.values()].filter((guild) => guildAllowed(guild.id, ALLOWED_GUILDS) && !isLogsHub(guild.id)))) { auditSlashUsage(interaction, "WET"); return; }
     if (await handleBlacklistInteraction(interaction, settings[interaction.guildId])) return;
     if (await handleAltInteraction(interaction)) { auditSlashUsage(interaction, "Doubles comptes"); return; }
     if (await handleGuardInteraction(interaction, settings[interaction.guildId], { report: guardReport })) { auditSlashUsage(interaction, "GUARD"); return; }
@@ -2351,7 +2361,7 @@ client.on("interactionCreate", (interaction) => {
     if (await handleWaoufInteraction(interaction, settings[interaction.guildId], record)) { auditSlashUsage(interaction, "WAOUF"); return; }
     if (await handleMalusInteraction(interaction, settings[interaction.guildId], record)) { auditSlashUsage(interaction, "MALUS"); return; }
     if (await handleGardeInteraction(interaction, settings[interaction.guildId], record)) { auditSlashUsage(interaction, "GARDE"); return; }
-    if (await handleFwuPlusInteraction(interaction, settings[interaction.guildId], { grant: grantPnd, record })) { auditSlashUsage(interaction, "Communauté"); return; }
+    if (await handleFwuPlusInteraction(interaction, settings[interaction.guildId], { grant: grantPnd, record, ai: { apiUrl: API, secret: BOT_SYNC_SECRET } })) { auditSlashUsage(interaction, "Communauté"); return; }
     if (await handleVoicePlusInteraction(interaction, record)) { auditSlashUsage(interaction, "Vocal"); return; }
     if (await handleSysPlusInteraction(interaction, settings, {
       apiUrl: API,
@@ -2390,7 +2400,7 @@ client.on("interactionCreate", (interaction) => {
       record,
     })) return;
     if (await handleStaffModerationInteraction(interaction, settings[interaction.guildId], { bot: RUNTIME.profile })) { auditSlashUsage(interaction, "Modération staff"); return; }
-    if (await handleEmbedInteraction(interaction, settings[interaction.guildId], { bot: RUNTIME.profile, audit: auditLog })) return;
+    if (await handleEmbedInteraction(interaction, settings[interaction.guildId], { bot: RUNTIME.profile, audit: auditLog, ai: { apiUrl: API, secret: BOT_SYNC_SECRET } })) return;
     if (await handleModerationInteraction(interaction, settings[interaction.guildId], { apiUrl: API, secret: BOT_SYNC_SECRET, bot: RUNTIME.profile })) return;
     if (await handleVoiceV2Interaction(interaction, settings[interaction.guildId], record)) { auditSlashUsage(interaction, "Vocal temporaire"); return; }
     // Commandes et boutons : une commande slash n'arrive qu'à son bot propriétaire (filtre en tête),

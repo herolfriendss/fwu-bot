@@ -2,7 +2,7 @@
 
 > Ne pas modifier à la main : `node --experimental-strip-types bot/scripts/generate-command-docs.mjs`.
 > Source : `src/lib/slash-commands.ts` (définitions) et `src/lib/bot-profiles.ts` (bot qui porte chaque commande).
-> Les mêmes commandes existent avec le préfixe du bot (ex. `=staff centre`), sauf les fenêtres de saisie.
+> La plupart des commandes existent aussi avec le préfixe du bot (ex. `=staff centre`). Les commandes sans préfixe sont disponibles uniquement en slash.
 
 Commandes communes à tous les bots : `/aide`, `/status`.
 
@@ -193,7 +193,7 @@ Catégorie : Modération · Utilisation : `/warnings [membre]`
 
 Administration lourde (+ban, +kick, blacklist), GuildGuard, vérification, anti-spam
 
-23 commandes.
+25 commandes.
 
 ### /antinuke
 
@@ -394,6 +394,14 @@ Catégorie : Modération · Utilisation : `/tempban membre duree raison`
 Déverrouille le salon pour @everyone  
 Catégorie : Modération · Utilisation : `/unlock`
 
+### /unwet
+
+OWNER : lève un dossier WET et débannit les comptes qui lui sont liés  
+Catégorie : Modération · Utilisation : `/unwet id raison`
+
+- `id` (texte, obligatoire, 25 caractères max) — Identifiant Discord de l'un des comptes du dossier
+- `raison` (texte, obligatoire, 300 caractères max) — Motif obligatoire de la levée
+
 ### /verify
 
 Vérifie un membre ou publie le panneau de vérification  
@@ -404,11 +412,21 @@ Catégorie : Modération · Utilisation : `/verify moi | panel [salon] [role]`
 - `/verify reaction` — Vérification par réaction : publie le message dans un salon · préfixe `+verify reaction`<br>`salon` (salon, obligatoire) — Salon d’accès<br>`role` (rôle, obligatoire) — Rôle donné après réaction
 - `/verify reaction-off` — Désactive la vérification par réaction · préfixe `+verify reaction-off`
 
+### /wet
+
+OWNER : registre de sanctions durables et de comptes liés sur preuve  
+Catégorie : Modération · Utilisation : `/wet ajouter|lier|verifier|liste`
+
+- `/wet ajouter` — Place un compte dans le registre WET et le bannit des serveurs autorisés<br>`id` (texte, obligatoire, 25 caractères max) — Identifiant Discord du compte<br>`raison` (texte, obligatoire, 300 caractères max) — Motif détaillé de la décision<br>`preuve` (texte, obligatoire, 1000 caractères max) — Lien HTTPS vers les éléments de preuve
+- `/wet lier` — Relie un compte alternatif après vérification humaine et preuve<br>`source` (texte, obligatoire, 25 caractères max) — Identifiant du compte déjà en WET<br>`compte` (texte, obligatoire, 25 caractères max) — Identifiant du compte alternatif confirmé<br>`raison` (texte, obligatoire, 300 caractères max) — Éléments établissant le lien<br>`preuve` (texte, obligatoire, 1000 caractères max) — Lien HTTPS vers les éléments de preuve
+- `/wet verifier` — Vérifie le statut WET d'un compte<br>`id` (texte, obligatoire, 25 caractères max) — Identifiant Discord du compte
+- `/wet liste` — Affiche les dossiers WET actifs des serveurs autorisés
+
 ## FDPDLAVOC (préfixe `;`)
 
 Musique, radio, vocaux temporaires, accès vocaux, ;mv et ;accessall
 
-22 commandes.
+38 commandes.
 
 ### /accessall
 
@@ -435,6 +453,11 @@ Catégorie : Musique & radio · Utilisation : `/blindtest lancer [manches] [play
 - `/blindtest stop` — Arrête la partie en cours (organisateur ou staff) · préfixe `;blindtest stop`
 - `/blindtest classement` — Classement du blind test sur le serveur · préfixe `;blindtest classement`
 
+### /clearqueue
+
+Vide la file d'attente  
+Catégorie : Musique & radio · Utilisation : `/clearqueue`
+
 ### /dj
 
 FDPDLAVOC : rôle DJ (contrôle de la musique, vote pour passer)  
@@ -449,6 +472,16 @@ Catégorie : Musique & radio · Utilisation : `/effet type`
 
 - `type` (texte, obligatoire, choix : Aucun, Bass boost, Nightcore, 8D, Rapide, Lent) — Effet
 
+### /join
+
+Connecte le bot à ton salon vocal  
+Catégorie : Musique & radio · Utilisation : `/join`
+
+### /leave
+
+Déconnecte le bot du salon vocal  
+Catégorie : Musique & radio · Utilisation : `/leave`
+
 ### /lecture
 
 FDPDLAVOC : lit à voix haute le chat de ton vocal (pour qui ne peut pas parler)  
@@ -457,10 +490,17 @@ Catégorie : Musique & radio · Utilisation : `/lecture activer · desactiver`
 - `/lecture activer` — Le bot rejoint ton vocal et lit les messages écrits dans son chat · préfixe `;lecture activer`
 - `/lecture desactiver` — Arrête la lecture vocale (celui qui l'a lancée ou le staff) · préfixe `;lecture desactiver`
 
+### /loop
+
+Change le mode de répétition  
+Catégorie : Musique & radio · Utilisation : `/loop [mode]`
+
+- `mode` (texte, facultatif, choix : Désactivée, Titre, File, Auto) — Mode de répétition
+
 ### /music
 
 Contrôle la lecture, la file et le lecteur vocal  
-Catégorie : Musique & radio · Utilisation : `/music player play|pause|resume|skip|stop|queue|nowplaying|volume|loop|shuffle|clearqueue|remove|join|leave|panel`
+Catégorie : Musique & radio · Utilisation : `/music player play|pause|resume|skip|stop|queue|nowplaying|volume|loop|shuffle|clearqueue|remove|join|leave|panel (alias historique ; préférer les commandes directes)`
 
 - `/music player play` — Joue un lien YouTube/SoundCloud ou recherche un titre · préfixe `;music player play`<br>`recherche` (texte, obligatoire, 500 caractères max) — Lien YouTube/SoundCloud ou titre à rechercher
 - `/music player recherche` — Cherche un titre et choisis parmi 5 résultats · préfixe `;music player recherche`<br>`titre` (texte, obligatoire, 200 caractères max) — Titre, artiste…
@@ -478,6 +518,11 @@ Catégorie : Musique & radio · Utilisation : `/music player play|pause|resume|s
 - `/music player join` — Connecte le bot à ton salon vocal · préfixe `;music player join`
 - `/music player leave` — Déconnecte le bot du salon vocal · préfixe `;music player leave`
 - `/music player panel` — Affiche le panneau de contrôle musical · préfixe `;music player panel`
+
+### /musicpanel
+
+Affiche le panneau de contrôle musical  
+Catégorie : Musique & radio · Utilisation : `/musicpanel`
 
 ### /muteall
 
@@ -502,6 +547,23 @@ Catégorie : Vocal & DOG · Utilisation : `/mvrole role cible`
 - `role` (rôle, obligatoire) — Rôle
 - `cible` (salon, obligatoire) — Vocal cible
 
+### /nowplaying
+
+Affiche le morceau en cours  
+Catégorie : Musique & radio · Utilisation : `/nowplaying`
+
+### /pause
+
+Met la musique en pause  
+Catégorie : Musique & radio · Utilisation : `/pause`
+
+### /play
+
+Recherche ou lance une musique dans ton salon vocal  
+Catégorie : Musique & radio · Utilisation : `/play recherche`
+
+- `recherche` (texte, obligatoire, 500 caractères max) — Lien YouTube/SoundCloud ou titre à rechercher
+
 ### /playlist
 
 FDPDLAVOC : tes playlists enregistrées  
@@ -524,6 +586,11 @@ Catégorie : Vocal & DOG · Utilisation : `/pull membre`
 Rend privé le salon vocal où tu te trouves  
 Catégorie : Vocal & DOG · Utilisation : `/pv`
 
+### /queue
+
+Affiche la file d'attente  
+Catégorie : Musique & radio · Utilisation : `/queue`
+
 ### /radio
 
 Gère la radio PND 24/7 et ses hôtes autorisés  
@@ -538,6 +605,40 @@ Catégorie : Musique & radio · Utilisation : `/radio status | station | set | h
 - `/radio start` — Démarre la radio configurée (administration) · préfixe `;radio start`
 - `/radio stop` — Arrête la radio sans effacer sa configuration (administration) · préfixe `;radio stop`
 - `/radio clear` — Supprime la configuration radio (administration) · préfixe `;radio clear`
+
+### /recherche
+
+Cherche un titre et propose cinq résultats  
+Catégorie : Musique & radio · Utilisation : `/recherche titre`
+
+- `titre` (texte, obligatoire, 200 caractères max) — Titre ou artiste à rechercher
+
+### /remove
+
+Retire un morceau de la file d'attente  
+Catégorie : Musique & radio · Utilisation : `/remove position`
+
+- `position` (nombre entier, obligatoire) — Position du morceau dans /queue
+
+### /resume
+
+Reprend la lecture  
+Catégorie : Musique & radio · Utilisation : `/resume`
+
+### /shuffle
+
+Mélange la file d'attente  
+Catégorie : Musique & radio · Utilisation : `/shuffle`
+
+### /skip
+
+Passe au morceau suivant  
+Catégorie : Musique & radio · Utilisation : `/skip`
+
+### /stop
+
+Arrête la lecture et vide la file  
+Catégorie : Musique & radio · Utilisation : `/stop`
 
 ### /swap
 
@@ -616,6 +717,13 @@ Catégorie : Vocal & DOG · Utilisation : `/voice access grant|revoke · /voice 
 - `/voice private activer` — Rend ton salon vocal actuel privé · préfixe `;voice private activer`
 - `/voice private liste` — Liste les salons privatisés du serveur · préfixe `;voice private liste`
 - `/voice private retirer` — Rétablit les permissions d’origine de ton salon vocal · préfixe `;voice private retirer`
+
+### /volume
+
+Règle le volume du lecteur musical  
+Catégorie : Musique & radio · Utilisation : `/volume niveau`
+
+- `niveau` (nombre entier, obligatoire) — Volume entre 0 et 100
 
 ## SUCK ME (préfixe `=`)
 

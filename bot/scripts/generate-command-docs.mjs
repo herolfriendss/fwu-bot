@@ -41,7 +41,7 @@ export function renderCommandDocs() {
     "",
     "> Ne pas modifier à la main : `node --experimental-strip-types bot/scripts/generate-command-docs.mjs`.",
     "> Source : `src/lib/slash-commands.ts` (définitions) et `src/lib/bot-profiles.ts` (bot qui porte chaque commande).",
-    "> Les mêmes commandes existent avec le préfixe du bot (ex. `=staff centre`), sauf les fenêtres de saisie.",
+    "> La plupart des commandes existent aussi avec le préfixe du bot (ex. `=staff centre`). Les commandes sans préfixe sont disponibles uniquement en slash.",
     "",
     `Commandes communes à tous les bots : ${SHARED_SLASH_COMMANDS.map((n) => `\`/${n}\``).join(", ")}.`,
     "",
@@ -54,7 +54,7 @@ export function renderCommandDocs() {
     for (const name of names) {
       const def = catalogue.get(name);
       if (!def) continue;
-      const subs = subcommandLines(def, prefix);
+      const subs = subcommandLines(def, def.prefixEnabled === false ? null : prefix);
       const params = subs.length ? [] : (def.options ?? []).map(optionLine);
       lines.push(`### /${def.name}`, "", `${clean(def.description)}  `, `Catégorie : ${clean(def.category)} · Utilisation : \`${clean(def.usage)}\``, "");
       if (subs.length) lines.push(...subs, "");

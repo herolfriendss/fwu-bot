@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// FWU — surveillance extérieure des 5 bots principaux et d’Invest + (facultatif) (proposition n°3 de l'Éclaireur).
+// FWU SENTINEL — surveillance extérieure des bots, du dashboard et de la connexion Discord.
 //
 // Lancée chaque minute par une tâche cron du VPS, HORS des bots : si un bot plante,
 // ou si FWU lui-même s'arrête, cette tâche le voit quand même. Elle prévient par un
@@ -24,26 +24,38 @@ import {
 } from "node:fs";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
+import { cpus, freemem, loadavg, totalmem } from "node:os";
 
 export const PROCESSES = Object.freeze([
-  { name: "her-v5-bot", label: "Bot principal" }, // never "FWU" in Discord (identity rule)
-  { name: "fwu-guard", label: "GUARD" },
-  { name: "fwu-fdpdlavoc", label: "FDPDLAVOC" },
-  { name: "fwu-suckme", label: "SUCK ME" },
-  { name: "fwu-fisc", label: "LE FISC" },
-  { name: "fwu-investplus", label: "Invest +", optional: true },
+  { name: "her-v5-bot", label: "Bot principal", marker: "her-v5-production/bot/.connected" }, // never "FWU" in Discord (identity rule)
+  { name: "her-v5-web", label: "Dashboard FWU" },
+  { name: "fwu-guard", label: "GUARD", marker: "fwu-bots/fwu-guard/bot/.connected" },
+  { name: "fwu-fdpdlavoc", label: "FDPDLAVOC", marker: "fwu-bots/fwu-fdpdlavoc/bot/.connected" },
+  { name: "fwu-suckme", label: "SUCK ME", marker: "fwu-bots/fwu-suckme/bot/.connected" },
+  { name: "fwu-fisc", label: "LE FISC", marker: "fwu-bots/fwu-fisc/bot/.connected" },
+  { name: "fwu-investplus", label: "Invest +", marker: "fwu-bots/fwu-investplus/bot/.connected", optional: true },
+  { name: "fwu-social", label: "SOCIAL", marker: "fwu-bots/fwu-social/bot/.connected", optional: true },
+  { name: "fwu-event", label: "EVENT", marker: "fwu-bots/fwu-event/bot/.connected", optional: true },
+  { name: "fwu-dispatch", label: "DISPATCH", marker: "fwu-bots/fwu-dispatch/bot/.connected", optional: true },
+  { name: "fwu-arcade", label: "ARCADE", marker: "fwu-bots/fwu-arcade/bot/.connected", optional: true },
+  { name: "fwu-authority", label: "AUTHORITY", marker: "fwu-bots/fwu-authority/bot/.connected", optional: true },
 ]);
 export const DOWN_GRACE_MS = 2 * 60_000;
 export const OUTBOX_LIMIT = 50;
 export const DISK_LIMIT_PERCENT = 90;
 export const BACKUP_MAX_AGE_MS = 36 * 60 * 60_000;
 export const FLAP_RESTARTS = 3;
+export const MEMORY_LIMIT_PERCENT = 90;
+export const MEMORY_RECOVERY_PERCENT = 85;
+export const LOAD_LIMIT_PER_CPU = 2;
+export const LOAD_RECOVERY_PER_CPU = 1.5;
+export const RESOURCE_GRACE_MS = 5 * 60_000;
 
 const minutes = (ms) => Math.max(1, Math.round(ms / 60_000));
 
 /**
  * Pur : compare l'état précédent aux observations et renvoie le nouvel état et les messages à envoyer.
- * `observed` = { processes: { name: { online, restarts } } | null, outbox: number | null, diskPercent: number | null, backup: { ok, at } | null }
+ * `observed` = { processes: { name: { online, ready?, pid?, restarts } } | null, outbox: number | null, diskPercent: number | null, backup: { ok, at } | null }
  */
 export function evaluate(previous = {}, observed, now = Date.now()) {
   const state = {
@@ -52,6 +64,10 @@ export function evaluate(previous = {}, observed, now = Date.now()) {
     diskAlert: Boolean(previous.diskAlert),
     backupAlert: Boolean(previous.backupAlert),
     pm2Alert: Boolean(previous.pm2Alert),
+    memoryAlert: Boolean(previous.memoryAlert),
+    memoryHighSince: previous.memoryHighSince ?? null,
+    loadAlert: Boolean(previous.loadAlert),
+    loadHighSince: previous.loadHighSince ?? null,
   };
   const messages = [];
 
@@ -98,12 +114,16 @@ export function evaluate(previous = {}, observed, now = Date.now()) {
           ? before.restartWindow
           : [],
       };
-      if (!seen.online) {
+      const ready = seen.ready ?? seen.online;
+      if (!ready) {
         entry.downSince = before.downSince ?? now;
         entry.alerted = Boolean(before.alerted);
         if (!entry.alerted && now - entry.downSince >= DOWN_GRACE_MS) {
+          const reason = seen.online && seen.ready === false
+            ? "processus PM2 en ligne mais connexion Discord non confirmée"
+            : "arrêté";
           messages.push(
-            `🔴 **${label}** arrêté depuis ${minutes(now - entry.downSince)} min${name === "her-v5-bot" ? " : plus de Logs Hub ni de domaines repris" : " : FWU reprend ses événements, mais ses commandes ne marchent plus"}.`,
+            `🔴 **${label}** ${reason} depuis ${minutes(now - entry.downSince)} min${name === "her-v5-bot" ? " : plus de Logs Hub ni de domaines repris" : name === "her-v5-web" ? " : dashboard et API indisponibles" : " : FWU reprend ses événements, mais ses commandes ne marchent plus"}.`,
           );
           entry.alerted = true;
         }
@@ -158,6 +178,32 @@ export function evaluate(previous = {}, observed, now = Date.now()) {
       state.diskAlert = false;
     }
   }
+  if (observed.memoryPercent != null) {
+    if (observed.memoryPercent >= MEMORY_LIMIT_PERCENT) {
+      state.memoryHighSince ??= now;
+      if (!state.memoryAlert && now - state.memoryHighSince >= RESOURCE_GRACE_MS) {
+        messages.push(`🟧 Mémoire du VPS élevée depuis 5 min : ${observed.memoryPercent} % utilisés.`);
+        state.memoryAlert = true;
+      }
+    } else if (observed.memoryPercent < MEMORY_RECOVERY_PERCENT) {
+      if (state.memoryAlert) messages.push(`🟢 Mémoire du VPS revenue à ${observed.memoryPercent} %.`);
+      state.memoryAlert = false;
+      state.memoryHighSince = null;
+    }
+  }
+  if (observed.load1 != null && observed.cpuCount != null && observed.cpuCount > 0) {
+    if (observed.load1 >= observed.cpuCount * LOAD_LIMIT_PER_CPU) {
+      state.loadHighSince ??= now;
+      if (!state.loadAlert && now - state.loadHighSince >= RESOURCE_GRACE_MS) {
+        messages.push(`🟧 Charge système élevée depuis 5 min : load 1 min ${observed.load1.toFixed(1)} pour ${observed.cpuCount} cœur(s).`);
+        state.loadAlert = true;
+      }
+    } else if (observed.load1 < observed.cpuCount * LOAD_RECOVERY_PER_CPU) {
+      if (state.loadAlert) messages.push(`🟢 Charge système revenue à un niveau normal (load ${observed.load1.toFixed(1)}).`);
+      state.loadAlert = false;
+      state.loadHighSince = null;
+    }
+  }
   if (observed.backup) {
     const stale =
       !observed.backup.at ||
@@ -189,11 +235,36 @@ export function parsePm2List(text) {
         {
           online: p.pm2_env?.status === "online",
           restarts: Number(p.pm2_env?.restart_time ?? 0),
+          pid: Number(p.pid ?? p.pm2_env?.pm_pid ?? 0) || null,
         },
       ]),
     );
   } catch {
     return null;
+  }
+}
+
+/** Marker format: "<pid> <ISO timestamp>". A stale marker from an old PM2 process is not readiness. */
+export function connectedMarkerMatchesPid(markerContent, pid) {
+  const expected = Number(pid);
+  const markerPid = Number(String(markerContent ?? "").trim().split(/\s+/, 1)[0]);
+  return Number.isSafeInteger(expected) && expected > 0 && markerPid === expected;
+}
+
+export function applyMarkerReadiness(processes, markerStatus = {}) {
+  if (!processes) return null;
+  return Object.fromEntries(Object.entries(processes).map(([name, observation]) => [
+    name,
+    Object.hasOwn(markerStatus, name) ? { ...observation, ready: Boolean(markerStatus[name]) } : observation,
+  ]));
+}
+
+function readMarkerReady(home, marker, pid) {
+  if (!marker || !pid) return false;
+  try {
+    return connectedMarkerMatchesPid(readFileSync(join(home, marker), "utf8"), pid);
+  } catch {
+    return false;
   }
 }
 
@@ -236,6 +307,17 @@ async function countOutbox(home) {
   } catch {
     return null;
   }
+}
+
+function systemMetrics() {
+  const total = totalmem();
+  const free = freemem();
+  const cpuCount = Math.max(1, cpus().length);
+  return {
+    memoryPercent: total > 0 ? Math.round(100 * (1 - free / total)) : null,
+    load1: Number.isFinite(loadavg()[0]) ? loadavg()[0] : null,
+    cpuCount,
+  };
 }
 
 function diskPercent(path) {
@@ -304,10 +386,16 @@ async function main() {
   } catch {
     /* pas encore installée */
   }
+  const pm2Processes = parsePm2List(pm2Text);
+  const markerStatus = Object.fromEntries(PROCESSES.filter((entry) => entry.marker).map((entry) => [
+    entry.name,
+    readMarkerReady(home, entry.marker, pm2Processes?.[entry.name]?.pid),
+  ]));
   const observed = {
-    processes: parsePm2List(pm2Text),
+    processes: applyMarkerReadiness(pm2Processes, markerStatus),
     outbox: await countOutbox(home),
     diskPercent: diskPercent(home),
+    ...systemMetrics(),
     backup,
   };
 

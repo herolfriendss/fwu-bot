@@ -203,3 +203,15 @@ Garde-fous communs : SYS+ seulement, durée limitée, quotas partagés, tier 0 e
 - [x] `/vocal-plus` : préréglages nommés du vocal temporaire, classement du temps en vocal ; `/garde planning`.
 - [x] Audit de sécurité : liens retirés des messages reposés par les malus (pas de phishing via le bot), paiement de rançon sans création d'argent, `/archive` exige l'accès au salon, dépendances sans vulnérabilité, aucun secret dans le dépôt ni dans `bot-oracle.zip`.
 - [x] Supabase : `pg_net` rangé dans `extensions`, règles « server only » explicites sur les tables réservées au serveur ; plus aucun avertissement de sécurité.
+
+
+## O. FWU ULTIMATE — lots validés par l'OWNER (28/11)
+
+- [~] 121. **WET** : registre réseau supérieur à la blacklist, dossiers avec preuves, comptes alternatifs reliés manuellement, bannissements sur les serveurs FWU et réapplication au retour ; `/wet` et `/unwet`. Écritures OWNER uniquement, consultation SYS+, aucune empreinte IP/appareil. Code implémenté sur ULTIMATE ; la levée utilise maintenant une file SQLite durable avec reprises après redémarrage, vérification du motif exact, protection blacklist et propriétaire du serveur. CI du dernier commit et recette staging encore requises.
+- [~] 122. **Musique** : commandes directes `/play`, `/pause`, `/resume`, `/skip`, `/queue`, `/volume`, etc., tout en conservant `/music player` ; résolveur, yt-dlp, FFmpeg/libopus, playlists et cycle de vie des flux durcis dans ULTIMATE. Recette audio réelle en staging encore requise.
+- [~] 123. **IA indépendante** : génération du règlement via la passerelle serveur FWU, clé fournisseur conservée côté serveur web ; aucune clé personnelle Anthropic/Claude dans les bots. CI passée sur le commit de base ; configuration des fournisseurs et recette réelle restent à effectuer.
+- [~] 124. **SENTINEL** : surveillance indépendante PM2/heartbeats, disque, mémoire et charge soutenue, alertes et supervision des files/outbox présentes dans ULTIMATE. Vérifier la couverture sauvegardes/permissions et tester les scénarios de panne en staging avant de considérer le lot terminé.
+- [ ] 125. **STAFF CONTROL ROOM** : sanctions, temps de mute, dossiers, appels, charge, passations, approbations, briefing et statistiques contextualisées.
+- [ ] 126. **API dashboard** : contrats versionnés pour les futures actions web (lever un mute, lire les sanctions, consulter les analyses, gérer les workflows) ; aucun frontend ni déploiement du site pendant ce chantier.
+- [ ] 127. **Écosystème ULTIMATE** : SOCIAL, EVENT, DISPATCH, ARCADE, AUTHORITY et services CORE (IDENTITY, CASES, MEMORY, FLOW, RECOVERY, INTELLIGENCE) ; auditer l'existant avant d'ajouter un module ou un bot.
+- [ ] 128. **Audit général** : sécurité, permissions, dépendances, commandes, tests de non-régression, isolation multi-serveur, packaging et recette staging avant toute fusion dans `main`.

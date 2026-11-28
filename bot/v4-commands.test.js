@@ -51,3 +51,11 @@ test("unrelated roots and unknown music groups are not rewritten", () => {
   assert.equal(resolveLegacyCommandName({ commandName: "radio", options: {} }), "radio");
   assert.equal(resolveLegacyCommandName(musicInteraction("play", "unknown")), "music");
 });
+
+
+test("direct music roots are routed without the legacy /music player group", () => {
+  const names = ["play", "recherche", "pause", "resume", "skip", "stop", "queue", "nowplaying", "volume", "loop", "shuffle", "clearqueue", "remove", "join", "leave", "musicpanel"];
+  for (const name of names) {
+    assert.equal(resolveLegacyCommandName({ commandName: name, options: {} }), name);
+  }
+});

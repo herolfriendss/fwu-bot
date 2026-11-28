@@ -1,3 +1,5 @@
+import { BOT_PROFILE_IDS, slashCommandNamesForProfile } from "./bot-profiles.ts";
+
 // Shared, client-safe definitions of the bot's slash commands (1942).
 // No secrets here: imported by the panel UI, the interactions server module and
 // the standalone Oracle bot. Keeping one list guarantees that the dashboard and
@@ -31,6 +33,8 @@ export type SlashCommandDef = {
   dmPermission?: boolean;
   /** Informational: commands backed by the SQLite/Oracle bot need the gateway process. */
   requiresBotProcess?: boolean;
+  /** Some commands are slash-only even when their bot has a prefix bridge. */
+  prefixEnabled?: boolean;
 };
 
 const opt = (type: number, name: string, description: string, extra: Partial<SlashOption> = {}): SlashOption => ({
@@ -1761,11 +1765,11 @@ export const SLASH_COMMANDS: SlashCommandDef[] = [
     ],
   },
 
-  // ── Musique — une seule racine, toutes les actions conservées ───────────────
+  // ── Musique — /music player conservé comme alias historique ─────────────────
   {
     name: "music",
     description: "Contrôle la lecture, la file et le lecteur vocal",
-    usage: "/music player play|pause|resume|skip|stop|queue|nowplaying|volume|loop|shuffle|clearqueue|remove|join|leave|panel",
+    usage: "/music player play|pause|resume|skip|stop|queue|nowplaying|volume|loop|shuffle|clearqueue|remove|join|leave|panel (alias historique ; préférer les commandes directes)",
     category: "Musique & radio",
     dmPermission: false,
     requiresBotProcess: true,
@@ -1799,6 +1803,146 @@ export const SLASH_COMMANDS: SlashCommandDef[] = [
         "loop", "shuffle", "clearqueue", "remove", "join", "leave", "panel",
       ] },
     ]),
+  },
+
+  // ── Raccourcis directs du lecteur (l'ancien /music player reste compatible) ──
+  {
+    name: "play",
+    description: "Recherche ou lance une musique dans ton salon vocal",
+    usage: "/play recherche",
+    category: "Musique & radio",
+    dmPermission: false,
+    requiresBotProcess: true,
+    options: [opt(3, "recherche", "Lien YouTube/SoundCloud ou titre à rechercher", { required: true, max_length: 500 })],
+  },
+  {
+    name: "recherche",
+    description: "Cherche un titre et propose cinq résultats",
+    usage: "/recherche titre",
+    category: "Musique & radio",
+    dmPermission: false,
+    requiresBotProcess: true,
+    options: [opt(3, "titre", "Titre ou artiste à rechercher", { required: true, max_length: 200 })],
+  },
+  {
+    name: "pause",
+    description: "Met la musique en pause",
+    usage: "/pause",
+    category: "Musique & radio",
+    dmPermission: false,
+    requiresBotProcess: true,
+  },
+  {
+    name: "resume",
+    description: "Reprend la lecture",
+    usage: "/resume",
+    category: "Musique & radio",
+    dmPermission: false,
+    requiresBotProcess: true,
+  },
+  {
+    name: "skip",
+    description: "Passe au morceau suivant",
+    usage: "/skip",
+    category: "Musique & radio",
+    dmPermission: false,
+    requiresBotProcess: true,
+  },
+  {
+    name: "stop",
+    description: "Arrête la lecture et vide la file",
+    usage: "/stop",
+    category: "Musique & radio",
+    dmPermission: false,
+    requiresBotProcess: true,
+  },
+  {
+    name: "queue",
+    description: "Affiche la file d'attente",
+    usage: "/queue",
+    category: "Musique & radio",
+    dmPermission: false,
+    requiresBotProcess: true,
+  },
+  {
+    name: "nowplaying",
+    description: "Affiche le morceau en cours",
+    usage: "/nowplaying",
+    category: "Musique & radio",
+    dmPermission: false,
+    requiresBotProcess: true,
+  },
+  {
+    name: "shuffle",
+    description: "Mélange la file d'attente",
+    usage: "/shuffle",
+    category: "Musique & radio",
+    dmPermission: false,
+    requiresBotProcess: true,
+  },
+  {
+    name: "clearqueue",
+    description: "Vide la file d'attente",
+    usage: "/clearqueue",
+    category: "Musique & radio",
+    dmPermission: false,
+    requiresBotProcess: true,
+  },
+  {
+    name: "join",
+    description: "Connecte le bot à ton salon vocal",
+    usage: "/join",
+    category: "Musique & radio",
+    dmPermission: false,
+    requiresBotProcess: true,
+  },
+  {
+    name: "leave",
+    description: "Déconnecte le bot du salon vocal",
+    usage: "/leave",
+    category: "Musique & radio",
+    dmPermission: false,
+    requiresBotProcess: true,
+  },
+  {
+    name: "volume",
+    description: "Règle le volume du lecteur musical",
+    usage: "/volume niveau",
+    category: "Musique & radio",
+    dmPermission: false,
+    requiresBotProcess: true,
+    options: [opt(4, "niveau", "Volume entre 0 et 100", { required: true, min_value: 0, max_value: 100 })],
+  },
+  {
+    name: "loop",
+    description: "Change le mode de répétition",
+    usage: "/loop [mode]",
+    category: "Musique & radio",
+    dmPermission: false,
+    requiresBotProcess: true,
+    options: [opt(3, "mode", "Mode de répétition", { choices: [
+      { name: "Désactivée", value: "off" },
+      { name: "Titre", value: "track" },
+      { name: "File", value: "queue" },
+      { name: "Auto", value: "auto" },
+    ] })],
+  },
+  {
+    name: "remove",
+    description: "Retire un morceau de la file d'attente",
+    usage: "/remove position",
+    category: "Musique & radio",
+    dmPermission: false,
+    requiresBotProcess: true,
+    options: [opt(4, "position", "Position du morceau dans /queue", { required: true, min_value: 1, max_value: 100 })],
+  },
+  {
+    name: "musicpanel",
+    description: "Affiche le panneau de contrôle musical",
+    usage: "/musicpanel",
+    category: "Musique & radio",
+    dmPermission: false,
+    requiresBotProcess: true,
   },
 
   // ── Radio PND ──────────────────────────────────────────────────────────────
@@ -2007,6 +2151,44 @@ export const EXTRA_SLASH_COMMANDS: SlashCommandDef[] = [
         opt(3, "flux", "Adresse HTTPS du flux RSS/Atom", { required: true, max_length: 1000 }),
       ]),
       sub("retirer", "Arrête de suivre un créateur", [opt(3, "nom", "Nom du créateur", { required: true, max_length: 80 })]),
+    ],
+  },
+  {
+    name: "wet",
+    description: "OWNER : registre de sanctions durables et de comptes liés sur preuve",
+    prefixEnabled: false,
+    usage: "/wet ajouter|lier|verifier|liste",
+    category: "Modération",
+    dmPermission: false,
+    requiresBotProcess: true,
+    options: [
+      sub("ajouter", "Place un compte dans le registre WET et le bannit des serveurs autorisés", [
+        opt(3, "id", "Identifiant Discord du compte", { required: true, max_length: 25 }),
+        opt(3, "raison", "Motif détaillé de la décision", { required: true, max_length: 300 }),
+        opt(3, "preuve", "Lien HTTPS vers les éléments de preuve", { required: true, max_length: 1000 }),
+      ]),
+      sub("lier", "Relie un compte alternatif après vérification humaine et preuve", [
+        opt(3, "source", "Identifiant du compte déjà en WET", { required: true, max_length: 25 }),
+        opt(3, "compte", "Identifiant du compte alternatif confirmé", { required: true, max_length: 25 }),
+        opt(3, "raison", "Éléments établissant le lien", { required: true, max_length: 300 }),
+        opt(3, "preuve", "Lien HTTPS vers les éléments de preuve", { required: true, max_length: 1000 }),
+      ]),
+      sub("verifier", "Vérifie le statut WET d'un compte", [
+        opt(3, "id", "Identifiant Discord du compte", { required: true, max_length: 25 }),
+      ]),
+      sub("liste", "Affiche les dossiers WET actifs des serveurs autorisés"),
+    ],
+  },
+  {
+    name: "unwet",
+    description: "OWNER : lève un dossier WET et débannit les comptes qui lui sont liés",
+    usage: "/unwet id raison",
+    category: "Modération",
+    dmPermission: false,
+    requiresBotProcess: true,
+    options: [
+      opt(3, "id", "Identifiant Discord de l'un des comptes du dossier", { required: true, max_length: 25 }),
+      opt(3, "raison", "Motif obligatoire de la levée", { required: true, max_length: 300 }),
     ],
   },
   {
@@ -3424,8 +3606,13 @@ export const EXTRA_SLASH_COMMANDS: SlashCommandDef[] = [
 ];
 
 const slashRootNames = SLASH_COMMANDS.map((command) => command.name);
-if (slashRootNames.length > DISCORD_MAX_ROOT_COMMANDS) {
-  throw new Error(`Catalogue Discord invalide : ${slashRootNames.length} commandes racine (maximum ${DISCORD_MAX_ROOT_COMMANDS}).`);
+// Discord's 100-root-command cap applies per application, not to the shared
+// catalogue that contains the commands for every specialised FWU bot.
+for (const profile of BOT_PROFILE_IDS) {
+  const applicationCommands = slashCommandNamesForProfile(profile);
+  if (applicationCommands.length > DISCORD_MAX_ROOT_COMMANDS) {
+    throw new Error(`Catalogue Discord invalide pour ${profile} : ${applicationCommands.length} commandes racine (maximum ${DISCORD_MAX_ROOT_COMMANDS} par application).`);
+  }
 }
 if (new Set([...slashRootNames, ...EXTRA_SLASH_COMMANDS.map((command) => command.name)]).size !== slashRootNames.length + EXTRA_SLASH_COMMANDS.length) {
   throw new Error("Catalogue Discord invalide : noms de commandes racine dupliqués.");

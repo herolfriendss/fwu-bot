@@ -2,7 +2,6 @@
 //  /heure (fuseau des membres), /citation, /archive, /resume (IA), /salon-temp, /sante (état des 6 bots),
 //  /defi (défi collectif de la semaine), /export-config (owner), remerciement des boosters,
 //  résumé du dimanche (arrivées, classement vocal récompensé).
-import Anthropic from "@anthropic-ai/sdk";
 import { AttachmentBuilder, ChannelType, PermissionFlagsBits as P } from "discord.js";
 import { db } from "../database.js";
 import { recordAiUsage } from "../ai-usage.js";
@@ -11,7 +10,6 @@ import { parsePndOwnerId } from "../pnd-owner-policy.js";
 import { isSysPlus } from "../systems/sysplus/permissions.js";
 
 export const FWU_PLUS_COMMANDS = new Set(["heure", "citation", "archive", "resume-salon", "salon-temp", "sante", "defi", "export-config"]);
-export const RESUME_MODEL = "claude-haiku-5-5";
 export const BOOST_REWARD = 500;
 export const VOICE_PODIUM_REWARDS = Object.freeze([300, 200, 100]);
 
@@ -41,27 +39,50 @@ export function transcript(messages) {
 }
 
 // ── /resume (IA) ──────────────────────────────────────────────────────────
-let anthropic = null;
-function aiClient() {
-  if (!String(process.env.ANTHROPIC_API_KEY ?? "").trim()) return null;
-  anthropic ??= new Anthropic({ timeout: 45_000, maxRetries: 1 });
-  return anthropic;
-}
 /** Only public channels can be summarised: never what @everyone cannot read. */
 export function isPublicChannel(channel) {
   const everyone = channel?.guild?.roles?.everyone;
   return Boolean(everyone && channel.permissionsFor?.(everyone)?.has(P.ViewChannel));
 }
-export async function summarise(lines, { client = aiClient() } = {}) {
-  if (!client) throw new UserError("Résumé indisponible : la clé IA n'est pas configurée sur le serveur du bot.");
-  const response = await client.messages.create({
-    model: RESUME_MODEL,
-    max_tokens: 700,
-    system: "Tu résumes une conversation Discord en français, en 5 à 8 puces courtes : sujets, décisions, questions restées ouvertes. Pas de citation mot pour mot, pas de jugement sur les personnes, aucune donnée personnelle (adresses, numéros).",
-    messages: [{ role: "user", content: lines.slice(-12_000) }],
-  });
-  const out = response.content.filter((b) => b.type === "text").map((b) => b.text).join("").trim();
-  if (!out || response.stop_reason === "refusal") throw new UserError("Le résumé a été refusé.");
+export async function summarise(lines, {
+  apiUrl,
+  secret,
+  guildId,
+  userId,
+  guildName,
+  channelId,
+  fetchImpl = fetch,
+} = {}) {
+  if (!String(apiUrl ?? "").trim() || !String(secret ?? "").trim()) {
+    throw new UserError("Résumé indisponible : la passerelle IA centrale n'est pas configurée sur ce bot.");
+  }
+  let response;
+  try {
+    response = await fetchImpl(apiUrl, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${secret}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        action: "ai-summary",
+        guildId,
+        userId,
+        guildName: String(guildName ?? "communauté").slice(0, 100),
+        channelId,
+        transcript: String(lines ?? "").slice(-12_000),
+      }),
+      signal: AbortSignal.timeout(45_000),
+    });
+  } catch {
+    throw new UserError("Le service IA central est momentanément inaccessible. Réessaie plus tard.");
+  }
+  const payload = await response.json().catch(() => null);
+  if (!response.ok) {
+    if (response.status === 429) throw new UserError("Limite de résumés IA atteinte : réessaie dans une minute.");
+    if (response.status === 402) throw new UserError("Le budget IA du serveur est épuisé. Contacte l'OWNER.");
+    if (response.status === 503) throw new UserError("Le fournisseur IA n'est pas configuré côté serveur.");
+    throw new UserError("Le résumé a échoué. Réessaie plus tard.");
+  }
+  const out = String(payload?.summary ?? "").trim();
+  if (!out) throw new UserError("Le résumé n'a pas pu être généré.");
   recordAiUsage("resume");
   return out.slice(0, 1800);
 }
@@ -157,6 +178,7 @@ async function execute(interaction, settings, { grant }) {
   }
 
   if (name === "resume-salon") {
+    if (!staff) throw new UserError("⛔ Réservé au staff.");
     const channel = o.getChannel("salon") ?? interaction.channel;
     const hours = Math.min(24, Math.max(1, o.getInteger("heures") ?? 3));
     if (!channel?.messages?.fetch) throw new UserError("Choisis un salon textuel.");
@@ -165,7 +187,14 @@ async function execute(interaction, settings, { grant }) {
     const batch = await channel.messages.fetch({ limit: 100 }).catch(() => null);
     const recent = [...(batch?.values() ?? [])].filter((m) => !m.author.bot && m.createdTimestamp >= since && m.content).reverse();
     if (recent.length < 5) return { content: "Pas assez de messages récents pour un résumé.", ephemeral: true };
-    const summary = await summarise(transcript(recent));
+    const summary = await summarise(transcript(recent), {
+      apiUrl: ai.apiUrl,
+      secret: ai.secret,
+      guildId: guild.id,
+      userId: interaction.user.id,
+      guildName: guild.name,
+      channelId: channel.id,
+    });
     return { content: `📝 **Résumé de <#${channel.id}> (${hours} h, ${recent.length} messages)**\n${summary}`, ephemeral: true };
   }
 
@@ -221,7 +250,7 @@ export function redactSecrets(value, key = "") {
   return value;
 }
 
-export async function handleFwuPlusInteraction(interaction, settings = {}, { grant = () => {}, record = () => {} } = {}) {
+export async function handleFwuPlusInteraction(interaction, settings = {}, { grant = () => {}, record = () => {}, ai = {} } = {}) {
   if (!interaction.isChatInputCommand?.() || !FWU_PLUS_COMMANDS.has(interaction.commandName)) return false;
   if (!interaction.inGuild()) { await interaction.reply({ content: "Seulement dans un serveur.", ephemeral: true }); return true; }
   const ephemeralFirst = ["archive", "resume-salon", "sante", "export-config"].includes(interaction.commandName) || (interaction.commandName === "heure" && interaction.options.getSubcommand() === "regler");
@@ -266,12 +295,13 @@ export async function sendWeeklySummary(guild, { grant, now = Date.now() }) {
   const podium = safe(() => db.prepare("SELECT user_id, SUM(duration_ms) AS ms FROM voice_sessions WHERE guild_id=? AND joined_at>? AND duration_ms IS NOT NULL GROUP BY user_id ORDER BY ms DESC LIMIT 3").all(guild.id, since), []);
   podium.forEach((row, i) => { try { grant(guild.id, row.user_id, VOICE_PODIUM_REWARDS[i], "podium_vocal"); } catch { /* plafond */ } });
   const challenge = safe(() => db.prepare("SELECT * FROM weekly_challenge WHERE guild_id=? AND week=?").get(guild.id, week), null);
-  const lines = [
-    "📅 **Résumé de la semaine**",
-    `Arrivées : ${arrivals}`,
-    podium.length ? `🎙️ Podium vocal : ${podium.map((r, i) => `${["🥇", "🥈", "🥉"][i]} <@${r.user_id}> (${Math.round(r.ms / 3_600_000)} h, +${VOICE_PODIUM_REWARDS[i]} PND)`).join(" · ")}` : "🎙️ Pas de vocal cette semaine.",
-    challenge ? `🎯 Défi collectif : ${challenge.done ? "réussi ✅" : `${challenge.progress}/${challenge.goal}, raté de peu`}` : null,
-  ].filter(Boolean);
+  const podiumLine = podium.length
+    ? "🎙️ Podium vocal : " + podium.map((r, i) => ["🥇", "🥈", "🥉"][i] + ` <@${r.user_id}> (${Math.round(r.ms / 3_600_000)} h, +${VOICE_PODIUM_REWARDS[i]} PND)`).join(" · ")
+    : "🎙️ Pas de vocal cette semaine.";
+  const challengeLine = challenge
+    ? "🎯 Défi collectif : " + (challenge.done ? "réussi ✅" : `${challenge.progress}/${challenge.goal}, raté de peu`)
+    : null;
+  const lines = ["📅 **Résumé de la semaine**", `Arrivées : ${arrivals}`, podiumLine, challengeLine].filter(Boolean);
   await guild.systemChannel?.send?.({ content: lines.join("\n"), allowedMentions: { parse: [] } }).catch(() => {});
   return true;
 }

@@ -41,6 +41,18 @@ test("playlists: save, list, load, delete, limits", () => {
   assert.deepEqual(saved, { name: "Soirée chill", count: 2 });
   assert.deepEqual(x.listPlaylists("g", "u"), [{ name: "Soirée chill", count: 2 }]);
   assert.deepEqual(x.loadPlaylist("g", "u", "Soirée chill")[0], { title: "A", url: "https://a", duration: 10 });
+  x.savePlaylist("g", "u", "YouTube", [{
+    title: "Fresh track",
+    url: "https://rr1.googlevideo.com/audio?sig=temporary",
+    webpageUrl: "https://www.youtube.com/watch?v=abc",
+    allowedMediaHost: "rr1.googlevideo.com",
+  }]);
+  assert.deepEqual(x.loadPlaylist("g", "u", "YouTube")[0], {
+    title: "Fresh track",
+    url: "https://www.youtube.com/watch?v=abc",
+    duration: 0,
+    resolveOnPlay: true,
+  });
   assert.equal(x.deletePlaylist("g", "u", "Soirée chill"), true);
   assert.throws(() => x.loadPlaylist("g", "u", "Soirée chill"), /introuvable/);
 });
