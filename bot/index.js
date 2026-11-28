@@ -328,12 +328,24 @@ const AUTH = { Authorization: `Bearer ${BOT_SYNC_SECRET}` };
 function buildAiHelpContext(guildId) {
   let prefixes = {};
   try { prefixes = loadBotPrefixes(); } catch { /* slash catalogue remains usable without prefix config */ }
+  const commandPaths = (command) => {
+    const paths = [command.name];
+    const walk = (options = [], groups = []) => {
+      for (const option of options) {
+        if (option.type === 1) paths.push([command.name, ...groups, option.name].join(" "));
+        else if (option.type === 2) walk(option.options ?? [], [...groups, option.name]);
+      }
+    };
+    walk(command.options ?? []);
+    return [...new Set(paths)];
+  };
   const commands = [...SLASH_COMMANDS, ...EXTRA_SLASH_COMMANDS].map((command) => {
     const owner = slashCommandOwner(command.name);
     return {
       name: command.name,
       description: String(command.description ?? ""),
       usage: String(command.usage ?? `/${command.name}`),
+      paths: commandPaths(command),
       bot: owner ?? "partagé",
       prefix: owner === "fwu" || !owner ? "/" : prefixes[owner] ?? "/",
     };
