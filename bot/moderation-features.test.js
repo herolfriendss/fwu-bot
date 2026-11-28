@@ -110,32 +110,44 @@ test("règlement : doublons et nombre de règles détectés", () => {
   assert.match(pages[0], /^\*\*1\. Respect mutuel\*\*/);
 });
 
-function fakeAnthropic(responses) {
+test("règlement : génération via la passerelle FWU, sans clé ni abonnement Anthropic", async () => {
   const calls = [];
-  return {
-    calls,
-    beta: { messages: { create: async (body) => {
-      calls.push(body);
-      const next = responses.shift();
-      return { stop_reason: next.stop_reason ?? "end_turn", content: [{ type: "text", text: JSON.stringify({ rules: next.rules ?? [] }) }] };
-    } } },
-  };
-}
-
-test("règlement : sortie structurée, modèle claude-opus-5-5, une régénération si doublons", async () => {
-  const api = fakeAnthropic([{ rules: [...RULES, RULES[0]] }, { rules: RULES }]);
-  const rules = await generateRules({ guildName: "PND", consignes: "ton chaleureux", count: 7, anthropic: api });
-  assert.equal(rules.length, 7);
-  assert.equal(api.calls.length, 2);
-  assert.equal(api.calls[0].model, "claude-opus-5-5");
-  assert.equal(api.calls[0].output_config.format.type, "json_schema");
-  assert.equal(api.calls[0].fallbacks, "default");
-  assert.match(api.calls[1].messages[0].content, /doublon/, "la 2e demande explique le rejet");
+  const rules = RULES;
+  const result = await generateRules({
+    apiUrl: "https://fwu.example/api/public/bot-sync",
+    secret: "bot-sync-secret",
+    guildId: "200000000000000001",
+    userId: "100000000000000001",
+    guildName: "Communauté",
+    consignes: "ton chaleureux",
+    count: 7,
+    fetchImpl: async (url, options) => {
+      calls.push({ url, options });
+      return { ok: true, status: 200, json: async () => ({ rules }) };
+    },
+  });
+  assert.deepEqual(result, RULES);
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].url, "https://fwu.example/api/public/bot-sync");
+  assert.equal(calls[0].options.headers.Authorization, "Bearer bot-sync-secret");
+  const body = JSON.parse(calls[0].options.body);
+  assert.equal(body.action, "ai-rules");
+  assert.equal(body.guildId, "200000000000000001");
+  assert.equal(body.userId, "100000000000000001");
+  assert.equal(body.count, 7);
 });
 
-test("règlement : refus de l'IA et échecs répétés remontent un message clair", async () => {
-  await assert.rejects(generateRules({ count: 7, anthropic: fakeAnthropic([{ stop_reason: "refusal" }]) }), /refusé/);
-  await assert.rejects(generateRules({ count: 7, anthropic: fakeAnthropic([{ rules: RULES.slice(0, 2) }, { rules: RULES.slice(0, 2) }]) }), /ne respecte pas/);
+test("règlement : erreurs de passerelle et règles invalides remontent un message clair", async () => {
+  const input = {
+    apiUrl: "https://fwu.example/api/public/bot-sync",
+    secret: "bot-sync-secret",
+    guildId: "200000000000000001",
+    userId: "100000000000000001",
+    guildName: "Communauté",
+    count: 7,
+  };
+  await assert.rejects(generateRules({ ...input, fetchImpl: async () => ({ ok: false, status: 429, json: async () => ({ error: "rate_limited" }) }) }), /saturé/);
+  await assert.rejects(generateRules({ ...input, fetchImpl: async () => ({ ok: true, status: 200, json: async () => ({ rules: RULES.slice(0, 2) }) }) }), /ne respecte pas/);
 });
 
 // ── Embeds ─────────────────────────────────────────────────────────────────
