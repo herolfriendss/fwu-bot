@@ -62,7 +62,8 @@ import { handleGamesInteraction, handleGamesMessage, startGamesScheduler } from 
 import { handleTicketChannelDelete, handleTicketsInteraction, handleTicketsMessage } from "./tickets.js";
 import { buildWelcomePayload, buildDeparturePayload } from "./welcome.js";
 import { purgeExpiredTranscripts } from "./ticket-records.js";
-import { handleKnowledgeInteraction, handleKnowledgeMessage } from "./pnd-knowledge.js";
+import { getKnowledgePage, handleKnowledgeInteraction, handleKnowledgeMessage, KNOWLEDGE_TOPICS } from "./pnd-knowledge.js";
+import { handleHelpAssistantInteraction } from "./help-assistant.js";
 import { handleAutomationInteraction, handleAutomationJoin, handleAutomationMessage, startAutomationScheduler } from "./automation.js";
 import { handleRoleInteraction, handleRoleMessage } from "./role-commands.js";
 import { handleCustomRolesInteraction, handleCustomRolesMessage } from "./systems/sysplus/custom-roles.js";
@@ -322,6 +323,25 @@ for (const signal of ["SIGINT", "SIGTERM"]) {
 try { assertOwnerConfig(process.env); } catch { process.exit(1); }
 const API = `${SITE_URL.replace(/\/$/, "")}/api/public/bot-sync`;
 const AUTH = { Authorization: `Bearer ${BOT_SYNC_SECRET}` };
+
+function buildAiHelpContext(guildId) {
+  const prefixes = loadBotPrefixes();
+  const commands = SLASH_COMMANDS.map((command) => {
+    const owner = slashCommandOwner(command.name);
+    return {
+      name: command.name,
+      description: String(command.description ?? ""),
+      usage: String(command.usage ?? `/${command.name}`),
+      bot: owner ?? "partagé",
+      prefix: owner === "fwu" || !owner ? "/" : prefixes[owner] ?? "/",
+    };
+  });
+  const knowledge = KNOWLEDGE_TOPICS.map((topic) => {
+    const page = getKnowledgePage(guildId, topic.key) ?? topic;
+    return { key: topic.key, title: page.title, content: page.content };
+  });
+  return { commands, knowledge };
+}
 const STATUS_API = `${SITE_URL.replace(/\/$/, "")}/api/public/bot-status`;
 const ECONOMY_API = `${SITE_URL.replace(/\/$/, "")}/api/public/economy-snapshot`;
 const ACTIVITY_API = `${SITE_URL.replace(/\/$/, "")}/api/public/activity-snapshot`;
@@ -2231,6 +2251,7 @@ client.on("interactionCreate", (interaction) => {
       auditSlashUsage(interaction, "PND Intelligence");
       return;
     }
+    if (await handleHelpAssistantInteraction(interaction, { apiUrl: API, secret: BOT_SYNC_SECRET, ...buildAiHelpContext(interaction.guildId) })) { auditSlashUsage(interaction, "Assistant d'aide FWU"); return; }
     if (await handleAiMemoryInteraction(interaction)) return;
     if (await handlePndIntelligenceInteraction(interaction, { settings, ownerIds: getPndPrivilegedIds(process.env.PND_OWNER_DISCORD_ID, process.env.PND_COFOUNDER_DISCORD_IDS) })) { auditSlashUsage(interaction, "PND Intelligence"); return; }
     if (await handlePackInteraction(interaction, { configuredOwners: process.env.PND_OWNER_DISCORD_ID })) return;
