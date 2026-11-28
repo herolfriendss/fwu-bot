@@ -113,14 +113,14 @@ export async function announceUpdateResult(client, dir = DATA()) {
 }
 
 /**
- * V2 — mise à jour automatique : chaque nuit (5 h, heure de Paris, réglable par
+ * V2 — mise à jour automatique : chaque nuit (8 h, heure de Paris, réglable par
  * FWU_AUTO_UPDATE_HOUR), SUCK ME lance le script en mode --auto ; il ne réinstalle que si
  * main (ou la dernière version publiée) a changé. FWU_AUTO_UPDATE=off la désactive.
  */
 export function autoUpdateDue({ now = new Date(), lastRunDay = null, env = process.env, status = null } = {}) {
   if (String(env.FWU_AUTO_UPDATE ?? "on").toLowerCase() === "off") return false;
   if (!canStartUpdate(status, now.getTime())) return false;
-  const hour = Math.min(23, Math.max(0, Number.parseInt(env.FWU_AUTO_UPDATE_HOUR ?? "5", 10) || 0));
+  const hour = Math.min(23, Math.max(0, Number.parseInt(env.FWU_AUTO_UPDATE_HOUR ?? "8", 10) || 0));
   const parts = new Intl.DateTimeFormat("fr-FR", { timeZone: "Europe/Paris", hour: "2-digit", hourCycle: "h23", year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(now);
   const get = (type) => parts.find((p) => p.type === type)?.value;
   const day = `${get("year")}-${get("month")}-${get("day")}`;
