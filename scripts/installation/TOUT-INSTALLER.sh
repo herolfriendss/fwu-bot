@@ -138,14 +138,14 @@ else
   BOT_SECRET="$(openssl rand -hex 32)" || fail "Génération de BOT_SYNC_SECRET impossible."
   WEB_SECRET="$BOT_SECRET"
 fi
-[[ \${#BOT_SECRET} -ge 32 ]] || fail "BOT_SYNC_SECRET doit contenir au moins 32 caractères."
+(( ${#BOT_SECRET} >= 32 )) || fail "BOT_SYNC_SECRET doit contenir au moins 32 caractères."
 write_env_value "$ROOT/.env" BOT_SYNC_SECRET "$BOT_SECRET"
 write_env_value "$ROOT/bot/.env" BOT_SYNC_SECRET "$BOT_SECRET"
 write_env_value "$ROOT/.env" PND_OWNER_DISCORD_ID "$OWNER_ID"
 AI_PROVIDER_KEY="$(read_env_value "$ROOT/.env" LOVABLE_API_KEY)"
 if ! is_configured "$AI_PROVIDER_KEY"; then AI_PROVIDER_KEY="$(read_env_value "$ROOT/.env" AI_GATEWAY_API_KEY)"; fi
 if ! is_configured "$AI_PROVIDER_KEY"; then
-  printf '⚠️ Aucune clé fournisseur IA détectée dans .env : les fonctions IA resteront indisponibles jusqu’à la configuration de LOVABLE_API_KEY ou AI_GATEWAY_API_KEY.\n'
+  printf '⚠️ Aucune clé fournisseur IA détectée dans .env : les fonctions IA resteront indisponibles jusqu'a la configuration de LOVABLE_API_KEY ou AI_GATEWAY_API_KEY.\n'
 else
   printf 'Passerelle IA : clé fournisseur présente côté site (jamais copiée dans les bots).\n'
 fi
