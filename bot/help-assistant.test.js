@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { handleHelpAssistantInteraction } from "./help-assistant.js";
+import { handleHelpAssistantInteraction, hasUnknownCommandReference } from "./help-assistant.js";
 
 function interaction({ guildId = "123456789012345678", userId = "222222222222222222", command = "ia", sub = "question", question = "Comment utiliser le guide ?" } = {}) {
   const calls = { replies: [], edits: [], deferred: [] };
@@ -71,4 +71,16 @@ test("assistant enforces three questions per minute per member", async () => {
   assert.equal(await handleHelpAssistantInteraction(limited, options), true);
   assert.equal(requests, 3);
   assert.match(limited.calls.replies[0].content, /3 questions par minute/);
+});
+
+test("command reference validator rejects invented roots, subcommands and prefixes", () => {
+  const commands = [
+    { name: "aide", prefix: "=", paths: ["aide"] },
+    { name: "ia", prefix: "=", paths: ["ia", "ia question", "ia memoire"] },
+    { name: "ban", prefix: "+", paths: ["ban"] },
+  ];
+  assert.equal(hasUnknownCommandReference("Utilise `/aide`, `=ia question` ou `+ban membre: @id`.", commands), false);
+  assert.equal(hasUnknownCommandReference("Utilise `/commande-inventee`.", commands), true);
+  assert.equal(hasUnknownCommandReference("Utilise `=ia admin`.", commands), true);
+  assert.equal(hasUnknownCommandReference("Utilise `!ban`.", commands), true);
 });
