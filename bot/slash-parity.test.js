@@ -18,8 +18,8 @@ function pathExists(path) {
   return Boolean(node);
 }
 
-// Commandes qui n'existent qu'en préfixe (décision du 24/11 : +unban sur GUARD, ;mv et ;accessall sur FDPDLAVOC).
-const PREFIX_ONLY = ["unban", "mv"];
+// Commandes qui n'existent qu'en préfixe (unban, mv et DOG repair restent volontairement prefix-only).
+const PREFIX_ONLY = ["unban", "mv", "dogfix"];
 
 test("every prefix command has a slash equivalent, except the documented prefix-only ones", () => {
   const tokens = Object.values(PREFIX_COMMAND_OWNERS).flat();
