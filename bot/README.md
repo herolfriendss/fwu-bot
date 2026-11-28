@@ -16,7 +16,7 @@ npm start
 
 ## Intelligence artificielle
 
-Les réponses de PND Intelligence et la génération assistée du règlement passent par
+Les réponses de assistant IA et la génération assistée du règlement passent par
 `/api/public/bot-sync`, authentifié avec `BOT_SYNC_SECRET`. Les clés de fournisseur
 (`LOVABLE_API_KEY` ou `AI_GATEWAY_API_KEY`) restent exclusivement côté serveur web.
 Aucune clé Anthropic/Claude personnelle n'est nécessaire dans `bot/.env` ; l'utilisation
@@ -55,8 +55,6 @@ Les données SQLite restent indexées par `guild_id` et ne sont jamais supprimé
 lorsqu’un serveur est retiré.
 
 Les commandes préfixées `=` restent disponibles pendant la transition et partagent la même logique métier, sauf les commandes explicitement slash-only comme `/wet` et `/unwet`.
-
-MZ est exclu de l’allowlist même si son identifiant s’y trouve, sauf si `PND_MZ_ENABLED=true` est explicitement défini après validation humaine. PND demeure le serveur actif par défaut.
 
 ## WET — registre réseau GUARD
 
@@ -103,7 +101,11 @@ Le module `live-alerts.js` vérifie toutes les 60 secondes les flux RSS/Atom HTT
 
 Pour TikTok, Twitch ou les autres plateformes, fournir un flux RSS/Atom compatible avec les événements de démarrage LIVE (par exemple un flux produit par un service de notification que l'administrateur héberge ou auquel il fait confiance). Les flux de publications classiques ne garantissent pas le signalement du début d'un direct. Aucun scraping de pages privées ni identifiant/mot de passe de réseau social n'est utilisé.
 
-## Identité FWU\n\nLes panneaux, embeds et messages utilisent l'identité FWU rouge sombre. Les anciens pieds de page PND Assist et les visuels violet historiques ne doivent plus être réintroduits.\n\n## Gestionnaire Webhooks
+## Identité FWU
+
+Les panneaux, embeds et messages utilisent l'identité FWU rouge sombre. Les anciens pieds de page et les visuels violet historiques ne doivent plus être réintroduits.
+
+## Gestionnaire Webhooks
 
 La commande `/webhook` permet aux membres SYS+ (ainsi qu'au propriétaire et aux administrateurs Discord) de créer, lister, supprimer, publier et modifier le dernier message d'un webhook géré par FWU. Les secrets sont chiffrés avec AES-256-GCM dans SQLite.
 
@@ -117,7 +119,7 @@ openssl rand -hex 32
 
 ## Identité visuelle et animation des webhooks
 
-Les panneaux de contrôle utilisent l'identité noire/violette PND Assist + et la bannière animée publiée sur le dashboard à `/media/her-v5-city-loop.gif`. Les nouveaux webhooks sont animés par défaut.
+Les panneaux de contrôle utilisent l'identité FWU rouge sombre. Les nouveaux webhooks sont animés par défaut.
 
 - `/webhook animation etat:off` désactive l'animation pour tous les webhooks du serveur.
 - `/webhook animation etat:on` la réactive.
