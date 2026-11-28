@@ -104,7 +104,7 @@ test("sécurité : /staff — échelle limitée aux rôles donnables, pas d'auto
   forgetTierCache();
 });
 
-function staffInteraction({ userId, sub, options = {}, guildId = "gs", staffRoleMembers = [] }) {
+function staffInteraction({ userId, sub, group = null, options = {}, guildId = "gs", staffRoleMembers = [] }) {
   const replies = [];
   const roles = new Map([["staffrole", { id: "staffrole", members: new Map(staffRoleMembers.map((id) => [id, {}])) }]]);
   return {
@@ -115,7 +115,7 @@ function staffInteraction({ userId, sub, options = {}, guildId = "gs", staffRole
     member: { id: userId, roles: { cache: new Map() }, guild: { ownerId: "owner-discord" } },
     guildId,
     guild: { id: guildId, ownerId: "owner-discord", roles: { cache: roles }, members: { fetch: async () => null } },
-    options: { getSubcommand: () => sub, getString: (name) => options[name] ?? null },
+    options: { getSubcommand: () => sub, getSubcommandGroup: () => group, getString: (name) => options[name] ?? null, getInteger: (name) => options[name] ?? null, getUser: (name) => (options[name] ? { id: options[name] } : null) },
     deferReply: async () => {},
     editReply: async (payload) => { replies.push(payload.content); },
   };
@@ -161,4 +161,25 @@ test("STAFF CENTER: availability and on call are staff only and never give a rol
   const end = staffInteraction({ userId: "u-staff", sub: "astreinte", options: { action: "terminer" }, staffRoleMembers: ["u-staff"] });
   await s.handleSuckmeInteraction(end, {});
   assert.match(end.replies[0], /terminée/);
+});
+
+test("STAFF CENTER: intervention files from opening to secondary validation", async () => {
+  s.saveLadder("gs", ["staffrole"]);
+  const staffIds = ["u-a", "u-b"];
+  const run = async (userId, sub, options = {}) => {
+    const i = staffInteraction({ userId, sub, group: "intervention", options, staffRoleMembers: staffIds });
+    await s.handleSuckmeInteraction(i, {});
+    return i.replies[0];
+  };
+  assert.match(await run("u-out", "ouvrir", { titre: "x" }), /Réservé au staff/);
+  const opened = await run("u-a", "ouvrir", { titre: "Raid du soir", priorite: "haute" });
+  const number = Number(opened.match(/n°(\d+)/)[1]);
+  assert.match(await run("u-a", "assigner", { numero: number, membre: "u-out" }), /qu'à un membre du staff/);
+  assert.match(await run("u-a", "assigner", { numero: number, membre: "u-b" }), /confié à <@u-b>/);
+  assert.match(await run("u-b", "preuve", { numero: number, lien: "https://discord.com/channels/999999999999999999/1/2" }), /autre serveur/);
+  assert.match(await run("u-b", "preuve", { numero: number, lien: "sanction:3" }), /sanction:3/);
+  assert.match(await run("u-b", "cloturer", { numero: number, conclusion: "Comptes bannis" }), /un \*\*autre\*\* SYS\+/);
+  // Plain staff member cannot validate (SYS+ / OWNER only).
+  assert.match(await run("u-a", "valider", { numero: number }), /réservée/);
+  assert.match(await run("u-a", "voir", { numero: number }), /Clôture demandée/);
 });

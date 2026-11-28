@@ -67,3 +67,14 @@ test("=staff STAFF CENTER subcommands read their text without quotes", () => {
   const shift = parseBridgedCommand(def("staff"), "astreinte prendre 4h");
   assert.deepEqual([...shift.values], [["action", "prendre"], ["duree", "4h"]]);
 });
+
+test("=staff intervention: subcommand group and options from a prefix message", () => {
+  const open = parseBridgedCommand(def("staff"), "intervention ouvrir Raid du soir priorite:haute");
+  assert.equal(open.group, "intervention");
+  assert.equal(open.subcommand, "ouvrir");
+  assert.equal(open.values.get("titre"), "Raid du soir");
+  assert.equal(open.values.get("priorite"), "haute");
+  const note = parseBridgedCommand(def("staff"), "intervention note 3 Témoins entendus en vocal");
+  assert.equal(note.values.get("numero"), 3);
+  assert.equal(note.values.get("texte"), "Témoins entendus en vocal");
+});
