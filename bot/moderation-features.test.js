@@ -1,5 +1,5 @@
 // Tests des nouvelles commandes : GUARD (+ban…), FDPDLAVOC (;mv, ;accessall),
-// FWU (/tempmute, quotas, embeds, règlement IA). Discord et l'API Claude sont
+// FWU (/tempmute, quotas, embeds, règlement IA). Discord et la passerelle IA sont
 // simulés ; les quotas utilisent un vrai PostgreSQL si SHARED_DATABASE_URL_TEST est défini.
 import { after, before, test } from "node:test";
 import assert from "node:assert/strict";
