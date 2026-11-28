@@ -226,9 +226,9 @@ async function handleEmbedCommand(interaction, { bot, audit }) {
   return reply(interaction, `✅ Embed \`${name}\` mis à jour${refreshed === "ok" ? " (message publié modifié en place)" : refreshed ? " (le message publié n'a pas pu être modifié)" : ""}.`, { embeds: [buildEmbed(next)] });
 }
 
-async function handleEmbedModal(interaction, { bot, audit }) {
+async function handleEmbedModal(interaction, { bot, audit, ai }) {
   const [, mode, name] = interaction.customId.split(":");
-  if (mode === "reglement") return handleRulesModal(interaction, { bot, audit });
+  if (mode === "reglement") return handleRulesModal(interaction, { bot, audit, ai });
   if (!NAME.test(name ?? "")) return reply(interaction, "❌ Nom invalide.");
   const guild = interaction.guild;
   const field = (id) => interaction.fields.getTextInputValue(id) ?? "";
@@ -270,8 +270,20 @@ async function latestDraft(guildId, statuses) {
   return rows[0] ? { ...rows[0], id: String(rows[0].id) } : null;
 }
 
-async function createDraft(guild, actorId, consignes, count) {
-  const rules = await generateRules({ guildName: guild.name, consignes, count });
+export function buildRulesGatewayInput(guild, actorId, consignes, count, ai = {}) {
+  return {
+    apiUrl: ai.apiUrl,
+    secret: ai.secret,
+    guildId: guild.id,
+    userId: actorId,
+    guildName: guild.name,
+    consignes,
+    count,
+  };
+}
+
+async function createDraft(guild, actorId, consignes, count, ai) {
+  const rules = await generateRules(buildRulesGatewayInput(guild, actorId, consignes, count, ai));
   const { rows } = await sharedQuery("INSERT INTO rules_drafts(guild_id, rules, created_by) VALUES ($1, $2, $3) RETURNING id", [guild.id, JSON.stringify(rules), actorId]);
   return { id: String(rows[0].id), rules, status: "draft" };
 }
@@ -304,12 +316,12 @@ async function publishRules(guild, channel, draft, actorId) {
   return sent;
 }
 
-async function handleReglementCommand(interaction, { bot, audit }) {
+async function handleReglementCommand(interaction, { bot, audit, ai }) {
   const sub = interaction.options.getSubcommand();
   const guild = interaction.guild;
   if (sub === "generer") {
     await interaction.deferReply({ ephemeral: true });
-    const draft = await createDraft(guild, interaction.user.id, interaction.options.getString("consignes") ?? "", interaction.options.getInteger("nombre") ?? 10);
+    const draft = await createDraft(guild, interaction.user.id, interaction.options.getString("consignes") ?? "", interaction.options.getInteger("nombre") ?? 10, ai);
     await logCommandUsage({ guildId: guild.id, userId: interaction.user.id, bot, command: "reglement generer", outcome: "ok", detail: `brouillon ${draft.id}` });
     return interaction.editReply({ content: "Relis le brouillon, puis valide-le, régénère-le ou refuse-le. Rien n'est publié sans validation.", ...rulesPreview(draft), allowedMentions: { parse: [] } });
   }
@@ -343,7 +355,7 @@ async function handleReglementCommand(interaction, { bot, audit }) {
 }
 
 /** Règlement écrit à la main : validé d'office (c'est l'admin qui l'a rédigé), prêt à publier en embed. */
-async function handleRulesModal(interaction, { bot, audit }) {
+async function handleRulesModal(interaction, { bot, audit, ai }) {
   const guild = interaction.guild;
   const checked = validateRules(parseRulesText(interaction.fields.getTextInputValue("rules")));
   const blocking = checked.problems.filter((problem) => !problem.includes("doublon"));
@@ -359,7 +371,7 @@ async function handleRulesModal(interaction, { bot, audit }) {
   return reply(interaction, `✅ Règlement enregistré (${draft.rules.length} règles). Publie-le en embed avec \`/reglement publier salon:#règlement\` : s'il y est déjà, le message est mis à jour.${warn}`, rulesPreview(draft));
 }
 
-async function handleRulesButton(interaction, { bot, audit }) {
+async function handleRulesButton(interaction, { bot, audit, ai }) {
   const [, action, id] = interaction.customId.split(":");
   const guild = interaction.guild;
   const { rows } = await sharedQuery("SELECT id, rules, status FROM rules_drafts WHERE guild_id = $1 AND id = $2", [guild.id, id]);
@@ -368,7 +380,7 @@ async function handleRulesButton(interaction, { bot, audit }) {
   if (action === "regen") {
     await interaction.deferUpdate();
     await sharedQuery("UPDATE rules_drafts SET status = 'rejected', reviewed_by = $2, reviewed_at = now() WHERE id = $1", [id, interaction.user.id]);
-    const next = await createDraft(guild, interaction.user.id, "", draft.rules.length);
+    const next = await createDraft(guild, interaction.user.id, "", draft.rules.length, ai);
     return interaction.editReply({ content: "🔁 Nouveau brouillon :", ...rulesPreview(next) });
   }
   const status = action === "approve" ? "approved" : "rejected";
@@ -488,7 +500,7 @@ async function handleScreeningAccept(interaction, { bot }) {
 }
 
 /** Entry point (FWU). */
-export async function handleEmbedInteraction(interaction, _settings = null, { bot = "fwu", audit = () => {} } = {}) {
+export async function handleEmbedInteraction(interaction, _settings = null, { bot = "fwu", audit = () => {}, ai = {} } = {}) {
   const isOurs = (EMBED_COMMANDS.has(interaction.commandName) && (interaction.isChatInputCommand?.() || interaction.isAutocomplete?.()))
     || (interaction.isModalSubmit?.() && interaction.customId?.startsWith("embed:"))
     || (interaction.isButton?.() && (interaction.customId?.startsWith("rules:") || interaction.customId === ACCEPT_ID));
@@ -513,10 +525,10 @@ export async function handleEmbedInteraction(interaction, _settings = null, { bo
       await reply(interaction, DENIED);
       return true;
     }
-    if (interaction.isModalSubmit?.()) await handleEmbedModal(interaction, { bot, audit });
-    else if (interaction.isButton?.()) await handleRulesButton(interaction, { bot, audit });
+    if (interaction.isModalSubmit?.()) await handleEmbedModal(interaction, { bot, audit, ai });
+    else if (interaction.isButton?.()) await handleRulesButton(interaction, { bot, audit, ai });
     else if (interaction.commandName === "embed") await handleEmbedCommand(interaction, { bot, audit });
-    else if (interaction.commandName === "reglement") await handleReglementCommand(interaction, { bot, audit });
+    else if (interaction.commandName === "reglement") await handleReglementCommand(interaction, { bot, audit, ai });
     else if (interaction.commandName === "screening") await handleScreeningCommand(interaction, { bot, audit });
   } catch (error) {
     if (interaction.isAutocomplete?.()) { await interaction.respond([]).catch(() => {}); return true; }
