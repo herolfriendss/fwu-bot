@@ -2252,7 +2252,12 @@ client.on("interactionCreate", (interaction) => {
       auditSlashUsage(interaction, "PND Intelligence");
       return;
     }
-    if (await handleHelpAssistantInteraction(interaction, { apiUrl: API, secret: BOT_SYNC_SECRET, ...buildAiHelpContext(interaction.guildId) })) { auditSlashUsage(interaction, "Assistant d'aide FWU"); return; }
+    if (interaction.isChatInputCommand?.() && interaction.commandName === "ia" && interaction.options.getSubcommand(false) === "question") {
+      if (await handleHelpAssistantInteraction(interaction, { apiUrl: API, secret: BOT_SYNC_SECRET, ...buildAiHelpContext(interaction.guildId) })) {
+        auditSlashUsage(interaction, "Assistant d'aide FWU");
+        return;
+      }
+    }
     if (await handleAiMemoryInteraction(interaction)) return;
     if (await handlePndIntelligenceInteraction(interaction, { settings, ownerIds: getPndPrivilegedIds(process.env.PND_OWNER_DISCORD_ID, process.env.PND_COFOUNDER_DISCORD_IDS) })) { auditSlashUsage(interaction, "PND Intelligence"); return; }
     if (await handlePackInteraction(interaction, { configuredOwners: process.env.PND_OWNER_DISCORD_ID })) return;
