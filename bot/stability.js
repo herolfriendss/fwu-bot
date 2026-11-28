@@ -36,10 +36,20 @@ export function maintenanceState(profile) {
   return row ? { message: row.message } : null;
 }
 
+export function setGlobalMaintenance(message = null, by = null, now = Date.now()) {
+  setMaintenance("*", message, by, now);
+}
+export function clearGlobalMaintenance() {
+  clearMaintenance("*");
+}
+export function globalMaintenanceState() {
+  return maintenanceState("*");
+}
+
 /** Refus à afficher (ou null) : maintenance du bot puis interrupteur de la commande. L'OWNER passe toujours. */
 export function stabilityRefusal({ profile, command, userId, env = process.env }) {
   if (userId && userId === parsePndOwnerId(env.PND_OWNER_DISCORD_ID)) return null;
-  const maintenance = maintenanceState(profile);
+  const maintenance = globalMaintenanceState() ?? maintenanceState(profile);
   if (maintenance) return `🛠️ Ce bot est en maintenance${maintenance.message ? ` : ${maintenance.message}` : ""}. Réessaie un peu plus tard.`;
   const off = command && command !== "stabilite" ? commandSwitch(command) : null;
   if (off) return `⛔ La commande \`${off.command}\` est temporairement coupée par le staff${off.reason ? ` (${off.reason})` : ""}.`;
@@ -70,11 +80,23 @@ export function runToolCommand({ member, sub, command = null, reason = null, pro
   try {
     if (sub === "commande-off") return `✅ \`${disableCommand(command, { by: member.id, reason })}\` coupée sur les 6 bots.`;
     if (sub === "commande-on") return enableCommand(command) ? `✅ \`${command}\` rétablie.` : "ℹ️ Cette commande n'était pas coupée.";
-    if (sub === "maintenance-on") { setMaintenance(profile, reason, member.id); return "🛠️ Mode maintenance activé : les membres reçoivent un message clair."; }
-    if (sub === "maintenance-off") { clearMaintenance(profile); return "✅ Maintenance terminée."; }
+    if (sub === "maintenance-on") { setMaintenance(profile, reason, member.id); return "🛠️ Maintenance du bot activée."; }
+    if (sub === "maintenance-off") { clearMaintenance(profile); return "✅ Maintenance du bot terminée."; }
+    if (sub === "maintenance-global-on") {
+      if (member.id !== parsePndOwnerId(env.PND_OWNER_DISCORD_ID)) return "⛔ Seul l'OWNER peut activer la maintenance globale.";
+      setGlobalMaintenance(reason, member.id);
+      return "🛠️ Maintenance globale activée : les commandes sont suspendues sur tous les bots.";
+    }
+    if (sub === "maintenance-global-off") {
+      if (member.id !== parsePndOwnerId(env.PND_OWNER_DISCORD_ID)) return "⛔ Seul l'OWNER peut terminer la maintenance globale.";
+      if (!globalMaintenanceState()) return "ℹ️ Aucune maintenance globale n'est active.";
+      clearGlobalMaintenance();
+      return "✅ Maintenance globale terminée : les commandes sont rétablies sur tous les bots.";
+    }
     const off = listDisabledCommands();
+    const global = globalMaintenanceState();
     const m = maintenanceState(profile);
-    return `**Maintenance** : ${m ? `🛠️ active${m.message ? ` (${m.message})` : ""}` : "non"}\n**Commandes coupées** : ${off.length ? off.map((c) => `\`${c.command}\``).join(", ") : "aucune"}`;
+    return `**Maintenance globale** : ${global ? `🛠️ active${global.message ? ` (${global.message})` : ""}` : "non"}\n**Maintenance de ce bot** : ${m ? `🛠️ active${m.message ? ` (${m.message})` : ""}` : "non"}\n**Commandes coupées** : ${off.length ? off.map((c) => `\`${c.command}\``).join(", ") : "aucune"}`;
   } catch (error) {
     return `❌ ${error?.message ?? "Action impossible."}`;
   }
