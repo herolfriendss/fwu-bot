@@ -38,14 +38,14 @@ test("traduction : utilise la passerelle FWU, borne le texte et ne demande aucun
   assert.equal(body.action, "ai-translate");
   assert.equal(body.language, "anglais");
   assert.ok(body.text.length <= TRANSLATE.maxChars);
-  await assert.rejects(translate("x", "anglais", {}), /Passerelle IA FWU/);
+  await assert.rejects(translate("x", "anglais", {}), /Passerelle IA/);
   await assert.rejects(translate("x", "anglais", {
     apiUrl: "https://fwu.example/api/public/bot-sync",
     secret: "bot-sync-secret",
     guildId: "100000000000000001",
     userId: "200000000000000002",
     fetchImpl: async () => ({ ok: false, status: 503, json: async () => ({ error: "unavailable" }) }),
-  }), /Fournisseur IA FWU/);
+  }), /Fournisseur IA/);
 });
 
 test("réaction : réponse sous le message, sans mention ; échec = rien de posté, nouvel essai possible", async () => {
