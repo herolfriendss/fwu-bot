@@ -195,7 +195,7 @@ async function execute(interaction, settings, { grant }) {
       guildName: guild.name,
       channelId: channel.id,
     });
-    return { content: `📝 **Résumé de <#${channel.id}> (${hours} h, ${recent.length} messages)**\\n${summary}`, ephemeral: true };
+    return { content: `📝 **Résumé de <#${channel.id}> (${hours} h, ${recent.length} messages)**\n${summary}`, ephemeral: true };
   }
 
   if (name === "salon-temp") {
