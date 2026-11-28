@@ -113,18 +113,26 @@ export async function announceUpdateResult(client, dir = DATA()) {
 }
 
 /**
- * V2 — mise à jour automatique : chaque nuit (5 h, heure de Paris, réglable par
+ * V2 — mise à jour automatique : chaque nuit (8 h, heure de Paris, réglable par
  * FWU_AUTO_UPDATE_HOUR), SUCK ME lance le script en mode --auto ; il ne réinstalle que si
  * main (ou la dernière version publiée) a changé. FWU_AUTO_UPDATE=off la désactive.
  */
 export function autoUpdateDue({ now = new Date(), lastRunDay = null, env = process.env, status = null } = {}) {
   if (String(env.FWU_AUTO_UPDATE ?? "on").toLowerCase() === "off") return false;
   if (!canStartUpdate(status, now.getTime())) return false;
-  const hour = Math.min(23, Math.max(0, Number.parseInt(env.FWU_AUTO_UPDATE_HOUR ?? "5", 10) || 0));
+  const configuredHour = Number.parseInt(env.FWU_AUTO_UPDATE_HOUR ?? "8", 10);
+  const hour = Number.isInteger(configuredHour) && configuredHour >= 0 && configuredHour <= 23 ? configuredHour : 8;
   const parts = new Intl.DateTimeFormat("fr-FR", { timeZone: "Europe/Paris", hour: "2-digit", hourCycle: "h23", year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(now);
   const get = (type) => parts.find((p) => p.type === type)?.value;
   const day = `${get("year")}-${get("month")}-${get("day")}`;
-  return Number(get("hour")) === hour && day !== lastRunDay ? day : false;
+  const statusTimestamp = Number(status?.at);
+  const statusParts = Number.isFinite(statusTimestamp) && statusTimestamp > 0
+    ? new Intl.DateTimeFormat("fr-FR", { timeZone: "Europe/Paris", year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(new Date(statusTimestamp * 1000))
+    : [];
+  const statusValue = (type) => statusParts.find((part) => part.type === type)?.value;
+  const statusDay = statusParts.length ? `${statusValue("year")}-${statusValue("month")}-${statusValue("day")}` : null;
+  if (day === lastRunDay || (statusDay === day && status?.state !== "running")) return false;
+  return Number(get("hour")) >= hour ? day : false;
 }
 
 export function startAutoUpdate({ spawnFn = spawn, record = () => {}, env = process.env, intervalMs = 15 * 60_000 } = {}) {

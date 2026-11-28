@@ -52,7 +52,7 @@ Une tâche à la fois, dans l'ordre. Cocher au fur et à mesure.
 
 ## F. Confort et gain de temps (ajouté le 27/11)
 
-- [ ] 26. **Une seule commande pour déployer** sur le VPS (mise à jour du code, déploiement, redémarrage, vérification), au lieu de la longue ligne actuelle. _(Existe déjà côté Discord : `/maj lancer`, et la mise à jour automatique de 5 h installe `main` chaque nuit une fois amorcée ; voir `docs/VERSIONS_ET_MAJ.md`)_
+- [ ] 26. **Une seule commande pour déployer** sur le VPS (mise à jour du code, déploiement, redémarrage, vérification), au lieu de la longue ligne actuelle. _(Existe déjà côté Discord : `/maj lancer`, et la mise à jour automatique de 8 h installe `main` chaque nuit une fois amorcée ; voir `docs/VERSIONS_ET_MAJ.md`)_
 - [ ] 27. **Installer `git` sur le VPS** : les mises à jour se feraient par `git pull` et non plus par archive téléchargée.
 - [ ] 28. **Raccourci SSH** (`ssh fwu` au lieu de l'adresse et de la clé à chaque fois), côté ordinateur.
 - [ ] 29. **Déploiement automatique du VPS** à chaque mise à jour validée de `main`, par une clé SSH dédiée aux droits limités. Plus besoin de taper quoi que ce soit.

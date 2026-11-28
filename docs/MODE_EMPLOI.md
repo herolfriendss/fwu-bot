@@ -14,7 +14,7 @@
 ## Mettre à jour
 
 - **Site** : rien à faire, Render déploie `main`.
-- **Bots** : sur Discord, `/maj lancer`. Sinon la mise à jour automatique de 5 h (heure de Paris) installe `main` chaque nuit.
+- **Bots** : sur Discord, `/maj lancer`. Sinon la mise à jour automatique de 8 h (heure de Paris) installe `main` chaque nuit.
   `/maj etat` affiche la version installée. Détails : `docs/VERSIONS_ET_MAJ.md`.
 
 ## Un bot ne répond plus
