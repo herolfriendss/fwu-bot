@@ -94,7 +94,8 @@ export const SLASH_COMMAND_OWNERS: Record<BotProfileId, readonly string[]> = {
     "doublecompte", "medias", "nuit",
   ],
   fdpdlavoc: [
-    "voice", "voc", "music", "radio", "effet", "playlist", "dj", "pv", "unpv",
+    "voice", "voc", "music", "play", "recherche", "pause", "resume", "skip", "stop", "queue", "nowplaying",
+    "volume", "loop", "shuffle", "clearqueue", "remove", "join", "leave", "musicpanel", "radio", "effet", "playlist", "dj", "pv", "unpv",
     // 27/11 : blind test vocal, lecture vocale pour les muets
     "blindtest", "lecture", "attente",
     // V2 (26/11) : vocal de masse
