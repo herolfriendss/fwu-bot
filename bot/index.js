@@ -187,6 +187,7 @@ import { clearGatewayWait, clearSessionWaitMarker, listGatewayWaits, planGateway
 import { createFleetWatcher, describeFleetChange, profileState, watchedProfiles } from "./fleet-watch.js";
 import { pruneJobs, runJobs } from "./core-queue.js";
 import { expireDue as expireAuthorityExceptions } from "./authority.js";
+import { handleAuthorityInteraction } from "./features/authority-commands.js";
 import { LOGS_HUB_GUILD_ID, ACTIVE_SOURCE_GUILD_IDS, allowedRuntimeGuild, filterInactiveSourceGuilds, isLogsHub, inspectLogsHub, lastLogsHubFailure } from "./logs-hub.js";
 
 const { SITE_URL, BOT_SYNC_SECRET } = process.env;
@@ -2202,6 +2203,7 @@ client.on("interactionCreate", (interaction) => {
     if (await handleNightInteraction(interaction)) { auditSlashUsage(interaction, "Mode nuit"); return; }
     if (await handleVersusInteraction(interaction)) { auditSlashUsage(interaction, "Jeux entre membres"); return; }
     if (await handleSelfUpdateInteraction(interaction)) { auditSlashUsage(interaction, "SUCK ME"); return; }
+    if (await handleAuthorityInteraction(interaction)) { auditSlashUsage(interaction, "AUTHORITY"); return; }
     if (await handleSuckmeInteraction(interaction, settings[interaction.guildId])) { auditSlashUsage(interaction, "SUCK ME"); return; }
     if (await handleMusicExtrasInteraction(interaction)) { auditSlashUsage(interaction, "Musique & radio"); return; }
     if (await handleLiveInteraction(interaction, settings, { apiUrl: API, secret: BOT_SYNC_SECRET })) { auditSlashUsage(interaction, "Alertes LIVE"); return; }

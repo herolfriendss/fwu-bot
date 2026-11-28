@@ -13,7 +13,8 @@ les bots du VPS prennent la mise à jour avec `/maj lancer` ou la mise à jour a
 - SUCK ME (STAFF CENTER) : `/staff centre`, le tableau de commandement (staff joignable, dossiers, tickets, alertes, missions, réunions, état des bots).
 - Infrastructure commune : événements avec identifiant universel et sans doublon ; file de tâches entre bots qui attend le retour d'un bot arrêté, sans perte ni double exécution.
 - Infrastructure commune : journal d'audit chaîné (toute modification à la main dans la base est détectée).
-- AUTHORITY (service) : registre des dérogations, approbation par l'OWNER seul, signature, expiration fiable, 15 cas d'attaque testés. Pas encore de commandes Discord.
+- AUTHORITY (service) : registre des dérogations, approbation par l'OWNER seul, signature, expiration fiable, 15 cas d'attaque testés. 
+- AUTHORITY sur SUCK ME (provisoire) : `/authority demander`, `mes-demandes`, `statut`, `historique` ; l'OWNER reçoit chaque demande en MP avec Approuver / Refuser, et dispose de `/authority panneau` et `/authority decider`.
 - Bot principal : alerte au staff quand le disque, la mémoire ou le processeur du VPS saturent (et quand ça revient).
 - GUARD : alerte quand les arrivées ou les départs d'une heure dépassent nettement la normale.
 - Console : voyant global vert, orange ou rouge avec les raisons (aussi dans le badge « En direct »), historique des redémarrages.

@@ -2801,6 +2801,37 @@ export const EXTRA_SLASH_COMMANDS: SlashCommandDef[] = [
     ],
   },
   {
+    name: "authority",
+    description: "Demandes d'autorisation exceptionnelle, décidées par l'OWNER",
+    usage: "/authority demander · mes-demandes · statut · historique · panneau · decider",
+    category: "Général",
+    dmPermission: false,
+    requiresBotProcess: true,
+    options: [
+      sub("demander", "Demande une autorisation exceptionnelle (décision de l'OWNER)", [
+        opt(3, "type", "Autorisation", { required: true, choices: [
+          { name: "Salon vocal supplémentaire", value: "voice.room.extra" },
+          { name: "Quota économique supplémentaire", value: "economy.quota.extra" },
+          { name: "Accès à un module en test", value: "module.beta.access" },
+          { name: "Créer des missions du staff", value: "staff.mission.create" },
+          { name: "Planifier des réunions du staff", value: "staff.meeting.plan" },
+        ] }),
+        opt(3, "justification", "Pourquoi ? (obligatoire)", { required: true, max_length: 500 }),
+        opt(3, "duree", "Durée : 12h, 3j (1 h à 30 j, 24 h par défaut)", { max_length: 20 }),
+        opt(6, "beneficiaire", "Pour qui (vide = toi)"),
+      ]),
+      sub("mes-demandes", "Tes demandes et celles qui te concernent"),
+      sub("statut", "État d'une demande", [opt(4, "numero", "Numéro", { required: true, min_value: 1 })]),
+      sub("historique", "Historique d'une demande", [opt(4, "numero", "Numéro", { required: true, min_value: 1 })]),
+      sub("panneau", "OWNER : demandes en attente et dérogations actives"),
+      sub("decider", "OWNER : suspendre, réactiver, révoquer ou prolonger", [
+        opt(4, "numero", "Numéro", { required: true, min_value: 1 }),
+        opt(3, "action", "Décision", { required: true, choices: [{ name: "Suspendre", value: "suspendre" }, { name: "Réactiver", value: "reactiver" }, { name: "Révoquer", value: "revoquer" }, { name: "Prolonger", value: "prolonger" }] }),
+        opt(3, "duree", "Prolongation : 12h, 3j", { max_length: 20 }),
+      ]),
+    ],
+  },
+  {
     name: "maj",
     description: "OWNER : met à jour les 5 bots depuis GitHub, sans ordinateur",
     usage: "/maj lancer [version] · /maj etat",

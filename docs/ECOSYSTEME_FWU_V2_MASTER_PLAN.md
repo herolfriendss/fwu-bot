@@ -71,7 +71,7 @@ Mécanismes communs déjà en place (réutilisables pour FWU CORE) :
 | fwu | Bot principal | her-v5-bot | 21 | — | IA, modération à quota (warn, tempmute…), sanctions, accueil/screening, secours de tous les domaines |
 | guard | GUARD | fwu-guard | 25 | `+` | ban/kick/blacklist/purge, anti-raid, anti-nuke, automod, quarantaine, casier |
 | fdpdlavoc | FDPDLAVOC | fwu-fdpdlavoc | 24 | `;` | musique, radio, vocaux temporaires, accès vocaux, déplacements |
-| suckme | SUCK ME | fwu-suckme | **83** | `=` | SYS+, rôles, DOG, MENOTTE, tickets, staff, giveaways, IA, social, logs, `/maj` |
+| suckme | SUCK ME | fwu-suckme | **84** (dont `/authority`, provisoire) | `=` | SYS+, rôles, DOG, MENOTTE, tickets, staff, giveaways, IA, social, logs, `/maj` |
 | fisc | LE FISC | fwu-fisc | 37 | `-` | économie PND, casino, jeux, cartes, business, braquages |
 | investplus | Invest + | fwu-investplus | 4 | `$` | abonnements membres (facultatif) |
 
@@ -326,7 +326,7 @@ récompenses ; le centre d'aide peut avancer en parallèle de CORE car il lit le
 **Phase 3 — AUTHORITY**
 - [x] 3.1 Registre et vérification (`bot/authority.js`) : demandes avec justification et durée (1 h à 30 j), décisions OWNER seul (approuver, refuser, suspendre, réactiver, révoquer, prolonger), nonce à usage unique, signature HMAC (`PND_AUTHORITY_SECRET`, sinon `BOT_SYNC_SECRET`), expiration à la lecture, rappels, journal chaîné. `hasException()` branché sur `core-permissions.js`. Les 15 cas d'attaque du cahier des charges sont testés (`bot/authority.test.js`).
 - [ ] 3.2 Brancher les exemptions de quota existantes (`/quota exemption`) sur AUTHORITY sans casser l'existant.
-- [ ] 3.3 Commandes `/authority` (demander, mes-demandes, statut, historique ; panneau OWNER en MP) — d'abord portées par un bot existant ou par le futur profil `authority` (décision OWNER : créer l'application Discord AUTHORITY et fournir son token lui-même).
+- [x] 3.3 Commandes `/authority` (demander, mes-demandes, statut, historique ; OWNER : panneau, decider ; MP à l'OWNER avec boutons Approuver / Refuser à usage unique) — `bot/features/authority-commands.js`. Portées par SUCK ME (84/100 commandes) jusqu'à la création du bot AUTHORITY : l'OWNER crée l'application Discord et fournit son token lui-même, puis la racine `authority` passe au profil `authority` dans `src/lib/bot-profiles.ts`. `/staff centre` affiche les dérogations en attente et actives.
 - [ ] 3.4 Page AUTHORITY de la console (même service).
 
 **Phase 4 — Centre d'aide** : 4.1 documentation générée depuis le catalogue ; 4.2 présentation des bots ; 4.3 tutoriels interactifs ; 4.4 assistant IA branché sur la documentation réelle ; 4.5 parcours dépannage → ticket existant.
@@ -359,7 +359,8 @@ récompenses ; le centre d'aide peut avancer en parallèle de CORE car il lit le
 | 2.1 / 2.2 Événements idempotents, file persistante | fusionné (#83) | `claude/fwu-v2-core-queue` |
 | 2.4 Journal d'audit unifié | fusionné (#85) | `claude/fwu-v2-core-audit` |
 | 2.3 Décision des permissions | fusionné (#86) | `claude/fwu-v2-core-permissions` |
-| 3.1 Registre AUTHORITY | terminé | `claude/fwu-v2-authority-core` |
+| 3.1 Registre AUTHORITY | fusionné (#87) | `claude/fwu-v2-authority-core` |
+| 3.3 Commandes AUTHORITY | terminé | `claude/fwu-v2-authority-commands` |
 
 ## 15. Reprise du travail (pour une nouvelle session)
 

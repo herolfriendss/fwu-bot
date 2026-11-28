@@ -116,6 +116,8 @@ export const SLASH_COMMAND_OWNERS: Record<BotProfileId, readonly string[]> = {
     "logs", "dossier", "blr", "guide", "pourquoi", "presence", "stabilite", "smash",
     // 27/11 : relations entre membres (mariage, adoption, arbre), salons compteurs
     "famille", "compteurs", "invitations", "membredumois", "anciennete", "decompte", "rapportstaff", "charte", "courante",
+    // 28/11 : AUTHORITY (dérogations), porté par SUCK ME jusqu'à la création du bot AUTHORITY
+    "authority",
   ],
   fisc: [
     "balance", "daily", "work", "job", "bank", "history", "rob", "lottery", "pay", "leaderboard",
