@@ -31,3 +31,14 @@ Aucune branche ne peut être choisie par une variable.
   exactement la même mise à jour que `/maj lancer` (journal `maj.log`, résultat annoncé sur Discord).
 - Réglages dans le `.env` du VPS : `FWU_AUTO_UPDATE=off` pour la couper, `FWU_AUTO_UPDATE_HOUR=3` pour changer l'heure.
 - Amorçage : le VPS doit installer une fois cette version (un `/maj lancer`) ; ensuite il se met à jour seul.
+- Heure : entier de 0 à 23 écrit en chiffres ; toute autre valeur (`8h`, `24`, vide) garde 8 h. Le fuseau Europe/Paris suit
+  l'heure d'été et d'hiver.
+- Un seul contrôle par jour, même si SUCK ME redémarre : le jour du dernier contrôle est noté dans `fwu-data/auto-update-jour`,
+  et une mise à jour terminée ou échouée le jour même (manuelle ou automatique) compte aussi. Un échec n'est pas relancé en boucle :
+  nouvel essai le lendemain, ou `/maj lancer`.
+- Rattrapage : si SUCK ME était arrêté à l'heure prévue, le contrôle a lieu à son redémarrage jusqu'à 4 h après (8 h → 11 h 59).
+  Au-delà, rien avant le lendemain : pas de redémarrage général en pleine journée ou en soirée.
+- En mode automatique, un contrôle sans nouveauté n'écrit rien ; un échec (jeton absent, GitHub injoignable, build, bot) est
+  toujours écrit dans `maj.log` et visible dans `/maj etat`.
+- Les bots dont le paquet n'a pas changé (même contenu, même empreinte `.fwu-paquet-empreinte`) et qui tournent ne sont ni
+  réinstallés ni redémarrés : une mise à jour qui ne touche que le site ou FWU n'interrompt pas GUARD, FDPDLAVOC, LE FISC…

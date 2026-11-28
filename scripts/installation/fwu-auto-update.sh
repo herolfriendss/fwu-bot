@@ -65,7 +65,15 @@ if [[ -n "$AUTO" ]]; then exec >/dev/null 2>&1; fi
 [[ -z "$AUTO" ]] && exec >>"$LOG" 2>&1
 [[ -z "$AUTO" ]] && echo
 [[ -z "$AUTO" ]] && echo "===== Mise à jour FWU du $(date '+%d/%m/%Y %H:%M:%S') ====="
-fail() { echo "❌ $1"; status failed "$1"; exit 1; }
+LOGGED=""; [[ -z "$AUTO" ]] && LOGGED="1"
+# En mode automatique, un échec est toujours journalisé (sinon /maj etat n'expliquerait rien).
+log_auto() {
+  if [[ -z "$LOGGED" ]]; then
+    exec >>"$LOG" 2>&1; LOGGED="1"
+    echo; echo "===== Contrôle automatique FWU du $(date '+%d/%m/%Y %H:%M:%S') ====="
+  fi
+}
+fail() { log_auto; echo "❌ $1"; status failed "$1"; exit 1; }
 
 [[ -s "$TOKEN_FILE" ]] || fail "Aucun jeton GitHub sur le VPS (relance FWU-MAJ-COMPLETE.sh une fois depuis un ordinateur)."
 WORK="$(mktemp -d)"
@@ -103,9 +111,13 @@ try: print(json.load(sys.stdin).get("sha","")[:40])
 except Exception: print("")' || true)"
 INSTALLED_COMMIT="$(tr -d '[:space:]' < "$COMMIT_FILE" 2>/dev/null || true)"
 if [[ -n "$AUTO" ]]; then
-  if [[ -z "$TARGET_COMMIT" || "$TARGET_COMMIT" == "$INSTALLED_COMMIT" ]]; then exit 0; fi
+  if [[ -z "$TARGET_COMMIT" ]]; then
+    # GitHub injoignable : rien n'est installé, rien n'est redémarré ; nouvel essai demain.
+    log_auto; echo "⚠️ Commit de $REF illisible (réseau ou GitHub indisponible) : aucune mise à jour aujourd'hui."; exit 0
+  fi
+  [[ "$TARGET_COMMIT" == "$INSTALLED_COMMIT" ]] && exit 0
   # Du nouveau : à partir d'ici, tout est journalisé comme une mise à jour manuelle.
-  exec >>"$LOG" 2>&1
+  exec >>"$LOG" 2>&1; LOGGED="1"
   echo
   echo "===== Mise à jour automatique FWU du $(date '+%d/%m/%Y %H:%M:%S') ====="
 fi
