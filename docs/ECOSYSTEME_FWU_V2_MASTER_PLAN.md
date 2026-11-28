@@ -542,7 +542,38 @@ sans créer de systèmes parallèles.
 Les statistiques doivent être contextualisées et ne pas servir de classement punitif
 automatique du staff. Respecter la vie privée et la durée de conservation configurée.
 
-### 17.6 API prête pour le futur site — sans construire ni déployer le site
+### 17.6 WET — registre réseau de sanctions durables et de comptes liés
+
+WET est un niveau supérieur à la blacklist locale. Il s'appuie sur le SQLite partagé par les
+processus FWU et s'applique aux serveurs accessibles aux bots GUARD. Ce n'est pas un nouveau
+bot : c'est un service de sécurité porté par GUARD, relayable par le domaine de protection
+déjà existant.
+
+- `/wet ajouter` crée un dossier durable avec un motif, un lien HTTPS de preuve, l'auteur,
+  le serveur d'origine et les seules métadonnées Discord publiques utiles.
+- `/wet lier` ajoute un compte alternatif à un dossier uniquement après vérification humaine
+  et preuve documentée. Tous les comptes du dossier actif sont rebannis à leur arrivée.
+- `/wet verifier` et `/wet liste` donnent une lecture réservée à l'OWNER et aux SYS+.
+- `/unwet` est réservé à l'OWNER : il révoque le dossier complet, conserve son historique
+  et débannit les comptes liés sur les serveurs accessibles. Une blacklist locale encore active
+  reste prioritaire et empêche le débannissement de ce serveur.
+- Les écritures WET sont OWNER uniquement, protégées aussi dans la couche service (pas seulement
+  dans le handler Discord), avec journal append-only des créations, liens et révocations.
+- Les signaux de `/doublecompte` restent des alertes et ne créent jamais de lien WET
+  automatiquement. Une ressemblance de nom, d'avatar ou un compte récent ne suffit jamais
+  à bannir.
+- Collecte interdite : adresse IP, adresse MAC, empreinte matérielle/appareil, adresse e-mail
+  non fournie ou toute donnée inaccessible par les API Discord autorisées. Limiter les données
+  stockées à l'ID, au nom observé au moment de la décision, à la date publique de création,
+  au motif et aux liens de preuve.
+- Toute défaillance de permission Discord est affichée comme un échec partiel ; ne jamais
+  annoncer une protection complète si un serveur n'a pas pu appliquer le bannissement.
+
+La levée WET doit être testée avec des dossiers multi-comptes, des comptes déjà bannis,
+des permissions manquantes, un membre propriétaire de serveur, un chevauchement blacklist/WET
+et un redémarrage des bots. Aucun déploiement sans recette staging et validation OWNER.
+
+### 17.7 API prête pour le futur site — sans construire ni déployer le site
 
 Le site/dashboard existant est développé séparément. Pendant ce chantier :
 - Ne pas créer un second site, ne pas modifier le design ou le déploiement du site existant.
@@ -558,7 +589,7 @@ Le site/dashboard existant est développé séparément. Pendant ce chantier :
 - Aucun endpoint de site ne doit accorder de privilège au-delà de `core-permissions.js`
   et `authority.js`. Le site ne reçoit jamais les tokens Discord ou les clés IA.
 
-### 17.7 Critères d'acceptation supplémentaires
+### 17.8 Critères d'acceptation supplémentaires
 
 - Inventaire avant/après : 0 commande/fonctionnalité retirée sans équivalent validé.
 - Audit des commandes : aucune racine dupliquée, aucune commande sans propriétaire,
