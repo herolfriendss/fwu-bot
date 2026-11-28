@@ -333,7 +333,7 @@ récompenses ; le centre d'aide peut avancer en parallèle de CORE car il lit le
 - [x] 4.1 Documentation générée depuis le catalogue réel : `docs/COMMANDES.md` (bot par bot, préfixe, sous-commandes, paramètres), par `bot/scripts/generate-command-docs.mjs` ; un test échoue si elle est périmée.
 - [x] 4.2 Présentation de chaque bot : déjà couverte par `/aide` (`bot/features/help-panel.js` : vue d'ensemble, une page par bot avec sa mission, son préfixe et ses commandes tirées du catalogue, page des permissions et quotas).
 - [x] 4.3 Tutoriels interactifs (boutons, retour, recommencer, quitter) — parcours /aide implémentés ; tests CI ; validation staging restante.
-- [ ] 4.4 Assistant IA branché sur `docs/COMMANDES.md` et `/knowledge` (jamais de commande inventée, jamais de donnée privée).
+- [~] 4.4 Assistant IA branché sur le catalogue source des commandes et les pages publiques `/knowledge` — `/ia question`, validation des chemins exacts, refus des syntaxes inconnues, limite 3/min, masquage des coordonnées/identifiants et blocage des secrets ; aucun historique ni ID utilisateur transmis au modèle. CI validée sur la branche d'origine ; validation staging sur la branche actuelle restante.
 - [x] 4.5 Parcours dépannage → ticket existant (`bot/tickets.js`), sans second système — tutoriel de diagnostic /aide, vérification quotas/guide, ouverture et suivi du ticket existant ; validation staging restante.
 
 **Phase 5 — SOCIAL et EVENT** · **Phase 6 — Économie interconnectée** · **Phase 7 — DISPATCH** ·
