@@ -2153,12 +2153,12 @@ client.on("interactionCreate", (interaction) => {
         const ended = sub === "maintenance-global-off" && content.startsWith("✅ Maintenance globale terminée");
         if ((started || ended) && channel?.isTextBased?.() && typeof channel.send === "function") {
           const announcement = started
-            ? `🛠️ **Le serveur passe en maintenance globale.** Les commandes sont temporairement suspendues sur tous les bots.${reason ? `\\nMotif : ${reason}` : ""}`
+            ? `🛠️ **Le serveur passe en maintenance globale.** Les commandes sont temporairement suspendues sur tous les bots.${reason ? `\nMotif : ${reason}` : ""}`
             : "✅ **La maintenance globale est terminée.** Les commandes sont de nouveau disponibles.";
           await channel.send({ content: announcement, allowedMentions: { parse: [] } }).catch(() => { announcementError = true; });
         } else if (started || ended) announcementError = true;
       }
-      const reply = announcementError ? `${content}\\n⚠️ L'annonce publique n'a pas pu être envoyée dans le salon choisi.` : content;
+      const reply = announcementError ? `${content}\n⚠️ L'annonce publique n'a pas pu être envoyée dans le salon choisi.` : content;
       await interaction.reply({ content: reply, ephemeral: true, allowedMentions: { parse: [] } }).catch(() => {});
       return;
     }
