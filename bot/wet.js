@@ -76,6 +76,12 @@ function validSnowflake(value) {
   return SNOWFLAKE.test(String(value ?? ""));
 }
 
+function requireWetOwner(actorId) {
+  if (parsePndOwnerId(process.env.PND_OWNER_DISCORD_ID) !== actorId) {
+    throw new Error("Seul l'OWNER technique peut modifier un dossier WET.");
+  }
+}
+
 function cleanReason(value) {
   const reason = String(value ?? "").trim().slice(0, MAX_REASON);
   if (reason.length < 10) throw new Error("Indique un motif précis d'au moins 10 caractères.");
@@ -167,7 +173,9 @@ function createCaseRecord({ guildId, actorId, user, reason, evidence, now }) {
 
 export function createWetCase({ guildId, actorId, user, reason, evidence, now = Date.now() }) {
   if (!validSnowflake(guildId) || !validSnowflake(actorId)) throw new Error("Contexte serveur ou auteur invalide.");
+  requireWetOwner(actorId);
   if (!validSnowflake(user?.id)) throw new Error("Identifiant Discord invalide.");
+  if (user.bot) throw new Error("Un bot ne peut pas être placé dans le registre WET.");
   return createCaseRecord({ guildId, actorId, user, reason: cleanReason(reason), evidence: cleanEvidence(evidence), now });
 }
 
@@ -175,6 +183,8 @@ export function linkWetAccount({ guildId, actorId, sourceUserId, user, reason, e
   if (!validSnowflake(guildId) || !validSnowflake(actorId) || !validSnowflake(sourceUserId) || !validSnowflake(user?.id)) {
     throw new Error("Identifiant Discord invalide.");
   }
+  requireWetOwner(actorId);
+  if (user.bot) throw new Error("Un bot ne peut pas être relié à un dossier WET.");
   if (sourceUserId === user.id) throw new Error("Un compte ne peut pas être lié à lui-même.");
   const source = getActiveWetCase(sourceUserId);
   if (!source) throw new Error("Le compte source n'est pas dans un dossier WET actif.");
@@ -203,6 +213,7 @@ export function linkWetAccount({ guildId, actorId, sourceUserId, user, reason, e
 
 export function revokeWetCase(userId, { guildId, actorId, reason, now = Date.now() } = {}) {
   if (!validSnowflake(userId) || !validSnowflake(guildId) || !validSnowflake(actorId)) throw new Error("Identifiant Discord invalide.");
+  requireWetOwner(actorId);
   const cleanWhy = cleanReason(reason);
   const active = getActiveWetCase(userId);
   if (!active) return null;
