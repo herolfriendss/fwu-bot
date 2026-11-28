@@ -435,6 +435,11 @@ Catégorie : Musique & radio · Utilisation : `/blindtest lancer [manches] [play
 - `/blindtest stop` — Arrête la partie en cours (organisateur ou staff) · préfixe `;blindtest stop`
 - `/blindtest classement` — Classement du blind test sur le serveur · préfixe `;blindtest classement`
 
+### /clearqueue
+
+Vide la file d'attente  
+Catégorie : Musique & radio · Utilisation : `/clearqueue`
+
 ### /dj
 
 FDPDLAVOC : rôle DJ (contrôle de la musique, vote pour passer)  
@@ -449,6 +454,16 @@ Catégorie : Musique & radio · Utilisation : `/effet type`
 
 - `type` (texte, obligatoire, choix : Aucun, Bass boost, Nightcore, 8D, Rapide, Lent) — Effet
 
+### /join
+
+Connecte le bot à ton salon vocal  
+Catégorie : Musique & radio · Utilisation : `/join`
+
+### /leave
+
+Déconnecte le bot du salon vocal  
+Catégorie : Musique & radio · Utilisation : `/leave`
+
 ### /lecture
 
 FDPDLAVOC : lit à voix haute le chat de ton vocal (pour qui ne peut pas parler)  
@@ -456,6 +471,13 @@ Catégorie : Musique & radio · Utilisation : `/lecture activer · desactiver`
 
 - `/lecture activer` — Le bot rejoint ton vocal et lit les messages écrits dans son chat · préfixe `;lecture activer`
 - `/lecture desactiver` — Arrête la lecture vocale (celui qui l'a lancée ou le staff) · préfixe `;lecture desactiver`
+
+### /loop
+
+Change le mode de répétition  
+Catégorie : Musique & radio · Utilisation : `/loop [mode]`
+
+- `mode` (texte, facultatif, choix : Désactivée, Titre, File, Auto) — Mode de répétition
 
 ### /music
 
@@ -481,93 +503,71 @@ Catégorie : Musique & radio · Utilisation : `/music player play|pause|resume|s
 
 ### /musicpanel
 
-Affiche le panneau interactif du lecteur musical  
-Catégorie : Musique & radio · Utilisation : `/musicpanel` · préfixe `;musicpanel`
+Affiche le panneau de contrôle musical  
+Catégorie : Musique & radio · Utilisation : `/musicpanel`
 
 ### /nowplaying
 
 Affiche le morceau en cours de lecture  
-Catégorie : Musique & radio · Utilisation : `/nowplaying` · préfixe `;nowplaying`
+Catégorie : Musique & radio · Utilisation : `/nowplaying`
 
 ### /pause
 
 Met la musique en pause  
-Catégorie : Musique & radio · Utilisation : `/pause` · préfixe `;pause`
+Catégorie : Musique & radio · Utilisation : `/pause`
 
 ### /play
 
 Recherche ou lance une musique dans ton salon vocal  
-Catégorie : Musique & radio · Utilisation : `/play recherche` · préfixe `;play`
+Catégorie : Musique & radio · Utilisation : `/play recherche`
 
 - `recherche` (texte, obligatoire, 500 caractères max) — Lien YouTube/SoundCloud ou titre à rechercher
 
 ### /queue
 
 Affiche la file d'attente musicale  
-Catégorie : Musique & radio · Utilisation : `/queue` · préfixe `;queue`
+Catégorie : Musique & radio · Utilisation : `/queue`
 
 ### /recherche
 
 Cherche un titre et propose cinq résultats  
-Catégorie : Musique & radio · Utilisation : `/recherche titre` · préfixe `;recherche`
+Catégorie : Musique & radio · Utilisation : `/recherche titre`
 
 - `titre` (texte, obligatoire, 200 caractères max) — Titre ou artiste à rechercher
 
 ### /remove
 
 Retire un morceau de la file d'attente  
-Catégorie : Musique & radio · Utilisation : `/remove position` · préfixe `;remove`
+Catégorie : Musique & radio · Utilisation : `/remove position`
 
 - `position` (nombre entier, obligatoire) — Position du morceau dans /queue
 
 ### /resume
 
 Reprend la lecture  
-Catégorie : Musique & radio · Utilisation : `/resume` · préfixe `;resume`
+Catégorie : Musique & radio · Utilisation : `/resume`
 
 ### /shuffle
 
 Mélange la file d'attente  
-Catégorie : Musique & radio · Utilisation : `/shuffle` · préfixe `;shuffle`
+Catégorie : Musique & radio · Utilisation : `/shuffle`
 
 ### /skip
 
 Passe au morceau suivant  
-Catégorie : Musique & radio · Utilisation : `/skip` · préfixe `;skip`
+Catégorie : Musique & radio · Utilisation : `/skip`
 
 ### /stop
 
 Arrête la lecture et vide la file  
-Catégorie : Musique & radio · Utilisation : `/stop` · préfixe `;stop`
+Catégorie : Musique & radio · Utilisation : `/stop`
 
 ### /volume
 
 Règle le volume du lecteur musical  
-Catégorie : Musique & radio · Utilisation : `/volume niveau` · préfixe `;volume`
+Catégorie : Musique & radio · Utilisation : `/volume niveau`
 
 - `niveau` (nombre entier, obligatoire) — Volume entre 0 et 100
-
-### /loop
-
-Change le mode de répétition  
-Catégorie : Musique & radio · Utilisation : `/loop [mode]` · préfixe `;loop`
-
-- `mode` (texte, facultatif, choix : Désactivée, Titre, File, Auto) — Mode de répétition
-
-### /clearqueue
-
-Vide la file d'attente  
-Catégorie : Musique & radio · Utilisation : `/clearqueue` · préfixe `;clearqueue`
-
-### /join
-
-Connecte le bot à ton salon vocal  
-Catégorie : Musique & radio · Utilisation : `/join` · préfixe `;join`
-
-### /leave
-
-Déconnecte le bot du salon vocal  
-Catégorie : Musique & radio · Utilisation : `/leave` · préfixe `;leave`
 
 ### /muteall
 
