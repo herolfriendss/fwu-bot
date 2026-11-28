@@ -114,6 +114,7 @@ function staffInteraction({ userId, sub, group = null, options = {}, guildId = "
     user: { id: userId },
     member: { id: userId, roles: { cache: new Map() }, guild: { ownerId: "owner-discord" } },
     guildId,
+    channelId: "chan-staff",
     guild: { id: guildId, ownerId: "owner-discord", roles: { cache: roles }, members: { fetch: async () => null } },
     options: { getSubcommand: () => sub, getSubcommandGroup: () => group, getString: (name) => options[name] ?? null, getInteger: (name) => options[name] ?? null, getUser: (name) => (options[name] ? { id: options[name] } : null) },
     deferReply: async () => {},
@@ -182,4 +183,39 @@ test("STAFF CENTER: intervention files from opening to secondary validation", as
   // Plain staff member cannot validate (SYS+ / OWNER only).
   assert.match(await run("u-a", "valider", { numero: number }), /réservée/);
   assert.match(await run("u-a", "voir", { numero: number }), /Clôture demandée/);
+});
+
+test("STAFF CENTER: missions and meetings (managers create, staff report)", async () => {
+  s.saveLadder("gs", ["staffrole"]);
+  const run = async (userId, group, sub, options = {}, settings = {}) => {
+    const i = staffInteraction({ userId, sub, group, options, staffRoleMembers: ["u-a", "u-b"] });
+    await s.handleSuckmeInteraction(i, settings);
+    return i.replies[0];
+  };
+  assert.match(await run("u-a", "mission", "creer", { titre: "Ranger les salons" }), /Seuls les SYS\+/);
+  // The configured OWNER is a manager.
+  const created = await run("100000000000000001", "mission", "creer", { titre: "Former Paul", membre: "u-a", echeance: "demain 20h" });
+  const number = Number(created.match(/n°(\d+)/)[1]);
+  assert.match(created, /pour <@u-a>/);
+  assert.match(await run("100000000000000001", "mission", "creer", { titre: "x", membre: "u-out" }), /qu'à un membre du staff/);
+  assert.match(await run("u-a", "mission", "liste"), /Former Paul/);
+  assert.match(await run("u-b", "mission", "terminer", { numero: number, bilan: "x" }), /quelqu'un d'autre/);
+  assert.match(await run("u-a", "mission", "terminer", { numero: number, bilan: "Paul formé" }), /terminée/);
+  assert.match(await run("u-a", "reunion", "planifier", { sujet: "Bilan", date: "demain 21h" }), /Seuls les SYS\+/);
+  assert.match(await run("100000000000000001", "reunion", "planifier", { sujet: "Bilan", date: "demain 21h" }), /Rappel ici 30 min avant/);
+  assert.match(await run("u-b", "reunion", "liste"), /Bilan/);
+});
+
+test("meeting reminders go to the planning channel of the same server, never mass mentions", async () => {
+  const { planMeeting } = await import("../staff-missions.js");
+  const now = Date.now();
+  planMeeting({ guildId: "gm", actorId: "s", topic: "Point", channelId: "cm", startsAt: now + 20 * 60_000 }, { now });
+  planMeeting({ guildId: "gm", actorId: "s", topic: "Piège", channelId: "other-guild-chan", startsAt: now + 20 * 60_000 }, { now });
+  const sent = [];
+  const channels = { cm: { guildId: "gm", isTextBased: () => true, send: async (p) => sent.push(p) }, "other-guild-chan": { guildId: "zz", isTextBased: () => true, send: async (p) => sent.push(p) } };
+  const client = { channels: { fetch: async (id) => channels[id] ?? null } };
+  assert.equal(await s.runMeetingReminders(client, now), 1);
+  assert.match(sent[0].content, /Point/);
+  assert.deepEqual(sent[0].allowedMentions, { parse: [] });
+  assert.equal(await s.runMeetingReminders(client, now), 0);
 });
