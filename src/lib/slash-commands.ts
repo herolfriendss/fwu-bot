@@ -2091,6 +2091,43 @@ export const EXTRA_SLASH_COMMANDS: SlashCommandDef[] = [
     ],
   },
   {
+    name: "wet",
+    description: "OWNER : registre réseau de sanctions durables et de comptes liés sur preuve",
+    usage: "/wet ajouter|lier|verifier|liste",
+    category: "Modération",
+    dmPermission: false,
+    requiresBotProcess: true,
+    options: [
+      sub("ajouter", "Place un compte dans le registre WET et le bannit du réseau FWU", [
+        opt(3, "id", "Identifiant Discord du compte", { required: true, max_length: 25 }),
+        opt(3, "raison", "Motif détaillé de la décision", { required: true, max_length: 300 }),
+        opt(3, "preuve", "Lien HTTPS vers les éléments de preuve", { required: true, max_length: 1000 }),
+      ]),
+      sub("lier", "Relie un compte alternatif après vérification humaine et preuve", [
+        opt(3, "source", "Identifiant du compte déjà en WET", { required: true, max_length: 25 }),
+        opt(3, "compte", "Identifiant du compte alternatif confirmé", { required: true, max_length: 25 }),
+        opt(3, "raison", "Éléments établissant le lien", { required: true, max_length: 300 }),
+        opt(3, "preuve", "Lien HTTPS vers les éléments de preuve", { required: true, max_length: 1000 }),
+      ]),
+      sub("verifier", "Vérifie le statut WET d'un compte", [
+        opt(3, "id", "Identifiant Discord du compte", { required: true, max_length: 25 }),
+      ]),
+      sub("liste", "Affiche les dossiers WET actifs du réseau FWU"),
+    ],
+  },
+  {
+    name: "unwet",
+    description: "OWNER : lève un dossier WET et débannit les comptes qui lui sont liés",
+    usage: "/unwet id raison",
+    category: "Modération",
+    dmPermission: false,
+    requiresBotProcess: true,
+    options: [
+      opt(3, "id", "Identifiant Discord de l'un des comptes du dossier", { required: true, max_length: 25 }),
+      opt(3, "raison", "Motif obligatoire de la levée", { required: true, max_length: 300 }),
+    ],
+  },
+  {
     name: "blacklist",
     description: "OWNER et SYS+ : bannit un compte et le rebannit automatiquement s’il revient",
     usage: "/blacklist add membre|id [raison] · remove · list · check",
