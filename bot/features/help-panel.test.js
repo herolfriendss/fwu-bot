@@ -54,8 +54,10 @@ test("menu et boutons : la vue suit le composant, boutons seulement s'il y a plu
 });
 
 test("tutoriels interactifs : choix, étapes, retour, recommencer et quitter", () => {
-  assert.equal(Object.keys(HELP_TUTORIALS).length, 3);
+  assert.equal(Object.keys(HELP_TUTORIALS).length, 4);
   assert.ok(Object.values(HELP_TUTORIALS).every((tutorial) => tutorial.steps.length >= 3));
+  assert.equal(HELP_TUTORIALS.troubleshoot.steps.length, 5);
+  assert.match(HELP_TUTORIALS.troubleshoot.steps[3].content, /panneau de tickets existant/);
   const intro = tutorialPayload({ tutorialId: "permissions", page: -1, userId: "123456789012345678" }, ctx);
   assert.match(intro.embeds[0].title, /Comprendre les permissions/);
   assert.equal(intro.components.length, 3);
