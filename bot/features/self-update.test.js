@@ -80,7 +80,7 @@ test("V2: automatic update runs once a night at the chosen Paris hour, never whi
   assert.equal(autoUpdateDue({ now: at8, env: {}, lastRunDay: "2026-11-27" }), false, "une fois par nuit");
   assert.equal(autoUpdateDue({ now: new Date("2026-11-27T10:00:00Z"), env: {} }), false, "hors de l'heure");
   assert.equal(autoUpdateDue({ now: at8, env: { FWU_AUTO_UPDATE: "off" } }), false);
-  assert.equal(autoUpdateDue({ now: at8, env: {}, status: { state: "running", at: Math.floor(at5.getTime() / 1000) } }), false);
+  assert.equal(autoUpdateDue({ now: at8, env: {}, status: { state: "running", at: Math.floor(at8.getTime() / 1000) } }), false);
   assert.equal(autoUpdateDue({ now: new Date("2026-11-27T21:30:00Z"), env: { FWU_AUTO_UPDATE_HOUR: "22" } }), "2026-11-27");
 });
 
