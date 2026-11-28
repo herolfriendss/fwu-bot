@@ -124,6 +124,7 @@ import { handleLogsInteraction, handleLogsMessage } from "./logs-commands.js";
 import { logEvent, startLogMaintenance } from "./log-events.js";
 import { activeSourceGuildIds } from "./logs-config.js";
 import { enforceBlacklistOnJoin, handleBlacklistInteraction, handleBlacklistMessage, isBlacklisted } from "./blacklist.js";
+import { enforceWetOnJoin, handleWetInteraction } from "./wet.js";
 import { handleDmAllInteraction, handleDmAllMessage, recoverInterruptedDmAllJobs } from "./dmall.js";
 import { handleResumeInteraction, handleResumeMessage, pruneResumeEvents, recordResumeEvent } from "./resume.js";
 import { handleStaffModerationInteraction, STAFF_COMMANDS } from "./staff-moderation.js";
@@ -1192,6 +1193,11 @@ client.on("guildMemberAdd", async (member) => {
   if (serves("suckme") && !isLogsHub(member.guild.id)) void handleBlrMemberAdd(member, { record }).catch(() => record("blr_error"));
   const s = settings[member.guild.id];
   const allDomains = gate.servesAll();
+  // WET is the network-level sanction registry; confirmed linked accounts are enforced first.
+  if (serves("guard") && await enforceWetOnJoin(member, record)) {
+    auditLog(member.guild, s, "⛔ WET — compte bloqué à son arrivée", `Compte : <@${member.id}>\nID : \`${member.id}\``, 0x991b1b);
+    return;
+  }
   // Blacklisted accounts are banned again before anything else (GUARD owns ban and the blacklist;
   // FWU takes this protection over while GUARD is offline).
   if (serves("guard") && await enforceBlacklistOnJoin(member, record)) {
@@ -2300,6 +2306,7 @@ client.on("interactionCreate", (interaction) => {
     if (await handleResumeInteraction(interaction, settings[interaction.guildId])) { auditSlashUsage(interaction, "RESUME"); return; }
     if (await handleDmAllInteraction(interaction, settings[interaction.guildId])) return;
     if (await handleUndogAllInteraction(interaction, settings[interaction.guildId])) return;
+    if (await handleWetInteraction(interaction, settings[interaction.guildId])) { auditSlashUsage(interaction, "WET"); return; }
     if (await handleBlacklistInteraction(interaction, settings[interaction.guildId])) return;
     if (await handleAltInteraction(interaction)) { auditSlashUsage(interaction, "Doubles comptes"); return; }
     if (await handleGuardInteraction(interaction, settings[interaction.guildId], { report: guardReport })) { auditSlashUsage(interaction, "GUARD"); return; }
