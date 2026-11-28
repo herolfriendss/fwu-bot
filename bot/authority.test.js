@@ -139,3 +139,27 @@ test("core-permissions uses AUTHORITY only when the normal control refuses", () 
   assert.equal(decide("staff.mission.create", { id: MEMBER }, ctx).via, "exception");
   assert.equal(decide("staff.mission.create", { id: MEMBER }, { ...ctx, exception: authorityExceptionFor(G2, { db, env, now: 1 }) }).allowed, false);
 });
+
+test("decision re-reads the request after acquiring the write lock", () => {
+  const base = mem();
+  const r = ask(base);
+  let injected = false;
+  const db = {
+    prepare: (...args) => base.prepare(...args),
+    exec: (sql) => {
+      if (sql === "BEGIN IMMEDIATE" && !injected) {
+        injected = true;
+        // Simulate another process committing a decision after this interaction's
+        // initial read but before it acquires the SQLite write lock.
+        base.prepare("UPDATE authority_requests SET status = 'refused', nonce = 'rotated-by-other-process' WHERE guild_id = ? AND number = ?")
+          .run(G, r.number);
+      }
+      return base.exec(sql);
+    },
+  };
+  const result = decideRequest({ guildId: G, number: r.number, actorId: OWNER, action: "approve", nonce: r.nonce }, { db, env, now: 10 });
+  assert.match(result.error, /déjà traitée/);
+  assert.equal(getRequest(G, r.number, { db: base }).status, "refused");
+  assert.equal(hasException({ guildId: G, userId: MEMBER, permission: "voice.room.extra" }, { db: base, env, now: 20 }), false);
+  assert.deepEqual(requestHistory(G, r.number, { db: base }).map((event) => event.kind), ["request"]);
+});
