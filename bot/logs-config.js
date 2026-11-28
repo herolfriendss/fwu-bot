@@ -35,6 +35,13 @@ db.exec(`
   );
 `);
 
+db.exec(`
+  CREATE TABLE IF NOT EXISTS log_summary_deliveries (
+    guild_id TEXT PRIMARY KEY,
+    sent_at INTEGER NOT NULL
+  );
+`);
+
 function readKey(key) {
   try {
     return db.prepare("SELECT value FROM logs_config WHERE key = ?").get(key)?.value ?? null;
@@ -160,9 +167,22 @@ export function setLogSummaryFrequency(value) {
   writeKey("summary_frequency", value);
 }
 
-export function lastSummaryAt() {
+/** Last successful digest checkpoint; per-source checkpoints prevent duplicate sends on partial failures. */
+export function lastSummaryAt(guildId = null) {
+  if (guildId) {
+    try {
+      return Number(db.prepare("SELECT sent_at FROM log_summary_deliveries WHERE guild_id = ?").get(String(guildId))?.sent_at ?? 0) || 0;
+    } catch {
+      return 0;
+    }
+  }
   return Number(readKey("last_summary_at") ?? 0) || 0;
 }
-export function markSummarySent(at = Date.now()) {
+export function markSummarySent(at = Date.now(), guildId = null) {
+  if (guildId) {
+    db.prepare("INSERT INTO log_summary_deliveries(guild_id, sent_at) VALUES (?, ?) ON CONFLICT(guild_id) DO UPDATE SET sent_at = excluded.sent_at")
+      .run(String(guildId), Number(at));
+    return;
+  }
   writeKey("last_summary_at", at);
 }
