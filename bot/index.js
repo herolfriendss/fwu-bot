@@ -100,7 +100,7 @@ import { handleVoicePresenceMessage, reconcileActiveVoiceSessions, trackVoiceSta
 import { handleStaffMemberHistoryMessage } from "./staff-audit.js";
 import { captureGuildInviteSnapshot, resolveMemberInvite, recordMemberInvite, recordInviteLifecycle } from "./invite-attribution.js";
 import { addCentralLogObserver, setCentralLogRelay, systemLogEmbed, sendCentralLog } from "./logs.js";
-import { BOT_PROFILES, botsConfigPath, LEASE_RENEW_MS, createDomainGate, enqueueRelayedLog, loadBotPrefixes, parsePrefixedMessage, misprefixedCommand, SHARED_PREFIX_COMMANDS, resolveBotRuntime, slashCommandOwner, slashRegistrationPlan, takeRelayedLogs, requeueRelayedLog, countLostRelayedLogs, formatRelayLossLine, isBridgedPrefixCommand } from "./bot-runtime.js";
+import { BOT_PROFILES, BOT_PROFILE_IDS, listDomainLeases, botsConfigPath, LEASE_RENEW_MS, createDomainGate, enqueueRelayedLog, loadBotPrefixes, parsePrefixedMessage, misprefixedCommand, SHARED_PREFIX_COMMANDS, resolveBotRuntime, slashCommandOwner, slashRegistrationPlan, takeRelayedLogs, requeueRelayedLog, countLostRelayedLogs, formatRelayLossLine, isBridgedPrefixCommand } from "./bot-runtime.js";
 import { runPrefixAsSlash } from "./prefix-slash-bridge.js";
 import { handleLiveInteraction, handleLiveMessage } from "./live-commands.js";
 import { SLASH_FOR_PREFIX, prefixifyPayload, slashifyPayload } from "./prefix-to-slash.js";
@@ -182,8 +182,9 @@ import { STAFF_ONLY_MESSAGE, isServerStaff } from "./server-staff.js";
 import { installOwnerShield, runAsActor } from "./owner-shield.js";
 import { assertOwnerConfig } from "./owner-config.js";
 import { db } from "./database.js";
-import { clearConnectedMarker, clearGatewayFailures, createGatewayWatchdog, parseSessionLimit, recordGatewayFailure, writeConnectedMarker } from "./gateway-watchdog.js";
-import { clearSessionWaitMarker, planGatewayLogin, recordGatewayStart, sessionReserveFromEnv, writeSessionWaitMarker } from "./session-budget.js";
+import { clearConnectedMarker, clearGatewayFailures, createGatewayWatchdog, listGatewayFailures, parseSessionLimit, recordGatewayFailure, writeConnectedMarker } from "./gateway-watchdog.js";
+import { clearGatewayWait, clearSessionWaitMarker, listGatewayWaits, planGatewayLogin, recentlyStartedProfiles, recordGatewayStart, recordGatewayWait, sessionReserveFromEnv, writeSessionWaitMarker } from "./session-budget.js";
+import { createFleetWatcher, describeFleetChange, profileState, watchedProfiles } from "./fleet-watch.js";
 import { LOGS_HUB_GUILD_ID, ACTIVE_SOURCE_GUILD_IDS, allowedRuntimeGuild, filterInactiveSourceGuilds, isLogsHub, inspectLogsHub, lastLogsHubFailure } from "./logs-hub.js";
 
 const { SITE_URL, BOT_SYNC_SECRET } = process.env;
@@ -235,6 +236,40 @@ function tickDomainLease() {
   return false;
 }
 setInterval(() => { tickDomainLease(); watchRelays(); }, LEASE_RENEW_MS).unref?.();
+
+// Fleet watch (bot/fleet-watch.js): the main bot tells the staff when another bot goes down,
+// waits for its Discord connection budget, stops for good or comes back; SUCK ME does the same
+// for the main bot. Owner DM only for a definitive stop (and the return after it).
+const FLEET_WATCHED = watchedProfiles(RUNTIME.profile, BOT_PROFILE_IDS);
+const fleetWatcher = createFleetWatcher();
+const FLEET_EVENT_CODES = { down: "fleet_bot_down", waiting: "fleet_bot_waiting", stopped: "fleet_bot_stopped", online: "fleet_bot_online" };
+function fleetStates(now = Date.now()) {
+  const leases = new Map(listDomainLeases(now).map((lease) => [lease.domain, lease]));
+  const failures = new Map(listGatewayFailures(db).map((failure) => [failure.profile, failure]));
+  const waits = new Map(listGatewayWaits(db).map((wait) => [wait.profile, wait]));
+  const started = recentlyStartedProfiles(db, now);
+  return Object.fromEntries(FLEET_WATCHED.map((profile) => [profile, profileState({
+    lease: leases.get(profile) ?? null, failure: failures.get(profile) ?? null, wait: waits.get(profile) ?? null, startedRecently: started.has(profile), now,
+  })]));
+}
+async function watchFleet() {
+  if (!FLEET_WATCHED.length || !client?.isReady?.()) return;
+  let changes;
+  try { changes = fleetWatcher.update(fleetStates()); } catch { record("fleet_watch_error"); return; }
+  for (const change of changes) {
+    const label = BOT_PROFILES[change.profile]?.label ?? change.profile;
+    const text = describeFleetChange(change, label, { pm2Name: change.profile === "fwu" ? "her-v5-bot" : `fwu-${change.profile}` });
+    if (!text) continue;
+    record(FLEET_EVENT_CODES[change.to] ?? "fleet_watch_error");
+    for (const guild of relayGuilds()) auditLog(guild, settings[guild.id], text.title, text.description, text.color);
+    const ownerId = String(process.env.PND_OWNER_DISCORD_ID ?? "").trim();
+    if (text.owner && /^\d{17,20}$/.test(ownerId)) {
+      const owner = await client.users.fetch(ownerId).catch(() => null);
+      await owner?.send(`${text.title}\n${text.description}`).catch(() => {});
+    }
+  }
+}
+if (FLEET_WATCHED.length) setInterval(() => { void watchFleet().catch(() => record("fleet_watch_error")); }, 30_000).unref?.();
 if (!IS_FWU) {
   // Dedicated bots hand their logs to FWU (Logs Hub owner, RESUME source).
   setCentralLogRelay(({ guild, embed, fallbackChannelIds, components, allowedUserIds, category, mentionRoleIds }) => enqueueRelayedLog({
@@ -2291,6 +2326,7 @@ function stopOffline(reason, detail = "") {
   if (sessionLimit) {
     // Not a crash series: wait for Discord's reset without burning another session start.
     plan = { failures: 0, stop: false, delayMs: sessionLimit.delayMs, exitCode: 1 };
+    try { recordGatewayWait(db, RUNTIME.profile, Date.now() + sessionLimit.delayMs, "session_limit"); } catch { /* diagnostic only */ }
     console.error(`⏳ ${BOT_LABEL} : limite quotidienne de connexions Discord atteinte. Attente de ${Math.round(sessionLimit.delayMs / 60_000)} min avant le prochain essai${sessionLimit.resetAt ? ` (reset ${new Date(sessionLimit.resetAt).toISOString()})` : ""}.`);
   } else {
     try { plan = recordGatewayFailure(db, RUNTIME.profile, reason); } catch { /* keep the default pause */ }
@@ -2317,9 +2353,11 @@ if (loginPlan.waitMs > 0) {
     ? `⏳ ${BOT_LABEL} : plus que ${loginPlan.remaining} connexions Discord disponibles aujourd'hui. Attente de ${minutes} min (réinitialisation Discord) avant de se connecter${RUNTIME.profile === "fwu" ? "" : " ; le bot principal couvre ce domaine en attendant"}.`
     : `⏳ ${BOT_LABEL} : ${loginPlan.recentStarts} démarrages en moins de 6 h (boucle de redémarrage ?). Pause de ${minutes} min avant de se connecter pour ne pas épuiser les connexions Discord.`);
   writeSessionWaitMarker(Date.now() + loginPlan.waitMs, loginPlan.reason);
+  try { recordGatewayWait(db, RUNTIME.profile, Date.now() + loginPlan.waitMs, loginPlan.reason); } catch { /* diagnostic only */ }
   await new Promise((resolve) => setTimeout(resolve, loginPlan.waitMs));
 }
 clearSessionWaitMarker();
+try { clearGatewayWait(db, RUNTIME.profile); } catch { /* diagnostic only */ }
 try { recordGatewayStart(db, RUNTIME.profile); } catch { /* diagnostic only */ }
 const gatewayWatchdog = createGatewayWatchdog({ isReady: () => client.isReady(), exit: stopOffline });
 setInterval(() => gatewayWatchdog.check(), 15_000).unref?.();

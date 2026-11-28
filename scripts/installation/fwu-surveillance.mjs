@@ -26,7 +26,7 @@ import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 
 export const PROCESSES = Object.freeze([
-  { name: "her-v5-bot", label: "FWU" },
+  { name: "her-v5-bot", label: "Bot principal" }, // never "FWU" in Discord (identity rule)
   { name: "fwu-guard", label: "GUARD" },
   { name: "fwu-fdpdlavoc", label: "FDPDLAVOC" },
   { name: "fwu-suckme", label: "SUCK ME" },
