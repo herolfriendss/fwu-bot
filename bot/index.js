@@ -107,7 +107,7 @@ import { SLASH_FOR_PREFIX, prefixifyPayload, slashifyPayload } from "./prefix-to
 import { enableLearnMore, handleDossierButton, installMessageReplyLayer, installReplyLayer } from "./reply-layer.js";
 import { installMonochromeTheme } from "./monochrome-theme.js";
 import { installBlrShield } from "./blr-shield.js";
-import { createErrorWatch, maintenanceState, runToolCommand, stabilityRefusal } from "./stability.js";
+import { createErrorWatch, globalMaintenanceState, maintenanceState, runToolCommand, stabilityRefusal } from "./stability.js";
 import { handleSmashInteraction } from "./features/smash.js";
 import { handleFamilyInteraction } from "./features/family.js";
 import { expireTempbans } from "./guard/tempban.js";
@@ -1539,7 +1539,7 @@ client.once("clientReady", () => {
     profile: RUNTIME.profile, label: BOT_LABEL, prefix: OWN_PREFIX, guilds: communityGuilds, onError: () => record("presence_error"),
     // Statut qui réagit : mode raid (GUARD), musique en cours (FDPDLAVOC), cagnotte (LE FISC).
     events: () => ({
-      maintenance: maintenanceState(RUNTIME.profile) ? (maintenanceState(RUNTIME.profile).message ?? true) : null,
+      maintenance: (globalMaintenanceState() ?? maintenanceState(RUNTIME.profile)) ? ((globalMaintenanceState() ?? maintenanceState(RUNTIME.profile)).message ?? true) : null,
       raidActive: communityGuilds().some((guild) => isRaidActive(guild.id)),
       nowPlaying: serves("fdpdlavoc") ? currentlyPlayingTitle() : null,
       jackpot: serves("fisc") ? communityGuilds().reduce((max, guild) => Math.max(max, Number(jackpotAmount(guild.id) ?? 0)), 0) : null,
@@ -2140,8 +2140,23 @@ client.on("interactionCreate", (interaction) => {
     }
     if (interaction.isChatInputCommand?.() && interaction.commandName === "stabilite") {
       const o = interaction.options;
-      const content = runToolCommand({ member: interaction.member, sub: o.getSubcommand(), command: o.getString("commande", false), reason: o.getString("raison", false), profile: o.getString("bot", false) ?? RUNTIME.profile });
-      await interaction.reply({ content, ephemeral: true, allowedMentions: { parse: [] } }).catch(() => {});
+      const sub = o.getSubcommand();
+      const reason = o.getString("raison", false);
+      const content = runToolCommand({ member: interaction.member, sub, command: o.getString("commande", false), reason, profile: o.getString("bot", false) ?? RUNTIME.profile });
+      let announcementError = false;
+      if (sub === "maintenance-global-on" || sub === "maintenance-global-off") {
+        const channel = o.getChannel("salon", false) ?? interaction.channel;
+        const started = sub === "maintenance-global-on" && content.startsWith("🛠️ Maintenance globale activée");
+        const ended = sub === "maintenance-global-off" && content.startsWith("✅ Maintenance globale terminée");
+        if ((started || ended) && channel?.isTextBased?.() && typeof channel.send === "function") {
+          const announcement = started
+            ? `🛠️ **FWU passe en maintenance globale.** Les commandes sont temporairement suspendues sur tous les bots.${reason ? `\\nMotif : ${reason}` : ""}`
+            : "✅ **La maintenance globale de FWU est terminée.** Les commandes sont de nouveau disponibles.";
+          await channel.send({ content: announcement, allowedMentions: { parse: [] } }).catch(() => { announcementError = true; });
+        } else if (started || ended) announcementError = true;
+      }
+      const reply = announcementError ? `${content}\\n⚠️ L'annonce publique n'a pas pu être envoyée dans le salon choisi.` : content;
+      await interaction.reply({ content: reply, ephemeral: true, allowedMentions: { parse: [] } }).catch(() => {});
       return;
     }
     if (interaction.isChatInputCommand?.() && interaction.guildId) {
