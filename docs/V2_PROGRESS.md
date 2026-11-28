@@ -261,3 +261,13 @@ Aucun test n'est déclaré exécuté par cette session à ce stade. Le connecteu
 - Garde-fous : mutations OWNER uniquement au niveau handler et service ; lecture OWNER/SYS+ ; aucun rapprochement automatique depuis les scores de ressemblance ; aucune collecte IP/MAC/empreinte matérielle.
 - Tests ajoutés : `bot/wet.test.js`. Résultat CI et recette staging non encore confirmés.
 - La commande `/unwet` révoque le dossier complet. Un bannissement local indépendant encore inscrit dans `/blacklist` n'est pas levé silencieusement.
+
+
+### Validation ULTIMATE — 28/11/2026 (commit eebd3f9)
+
+- CI GitHub Actions `FWU quality gates` : **succès** sur `eebd3f959bc40414af64a4cc38fc9283e0bbbbd1` (run 46150246484).
+- Tests bot Node 24 + PostgreSQL 16 : succès ; tests/types/lint/build dashboard : succès ; shell/packaging : succès ; construction et vérification des paquets installables : succès.
+- Audit de sécurité des dépendances : succès sur le même commit (run 46150246435).
+- WET : file SQLite durable de reprise des débannissements, contrôles du motif exact, protection des blacklist locales et propriétaires de serveur ; les jobs sont créés par `/unwet` pour les serveurs GUARD connectés et repris après redémarrage / erreurs Discord.
+- WET : les tests couvrent les erreurs Discord temporaires, les reprises, les dossiers multi-comptes, les blacklist locales, les sanctions indépendantes et les propriétaires de serveur.
+- **Non validé** : recette Discord réelle/staging, permissions effectives de GUARD sur chaque serveur, comportement audio réel et configuration des fournisseurs IA. Aucun déploiement VPS ni fusion dans `main` n'a été effectué.
