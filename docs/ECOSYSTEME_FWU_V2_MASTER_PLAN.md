@@ -248,6 +248,7 @@ Correctif (`bot/session-budget.js`, appelé par `bot/index.js` avant chaque conn
 | S7 | `pm2 startup` / `pm2 save` et rotation des journaux PM2 non vérifiés (A.3, D.17). | Moyenne | vérifier sur le VPS |
 | S8 | Commande slash nommée `fwu` (« Vue d'ensemble des cinq bots ») : le nom contient « FWU », que la règle d'identité réserve au site. | Faible | décision OWNER : renommer (`/bots` ?) en gardant l'ancien nom un temps |
 | S9 | Description « cinq bots » / « 5 bots » dans plusieurs commandes (`/fwu`, `/maj`, `/quota`) : à mettre à jour quand les nouveaux bots arrivent. | Faible | lors de la phase concernée |
+| S11 | Dans une vingtaine de modules (`/staff`, `/roletemp`, `/stabilite`, vocal de masse, tickets, presence…), le **propriétaire du serveur Discord** a les mêmes droits d'acteur que l'OWNER configuré. Les rôles protégés restent réservés à l'OWNER par ID (`role-grant-guard.js`), et le propriétaire Discord a de toute façon tous les droits dans Discord. Le retirer partout pourrait bloquer des usages actuels. | Décision OWNER | AUTHORITY et toute nouvelle commande OWNER : **ID configuré uniquement** (règle appliquée) ; harmoniser l'existant si l'OWNER le décide |
 | S10 | 26 tests sautés : tests PostgreSQL (`pgTest`) qui demandent une base de test. | Info | fournir une base PostgreSQL jetable dans la vérification |
 
 ## 10. Tests

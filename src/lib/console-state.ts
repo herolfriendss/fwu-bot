@@ -20,6 +20,7 @@ const CRITICAL = new Set<string>([
 ]);
 const WARNING = new Set<string>([
   "disconnected", "reconnecting", "gateway_error", "hierarchy_refused", "blr_blocked", "blr_reverted", "tier0_reverted",
+  "vps_health_warning", "member_flow_abnormal", "relay_takeover", "degraded_mode_on", "bot_permission_lost", "ban_evader_suspected", "phishing_quarantine",
   "acl_risk_detected", "alt_suspect", "guild_blocked", "shared_db_down", "slash_commands_over_limit", "logs_hub_incomplete",
   "economy_pending_review", "guardian_review_opened", "guild_guard_kick", "guild_guard_quarantine", "remote_command_ignored",
 ]);
@@ -83,12 +84,33 @@ export type ConsoleActivity = {
   top: { displayName: string | null; level: number; xp: number }[];
 };
 
+export type ConsoleRestart = { at: string; bot: BotProfileId; label: string; status: BotCommand["status"]; deliveredAt: string | null };
+export type ConsoleHealth = { level: "ok" | "warn" | "down"; reasons: string[] };
 export type ConsoleState = {
   generatedAt: string;
   bots: ConsoleBot[];
   events: ConsoleEvent[];
   activity: ConsoleActivity[];
+  /** Derniers ordres de redémarrage (journal des actions de la console). */
+  restarts: ConsoleRestart[];
+  /** Voyant global : vert, orange ou rouge, avec la raison. */
+  health: ConsoleHealth;
 };
+
+const HEALTH_WARNING_CODES = new Set(["vps_health_warning", "member_flow_abnormal", "bot_permission_lost", "guild_guard_raid", "antinuke_triggered", "relay_takeover", "degraded_mode_on"]);
+/** Pure: the single green/orange/red light at the top of the console. */
+export function computeHealth(bots: ConsoleBot[], events: ConsoleEvent[], now: number): ConsoleHealth {
+  const reasons: string[] = [];
+  const down = bots.filter((b) => !b.optional && b.state !== "online");
+  for (const bot of down) reasons.push(`${bot.label} : ${bot.reachable ? "processus vivant mais pas connecté à Discord" : "ne répond plus"}`);
+  const recent = events.filter((e) => now - Date.parse(e.at) <= 60 * 60_000 && HEALTH_WARNING_CODES.has(e.code));
+  const seen = new Set<string>();
+  for (const e of recent) if (!seen.has(e.code)) { seen.add(e.code); reasons.push(e.label); }
+  const optionalDown = bots.filter((b) => b.optional && b.state !== "online");
+  for (const bot of optionalDown) reasons.push(`${bot.label} (facultatif) hors ligne`);
+  const level: ConsoleHealth["level"] = down.length ? "down" : reasons.length ? "warn" : "ok";
+  return { level, reasons: reasons.slice(0, 8) };
+}
 
 function readEvents(value: unknown): { at: string; code: EventCode }[] {
   if (!Array.isArray(value)) return [];
@@ -168,5 +190,8 @@ export function buildConsoleState(input: { rows: RuntimeRow[]; activity: Activit
     };
   });
 
-  return { generatedAt: new Date(now).toISOString(), bots, events: events.slice(0, 300), activity };
+  const restarts: ConsoleRestart[] = input.commands.slice(0, 20).map((c) => ({
+    at: c.requestedAt, bot: c.profile, label: BOT_PROFILES[c.profile]?.label ?? c.profile, status: c.status, deliveredAt: c.deliveredAt,
+  }));
+  return { generatedAt: new Date(now).toISOString(), bots, events: events.slice(0, 300), activity, restarts, health: computeHealth(bots, events, now) };
 }

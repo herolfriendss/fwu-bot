@@ -89,3 +89,19 @@ describe("état de la console", () => {
     expect(state.activity[0]!.daily).toHaveLength(30);
   });
 });
+
+describe("console health light and restart history", () => {
+  it("is red when a required bot is down, orange on recent warnings, green otherwise", async () => {
+    const { computeHealth } = await import("@/lib/console-state");
+    const now = Date.parse("2026-11-28T10:00:00Z");
+    const bot = (label: string, state: "online" | "offline", optional = false, reachable = true) => ({ label, state, optional, reachable }) as never;
+    expect(computeHealth([bot("GUARD", "online"), bot("Invest +", "online", true)], [], now)).toEqual({ level: "ok", reasons: [] });
+    const red = computeHealth([bot("GUARD", "offline", false, false)], [], now);
+    expect(red.level).toBe("down");
+    expect(red.reasons[0]).toContain("ne répond plus");
+    const ev = [{ at: "2026-11-28T09:30:00Z", code: "vps_health_warning", label: "VPS saturé" }] as never;
+    expect(computeHealth([bot("GUARD", "online")], ev, now)).toEqual({ level: "warn", reasons: ["VPS saturé"] });
+    const old = [{ at: "2026-11-28T07:00:00Z", code: "vps_health_warning", label: "VPS saturé" }] as never;
+    expect(computeHealth([bot("GUARD", "online")], old, now).level).toBe("ok");
+  });
+});

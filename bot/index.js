@@ -38,6 +38,9 @@ import { cachedBans, createPermissionWatch, isPhishingExecution, matchBanEvader,
 import { quarantineMember } from "./guard/commands.js";
 import { recordAiUsage, sendMonthlyAiReport } from "./ai-usage.js";
 import { handleVoicePlusInteraction } from "./features/voice-plus.js";
+import { createHealthWatch, healthProblems, readVpsHealth } from "./vps-health.js";
+import { checkFlow, recordFlow } from "./guard/flow-watch.js";
+import { dirname as pathDirname } from "node:path";
 import { awardRichestOfMonth } from "./features/richest-month.js";
 import { countChallengeMessage, expireTempChannels, handleBoost, handleFwuPlusInteraction, payChallenge, sendWeeklySummary } from "./features/fwu-plus.js";
 import { astreinteMembers, expireFrozenChannels, handleGardeInteraction, msUntilWeeklyReport, sendSanctionEndReminders, sendWeeklyStaffReports } from "./systems/garde/commands.js";
@@ -681,6 +684,7 @@ client.on("guildMemberAdd", (member) => {
   if (!guardWatch(member.guild)) return;
   void recordJoinForRaid(member, { settings: settings[member.guild.id] }).catch(() => record("guild_guard_error"));
   if (member.user?.bot && !fwuBotIds().has(member.id)) void handleBotAdded(member, { settings: settings[member.guild.id] }).catch(() => record("guild_guard_error"));
+  if (guardWatch(member.guild)) { recordFlow(member.guild.id, "join"); reportFlow(member.guild); }
   // Contournement de ban : compte récent avec le pseudo ou l'avatar d'un banni.
   void cachedBans(member.guild).then((bans) => {
     const hit = matchBanEvader(member, bans);
@@ -705,6 +709,21 @@ client.on("autoModerationActionExecution", (execution) => {
 client.on("guildMemberUpdate", (oldMember, newMember) => {
   if (IS_FWU && guildAllowed(newMember.guild.id, ALLOWED_GUILDS) && !isLogsHub(newMember.guild.id)) void handleBoost(oldMember, newMember, { grant: grantPnd }).catch(() => record("fwu_plus_error"));
 });
+client.on("guildMemberRemove", (member) => {
+  if (!guardWatch(member.guild)) return;
+  recordFlow(member.guild.id, "leave");
+  reportFlow(member.guild);
+});
+// Arrivées / départs anormaux : alerte (jamais de sanction), une par heure et par type.
+function reportFlow(guild) {
+  try {
+    for (const alert of checkFlow(guild.id)) {
+      record("member_flow_abnormal");
+      auditLog(guild, settings[guild.id], alert.kind === "joins" ? "📈 Arrivées anormales" : "📉 Départs anormaux",
+        `${alert.count} ${alert.kind === "joins" ? "arrivées" : "départs"} cette heure-ci, contre ${alert.baseline} d'habitude à la même heure.${alert.kind === "joins" ? "\nSi c'est un raid : \`/raid on\` puis \`/raid purge\`." : "\nVérifie qu'il n'y a pas de purge ou de problème dans un salon."}`, 0xf59e0b);
+    }
+  } catch { record("guild_guard_error"); }
+}
 client.on("guildIntegrationsUpdate", (guild) => {
   if (!guardWatch(guild)) return;
   record("integration_changed");
@@ -1207,6 +1226,21 @@ function checkOwnPermissions() {
   }
 }
 setInterval(checkOwnPermissions, 10 * 60_000).unref?.();
+// Santé du VPS (bot principal seulement, un seul message pour tout le VPS).
+const vpsHealthWatch = createHealthWatch();
+let lastVpsHealth = null;
+function checkVpsHealth() {
+  if (!IS_FWU || !client?.isReady?.()) return;
+  const health = readVpsHealth(process.env.HER_DB_PATH ? pathDirname(process.env.HER_DB_PATH) : process.cwd());
+  lastVpsHealth = health;
+  const change = vpsHealthWatch(healthProblems(health));
+  if (!change) return;
+  record(change.recovered ? "vps_health_ok" : "vps_health_warning");
+  const guild = relayGuilds()[0];
+  if (guild) auditLog(guild, settings[guild.id], change.recovered ? "✅ VPS : tout est revenu à la normale" : "⚠️ VPS : ressources presque épuisées", change.recovered ? "Disque, mémoire et processeur sont de nouveau dans les limites." : change.problems.join("\n"), change.recovered ? 0x22c55e : 0xef4444);
+}
+setInterval(checkVpsHealth, 10 * 60_000).unref?.();
+setTimeout(checkVpsHealth, 2 * 60_000).unref?.();
 setTimeout(checkOwnPermissions, 90_000).unref?.();
 
 // Relais : quand ce bot couvre GUARD ou SUCK ME tombés, le staff est prévenu et, pour GUARD,

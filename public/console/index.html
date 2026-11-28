@@ -293,6 +293,7 @@ pre.code{font-size:12px;line-height:1.55;border:1px solid var(--line);padding:12
 .demo.on{border-style:solid}
 .demo a{color:inherit;text-decoration:underline}
 @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+.health h3{display:flex;align-items:center;justify-content:flex-start;gap:10px;font-size:15px}.health.h-down{border-color:currentColor}.health.h-down h3{letter-spacing:.02em}.hlist{margin:6px 0 0 18px;padding:0;line-height:1.7}
 </style>
 </head>
 <body>
@@ -538,7 +539,8 @@ function applyLive(d){
 
 function paintBadge(){const el=$('#demoBadge');if(!el)return;
  if(L.mode==='live'){const sec=Math.max(0,Math.round((Date.now()-L.at)/1000));
-  el.className='demo on';el.innerHTML=L.err?`<i class="dot mt"></i>${esc(L.err)}`:`<i class="dot on"></i>En direct · il y a ${sec} s`;return}
+  const lvl=(L.data&&L.data.health&&L.data.health.level)||'ok';const lt={ok:'',warn:' · à surveiller',down:' · un bot ne répond plus'}[lvl]||'';
+  el.className='demo on';el.innerHTML=L.err?`<i class="dot mt"></i>${esc(L.err)}`:`<i class="dot ${lvl==='ok'?'on':'mt'}"></i>En direct · il y a ${sec} s${lt}`;return}
  if(L.mode==='auth'){el.className='demo';el.innerHTML='<i class="dot mt"></i><a href="/connexion">Aperçu · se connecter</a>';return}
  el.className='demo';el.innerHTML='<i class="dot mt"></i>Données de démonstration'}
 
@@ -627,6 +629,7 @@ R.controle=()=>{
  const ev=S.logs.slice(0,6);
  const mx=Math.max(...S.hours);
  return `<div class="grid">
+ ${isLive()?healthHTML():''}
  <div class="blk c12"><h3>Bots <small>${online()} sur ${S.bots.length} en ligne</small></h3><div class="tiles" id="tiles">${tilesHTML()}</div></div>
  <div class="blk c7"><h3>À traiter <small>${al.length} ouverte${al.length>1?'s':''}</small></h3>${al.length?al.map(a=>`<div class="alert sev v${a.sev}"><div><b>${esc(a.t)}</b><small>${esc(a.d)} · ${ago(a.ts)}</small></div><div class="row">${a.act==='raid'&&!S.raid?`<button class="btn sm pri" data-act="raid-on">Activer le mode raid</button>`:''}${a.act&&a.act.startsWith('bot:')?`<button class="btn sm" data-act="bot-open" data-id="${a.act.slice(4)}">Voir le bot</button>`:''}<button class="btn sm" data-act="ack" data-id="${a.id}">Acquitter</button></div></div>`).join(''):`<div class="empty">Aucune alerte ouverte. Les prochains événements graves apparaîtront ici.</div>`}</div>
  <div class="blk c5"><h3>Actions rapides</h3>${isLive()?`<div class="row" style="flex-direction:column;align-items:stretch"><button class="btn" data-go="bots">Redémarrer un bot</button><button class="btn" data-go="journal">Ouvrir le journal</button></div><p class="muted" style="margin-top:10px">Verrouillage d’urgence et mode raid : pas encore reliés au bot.</p>`:`<div class="row" style="flex-direction:column;align-items:stretch">
@@ -636,8 +639,16 @@ R.controle=()=>{
   <button class="btn" data-go="embeds">Publier un embed</button></div>`}</div>
  <div class="blk c7"><h3>Événements sur 24 h <small>${isLive()?'reçus des bots, derniers 50 par bot':'par heure'}</small></h3><div class="bars">${S.hours.map((v,i)=>`<i style="height:${Math.max(3,v/mx*100)}%" title="${isLive()?`il y a ${23-i} h : ${v}`:`${pad((new Date().getHours()-23+i+24)%24)} h : ${v}`}"></i>`).join('')}</div><div class="axis"><span>il y a 24 h</span><span>maintenant</span></div></div>
  <div class="blk c5"><h3>Derniers événements <button class="btn sm" data-go="journal">Tout voir</button></h3>${ev.length?ev.map(e=>`<div class="log sev v${e.sev}" style="grid-template-columns:52px 1fr"><time>${hhmm(e.ts)}</time><p>${esc(e.txt)}</p></div>`).join(''):`<div class="empty">Aucun événement reçu pour l’instant.</div>`}</div>
+ ${isLive()?restartsHTML():''}
  ${isLive()?activityHTML():''}
  </div>`};
+// Voyant global (vert / orange / rouge) calculé par le site à partir de l'état réel des bots.
+function healthHTML(){const h=L.data&&L.data.health;if(!h)return'';
+ const t={ok:'Tout va bien',warn:'À surveiller',down:'Un bot ne répond plus'}[h.level]||'';
+ return `<div class="blk c12 health h-${esc(h.level)}" role="status"><h3><i class="dot ${h.level==='ok'?'on':'mt'}"></i>${t}</h3>${h.reasons.length?`<ul class="hlist">${h.reasons.map(r=>`<li>${esc(r)}</li>`).join('')}</ul>`:'<p class="muted">Les six bots sont connectés, aucune alerte dans l’heure.</p>'}</div>`}
+function restartsHTML(){const r=(L.data&&L.data.restarts)||[];
+ const st={pending:'en attente',delivered:'exécuté',expired:'expiré'};
+ return `<div class="blk c12"><h3>Historique des redémarrages <small>${r.length} dernier${r.length>1?'s':''}</small></h3>${r.length?r.map(x=>`<div class="log" style="grid-template-columns:110px 1fr"><time>${esc(new Date(x.at).toLocaleString('fr-FR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}))}</time><p>${esc(x.label)} — ${esc(st[x.status]||x.status)}</p></div>`).join(''):'<p class="muted">Aucun redémarrage demandé depuis la console.</p>'}</div>`}
 function activityHTML(){
  const act=(L.data&&L.data.activity)||[];
  if(!act.length)return `<div class="blk c12"><h3>Activité du serveur</h3><div class="empty">Aucun instantané reçu. Le bot principal en envoie un toutes les 15 minutes.</div></div>`;
