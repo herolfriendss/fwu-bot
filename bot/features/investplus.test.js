@@ -209,3 +209,26 @@ test("rôle d'une formule : un rôle à permission sensible est refusé, même p
   assert.ok(reason, "rôle Administrateur refusé");
   assert.equal(await planRoleRefusal(guild, null, null), null);
 });
+
+test("Invest + : renouvellement automatique en PND à l'échéance (opt-in, un essai)", async () => {
+  const ip = await import("./investplus.js");
+  const { grantPnd, pndBalance } = await import("../economy.js");
+  const t0 = Date.UTC(2026, 9, 1, 12);
+  const plan = ip.createPlan("ar-g", { name: "Auto", price: 100, periodDays: 30, payMode: "pnd" }, t0);
+  grantPnd("ar-g", "rich", 250, "test");
+  grantPnd("ar-g", "poor", 100, "test");
+  ip.payWithPnd({ guildId: "ar-g", userId: "rich", planId: plan.id }, t0);
+  ip.payWithPnd({ guildId: "ar-g", userId: "poor", planId: plan.id }, t0);
+  ip.setAutoRenew("ar-g", "rich", true);
+  ip.setAutoRenew("ar-g", "poor", true);
+  const due = t0 + 31 * 86_400_000;
+  const { renewed, failed } = ip.autoRenewDue(due);
+  assert.deepEqual(renewed.map((s) => s.userId), ["rich"]);
+  assert.deepEqual(failed.map((s) => s.userId), ["poor"]);
+  assert.equal(pndBalance("ar-g", "rich").balance, 50);
+  assert.equal(ip.subscriptionOf("ar-g", "rich").status, "active");
+  assert.equal(ip.expireDueSubscriptions(due).map((s) => s.userId).join(), "poor", "sans solde : expiration normale");
+  assert.equal(ip.autoRenewEnabled("ar-g", "rich"), true);
+  ip.setAutoRenew("ar-g", "rich", false);
+  assert.equal(ip.autoRenewEnabled("ar-g", "rich"), false);
+});

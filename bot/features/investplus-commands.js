@@ -9,7 +9,7 @@ import { parsePndOwnerId } from "../pnd-owner-policy.js";
 import { roleGrantRefusal } from "../role-grant-guard.js";
 import {
   DAY, LIMITS, REQUEST_KINDS, STATUS_LABELS, benefitLines, cancelSubscription, closeRequest, createPlan, createRequest,
-  deleteSpace, deleteSpaceByChannel, expireDueSubscriptions, findPlan, formatPeriod, formatPrice, grantSubscription,
+  deleteSpace, deleteSpaceByChannel, expireDueSubscriptions, autoRenewDue, autoRenewEnabled, setAutoRenew, findPlan, formatPeriod, formatPrice, grantSubscription,
   historyOf, investConfig, investStats, listOpenRequests, listPlans, listSpaces, listSubscriptions, pauseSubscription,
   giftWithPnd, payWithPnd, planById, requestById, resumeSubscription, saveInvestConfig, saveSpace, setPlanActive, setSpacePanel,
   setSubscriptionNote, spaceByChannel, spaceChannelName, spaceOf, subscriptionOf, takeDueReminders, updatePlan,
@@ -500,6 +500,13 @@ async function memberCommand(interaction) {
       const channel = await ensureSpace(interaction.guild, interaction.member);
       return `✅ Ton espace Invest + : ${channel}`;
     }
+    case "auto": {
+      const choice = interaction.options.getString("etat") ?? (autoRenewEnabled(gid, uid) ? "off" : "on");
+      setAutoRenew(gid, uid, choice === "on");
+      return choice === "on"
+        ? "🔁 Renouvellement automatique activé : à l'échéance, ta formule payable en PND sera repayée si ton solde suffit."
+        : "⏹️ Renouvellement automatique coupé : ta formule s'arrêtera à l'échéance.";
+    }
     case "demande": {
       const plan = planOption(interaction, "formule", { required: false });
       const request = createRequest({ guildId: gid, userId: uid, kind: interaction.options.getString("type", true), planId: plan?.id ?? null, body: interaction.options.getString("message") ?? "" });
@@ -667,6 +674,18 @@ export async function runInvestPlusJobs(client, { isAllowedGuild = () => true, s
     const plan = planById(guild.id, sub.planId);
     await notifyMember(guild, sub.userId, `ta formule **${plan?.name ?? "Invest +"}** arrive à échéance ${ts(sub.expiresAt, "R")}. ${plan?.payMode === "pnd" ? "Tu peux la renouveler depuis le bouton **Formules** de ton espace." : "Utilise **Écrire à l'administration** pour la renouveler."}`);
     await refreshPanel(guild, sub.userId);
+  }
+  const auto = autoRenewDue(now);
+  for (const sub of auto.renewed) {
+    const guild = guildOf(sub.guildId);
+    if (!guild) continue;
+    const plan = planById(guild.id, sub.planId);
+    await refreshPanel(guild, sub.userId);
+    await notifyMember(guild, sub.userId, `ta formule **${plan?.name ?? "Invest +"}** a été renouvelée automatiquement (${plan?.price ?? 0} PND). \`/abonnement auto off\` pour arrêter.`);
+  }
+  for (const sub of auto.failed) {
+    const guild = guildOf(sub.guildId);
+    if (guild) await notifyMember(guild, sub.userId, `renouvellement automatique impossible : ${sub.reason}`);
   }
   for (const sub of expireDueSubscriptions(now)) {
     const guild = guildOf(sub.guildId);

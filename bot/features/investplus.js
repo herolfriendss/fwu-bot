@@ -301,6 +301,29 @@ export function setSubscriptionNote(guildId, userId, note, actorId, now = Date.n
 }
 
 /** Abonnements actifs arrivés à échéance : passés en « expiré » et renvoyés pour suite (rôle, panneau). */
+// Renouvellement automatique (choix du membre) : à l'échéance, une formule payable en PND est
+// repayée si le solde suffit ; sinon elle expire normalement. Un seul essai par échéance.
+db.exec("CREATE TABLE IF NOT EXISTS investplus_autorenew (guild_id TEXT NOT NULL, user_id TEXT NOT NULL, enabled INTEGER NOT NULL DEFAULT 1, PRIMARY KEY (guild_id, user_id))");
+export function setAutoRenew(guildId, userId, enabled) {
+  db.prepare("INSERT INTO investplus_autorenew(guild_id, user_id, enabled) VALUES (?,?,?) ON CONFLICT(guild_id, user_id) DO UPDATE SET enabled=excluded.enabled").run(guildId, userId, enabled ? 1 : 0);
+  return enabled;
+}
+export function autoRenewEnabled(guildId, userId) {
+  return Boolean(db.prepare("SELECT enabled FROM investplus_autorenew WHERE guild_id=? AND user_id=?").get(guildId, userId)?.enabled);
+}
+/** Tries to renew the due subscriptions of members who opted in. Returns { renewed, failed }. */
+export function autoRenewDue(now = Date.now()) {
+  const due = db.prepare(`SELECT s.* FROM investplus_subscriptions s JOIN investplus_autorenew a ON a.guild_id=s.guild_id AND a.user_id=s.user_id AND a.enabled=1
+    WHERE s.status='active' AND s.expires_at IS NOT NULL AND s.expires_at<=? LIMIT 200`).all(now).map(rowToSub);
+  const renewed = [];
+  const failed = [];
+  for (const sub of due) {
+    try { payWithPnd({ guildId: sub.guildId, userId: sub.userId, planId: sub.planId }, now); renewed.push(sub); }
+    catch (error) { failed.push({ ...sub, reason: error.message }); }
+  }
+  return { renewed, failed };
+}
+
 export function expireDueSubscriptions(now = Date.now()) {
   return transaction(() => {
     const rows = db.prepare("SELECT * FROM investplus_subscriptions WHERE status='active' AND expires_at IS NOT NULL AND expires_at<=? LIMIT 200").all(now).map(rowToSub);
