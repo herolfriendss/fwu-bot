@@ -203,3 +203,15 @@ Garde-fous communs : SYS+ seulement, durée limitée, quotas partagés, tier 0 e
 - [x] `/vocal-plus` : préréglages nommés du vocal temporaire, classement du temps en vocal ; `/garde planning`.
 - [x] Audit de sécurité : liens retirés des messages reposés par les malus (pas de phishing via le bot), paiement de rançon sans création d'argent, `/archive` exige l'accès au salon, dépendances sans vulnérabilité, aucun secret dans le dépôt ni dans `bot-oracle.zip`.
 - [x] Supabase : `pg_net` rangé dans `extensions`, règles « server only » explicites sur les tables réservées au serveur ; plus aucun avertissement de sécurité.
+
+
+## O. FWU ULTIMATE — lots validés par l'OWNER (28/11)
+
+- [ ] 121. **WET** : registre réseau supérieur à la blacklist, dossiers avec preuves, comptes alternatifs reliés manuellement, bannissements sur les serveurs FWU et réapplication au retour ; `/wet` et `/unwet`. Écritures OWNER uniquement, consultation SYS+, aucune empreinte IP/appareil. Implémentation commencée sur la branche ULTIMATE ; tests et recette staging requis.
+- [ ] 122. **Musique** : commandes directes `/play`, `/pause`, `/resume`, `/skip`, `/queue`, `/volume`, etc., tout en conservant `/music player` ; fiabiliser yt-dlp, FFmpeg/libopus, playlists et reprise des flux expirés ; recette audio réelle en staging.
+- [ ] 123. **IA indépendante** : unifier génération du règlement et assistant via la passerelle serveur FWU ; aucune clé personnelle Anthropic/Claude dans les bots ; facturation API fournisseur indépendante d'un abonnement Claude.
+- [ ] 124. **SENTINEL** : supervision indépendante des bots, des services, des permissions, des files, des sauvegardes et des incidents ; mode dégradé explicite et auto-réparation bornée.
+- [ ] 125. **STAFF CONTROL ROOM** : sanctions, temps de mute, dossiers, appels, charge, passations, approbations, briefing et statistiques contextualisées.
+- [ ] 126. **API dashboard** : contrats versionnés pour les futures actions web (lever un mute, lire les sanctions, consulter les analyses, gérer les workflows) ; aucun frontend ni déploiement du site pendant ce chantier.
+- [ ] 127. **Écosystème ULTIMATE** : SOCIAL, EVENT, DISPATCH, ARCADE, AUTHORITY et services CORE (IDENTITY, CASES, MEMORY, FLOW, RECOVERY, INTELLIGENCE) ; auditer l'existant avant d'ajouter un module ou un bot.
+- [ ] 128. **Audit général** : sécurité, permissions, dépendances, commandes, tests de non-régression, isolation multi-serveur, packaging et recette staging avant toute fusion dans `main`.
