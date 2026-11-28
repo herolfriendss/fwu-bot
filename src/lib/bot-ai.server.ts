@@ -213,7 +213,7 @@ function consumeSummaryGenerationSlot(guildId: string, userId: string): boolean 
   summaryGenerationBuckets.set(key, recent);
   if (summaryGenerationBuckets.size > 5_000) {
     for (const [entry, timestamps] of summaryGenerationBuckets) {
-      const latest = timestamps[timestamps.length - 1];
+      const latest = timestamps.at(-1);
       if (latest === undefined || now - latest > 60_000) summaryGenerationBuckets.delete(entry);
       if (summaryGenerationBuckets.size <= 4_000) break;
     }
@@ -266,7 +266,7 @@ function consumeTranslationGenerationSlot(guildId: string, userId: string): bool
   translationGenerationBuckets.set(key, recent);
   if (translationGenerationBuckets.size > 5_000) {
     for (const [entry, timestamps] of translationGenerationBuckets) {
-      const latest = timestamps[timestamps.length - 1];
+      const latest = timestamps.at(-1);
       if (latest === undefined || now - latest > 60_000) translationGenerationBuckets.delete(entry);
       if (translationGenerationBuckets.size <= 4_000) break;
     }
