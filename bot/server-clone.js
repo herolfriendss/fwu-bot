@@ -197,7 +197,7 @@ export async function applyServerClonePlan({ plan, token, rebuilt, executor }) {
   for (const role of plan.roles) {
     try {
       const created = await executor.createRole({
-        name: role.name, color: role.color, hoist: role.hoist, mentionable: role.mentionable,
+        name: role.name, colors: { primaryColor: role.color }, hoist: role.hoist, mentionable: role.mentionable,
         permissions: role.permissions, reason: "PND Server Clone",
       });
       roleMap.set(role.snapshotId, created.id);

@@ -118,3 +118,20 @@ test("lockdown records which channels it closed, and lifting needs a lockdown", 
   assert.equal(S.lockdownState(guild), null);
   await assert.rejects(() => S.liftLockdown({ id: guild, channels: { cache: new Map() } }), /n'est pas verrouillé/);
 });
+
+test("shield restoration keeps snapshot role color and uses the current Discord colors payload", async () => {
+  const before = snapshot();
+  const current = snapshot({ roles: [before.roles[1]] });
+  const plan = S.planRestore(before, current);
+  const calls = [];
+  const guild = {
+    roles: {
+      create: async (options) => { calls.push(options); return { id: "restored-role" }; },
+    },
+    channels: { cache: new Map() },
+  };
+  const result = await S.applyRestore(guild, plan);
+  assert.equal(result.created.roles, 1);
+  assert.equal(calls[0].color, undefined);
+  assert.equal(calls[0].colors.primaryColor, before.roles[0].color);
+});
