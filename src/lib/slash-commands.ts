@@ -1,3 +1,5 @@
+import { BOT_PROFILE_IDS, slashCommandNamesForProfile } from "./bot-profiles.ts";
+
 // Shared, client-safe definitions of the bot's slash commands (1942).
 // No secrets here: imported by the panel UI, the interactions server module and
 // the standalone Oracle bot. Keeping one list guarantees that the dashboard and
@@ -3503,8 +3505,13 @@ export const EXTRA_SLASH_COMMANDS: SlashCommandDef[] = [
 ];
 
 const slashRootNames = SLASH_COMMANDS.map((command) => command.name);
-if (slashRootNames.length > DISCORD_MAX_ROOT_COMMANDS) {
-  throw new Error(`Catalogue Discord invalide : ${slashRootNames.length} commandes racine (maximum ${DISCORD_MAX_ROOT_COMMANDS}).`);
+// Discord's 100-root-command cap applies per application, not to the shared
+// catalogue that contains the commands for every specialised FWU bot.
+for (const profile of BOT_PROFILE_IDS) {
+  const applicationCommands = slashCommandNamesForProfile(profile);
+  if (applicationCommands.length > DISCORD_MAX_ROOT_COMMANDS) {
+    throw new Error(`Catalogue Discord invalide pour ${profile} : ${applicationCommands.length} commandes racine (maximum ${DISCORD_MAX_ROOT_COMMANDS} par application).`);
+  }
 }
 if (new Set([...slashRootNames, ...EXTRA_SLASH_COMMANDS.map((command) => command.name)]).size !== slashRootNames.length + EXTRA_SLASH_COMMANDS.length) {
   throw new Error("Catalogue Discord invalide : noms de commandes racine dupliqués.");
