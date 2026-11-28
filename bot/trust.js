@@ -1,9 +1,7 @@
-// Shared trust score: one number, computed from what the five bots already
-// know, that every bot reads before letting a member do something risky.
-//
-// It is not a punishment — it decides how much rope a member gets: casino
-// stakes, economy ceilings, DJ control, voice access. A fresh or sanctioned
-// account is limited everywhere at once, and earns its way back automatically.
+// Shared community-standing indicator. It is advisory and explainable only:
+// it must never grant/revoke Discord permissions, change quotas or automatically
+// restrict casino, economy, DJ, voice or social access. Only explicit, time-bound
+// staff sanctions in fwu_sanctions may freeze a capability, with a recorded reason.
 import { db, tableExists } from "./database.js";
 
 db.exec(`
@@ -22,11 +20,11 @@ const DAY = 86_400_000;
 export const CACHE_MS = 10 * 60_000;
 
 export const TRUST_TIERS = Object.freeze([
-  { key: "risque", label: "À risque", emoji: "🚫", from: 0, betFactor: 0, dj: false, economy: false },
-  { key: "surveille", label: "Sous surveillance", emoji: "⚠️", from: 20, betFactor: 0.25, dj: false, economy: true },
-  { key: "normal", label: "Normal", emoji: "🙂", from: 40, betFactor: 1, dj: true, economy: true },
-  { key: "confirme", label: "Confirmé", emoji: "✅", from: 65, betFactor: 2, dj: true, economy: true },
-  { key: "veteran", label: "Vétéran", emoji: "🏅", from: 85, betFactor: 3, dj: true, economy: true },
+  { key: "risque", label: "À risque", emoji: "🚫", from: 0 },
+  { key: "surveille", label: "Sous surveillance", emoji: "⚠️", from: 20 },
+  { key: "normal", label: "Normal", emoji: "🙂", from: 40 },
+  { key: "confirme", label: "Confirmé", emoji: "✅", from: 65 },
+  { key: "veteran", label: "Vétéran", emoji: "🏅", from: 85 },
 ]);
 
 export function tierForScore(score) {
@@ -168,21 +166,23 @@ export function expireSanctions(now = Date.now()) {
  * The single question the other bots ask: may this member do X, and how far?
  * `maxBet` is null when there is no ceiling beyond the game's own limits.
  */
+/**
+ * Advisory trust is never an access-control input. Only an explicit, scoped,
+ * time-bound staff sanction can deny a capability; otherwise the existing
+ * caller-supplied limits and Discord permissions remain authoritative.
+ */
 export function permissionFor(guildId, userId, scope, { member = null, baseBet = 100_000, now = Date.now() } = {}) {
+  if (!SANCTION_SCOPES.includes(scope)) throw new Error(`Domaine de permission inconnu : ${scope}`);
   const frozen = sanctionUntil(guildId, userId, scope, now);
   const trust = trustFor(guildId, userId, member, now);
   if (frozen) {
-    return { allowed: false, until: frozen, trust, reason: `Accès suspendu jusqu'au <t:${Math.floor(frozen / 1000)}:F>.` };
+    return { allowed: false, until: frozen, trust, maxBet: null, reason: `Accès suspendu jusqu'au <t:${Math.floor(frozen / 1000)}:F> par une sanction explicite.` };
   }
-  if (scope === "casino" && !trust.tier.betFactor) {
-    return { allowed: false, until: null, trust, reason: "Ton score de confiance est trop bas pour miser. Participe au serveur pour le faire remonter." };
-  }
-  if (scope === "dj" && !trust.tier.dj) {
-    return { allowed: false, until: null, trust, reason: "Le contrôle DJ demande un score de confiance plus élevé." };
-  }
-  if (scope === "economie" && !trust.tier.economy) {
-    return { allowed: false, until: null, trust, reason: "Ton score de confiance est trop bas pour l'économie." };
-  }
-  const maxBet = scope === "casino" ? Math.floor(baseBet * trust.tier.betFactor) : null;
-  return { allowed: true, until: null, trust, maxBet, reason: null };
+  return {
+    allowed: true,
+    until: null,
+    trust,
+    maxBet: scope === "casino" ? Math.max(0, Math.floor(Number(baseBet) || 0)) : null,
+    reason: null,
+  };
 }

@@ -181,7 +181,9 @@ Indicateurs possibles :
 
 Les règles doivent être transparentes et documentées.
 
-Ne pas créer de score secret utilisé pour exclure, sanctionner ou limiter automatiquement un membre.
+Le score de confiance existant est strictement indicatif : ses raisons doivent pouvoir être expliquées, et il ne peut jamais modifier les permissions Discord, les quotas, les plafonds économiques, les mises, les accès vocaux ou les contrôles DJ.
+
+Ne pas créer de score secret utilisé pour exclure, sanctionner ou limiter automatiquement un membre. Seules les sanctions explicites, décidées par le staff, motivées et limitées dans le temps, peuvent suspendre une capacité précise.
 
 Aucune réputation ne doit permettre de contourner les permissions Discord.
 

@@ -136,12 +136,27 @@ test("permission answers with a ceiling, and says why when it refuses", () => {
   assert.match(frozen.reason, /suspendu/);
 });
 
-test("a member at risk cannot bet but the refusal explains the way back", () => {
+test("a trust score never automatically restricts a member", () => {
   const guild = "100000000000000006";
   const risky = "200000000000000066";
   db.prepare("INSERT INTO fwu_trust(guild_id,user_id,score,tier,reasons_json,computed_at) VALUES(?,?,?,?,'[]',?)")
     .run(guild, risky, 5, "risque", Date.now());
   const verdict = permissionFor(guild, risky, "casino");
-  assert.equal(verdict.allowed, false);
-  assert.match(verdict.reason, /score de confiance/);
+  assert.equal(verdict.allowed, true);
+  assert.equal(verdict.maxBet, 100_000);
+  assert.equal(verdict.reason, null);
+});
+
+test("only an explicit scoped sanction can freeze a capability", () => {
+  const guild = "100000000000000007";
+  const member = "200000000000000077";
+  db.prepare("INSERT INTO fwu_trust(guild_id,user_id,score,tier,reasons_json,computed_at) VALUES(?,?,?,?,'[]',?)")
+    .run(guild, member, 0, "risque", Date.now());
+  const before = permissionFor(guild, member, "casino");
+  assert.equal(before.allowed, true);
+  applySanction({ guildId: guild, userId: member, scope: "casino", durationMs: 60_000, reason: "Décision staff documentée" });
+  const after = permissionFor(guild, member, "casino");
+  assert.equal(after.allowed, false);
+  assert.match(after.reason, /sanction explicite/);
+  assert.throws(() => permissionFor(guild, member, "unknown"), /Domaine de permission inconnu/);
 });
