@@ -60,6 +60,11 @@ jobs:
       - name: Check interaction reply safety
         run: npm --prefix bot run audit:replies
 
+      # Every slash and prefix command, run as OWNER, SYS+ member and a member without any role:
+      # no programming error, no reply over Discord limits, no Discord action without permission.
+      - name: Smoke-test every command
+        run: npm --prefix bot run smoke
+
   dashboard-quality:
     name: Dashboard tests, types, lint and build
     runs-on: ubuntu-latest

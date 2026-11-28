@@ -17,6 +17,8 @@ process.env.PND_WAKEUP_STEP_DELAY_MS = "0";
 const GUILD_ID = "900000000000000100";
 const OWNER = process.env.PND_OWNER_DISCORD_ID;
 const OTHER = "900000000000000002";
+// A member with no role and no permission at all: nothing they run may change anything on Discord.
+const OUTSIDER = "900000000000000003";
 const ROLE = "900000000000000200";
 const CHANNEL = "900000000000000300";
 const PROGRAMMING_ERROR =
@@ -98,8 +100,10 @@ function makeRole(id = ROLE, position = 5) {
 }
 
 let guild;
-function makeMember(id, { admin = false, position = 10 } = {}) {
-  const roles = collection([[ROLE, makeRole()]]);
+const mutations = [];
+const track = (what) => async () => { mutations.push(what); };
+function makeMember(id, { admin = false, position = 10, roleless = false } = {}) {
+  const roles = roleless ? collection() : collection([[ROLE, makeRole()]]);
   return withFallback(
     {
       id,
@@ -127,8 +131,8 @@ function makeMember(id, { admin = false, position = 10 } = {}) {
         {
           cache: roles,
           highest: makeRole(ROLE, position),
-          add: async () => {},
-          remove: async () => {},
+          add: track(`roles.add:${id}`),
+          remove: track(`roles.remove:${id}`),
         },
         "memberRoles",
       ),
@@ -136,11 +140,11 @@ function makeMember(id, { admin = false, position = 10 } = {}) {
         { channelId: null, channel: null, setChannel: async () => {} },
         "voice",
       ),
-      setNickname: async () => {},
+      setNickname: track(`setNickname:${id}`),
       send: async () => ({}),
-      timeout: async () => {},
-      kick: async () => {},
-      ban: async () => {},
+      timeout: track(`timeout:${id}`),
+      kick: track(`kick:${id}`),
+      ban: track(`ban:${id}`),
       communicationDisabledUntilTimestamp: null,
       manageable: true,
       moderatable: true,
@@ -195,6 +199,8 @@ function makeGuild() {
   const other = makeMember(OTHER, { position: 1 });
   members.set(OWNER, ownerMember);
   members.set(OTHER, other);
+  const outsider = makeMember(OUTSIDER, { position: 0, roleless: true });
+  members.set(OUTSIDER, outsider);
   const me = makeMember("900000000000000999", { admin: true, position: 99 });
   Object.assign(guild, {}); // keep fallback proxy
   const raw = {
@@ -225,7 +231,7 @@ function makeGuild() {
         everyone: makeRole(GUILD_ID, 0),
         fetch: async (id) =>
           id ? makeRole(id) : collection([[ROLE, makeRole()]]),
-        create: async () => makeRole("900000000000000201"),
+        create: async () => { mutations.push("roles.create"); return makeRole("900000000000000201"); },
       },
       "roles",
     ),
@@ -233,7 +239,7 @@ function makeGuild() {
       {
         cache: collection([[CHANNEL, channel]]),
         fetch: async (id) => (id ? channel : collection([[CHANNEL, channel]])),
-        create: async () => makeChannel(),
+        create: async () => { mutations.push("channels.create"); return makeChannel(); },
       },
       "channels",
     ),
@@ -244,7 +250,7 @@ function makeGuild() {
   guild = withFallback(raw, "guild");
   for (const m of members.values()) m.guild = guild;
   me.guild = guild;
-  return { guild, channel, ownerMember, other };
+  return { guild, channel, ownerMember, other, outsider };
 }
 
 function optionValue(option) {
@@ -268,6 +274,8 @@ function optionValue(option) {
   }
 }
 
+const actorOf = (ctx, userId) => (userId === OWNER ? ctx.ownerMember : userId === OUTSIDER ? ctx.outsider : ctx.other);
+
 function makeInteraction(command, leaf, group, ctx, userId) {
   const options = new Map(
     (leaf?.options ?? command.options?.filter((o) => o.type > 2) ?? []).map(
@@ -284,8 +292,8 @@ function makeInteraction(command, leaf, group, ctx, userId) {
     guildId: GUILD_ID,
     channel: ctx.channel,
     channelId: CHANNEL,
-    member: userId === OWNER ? ctx.ownerMember : ctx.other,
-    user: (userId === OWNER ? ctx.ownerMember : ctx.other).user,
+    member: actorOf(ctx, userId),
+    user: actorOf(ctx, userId).user,
     client: withFallback(
       {
         user: withFallback({ id: "900000000000000999" }, "clientUser"),
@@ -379,6 +387,14 @@ function leaves(command) {
 }
 
 const { SLASH_COMMANDS, EXTRA_SLASH_COMMANDS = [] } = await import("../../src/lib/slash-commands.ts");
+const { payloadLimitViolations } = await import("../discord-payload-limits.js");
+// Every reply must be accepted by Discord: over-long text, too many embeds or buttons fail with HTTP 400.
+function limitFindings(path, userId, where, payloads) {
+  for (const payload of payloads) {
+    const violations = payloadLimitViolations(payload);
+    if (violations.length) findings.push({ path, user: userId === OWNER ? "owner" : userId === OUTSIDER ? "sans rôle" : "membre", where: where ?? "aucun", error: `limite Discord : ${violations.slice(0, 3).join(" ; ")}` });
+  }
+}
 const load = async (path, name) => (await import(path))[name];
 const chain = [
   ["resume", await load("../resume.js", "handleResumeInteraction"), (i, s) => [i, s[GUILD_ID]]],
@@ -556,6 +572,7 @@ const settings = {
   },
 };
 const findings = [];
+const memberMutations = [];
 const unhandled = [];
 let runs = 0;
 const originalError = console.error;
@@ -567,8 +584,9 @@ process.on("unhandledRejection", (error) => {
 
 for (const command of [...SLASH_COMMANDS, ...EXTRA_SLASH_COMMANDS]) {
   for (const { leaf, group } of leaves(command)) {
-    for (const userId of [OWNER, OTHER]) {
+    for (const userId of [OWNER, OTHER, OUTSIDER]) {
       const ctx = makeGuild();
+      mutations.length = 0;
       const interaction = makeInteraction(command, leaf, group, ctx, userId);
       const path = [command.name, group, leaf?.name].filter(Boolean).join(" ");
       runs += 1;
@@ -597,7 +615,7 @@ for (const command of [...SLASH_COMMANDS, ...EXTRA_SLASH_COMMANDS]) {
         )
           findings.push({
             path,
-            user: userId === OWNER ? "owner" : "membre",
+            user: userId === OWNER ? "owner" : userId === OUTSIDER ? "sans rôle" : "membre",
             where: handledBy ?? "chaîne",
             error: String(error?.message).slice(0, 200),
             stack: String(error?.stack ?? "")
@@ -608,12 +626,15 @@ for (const command of [...SLASH_COMMANDS, ...EXTRA_SLASH_COMMANDS]) {
           });
         continue;
       }
+      if (userId === OTHER && mutations.length) memberMutations.push(`/${path} → ${handledBy}: ${[...new Set(mutations)].join(", ")}`);
+      if (userId === OUTSIDER && mutations.length) findings.push({ path: path, user: "sans rôle", where: handledBy ?? "aucun", error: `action Discord sans aucune permission : ${[...new Set(mutations)].join(", ")}` });
+      limitFindings(path, userId, handledBy, interaction.replies);
       const text = JSON.stringify(interaction.replies);
       const match = text.match(PROGRAMMING_ERROR);
       if (match)
         findings.push({
           path,
-          user: userId === OWNER ? "owner" : "membre",
+          user: userId === OWNER ? "owner" : userId === OUTSIDER ? "sans rôle" : "membre",
           where: handledBy ?? "aucun",
           error: text.slice(Math.max(0, match.index - 80), match.index + 80),
         });
@@ -658,6 +679,10 @@ const messageChain = [
   ["dmall", await load("../dmall.js", "handleDmAllMessage"), (m, s) => [m, s[GUILD_ID]]],
   ["blacklist", await load("../blacklist.js", "handleBlacklistMessage"), (m, s) => [m, s[GUILD_ID]]],
   ["live", await load("../live-commands.js", "handleLiveMessage"), (m, s) => [m, s, API]],
+  // Same order as index.js: GUARD moderation (=ban…), FDPDLAVOC moves (=mv, =accessall).
+  // (=waouf is rewritten to =wouaf by index.js before routing, so the smoke reports it as never handled.)
+  ["guard-prefix", await load("../guard-commands.js", "handleGuardPrefixCommand"), (m, s) => [m, s[GUILD_ID], { bot: "guard", audit: () => {} }]],
+  ["voice-move", await load("../voice-move.js", "handleVoiceMoveCommand"), (m, s) => [m, s[GUILD_ID], { bot: "fdpdlavoc", audit: () => {} }]],
   [
     "guardian",
     await load("../guardian-risk.js", "handleGuardianReviewMessage"),
@@ -793,9 +818,10 @@ for (const command of prefixCommands) {
     " status",
     " <@&900000000000000200>",
   ]) {
-    for (const userId of [OWNER, OTHER]) {
+    for (const userId of [OWNER, OTHER, OUTSIDER]) {
       const ctx = makeGuild();
-      const author = userId === OWNER ? ctx.ownerMember : ctx.other;
+      mutations.length = 0;
+      const author = actorOf(ctx, userId);
       const replies = [];
       const content = `${command}${suffix}`;
       const message = withFallback(
@@ -884,7 +910,7 @@ for (const command of prefixCommands) {
         )
           findings.push({
             path: content,
-            user: userId === OWNER ? "owner" : "membre",
+            user: userId === OWNER ? "owner" : userId === OUTSIDER ? "sans rôle" : "membre",
             where: handledBy ?? "chaîne",
             error: String(error?.message).slice(0, 200),
             stack: String(error?.stack ?? "")
@@ -895,12 +921,15 @@ for (const command of prefixCommands) {
           });
         continue;
       }
+      if (userId === OTHER && mutations.length) memberMutations.push(`${content} → ${handledBy}: ${[...new Set(mutations)].join(", ")}`);
+      if (userId === OUTSIDER && mutations.length) findings.push({ path: content, user: "sans rôle", where: handledBy ?? "aucun", error: `action Discord sans aucune permission : ${[...new Set(mutations)].join(", ")}` });
+      limitFindings(content, userId, handledBy, replies);
       const text = JSON.stringify(replies);
       const match = text.match(PROGRAMMING_ERROR);
       if (match)
         findings.push({
           path: content,
-          user: userId === OWNER ? "owner" : "membre",
+          user: userId === OWNER ? "owner" : userId === OUTSIDER ? "sans rôle" : "membre",
           where: handledBy ?? "aucun",
           error: text.slice(Math.max(0, match.index - 80), match.index + 80),
         });
@@ -932,5 +961,7 @@ for (const f of findings)
   console.log(
     `- [${f.user}] /${f.path} → ${f.where}: ${f.error}${f.stack ? `\n    ${f.stack}` : ""}`,
   );
+if (process.env.SMOKE_MUTATIONS) for (const line of memberMutations) console.log(`MUT ${line}`);
 rmSync(dir, { recursive: true, force: true });
-process.exit(0);
+// Non-zero exit so CI fails on a programming error, a Discord limit, an action without permission or a lost command.
+process.exit(findings.length || unhandled.length ? 1 : 0);
