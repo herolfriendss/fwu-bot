@@ -367,6 +367,7 @@ export async function handleWetInteraction(interaction, settings = null, network
     }
     if (command === "wet" && action === "verifier") {
       const userId = interaction.options.getString("id", true).trim();
+      if (!validSnowflake(userId)) throw new Error("Identifiant Discord invalide.");
       const entry = getActiveWetCase(userId);
       await interaction.editReply({ content: entry ? formatCase({ ...entry, accounts: getWetCaseAccounts(entry.id) }) : `✅ ${userId} n'est dans aucun dossier WET actif.`, allowedMentions: { parse: [] } });
       return true;
@@ -430,7 +431,7 @@ export async function handleWetInteraction(interaction, settings = null, network
         color: 0x22c55e,
       })).catch(() => {});
       await interaction.editReply({
-        content: `♻️ Dossier WET ${revoked.id.slice(0, 8)} levé pour ${revoked.accounts.length} compte(s). Débannissements envoyés : **${result.unbanned}** · déjà absents : **${result.notBanned}** · toujours blacklistés : **${result.stillBlacklisted}** · échecs : **${result.failed.length}**.`,
+        content: `♻️ Dossier WET ${revoked.id.slice(0, 8)} levé pour ${revoked.accounts.length} compte(s). Débannissements WET : **${result.unbanned}** · sanctions indépendantes conservées : **${result.preservedOtherBan}** · blacklist locale : **${result.stillBlacklisted}** · déjà absents : **${result.notBanned}** · échecs : **${result.failed.length}**.`,
         allowedMentions: { parse: [] },
       });
       return true;
