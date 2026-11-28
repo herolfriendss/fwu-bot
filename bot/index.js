@@ -1195,7 +1195,7 @@ client.on("guildMemberAdd", async (member) => {
   const allDomains = gate.servesAll();
   // WET is the network-level sanction registry; confirmed linked accounts are enforced first.
   if (serves("guard") && await enforceWetOnJoin(member, record)) {
-    auditLog(member.guild, s, "⛔ WET — compte bloqué à son arrivée", `Compte : <@${member.id}>\nID : \`${member.id}\``, 0x991b1b);
+    auditLog(member.guild, s, "⛔ WET — compte détecté à son arrivée (bannissement tenté)", `Compte : <@${member.id}>\nID : \`${member.id}\` · vérifier l'événement wet_reban_error en cas d'échec`, 0x991b1b);
     return;
   }
   // Blacklisted accounts are banned again before anything else (GUARD owns ban and the blacklist;
@@ -2306,7 +2306,7 @@ client.on("interactionCreate", (interaction) => {
     if (await handleResumeInteraction(interaction, settings[interaction.guildId])) { auditSlashUsage(interaction, "RESUME"); return; }
     if (await handleDmAllInteraction(interaction, settings[interaction.guildId])) return;
     if (await handleUndogAllInteraction(interaction, settings[interaction.guildId])) return;
-    if (await handleWetInteraction(interaction, settings[interaction.guildId])) { auditSlashUsage(interaction, "WET"); return; }
+    if (await handleWetInteraction(interaction, settings[interaction.guildId], [...client.guilds.cache.values()].filter((guild) => guildAllowed(guild.id, ALLOWED_GUILDS) && !isLogsHub(guild.id)))) { auditSlashUsage(interaction, "WET"); return; }
     if (await handleBlacklistInteraction(interaction, settings[interaction.guildId])) return;
     if (await handleAltInteraction(interaction)) { auditSlashUsage(interaction, "Doubles comptes"); return; }
     if (await handleGuardInteraction(interaction, settings[interaction.guildId], { report: guardReport })) { auditSlashUsage(interaction, "GUARD"); return; }
@@ -2397,7 +2397,7 @@ client.on("interactionCreate", (interaction) => {
       record,
     })) return;
     if (await handleStaffModerationInteraction(interaction, settings[interaction.guildId], { bot: RUNTIME.profile })) { auditSlashUsage(interaction, "Modération staff"); return; }
-    if (await handleEmbedInteraction(interaction, settings[interaction.guildId], { bot: RUNTIME.profile, audit: auditLog })) return;
+    if (await handleEmbedInteraction(interaction, settings[interaction.guildId], { bot: RUNTIME.profile, audit: auditLog, ai: { apiUrl: API, secret: BOT_SYNC_SECRET } })) return;
     if (await handleModerationInteraction(interaction, settings[interaction.guildId], { apiUrl: API, secret: BOT_SYNC_SECRET, bot: RUNTIME.profile })) return;
     if (await handleVoiceV2Interaction(interaction, settings[interaction.guildId], record)) { auditSlashUsage(interaction, "Vocal temporaire"); return; }
     // Commandes et boutons : une commande slash n'arrive qu'à son bot propriétaire (filtre en tête),
