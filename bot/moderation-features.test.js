@@ -110,6 +110,24 @@ test("règlement : doublons et nombre de règles détectés", () => {
   assert.match(pages[0], /^\*\*1\. Respect mutuel\*\*/);
 });
 
+test("règlement : le handler transmet les identifiants du serveur et l'authentification centrale", () => {
+  assert.deepEqual(buildRulesGatewayInput(
+    { id: "200000000000000001", name: "Communauté" },
+    "100000000000000001",
+    "Ton chaleureux",
+    7,
+    { apiUrl: "https://fwu.example/api/public/bot-sync", secret: "bot-sync-secret" },
+  ), {
+    apiUrl: "https://fwu.example/api/public/bot-sync",
+    secret: "bot-sync-secret",
+    guildId: "200000000000000001",
+    userId: "100000000000000001",
+    guildName: "Communauté",
+    consignes: "Ton chaleureux",
+    count: 7,
+  });
+});
+
 test("règlement : génération via la passerelle FWU, sans clé ni abonnement Anthropic", async () => {
   const calls = [];
   const rules = RULES;
