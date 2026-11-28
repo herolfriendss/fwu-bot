@@ -245,8 +245,8 @@ function banReason(entry) {
   return `WET · dossier ${entry.id.slice(0, 8)} · ${entry.reason}`.slice(0, 500);
 }
 
-export async function banWetAccountsAcrossNetwork(client, accounts, entry) {
-  const guilds = [...(client?.guilds?.cache?.values?.() ?? [])];
+export async function banWetAccountsAcrossNetwork(client, accounts, entry, networkGuilds = null) {
+  const guilds = [...(networkGuilds ?? client?.guilds?.cache?.values?.() ?? [])];
   const results = { banned: 0, alreadyBanned: 0, skippedOwner: 0, failed: [] };
   for (const account of accounts) {
     for (const guild of guilds) {
@@ -267,8 +267,8 @@ export async function banWetAccountsAcrossNetwork(client, accounts, entry) {
   return results;
 }
 
-export async function unbanWetAccountsAcrossNetwork(client, accounts, actorId, caseId) {
-  const guilds = [...(client?.guilds?.cache?.values?.() ?? [])];
+export async function unbanWetAccountsAcrossNetwork(client, accounts, actorId, caseId, networkGuilds = null) {
+  const guilds = [...(networkGuilds ?? client?.guilds?.cache?.values?.() ?? [])];
   const results = { unbanned: 0, notBanned: 0, stillBlacklisted: 0, failed: [] };
   for (const account of accounts) {
     for (const guild of guilds) {
@@ -321,7 +321,7 @@ function formatCase(entry) {
   ].join("\n").slice(0, 1800);
 }
 
-export async function handleWetInteraction(interaction, settings = null) {
+export async function handleWetInteraction(interaction, settings = null, networkGuildsInput = null) {
   if (!interaction?.isChatInputCommand?.() || !["wet", "unwet"].includes(interaction.commandName)) return false;
   if (!interaction.guild || !interaction.member) {
     await interaction.reply({ content: "Cette commande s'utilise sur un serveur.", ephemeral: true }).catch(() => {});
@@ -334,6 +334,7 @@ export async function handleWetInteraction(interaction, settings = null) {
     return true;
   }
   const command = interaction.commandName;
+  const networkGuilds = [...(networkGuildsInput ?? interaction.client.guilds.cache.values())];
   const action = command === "unwet" ? "revoke" : interaction.options.getSubcommand(false);
   if (command === "unwet" || ["ajouter", "lier"].includes(action)) {
     if (!owner) {
@@ -359,12 +360,12 @@ export async function handleWetInteraction(interaction, settings = null) {
       const userId = interaction.options.getString("id", true).trim();
       if (!validSnowflake(userId)) throw new Error("Identifiant Discord invalide.");
       const user = await interaction.client.users.fetch(userId).catch(() => null);
-      ensureTargetAllowed(user, interaction.client, interaction.client.guilds.cache.values());
+      ensureTargetAllowed(user, interaction.client, networkGuilds);
       const reason = interaction.options.getString("raison", true);
       const evidence = interaction.options.getString("preuve", true);
       const caseId = createWetCase({ guildId: interaction.guild.id, actorId: interaction.user.id, user, reason, evidence });
       const accounts = getWetCaseAccounts(caseId);
-      const result = await banWetAccountsAcrossNetwork(interaction.client, accounts, { id: caseId, reason });
+      const result = await banWetAccountsAcrossNetwork(interaction.client, accounts, { id: caseId, reason }, networkGuilds);
       await sendCentralLog(interaction.guild, settings, systemLogEmbed({
         category: "moderation",
         title: "⛔ WET — dossier créé",
@@ -388,7 +389,7 @@ export async function handleWetInteraction(interaction, settings = null) {
       const caseId = linkWetAccount({ guildId: interaction.guild.id, actorId: interaction.user.id, sourceUserId, user, reason, evidence });
       const entry = getActiveWetCase(sourceUserId);
       const accounts = getWetCaseAccounts(caseId);
-      const result = await banWetAccountsAcrossNetwork(interaction.client, accounts.filter((a) => a.user_id === userId), entry);
+      const result = await banWetAccountsAcrossNetwork(interaction.client, accounts.filter((a) => a.user_id === userId), entry, networkGuilds);
       await sendCentralLog(interaction.guild, settings, systemLogEmbed({
         category: "moderation",
         title: "⛔ WET — compte lié",
@@ -406,7 +407,7 @@ export async function handleWetInteraction(interaction, settings = null) {
         await interaction.editReply({ content: `ℹ️ ${userId} n'appartient à aucun dossier WET actif.`, allowedMentions: { parse: [] } });
         return true;
       }
-      const result = await unbanWetAccountsAcrossNetwork(interaction.client, revoked.accounts, interaction.user.id, revoked.id);
+      const result = await unbanWetAccountsAcrossNetwork(interaction.client, revoked.accounts, interaction.user.id, revoked.id, networkGuilds);
       await sendCentralLog(interaction.guild, settings, systemLogEmbed({
         category: "moderation",
         title: "♻️ WET — dossier levé",
