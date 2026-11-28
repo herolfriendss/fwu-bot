@@ -187,3 +187,69 @@ export function reachableStaff(guildId, staffIds, { absentIds = new Set(), db = 
   }
   return result;
 }
+
+// ---------------------------------------------------------------- Weekly planning (1.2)
+export const PLANNING_BANDS = Object.freeze([
+  { label: "0h-6h", start: 0, end: 360 },
+  { label: "6h-12h", start: 360, end: 720 },
+  { label: "12h-18h", start: 720, end: 1080 },
+  { label: "18h-24h", start: 1080, end: 1440 },
+]);
+
+/** Members available at some point of a band (day, start..end). */
+function coversBand(slots, day, band) {
+  for (let minute = band.start; minute < band.end; minute += 30) {
+    if (isWithinSlots(slots, { day, minute })) return true;
+  }
+  return false;
+}
+
+/**
+ * Coverage grid for the week: grid[day][band] = number of staff members available.
+ * Days are ordered Monday → Sunday. `gaps` lists the bands nobody covers.
+ */
+export function weeklyCoverage(guildId, staffIds, { db = defaultDb } = {}) {
+  ensureAvailabilityTables(db);
+  const wanted = new Set(staffIds);
+  const all = db.prepare("SELECT user_id, slots_json FROM staff_availability WHERE guild_id = ?").all(guildId)
+    .filter((row) => wanted.has(row.user_id))
+    .map((row) => { try { return JSON.parse(row.slots_json); } catch { return []; } });
+  const order = [1, 2, 3, 4, 5, 6, 0];
+  const grid = order.map((day) => PLANNING_BANDS.map((band) => all.filter((slots) => coversBand(slots, day, band)).length));
+  const gaps = [];
+  order.forEach((day, i) => PLANNING_BANDS.forEach((band, j) => { if (grid[i][j] === 0) gaps.push(`${DAYS[day]} ${band.label}`); }));
+  return { days: order.map((d) => DAYS[d]), bands: PLANNING_BANDS.map((b) => b.label), grid, gaps, declared: all.length };
+}
+
+export function formatCoverage({ days, bands, grid, gaps, declared }) {
+  const pad = (v, n) => String(v).padEnd(n);
+  const lines = [`${pad("", 4)}${bands.map((b) => pad(b, 8)).join("")}`];
+  days.forEach((day, i) => lines.push(`${pad(day, 4)}${grid[i].map((n) => pad(n === 0 ? "·" : n, 8)).join("")}`));
+  return `\`\`\`\n${lines.join("\n")}\n\`\`\`\n${declared} membre(s) du staff ont déclaré leurs créneaux.${gaps.length ? `\n⚠️ Personne : ${gaps.slice(0, 12).join(", ")}${gaps.length > 12 ? "…" : ""}` : "\n✅ Chaque tranche est couverte."}`;
+}
+
+// ---------------------------------------------------------------- Handover notes (1.2)
+export const HANDOVER_MAX = 1500;
+
+export function ensureHandoverTable(db = defaultDb) {
+  db.exec(`CREATE TABLE IF NOT EXISTS staff_handover (
+    id INTEGER PRIMARY KEY AUTOINCREMENT, guild_id TEXT NOT NULL, author_id TEXT NOT NULL,
+    note TEXT NOT NULL, created_at INTEGER NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS staff_handover_guild ON staff_handover(guild_id, id);`);
+}
+
+/** Stores a handover note. Mentions are neutralised: a note never pings anyone. */
+export function addHandover(guildId, authorId, note, { db = defaultDb, now = Date.now() } = {}) {
+  ensureHandoverTable(db);
+  const text = String(note ?? "").replace(/@(everyone|here)/gi, "@​$1").trim().slice(0, HANDOVER_MAX);
+  if (!text) return { error: "La note de passation est vide." };
+  const id = Number(db.prepare("INSERT INTO staff_handover(guild_id, author_id, note, created_at) VALUES (?, ?, ?, ?)").run(guildId, authorId, text, now).lastInsertRowid);
+  return { id, note: text };
+}
+
+export function recentHandovers(guildId, { db = defaultDb, limit = 5 } = {}) {
+  ensureHandoverTable(db);
+  return db.prepare("SELECT id, author_id, note, created_at FROM staff_handover WHERE guild_id = ? ORDER BY id DESC LIMIT ?").all(guildId, limit)
+    .map((row) => ({ id: Number(row.id), authorId: row.author_id, note: row.note, createdAt: Number(row.created_at) }));
+}

@@ -58,3 +58,12 @@ test("runPrefixAsSlash dispatches only the bot's own slash commands", async () =
   assert.equal(dispatched[0].options.getString("raison"), "test");
   assert.equal(await runPrefixAsSlash({ ...message, content: "=balance" }, { catalogue: CATALOGUE, ownsCommand: () => false, dispatch: () => {} }), false);
 });
+
+test("=staff STAFF CENTER subcommands read their text without quotes", () => {
+  const dispo = parseBridgedCommand(def("staff"), "dispo lun-ven 18-23, sam 14-2");
+  assert.equal(dispo.values.get("creneaux"), "lun-ven 18-23, sam 14-2");
+  const note = parseBridgedCommand(def("staff"), "passation Raid calmé, surveiller le général");
+  assert.equal(note.values.get("note"), "Raid calmé, surveiller le général");
+  const shift = parseBridgedCommand(def("staff"), "astreinte prendre 4h");
+  assert.deepEqual([...shift.values], [["action", "prendre"], ["duree", "4h"]]);
+});

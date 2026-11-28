@@ -72,3 +72,32 @@ test("reachable staff: on call first, then slots, absent members left out", () =
   const r = reachableStaff("g1", ["a", "b", "c", "d", "e"], { absentIds: new Set(["c"]), db, now: WED_20H });
   assert.deepEqual(r, { onCall: ["d"], available: ["a"], declaredNone: ["e"] });
 });
+
+import { addHandover, formatCoverage, recentHandovers, weeklyCoverage } from "./staff-availability.js";
+
+test("weekly coverage grid counts staff per band and lists the gaps", () => {
+  const db = mem();
+  saveAvailability("g1", "a", parseSlots("lun-ven 18-23").slots, { db });
+  saveAvailability("g1", "b", parseSlots("sam 22-2").slots, { db });
+  saveAvailability("g1", "x", parseSlots("tous 0-24").slots, { db }); // not staff: ignored
+  const c = weeklyCoverage("g1", ["a", "b"], { db });
+  assert.deepEqual(c.days, ["lun", "mar", "mer", "jeu", "ven", "sam", "dim"]);
+  assert.deepEqual(c.grid[0], [0, 0, 0, 1]);
+  assert.deepEqual(c.grid[5], [0, 0, 0, 1]);
+  assert.deepEqual(c.grid[6], [1, 0, 0, 0]); // Saturday night spills into Sunday
+  assert.equal(c.declared, 2);
+  assert.ok(c.gaps.includes("lun 0h-6h"));
+  assert.ok(!c.gaps.includes("dim 0h-6h"));
+  assert.match(formatCoverage(c), /Personne :/);
+});
+
+test("handover notes: stored per server, newest first, never ping", () => {
+  const db = mem();
+  assert.match(addHandover("g1", "a", "   ", { db }).error, /vide/);
+  addHandover("g1", "a", "Raid calmé, surveiller @everyone", { db, now: 1 });
+  addHandover("g1", "b", "RAS", { db, now: 2 });
+  addHandover("g2", "c", "autre serveur", { db, now: 3 });
+  const notes = recentHandovers("g1", { db });
+  assert.deepEqual(notes.map((n) => n.note.slice(0, 3)), ["RAS", "Rai"]);
+  assert.doesNotMatch(notes[1].note, /@everyone/);
+});

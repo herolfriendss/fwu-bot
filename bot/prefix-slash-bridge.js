@@ -8,7 +8,7 @@
 // (fenêtre de saisie) n'existe pas en préfixe : la commande slash est alors indiquée.
 import { randomUUID } from "node:crypto";
 
-const FREE_TEXT = new Set(["raison", "message", "texte", "description", "consignes", "contenu", "question", "titre", "creneaux"]);
+const FREE_TEXT = new Set(["raison", "message", "texte", "description", "consignes", "contenu", "question", "titre"]);
 const OPTION = Object.freeze({ SUB: 1, GROUP: 2, STRING: 3, INTEGER: 4, BOOLEAN: 5, USER: 6, CHANNEL: 7, ROLE: 8, MENTIONABLE: 9, NUMBER: 10, ATTACHMENT: 11 });
 
 /** Découpe en mots en respectant les "guillemets". */

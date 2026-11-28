@@ -144,6 +144,20 @@ test("STAFF CENTER: availability and on call are staff only and never give a rol
   assert.match(who.replies[0], /D'astreinte : <@u-staff>/);
   assert.match(who.replies[0], /Sans créneaux déclarés : 1/);
 
+  const plan = staffInteraction({ userId: "u-staff", sub: "planning", staffRoleMembers: ["u-staff"] });
+  await s.handleSuckmeInteraction(plan, {});
+  assert.match(plan.replies[0], /Couverture du staff/);
+
+  const note = staffInteraction({ userId: "u-staff", sub: "passation", options: { note: "Surveiller le salon général" }, staffRoleMembers: ["u-staff"] });
+  await s.handleSuckmeInteraction(note, {});
+  assert.match(note.replies[0], /Passation n°\d+ enregistrée/);
+  const read = staffInteraction({ userId: "u-staff", sub: "passation", staffRoleMembers: ["u-staff"] });
+  await s.handleSuckmeInteraction(read, {});
+  assert.match(read.replies[0], /Surveiller le salon général/);
+  const spy = staffInteraction({ userId: "u-out", sub: "passation" });
+  await s.handleSuckmeInteraction(spy, {});
+  assert.match(spy.replies[0], /Réservé au staff/);
+
   const end = staffInteraction({ userId: "u-staff", sub: "astreinte", options: { action: "terminer" }, staffRoleMembers: ["u-staff"] });
   await s.handleSuckmeInteraction(end, {});
   assert.match(end.replies[0], /terminée/);

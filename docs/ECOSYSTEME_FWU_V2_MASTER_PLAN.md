@@ -305,7 +305,7 @@ récompenses ; le centre d'aide peut avancer en parallèle de CORE car il lit le
 
 **Phase 1 — STAFF CENTER (SUCK ME, sans nouvelle racine)**
 - [x] 1.1 Disponibilités et astreintes : `/staff dispo`, `/staff astreinte`, `/staff disponibles` (`bot/staff-availability.js`, expiration stockée donc fiable après redémarrage, aucun rôle donné, staff seulement).
-- 1.2 Planning hebdomadaire et passation de service.
+- [x] 1.2 Planning et passation : `/staff planning` (couverture de la semaine par tranche, trous signalés), `/staff passation` (notes de relève, sans mention possible).
 - 1.3 Dossiers d'intervention (identifiant, preuves, clôture, archivage) reliés à `/dossier` et aux sanctions existantes.
 - 1.4 Missions et objectifs ; réunions et comptes rendus.
 - 1.5 Formation : étendre `/academy` (simulations, validation par un responsable, jamais de rôle automatique).
@@ -338,3 +338,4 @@ récompenses ; le centre d'aide peut avancer en parallèle de CORE car il lit le
 | 0.2 Garde de budget de connexions | fusionné (#76) | `claude/fwu-v2-audit-session-budget` |
 | 0.3 / 0.4a | fusionné (#77) | `claude/fwu-v2-fleet-watch` |
 | 1.1 Disponibilités et astreintes | terminé | `claude/fwu-v2-staff-center` |
+| 1.2 Planning et passation | terminé | `claude/fwu-v2-staff-center` |

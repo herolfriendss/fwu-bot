@@ -6,7 +6,7 @@ import { parsePndOwnerId } from "../pnd-owner-policy.js";
 import { isSysPlus } from "../systems/sysplus/permissions.js";
 import { parseDuration } from "./community.js";
 import { roleGrantRefusal as protectedGrantRefusal } from "../role-grant-guard.js";
-import { activeOnCall, availabilityOf, endOnCall, expireOnCall, formatSlots, parseSlots, reachableStaff, saveAvailability, startOnCall } from "../staff-availability.js";
+import { activeOnCall, addHandover, availabilityOf, endOnCall, expireOnCall, formatCoverage, formatSlots, parseSlots, reachableStaff, recentHandovers, saveAvailability, startOnCall, weeklyCoverage } from "../staff-availability.js";
 
 export const SUCKME_COMMANDS = new Set(["roletemp", "annonce", "staff", "pseudo"]);
 const DANGEROUS = [P.Administrator, P.ManageGuild, P.ManageRoles, P.ManageChannels, P.BanMembers, P.KickMembers, P.ManageWebhooks];
@@ -196,6 +196,19 @@ async function staffCenter(interaction, settings, sub, guild) {
       ? `🟢 **D'astreinte**\n${shifts.map((s) => `<@${s.userId}> jusqu'à <t:${Math.floor(s.until / 1000)}:t>`).join("\n")}`
       : "Personne n'est d'astreinte pour le moment.";
   }
+  if (sub === "planning") return `🗓️ **Couverture du staff sur la semaine** (heure de Paris, nombre de membres disponibles)\n${formatCoverage(weeklyCoverage(guild.id, [...staffIds]))}`;
+  if (sub === "passation") {
+    const note = interaction.options.getString("note");
+    if (note) {
+      const saved = addHandover(guild.id, interaction.user.id, note);
+      if (saved.error) return `❌ ${saved.error}`;
+      return `📝 Passation n°${saved.id} enregistrée. L'équipe suivante la voit avec \`/staff passation\`.`;
+    }
+    const notes = recentHandovers(guild.id);
+    return notes.length
+      ? `📝 **Dernières passations**\n${notes.map((n) => `**n°${n.id}** <t:${Math.floor(n.createdAt / 1000)}:R> par <@${n.authorId}> : ${n.note}`).join("\n")}`.slice(0, 1900)
+      : "Aucune passation pour le moment. `/staff passation note:…` pour en laisser une.";
+  }
   // disponibles
   const absent = new Set(db.prepare("SELECT user_id FROM suckme_staff_absences WHERE guild_id=? AND (until_at IS NULL OR until_at > ?)").all(guild.id, Date.now()).map((a) => a.user_id));
   const reach = reachableStaff(guild.id, [...staffIds], { absentIds: absent });
@@ -211,7 +224,7 @@ async function staffCenter(interaction, settings, sub, guild) {
 
 async function staff(interaction, settings) {
   const sub = interaction.options.getSubcommand();
-  if (["dispo", "astreinte", "disponibles"].includes(sub)) return staffCenter(interaction, settings, sub, interaction.guild);
+  if (["dispo", "astreinte", "disponibles", "planning", "passation"].includes(sub)) return staffCenter(interaction, settings, sub, interaction.guild);
   const { guild, me, actor, actorFull } = await context(interaction);
   if (sub === "absence") {
     const until = interaction.options.getString("duree") ? parseDuration(interaction.options.getString("duree")) : null;
