@@ -414,13 +414,13 @@ Catégorie : Modération · Utilisation : `/verify moi | panel [salon] [role]`
 
 ### /wet
 
-OWNER : registre réseau de sanctions durables et de comptes liés sur preuve  
+OWNER : registre réseau de sanctions durables. Les comptes alternatifs ne sont liés qu'après vérification humaine et preuve documentée ; une simple ressemblance détectée par GUARD ne suffit jamais.  
 Catégorie : Modération · Utilisation : `/wet ajouter|lier|verifier|liste`
 
-- `/wet ajouter` — Place un compte dans le registre WET et le bannit du réseau FWU · préfixe `+wet ajouter`<br>`id` (texte, obligatoire, 25 caractères max) — Identifiant Discord du compte<br>`raison` (texte, obligatoire, 300 caractères max) — Motif détaillé de la décision<br>`preuve` (texte, obligatoire, 1000 caractères max) — Lien HTTPS vers les éléments de preuve
-- `/wet lier` — Relie un compte alternatif après vérification humaine et preuve · préfixe `+wet lier`<br>`source` (texte, obligatoire, 25 caractères max) — Identifiant du compte déjà en WET<br>`compte` (texte, obligatoire, 25 caractères max) — Identifiant du compte alternatif confirmé<br>`raison` (texte, obligatoire, 300 caractères max) — Éléments établissant le lien<br>`preuve` (texte, obligatoire, 1000 caractères max) — Lien HTTPS vers les éléments de preuve
-- `/wet verifier` — Vérifie le statut WET d'un compte · préfixe `+wet verifier`<br>`id` (texte, obligatoire, 25 caractères max) — Identifiant Discord du compte
-- `/wet liste` — Affiche les dossiers WET actifs du réseau FWU · préfixe `+wet liste`
+- `/wet ajouter` — Place un compte dans le registre WET et le bannit des serveurs accessibles à GUARD (commande slash uniquement)<br>`id` (texte, obligatoire, 25 caractères max) — Identifiant Discord du compte<br>`raison` (texte, obligatoire, 300 caractères max) — Motif détaillé de la décision<br>`preuve` (texte, obligatoire, 1000 caractères max) — Lien HTTPS vers les éléments de preuve
+- `/wet lier` — Relie un compte alternatif après vérification humaine et preuve documentée (commande slash uniquement)<br>`source` (texte, obligatoire, 25 caractères max) — Identifiant du compte déjà en WET<br>`compte` (texte, obligatoire, 25 caractères max) — Identifiant du compte alternatif confirmé<br>`raison` (texte, obligatoire, 300 caractères max) — Éléments établissant le lien<br>`preuve` (texte, obligatoire, 1000 caractères max) — Lien HTTPS vers les éléments de preuve
+- `/wet verifier` — Vérifie le statut WET d'un compte (commande slash uniquement)<br>`id` (texte, obligatoire, 25 caractères max) — Identifiant Discord du compte
+- `/wet liste` — Affiche les dossiers WET actifs du réseau FWU (commande slash uniquement)
 
 ## FDPDLAVOC (préfixe `;`)
 
