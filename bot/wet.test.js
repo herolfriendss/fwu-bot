@@ -53,6 +53,21 @@ test("WET is OWNER-managed; SYS+ can only consult", () => {
   assert.match(WET_DENIED, /OWNER/);
 });
 
+test("WET service functions independently enforce the single configured OWNER", () => {
+  assert.throws(
+    () => createWetCase({ guildId: GUILD, actorId: SYS, user: user(MEMBER), reason: "Contournement confirmé et documenté", evidence: EVIDENCE }),
+    /Seul l'OWNER technique/,
+  );
+  assert.throws(
+    () => linkWetAccount({ guildId: GUILD, actorId: SYS, sourceUserId: MEMBER, user: user(ALT), reason: "Preuve du lien entre les deux comptes", evidence: EVIDENCE }),
+    /Seul l'OWNER technique/,
+  );
+  assert.throws(
+    () => revokeWetCase(MEMBER, { guildId: GUILD, actorId: SYS, reason: "Réexamen complet et décision de levée" }),
+    /Seul l'OWNER technique/,
+  );
+});
+
 test("creates a network WET case with evidence and public account metadata", () => {
   const caseId = createWetCase({
     guildId: GUILD,
@@ -172,9 +187,9 @@ test("unwet revokes the complete linked case and leaves a historical audit trail
   assert.equal(isWet(MEMBER), false);
   assert.equal(isWet(ALT), false);
   assert.equal(listWetCases().length, 0);
-  assert.throws(
-    () => revokeWetCase(MEMBER, { guildId: GUILD, actorId: OWNER, reason: "Nouvelle levée documentée" }),
-    /$^/,
+  assert.equal(
+    revokeWetCase(MEMBER, { guildId: GUILD, actorId: OWNER, reason: "Nouvelle levée documentée" }),
+    null,
   );
 });
 
