@@ -20,7 +20,9 @@ test("a member with no history still gets a readable profile", () => {
   assert.equal(overview.economy, null);
   const json = JSON.stringify(overviewEmbed(overview, { username: "Inconnu" }).toJSON());
   assert.match(json, /Aucune activité/);
-  assert.match(json, /Confiance/, "le score de confiance est toujours affiché");
+  assert.doesNotMatch(json, /Confiance/, "le profil public ne révèle pas le score privé");
+  const ownJson = JSON.stringify(overviewEmbed(overview, { username: "Inconnu", showPrivate: true }).toJSON());
+  assert.match(ownJson, /Confiance/);
 });
 
 test("the profile gathers level, money and casino in one read", () => {
@@ -42,7 +44,7 @@ test("the profile gathers level, money and casino in one read", () => {
 });
 
 test("the embed shows money, rank and voice time", () => {
-  const json = JSON.stringify(overviewEmbed(memberOverview(GUILD, USER), { username: "Ryan" }).toJSON());
+  const json = JSON.stringify(overviewEmbed(memberOverview(GUILD, USER), { username: "Ryan", showPrivate: true }).toJSON());
   assert.match(json, /15 ?.?000 PND/);
   assert.match(json, /3 h 5 min/, "185 minutes de vocal doivent se lire en heures");
   assert.match(json, /Casino/);
@@ -58,13 +60,13 @@ test("warnings and sanctions surface on the profile", () => {
   const overview = memberOverview(guild, USER);
   assert.equal(overview.record.warnings, 1);
   assert.equal(overview.sanctions.length, 1);
-  const json = JSON.stringify(overviewEmbed(overview, { username: "Ryan" }).toJSON());
+  const json = JSON.stringify(overviewEmbed(overview, { username: "Ryan", showPrivate: true }).toJSON());
   assert.match(json, /avertissement/);
   assert.match(json, /Accès suspendus/);
 });
 
 test("a clean member is shown as having a clean record", () => {
-  const json = JSON.stringify(overviewEmbed(memberOverview("100000000000000003", USER), { username: "Net" }).toJSON());
+  const json = JSON.stringify(overviewEmbed(memberOverview("100000000000000003", USER), { username: "Net", showPrivate: true }).toJSON());
   assert.match(json, /Vierge/);
 });
 
@@ -99,4 +101,31 @@ test("the panel names every bot and warns about the ones that are down", () => {
   assert.match(json, /Hors ligne/);
   assert.doesNotMatch(json, /FWU/);
   assert.equal(view.components.length, 1);
+});
+
+test("public profiles hide trust, financial and moderation details", () => {
+  const guild = "100000000000000008";
+  db.prepare("INSERT INTO community_levels(guild_id,user_id,xp,level,messages,voice_minutes,last_message_xp_at) VALUES(?,?,?,?,?,?,0)")
+    .run(guild, USER, 4200, 9, 730, 185);
+  db.prepare("INSERT INTO wallets(guild_id,user_id,balance,bank) VALUES(?,?,?,?)").run(guild, USER, 15_000, 4000);
+  db.prepare("INSERT INTO moderation_warnings(guild_id,user_id,moderator_id,reason,created_at,expires_at) VALUES(?,?,?,?,?,NULL)")
+    .run(guild, USER, "300000000000000001", "spam", Date.now());
+  db.prepare("INSERT INTO fwu_sanctions(guild_id,user_id,scope,until,reason,created_at) VALUES(?,?,?,?,?,?)")
+    .run(guild, USER, "casino", Date.now() + 3_600_000, "avertissement", Date.now());
+
+  const overview = memberOverview(guild, USER);
+  const publicOverview = memberOverview(guild, USER, { includePrivate: false });
+  assert.equal(publicOverview.economy, null);
+  assert.equal(publicOverview.record, null);
+  assert.equal(publicOverview.trust, null);
+  assert.deepEqual(publicOverview.sanctions, []);
+  const publicJson = JSON.stringify(overviewEmbed(publicOverview, { username: "Ryan" }).toJSON());
+  assert.match(publicJson, /Niveau/);
+  assert.match(publicJson, /Activité/);
+  assert.doesNotMatch(publicJson, /Confiance|Détail du score|PND|Casino|Casier|Accès suspendus|avertissement/);
+
+  const privateJson = JSON.stringify(overviewEmbed(overview, { username: "Ryan", showPrivate: true }).toJSON());
+  assert.match(privateJson, /Confiance|Détail du score/);
+  assert.match(privateJson, /15 ?.?000 PND/);
+  assert.match(privateJson, /Accès suspendus/);
 });

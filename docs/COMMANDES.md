@@ -1073,7 +1073,7 @@ Catégorie : Vocal & DOG · Utilisation : `/menotteinfo membre`
 
 ### /moi
 
-Ton profil complet : niveau, argent, casino, confiance et casier  
+Ton profil complet (privé) ou le profil public d’un membre  
 Catégorie : Communauté · Utilisation : `/moi [membre]`
 
 - `membre` (membre, facultatif) — Voir le profil d'un autre membre

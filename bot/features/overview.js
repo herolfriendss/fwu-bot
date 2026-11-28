@@ -79,32 +79,38 @@ function extrasSection(guildId, userId) {
 }
 
 /** One read of everything the five bots know about a member. */
-export function memberOverview(guildId, userId, { member = null, now = Date.now() } = {}) {
+export function memberOverview(guildId, userId, { member = null, now = Date.now(), includePrivate = true } = {}) {
   return {
     level: levelSection(guildId, userId),
-    economy: economySection(guildId, userId),
-    record: recordSection(guildId, userId, now),
+    economy: includePrivate ? economySection(guildId, userId) : null,
+    record: includePrivate ? recordSection(guildId, userId, now) : null,
     extras: extrasSection(guildId, userId),
-    trust: trustFor(guildId, userId, member, now),
-    sanctions: activeSanctions(guildId, userId, now),
+    trust: includePrivate ? trustFor(guildId, userId, member, now) : null,
+    sanctions: includePrivate ? activeSanctions(guildId, userId, now) : [],
   };
 }
 
 const hours = (minutes) => (minutes >= 60 ? `${Math.floor(minutes / 60)} h ${minutes % 60} min` : `${minutes} min`);
 
-export function overviewEmbed(overview, { username, avatarUrl = null }) {
+export function overviewEmbed(overview, { username, avatarUrl = null, showPrivate = false }) {
   const { level, economy, record, extras, trust, sanctions } = overview;
   const embed = new EmbedBuilder()
     .setColor(0xe21d2f)
     .setTitle(`Profil de ${username}`)
-    .setFooter({ text: "Tout ce que les bots savent de toi" });
+    .setFooter({ text: showPrivate ? "Ton profil complet · privé" : "Profil communautaire public" });
   if (avatarUrl) embed.setThumbnail(avatarUrl);
 
-  embed.addFields({
-    name: `${trust.tier.emoji} Confiance`,
-    value: `**${trust.score}/100** · ${trust.tier.label}`,
-    inline: true,
-  });
+  if (showPrivate) {
+    embed.addFields({
+      name: `${trust.tier.emoji} Confiance`,
+      value: `**${trust.score}/100** · ${trust.tier.label}`,
+      inline: true,
+    });
+    const reasons = trust.reasons.slice(0, 8).map((reason) => `${reason.points > 0 ? "+" : ""}${reason.points} — ${reason.label}`);
+    if (reasons.length) {
+      embed.addFields({ name: "Détail du score", value: reasons.join("\n").slice(0, 1000) });
+    }
+  }
 
   if (level) {
     embed.addFields(
@@ -113,7 +119,7 @@ export function overviewEmbed(overview, { username, avatarUrl = null }) {
       { name: "💬 Activité", value: `${level.messages.toLocaleString("fr-FR")} messages\n${hours(level.voiceMinutes)} en vocal`, inline: true },
     );
   }
-  if (economy) {
+  if (showPrivate && economy) {
     embed.addFields(
       { name: "💰 Argent", value: `${pnd(economy.balance)} en poche\n${pnd(economy.bank)} en banque`, inline: true },
       {
@@ -127,17 +133,19 @@ export function overviewEmbed(overview, { username, avatarUrl = null }) {
     if (economy.businesses) embed.addFields({ name: "🏢 Entreprises", value: `${economy.businesses}`, inline: true });
   }
 
-  const marks = [];
-  if (record.warnings) marks.push(`${record.warnings} avertissement(s) en cours`);
-  if (record.recent) marks.push(`${record.recent} sanction(s) sur 30 jours`);
-  if (!marks.length && record.cases) marks.push(`${record.cases} dossier(s) archivé(s), rien d'actif`);
-  embed.addFields({ name: "🛡️ Casier", value: marks.length ? marks.join("\n") : "Vierge", inline: true });
+  if (showPrivate) {
+    const marks = [];
+    if (record.warnings) marks.push(`${record.warnings} avertissement(s) en cours`);
+    if (record.recent) marks.push(`${record.recent} sanction(s) sur 30 jours`);
+    if (!marks.length && record.cases) marks.push(`${record.cases} dossier(s) archivé(s), rien d'actif`);
+    embed.addFields({ name: "🛡️ Casier", value: marks.length ? marks.join("\n") : "Vierge", inline: true });
 
-  if (sanctions.length) {
-    embed.addFields({
-      name: "⛔ Accès suspendus",
-      value: sanctions.map((s) => `${s.scope} — jusqu'au <t:${Math.floor(s.until / 1000)}:R>`).join("\n"),
-    });
+    if (sanctions.length) {
+      embed.addFields({
+        name: "⛔ Accès suspendus",
+        value: sanctions.map((s) => `${s.scope} — jusqu'au <t:${Math.floor(s.until / 1000)}:R>`).join("\n"),
+      });
+    }
   }
 
   const side = [];
@@ -146,8 +154,8 @@ export function overviewEmbed(overview, { username, avatarUrl = null }) {
   if (extras.confessions) side.push(`🤫 ${extras.confessions} confession(s) publiée(s)`);
   if (side.length) embed.addFields({ name: "Divers", value: side.join("\n") });
 
-  if (!level && !economy) {
-    embed.setDescription("Aucune activité enregistrée pour l'instant. Écris un message, passe en vocal ou lance `/daily` et ton profil se remplira.");
+  if (!level && (!showPrivate || !economy)) {
+    embed.setDescription("Aucune activité communautaire enregistrée pour l'instant. Écris un message ou passe en vocal pour remplir ton profil.");
   }
   return applyBanner(embed, "communaute");
 }
@@ -223,13 +231,14 @@ async function showProfile(interaction, target) {
     : await interaction.guild.members.fetch(target.id).catch(() => null);
   const username = member?.displayName ?? target.username;
   const avatarUrl = target.displayAvatarURL?.({ extension: "png", size: 256 }) ?? null;
-  const overview = memberOverview(interaction.guildId, target.id, { member });
-  const embed = overviewEmbed(overview, { username, avatarUrl });
+  const showPrivate = target.id === interaction.user.id;
+  const overview = memberOverview(interaction.guildId, target.id, { member, includePrivate: showPrivate });
+  const embed = overviewEmbed(overview, { username, avatarUrl, showPrivate });
 
   try {
     const { profileCardAttachment } = await import("./profile-card.js");
     const { attachment } = await profileCardAttachment({
-      guildId: interaction.guildId, userId: target.id, username, avatarUrl, member,
+      guildId: interaction.guildId, userId: target.id, username, avatarUrl, member, showPrivate,
     });
     embed.setImage("attachment://profil.png");
     return { embeds: [embed], files: [attachment] };
