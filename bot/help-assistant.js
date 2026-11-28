@@ -9,7 +9,7 @@ const noMentions = { parse: [] };
  * public /knowledge pages. No conversation history, user profile, or private
  * server data is sent to the AI gateway.
  */
-export async function handleHelpAssistantInteraction(interaction, { apiUrl, secret, commands = [], knowledge = [] } = {}) {
+export async function handleHelpAssistantInteraction(interaction, { apiUrl, secret, commands = [], knowledge = [], fetchImpl = fetch } = {}) {
   if (!interaction?.isChatInputCommand?.() || interaction.commandName !== "ia") return false;
   if (interaction.options.getSubcommand() !== "question") return false;
   const guildId = interaction.guildId;
@@ -30,7 +30,7 @@ export async function handleHelpAssistantInteraction(interaction, { apiUrl, secr
 
   await interaction.deferReply({ ephemeral: true });
   try {
-    const response = await fetch(apiUrl, {
+    const response = await fetchImpl(apiUrl, {
       method: "POST",
       headers: { Authorization: `Bearer ${secret}`, "Content-Type": "application/json" },
       signal: AbortSignal.timeout(35_000),
