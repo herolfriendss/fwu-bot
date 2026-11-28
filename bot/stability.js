@@ -46,6 +46,14 @@ export function globalMaintenanceState() {
   return maintenanceState("*");
 }
 
+/** Validate a global-maintenance panel action against the configured sole OWNER. */
+export function parseGlobalMaintenanceButton(customId, actorId, env = process.env) {
+  const match = /^stability:global:(on|off):(\d{5,25})$/.exec(String(customId ?? ""));
+  const ownerId = parsePndOwnerId(env.PND_OWNER_DISCORD_ID);
+  if (!match || !ownerId || actorId !== ownerId || match[2] !== ownerId) return null;
+  return match[1];
+}
+
 /** Refus à afficher (ou null) : maintenance du bot puis interrupteur de la commande. L'OWNER passe toujours. */
 export function stabilityRefusal({ profile, command, userId, env = process.env }) {
   if (userId && userId === parsePndOwnerId(env.PND_OWNER_DISCORD_ID)) return null;
