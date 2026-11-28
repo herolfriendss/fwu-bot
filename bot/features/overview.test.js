@@ -114,7 +114,12 @@ test("public profiles hide trust, financial and moderation details", () => {
     .run(guild, USER, "casino", Date.now() + 3_600_000, "avertissement", Date.now());
 
   const overview = memberOverview(guild, USER);
-  const publicJson = JSON.stringify(overviewEmbed(overview, { username: "Ryan" }).toJSON());
+  const publicOverview = memberOverview(guild, USER, { includePrivate: false });
+  assert.equal(publicOverview.economy, null);
+  assert.equal(publicOverview.record, null);
+  assert.equal(publicOverview.trust, null);
+  assert.deepEqual(publicOverview.sanctions, []);
+  const publicJson = JSON.stringify(overviewEmbed(publicOverview, { username: "Ryan" }).toJSON());
   assert.match(publicJson, /Niveau/);
   assert.match(publicJson, /Activité/);
   assert.doesNotMatch(publicJson, /Confiance|Détail du score|PND|Casino|Casier|Accès suspendus|avertissement/);
