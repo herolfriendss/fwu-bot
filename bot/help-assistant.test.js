@@ -106,3 +106,16 @@ test("assistant redacts identifiers and blocks secrets before contacting the mod
   assert.equal(fetched, false);
   assert.match(secretQuestion.calls.replies[0].content, /ne partage jamais de token/);
 });
+test("assistant caps long answers to Discord message length and disables mentions", async () => {
+  const current = interaction({ guildId: "777777777777777777", userId: "888888888888888888" });
+  const longReply = "Réponse ".repeat(300);
+  await handleHelpAssistantInteraction(current, {
+    apiUrl: "https://example.invalid/api/public/bot-sync",
+    secret: "server-secret",
+    commands: [{ name: "aide" }],
+    knowledge: [],
+    fetchImpl: async () => ({ ok: true, json: async () => ({ reply: longReply }) }),
+  });
+  assert.equal(current.calls.edits[0].content.length, 1900);
+  assert.deepEqual(current.calls.edits[0].allowedMentions, { parse: [] });
+});
