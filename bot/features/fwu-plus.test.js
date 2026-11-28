@@ -62,5 +62,5 @@ test("résumé IA : utilise la passerelle FWU et son secret bot, sans clé fourn
 });
 
 test("résumé IA : refuse si la passerelle centrale est absente", async () => {
-  await assert.rejects(m.summarise("Conversation publique."), /passerelle IA FWU/i);
+  await assert.rejects(m.summarise("Conversation publique."), /passerelle IA centrale/i);
 });
