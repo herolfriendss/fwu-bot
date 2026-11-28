@@ -2,6 +2,9 @@ import { createPndIntelligenceRateLimiter } from "./pnd-intelligence-rate-limit.
 import { describePndAiFailure } from "./ai-error-messages.js";
 
 const rateLimiter = createPndIntelligenceRateLimiter({ windowMs: 60_000, maxRequests: 3, maxKeys: 10_000 });
+// Plafond par serveur : beaucoup de comptes ne peuvent pas épuiser à eux seuls le budget IA partagé.
+export const HELP_GUILD_LIMIT_PER_MINUTE = 20;
+const guildRateLimiter = createPndIntelligenceRateLimiter({ windowMs: 60_000, maxRequests: HELP_GUILD_LIMIT_PER_MINUTE, maxKeys: 1_000 });
 const noMentions = { parse: [] };
 
 const SECRET_INPUT = /(?:mfa\.[A-Za-z0-9_-]{40,}|[A-Za-z0-9_-]{24}\.[A-Za-z0-9_-]{6}\.[A-Za-z0-9_-]{20,}|(?:api[_ -]?key|access[_ -]?token|bot[_ -]?token|password|mot de passe|secret|token)\s*[:=]\s*\S{8,}|Bearer\s+[A-Za-z0-9._-]{16,}|sk-(?:ant-)?[A-Za-z0-9_-]{16,}|gh[pousr]_[A-Za-z0-9]{20,}|xox[baprs]-[A-Za-z0-9-]{10,})/i;
@@ -27,7 +30,7 @@ export function redactPrivateText(value) {
 
 /** Reject command syntax that is not present in the authoritative slash catalogue. */
 export function hasUnknownCommandReference(reply, commands = []) {
-  const mentions = String(reply ?? "").matchAll(/(?:^|[\s(`])([/=+;!$-][a-z0-9_-]+(?:\s+[a-z0-9_-]+){0,2})/gi);
+  const mentions = String(reply ?? "").matchAll(/(?:^|[\s(`])([/=+;!$-][a-z][a-z0-9_-]*(?:\s+[a-z0-9_-]+){0,2})/gi);
   for (const match of mentions) {
     const [token, ...parts] = match[1].trim().split(/\s+/);
     const prefix = token[0];
@@ -69,6 +72,10 @@ export async function handleHelpAssistantInteraction(interaction, { apiUrl, secr
   const question = redactPrivateText(rawQuestion);
   if (!rateLimiter.take(`${guildId}:${userId}`)) {
     await interaction.reply({ content: "⏳ Tu as atteint la limite de 3 questions par minute. Réessaie dans un instant.", ephemeral: true, allowedMentions: noMentions });
+    return true;
+  }
+  if (!guildRateLimiter.take(guildId)) {
+    await interaction.reply({ content: "⏳ L'assistant reçoit beaucoup de questions sur ce serveur. Réessaie dans une minute ou consulte `/aide`.", ephemeral: true, allowedMentions: noMentions });
     return true;
   }
   if (!apiUrl || !secret) {

@@ -85,6 +85,7 @@ test("command reference validator rejects invented roots, subcommands and prefix
   assert.equal(hasUnknownCommandReference("Utilise `/commande-inventee`.", commands), true);
   assert.equal(hasUnknownCommandReference("Utilise `=ia admin`.", commands), true);
   assert.equal(hasUnknownCommandReference("Utilise `!ban`.", commands), true);
+  assert.equal(hasUnknownCommandReference("Le quota passe de -5 à +10 points (2/3 des membres).", commands), false, "numbers are not command syntax");
 });
 
 test("assistant redacts identifiers and blocks secrets before contacting the model", async () => {
@@ -120,4 +121,31 @@ test("assistant caps long answers to Discord message length and disables mention
   });
   assert.equal(current.calls.edits[0].content.length, 1900);
   assert.deepEqual(current.calls.edits[0].allowedMentions, { parse: [] });
+});
+
+test("a single guild cannot exhaust the shared AI budget", async () => {
+  const guildId = "987654321098765432";
+  const seen = [];
+  const fetchImpl = async () => ({ ok: true, status: 200, json: async () => ({ reply: "Utilise `/aide`." }) });
+  const ask = (n) => {
+    const replies = [];
+    return {
+      replies,
+      guildId,
+      user: { id: String(200000000000000000n + BigInt(n)) },
+      commandName: "ia",
+      isChatInputCommand: () => true,
+      options: { getSubcommand: () => "question", getString: () => "Comment ouvrir un ticket ?" },
+      reply: async (p) => { replies.push(p); },
+      deferReply: async () => {},
+      editReply: async (p) => { replies.push(p); },
+    };
+  };
+  for (let n = 0; n < 25; n += 1) {
+    const i = ask(n);
+    await handleHelpAssistantInteraction(i, { apiUrl: "https://example.test/api", secret: "s", commands: [{ name: "aide", paths: ["aide"], prefix: "/" }], fetchImpl });
+    seen.push(i.replies.at(-1)?.content ?? "");
+  }
+  const refused = seen.filter((c) => /beaucoup de questions sur ce serveur/.test(c)).length;
+  assert.equal(refused, 5);
 });
