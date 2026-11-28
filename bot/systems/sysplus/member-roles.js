@@ -139,6 +139,8 @@ export async function editMemberRole({ guild, actor, target, action, name, color
   const changes = action === "rename" ? { name: normalizeCustomRoleName(name) } : { color: Number.parseInt(normalizeCustomRoleColor(color).slice(1), 16) };
   await role.edit(changes, `Rôle perso de ${target.id} modifié par ${actor.id}`);
   touchRow.run(Date.now(), guild.id, target.id);
+  // The member's protection (espace membres) must keep the SYS+'s change, not revert it.
+  try { db.prepare("UPDATE personal_role_protection SET name=?, color=?, updated_at=? WHERE guild_id=? AND role_id=?").run(role.name, Number(role.color ?? 0), Date.now(), guild.id, role.id); } catch { /* table not created yet */ }
   recordSysPlusAudit(guild.id, actor.id, `sysplus.member_role.${action}`, target.id, { roleId: role.id });
   return role;
 }

@@ -25,6 +25,8 @@ export const runtimeEventCodes = [
   "fleet_bot_down", "fleet_bot_waiting", "fleet_bot_stopped", "fleet_bot_online", "fleet_watch_error",
   // File persistante FWU CORE (bot/core-queue.js).
   "core_job_dead", "core_job_error",
+  // Rôles perso (bot/systems/sysplus/personal-role-panel.js).
+  "personal_role_restored", "personal_role_restore_error",
 ] as const;
 
 const runtimeGuildSchema = z.object({
@@ -315,6 +317,8 @@ export const EVENT_LABELS: Record<typeof runtimeEventCodes[number], string> = {
   fleet_watch_error: "Échec de la surveillance des bots",
   core_job_dead: "Tâche entre bots en échec définitif",
   core_job_error: "Erreur de la file de tâches entre bots",
+  personal_role_restored: "Rôle perso : modification non autorisée annulée",
+  personal_role_restore_error: "Rôle perso : restauration impossible",
   temp_voice_transferred: "Vocal temporaire : propriété transférée",
   webhook_created: "Webhook créé",
   webhook_deleted: "Webhook supprimé",

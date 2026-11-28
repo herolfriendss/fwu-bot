@@ -5,6 +5,7 @@ les bots du VPS prennent la mise à jour avec `/maj lancer` ou la mise à jour a
 
 ## 28/11/2026 (nuit)
 - Bot principal : `/ui [membre]`, fiche d'un membre (abonnement Invest +, pseudo, boost, salon vocal, dates, rôles, boutons Profil / Avatar / Bannière).
+- SUCK ME : panneau « Rôles personnels — Espace membres » (`/rolepanel espace`) : chaque membre gère son rôle perso en privé (nom et couleur, émoji d'icône, le donner ou le retirer à 10 amis au plus, protection qui annule les modifications et le lui rend). Création libre seulement pour les rôles choisis par le staff ; un rôle perso n'a jamais de permission Discord.
 - Tous les bots : garde de budget de connexions Discord (pause croissante après 6 démarrages en 6 h, réserve des 10 dernières connexions du jour, plus de retour arrière déclenché par une attente volontaire).
 - Bot principal et SUCK ME : alerte au staff quand un bot tombe, attend son budget de connexions, s'arrête définitivement ou revient (MP à l'OWNER pour un arrêt définitif).
 - SUCK ME (STAFF CENTER) : `/staff dispo` (créneaux habituels), `/staff astreinte` (prendre, terminer, voir ; aucun rôle donné), `/staff disponibles` (qui est joignable maintenant), `/staff planning` (couverture de la semaine et trous), `/staff passation` (notes de relève). Aussi en préfixe `=staff`.

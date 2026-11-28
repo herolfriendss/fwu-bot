@@ -363,8 +363,8 @@ récompenses ; le centre d'aide peut avancer en parallèle de CORE car il lit le
 | 3.3 Commandes AUTHORITY | fusionné (#88) | `claude/fwu-v2-authority-commands` |
 | 3.2 Quotas et AUTHORITY | fusionné (#89) | `claude/fwu-v2-authority-quota` |
 | 3.4 Console AUTHORITY | fusionné (#90) | `claude/fwu-v2-authority-console` |
-| Demande OWNER : `/ui` (fiche membre) | terminé | `claude/fwu-v2-ui-card` |
-| Demande OWNER : panneau « rôle perso » | à faire ensuite | — |
+| Demande OWNER : `/ui` (fiche membre) | fusionné (#91) | `claude/fwu-v2-ui-card` |
+| Demande OWNER : panneau « rôle perso » (`/rolepanel espace`) | terminé | `claude/fwu-v2-personal-role-panel` |
 
 ## 15. Reprise du travail (pour une nouvelle session)
 

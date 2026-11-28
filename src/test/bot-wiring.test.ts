@@ -95,7 +95,9 @@ describe("bot wiring", () => {
     // whitelist-* subcommands and returns false for everything else, which the SYS+
     // module then handles. Any other double route is still an error.
     // casino, blackjack, roulette : le casino v2 (bot/casino) répond avant l'ancien routeur V4, gardé en secours.
-    const SHARED_DISPATCH = new Set(["sysp", "casino", "blackjack", "roulette"]);
+    // rolepanel : la sous-commande « espace » (panneau des rôles perso, personal-role-panel.js) est
+    // traitée avant custom-roles.js, qui garde toutes les autres.
+    const SHARED_DISPATCH = new Set(["sysp", "casino", "blackjack", "roulette", "rolepanel"]);
     const handled = new Set<string>();
     // Group roots are routed by their subcommand dispatchers, not by a flat
     // interaction.commandName comparison; register them as concrete handlers.
