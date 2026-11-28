@@ -121,9 +121,10 @@ test("auto update: one check per day survives restarts and never needs the scrip
   const spawned = [];
   const spawnFn = (cmd, args) => { spawned.push(args); return { unref() {} }; };
   const events = [];
-  const now = () => new Date("2026-11-27T07:10:00Z");
+  // 11 h 50 à Paris : le contrôle immédiat au démarrage évite de manquer la fin de la fenêtre à midi.
+  const now = () => new Date("2026-11-27T10:50:00Z");
   const first = startAutoUpdate({ spawnFn, record: (e) => events.push(e), env: {}, dir: dataDir, now, scriptExists: () => true, intervalMs: 3_600_000 });
-  assert.equal(first.tick(), true);
+  assert.equal(spawned.length, 1, "contrôle immédiat au démarrage dans la fenêtre de rattrapage");
   assert.equal(first.tick(), false, "pas deux fois dans le même processus");
   first.stop();
   assert.equal(readAutoUpdateDay(dataDir), "2026-11-27");
