@@ -107,3 +107,50 @@ test("retention prunes old copies and the summary counts by category and severit
   assert.match(summary.description, /moderation|Modération/i);
   assert.ok(summary.fields.length >= 1);
 });
+
+test("community digest includes daily activity and sanction counts", async () => {
+  db.exec(`CREATE TABLE IF NOT EXISTS analytics_daily (
+    guild_id TEXT NOT NULL, day_key TEXT NOT NULL, metric TEXT NOT NULL,
+    metric_value INTEGER NOT NULL, updated_at INTEGER NOT NULL,
+    PRIMARY KEY(guild_id, day_key, metric)
+  )`);
+  const now = Date.UTC(2026, 10, 28, 12);
+  const day = new Date(now).toISOString().slice(0, 10);
+  const insert = db.prepare("INSERT OR REPLACE INTO analytics_daily(guild_id,day_key,metric,metric_value,updated_at) VALUES(?,?,?,?,?)");
+  insert.run(GUILD.id, day, "messages", 123, now);
+  insert.run(GUILD.id, day, "joins", 4, now);
+  insert.run(GUILD.id, day, "leaves", 2, now);
+  const send = async () => true;
+  await events.logEvent(GUILD, null, { category: "moderation", action: "ban", severity: "critical", targetId: "300000000000000088" }, { send, now });
+  const summary = events.buildLogSummary(GUILD.id, now - 60_000, now + 60_000);
+  const fields = Object.fromEntries(summary.fields.map((field) => [field.name, field.value]));
+  assert.equal(fields.Messages, "123");
+  assert.equal(fields.Arrivées, "4");
+  assert.equal(fields.Départs, "2");
+  assert.equal(fields.Sanctions, "1");
+});
+
+test("scheduled digest checkpoint advances only after every source is processed", async () => {
+  config.setLogSummaryFrequency("daily");
+  config.markSummarySent(1_000);
+  const now = 10 * 86_400_000;
+  const client = { guilds: { cache: new Map([[GUILD.id, GUILD]]) } };
+  const records = [];
+  const failed = events.startLogMaintenance({
+    client, sources: () => [GUILD.id], intervalMs: 60_000, now: () => now,
+    record: (code) => records.push(code),
+    send: async () => { throw new Error("temporary Discord delivery failure"); },
+  });
+  await failed.tick();
+  failed.stop();
+  assert.equal(config.lastSummaryAt(), 1_000);
+  assert.ok(records.includes("log_summary_error"));
+
+  const succeeded = events.startLogMaintenance({
+    client, sources: () => [GUILD.id], intervalMs: 60_000, now: () => now,
+    send: async () => true,
+  });
+  await succeeded.tick();
+  succeeded.stop();
+  assert.equal(config.lastSummaryAt(), now);
+});
