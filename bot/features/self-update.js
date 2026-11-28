@@ -170,7 +170,8 @@ export function startAutoUpdate({ spawnFn = spawn, record = () => {}, env = proc
       if (!day) return false;
       lastRunDay = day;
       // Noté avant le lancement : le script redémarre SUCK ME, qui ne doit pas relancer un contrôle.
-      writeAutoUpdateDay(day, dir);
+      // Si le marqueur ne peut pas être persisté, ne lance pas une mise à jour qui pourrait repartir en boucle après redémarrage.
+      if (!writeAutoUpdateDay(day, dir)) { record("auto_update_error"); return false; }
       if (!scriptExists(SCRIPT())) { record("auto_update_error"); return false; }
       launchUpdate(spawnFn, SCRIPT(), "--auto");
       record("auto_update_check");
