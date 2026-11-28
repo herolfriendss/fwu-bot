@@ -202,6 +202,13 @@ test("unwet revokes the complete linked case and leaves a historical audit trail
 
 test("unwet lifts only bans created by this exact WET case and preserves independent bans", async () => {
   const caseId = "12345678-1234-1234-1234-123456789012";
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS blacklist_entries (
+      guild_id TEXT NOT NULL, user_id TEXT NOT NULL, reason TEXT NOT NULL DEFAULT '',
+      added_by TEXT NOT NULL, added_at INTEGER NOT NULL, PRIMARY KEY(guild_id,user_id)
+    );
+    DELETE FROM blacklist_entries;
+  `);
   const removed = [];
   const makeGuild = (id, reason) => ({
     id,
