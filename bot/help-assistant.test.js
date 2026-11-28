@@ -32,7 +32,7 @@ test("assistant sends only question, public catalogue and guild knowledge; no us
     apiUrl: "https://example.invalid/api/public/bot-sync",
     secret: "server-secret",
     commands: [{ name: "guide", description: "Guide des permissions", usage: "/guide voir", bot: "suckme", prefix: "=" }],
-    knowledge: [{ key: "guide", title: "Guide", content: "Consulte le panneau de support." }],
+    knowledge: [{ key: "guide", title: "Guide", content: "Consulte le panneau. token: abcdefghijklmnop user@example.com" }],
     fetchImpl: async (url, init) => {
       request = { url, init, body: JSON.parse(init.body) };
       return { ok: true, json: async () => ({ reply: "Utilise `/guide voir`." }) };
@@ -49,6 +49,7 @@ test("assistant sends only question, public catalogue and guild knowledge; no us
   assert.equal("userId" in request.body, false);
   assert.equal("author" in request.body, false);
   assert.equal("history" in request.body, false);
+  assert.equal(request.body.knowledge[0].content, "[contenu masqué : information sensible détectée]");
 });
 
 test("assistant enforces three questions per minute per member", async () => {
