@@ -6,9 +6,9 @@ const noMentions = { parse: [] };
 
 /** Reject command syntax that is not present in the authoritative slash catalogue. */
 export function hasUnknownCommandReference(reply, commands = []) {
-  const mentions = String(reply ?? "").matchAll(/(?:^|[\\s([\`])([/=+;!$-][a-z0-9_-]+(?:\\s+[a-z0-9_-]+){0,2})/gi);
+  const mentions = String(reply ?? "").matchAll(/(?:^|[\s(`])([/=+;!$-][a-z0-9_-]+(?:\s+[a-z0-9_-]+){0,2})/gi);
   for (const match of mentions) {
-    const [token, ...parts] = match[1].trim().split(/\\s+/);
+    const [token, ...parts] = match[1].trim().split(/\s+/);
     const prefix = token[0];
     const name = token.slice(1).toLowerCase();
     const command = commands.find((entry) => String(entry.name).toLowerCase() === name);
