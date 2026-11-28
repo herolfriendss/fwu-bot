@@ -334,7 +334,7 @@ récompenses ; le centre d'aide peut avancer en parallèle de CORE car il lit le
 - [x] 4.2 Présentation de chaque bot : déjà couverte par `/aide` (`bot/features/help-panel.js` : vue d'ensemble, une page par bot avec sa mission, son préfixe et ses commandes tirées du catalogue, page des permissions et quotas).
 - [x] 4.3 Tutoriels interactifs (boutons, retour, recommencer, quitter) — intégrés dans `/aide` (PR #105).
 - [~] 4.4 Assistant IA branché sur le catalogue source de `docs/COMMANDES.md` et les pages publiques `/knowledge` — `/ia question`, validation des chemins de commandes, refus des syntaxes inconnues, limite 3/min, masquage des identifiants/coordonnées et blocage des secrets ; aucun historique ni ID utilisateur transmis au modèle. CI Node 24 et validation staging à confirmer ; configuration du fournisseur IA restante.
-- [ ] 4.5 Parcours dépannage → ticket existant (`bot/tickets.js`), sans second système.
+- [x] 4.5 Parcours dépannage → ticket existant (`bot/tickets.js`), sans second système — tutoriel Support dans `/aide`, qui réutilise le panneau et le système de tickets existants (PR #105).
 
 **Phase 5 — SOCIAL et EVENT** · **Phase 6 — Économie interconnectée** · **Phase 7 — DISPATCH** ·
 **Phase 8 — ARCADE** · **Phase 9 — INSIGHT** · **Phase 10 — Automatisation et supervision.**
