@@ -111,61 +111,6 @@ export function validateRules(raw, expectedCount = null) {
   return { ok: problems.length === 0, rules, problems };
 }
 
-function buildPrompt({ guildName, consignes, count, previousProblems }) {
-  return [
-    `Serveur : ${String(guildName ?? "communauté").slice(0, 100)}`,
-    `Nombre de règles : exactement ${count}.`,
-    consignes ? `Consignes de l'administrateur (prioritaires si elles ne violent pas les exigences) :\n${String(consignes).slice(0, 1000)}` : "Aucune consigne particulière.",
-    previousProblems?.length ? `La version précédente a été rejetée pour : ${previousProblems.join(" ; ")}. Corrige ces points.` : "",
-  ].filter(Boolean).join("\n\n");
-}
-
-async function askClaude(anthropic, prompt) {
-  const response = await anthropic.beta.messages.create({
-    model: RULES_MODEL,
-    max_tokens: 16000,
-    // Repli automatique si la requête est déclinée par un filtre de sécurité.
-    betas: ["server-side-fallback-2026-07-01"],
-    fallbacks: "default",
-    output_config: { effort: "medium", format: { type: "json_schema", schema: RULES_SCHEMA } },
-    system: SYSTEM_PROMPT,
-    messages: [{ role: "user", content: prompt }],
-  });
-  if (response.stop_reason === "refusal") throw new Error("L'IA a refusé de générer ce règlement : reformule les consignes.");
-  if (response.stop_reason === "max_tokens") throw new Error("Réponse de l'IA incomplète : réessaie avec moins de règles.");
-  const text = response.content.filter((block) => block.type === "text").map((block) => block.text).join("");
-  try {
-    return JSON.parse(text).rules;
-  } catch {
-    throw new Error("Réponse de l'IA illisible : réessaie.");
-  }
-}
-
-/**
- * Generate a validated rulebook. One automatic retry with the problems found.
- * `anthropic` is injectable for tests.
- */
-export async function generateRules({ guildName, consignes = "", count = 10, anthropic = null } = {}) {
-  const wanted = Math.min(MAX_RULES, Math.max(MIN_RULES, Number(count) || 10));
-  const api = anthropic ?? defaultClient();
-  let problems = [];
-  for (let attempt = 0; attempt < 2; attempt++) {
-    let raw;
-    try {
-      raw = await askClaude(api, buildPrompt({ guildName, consignes, count: wanted, previousProblems: problems }));
-    } catch (error) {
-      if (error instanceof Anthropic.APIError) {
-        throw new Error(error.status === 429 ? "Service IA saturé : réessaie dans une minute." : "Service IA indisponible pour le moment.");
-      }
-      throw error;
-    }
-    const checked = validateRules(raw, wanted);
-    if (checked.ok) return checked.rules;
-    problems = checked.problems;
-  }
-  throw new Error(`Le règlement généré ne respecte pas les exigences (${problems.slice(0, 3).join(" ; ")}). Relance la génération.`);
-}
-
 /** Rules → embed descriptions of at most 4 000 characters each. */
 export function rulesToEmbedPages(rules, maxLength = 4000) {
   const pages = [];
