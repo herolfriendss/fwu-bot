@@ -1,0 +1,31 @@
+name: Command documentation preview
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "src/lib/slash-commands.ts"
+      - "src/lib/bot-profiles.ts"
+      - "bot/scripts/generate-command-docs.mjs"
+      - "docs/COMMANDES.md"
+      - ".github/workflows/command-docs-preview.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+      - name: Generate command documentation
+        run: node --experimental-strip-types bot/scripts/generate-command-docs.mjs
+      - uses: actions/upload-artifact@v4
+        with:
+          name: generated-command-docs
+          path: docs/COMMANDES.md
+          if-no-files-found: error
+          retention-days: 1
