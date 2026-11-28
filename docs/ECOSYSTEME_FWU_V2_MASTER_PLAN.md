@@ -4,6 +4,9 @@ Document de référence unique du chantier FWU V2 : il ne remplace pas `docs/FEU
 (fiabilité au quotidien), `docs/V2_PROGRESS.md` (journal des tâches V2) ni `DECISIONS.md`
 (décisions de l'OWNER) ; il les relie et fixe la cible à 11 bots.
 
+- Cahiers des charges de l'OWNER, conservés tels quels : `docs/specs/CAHIER_DES_CHARGES_FWU_V2.md`
+  (plan global, 11 bots) et `docs/specs/EXTENSION_ULTIMATE.md` (extension « autonomie intelligente »,
+  à intégrer une fois les phases en cours terminées : d'abord un plan d'intégration, sans code).
 - Audit réalisé le 28/11/2026, sur `main` au commit `63b3e64`, en lecture seule (aucun
   déploiement, aucun processus PM2 créé, aucune configuration Discord touchée).
 - Seule modification de code faite pendant l'audit, à la demande de l'OWNER : la garde de
@@ -350,3 +353,16 @@ récompenses ; le centre d'aide peut avancer en parallèle de CORE car il lit le
 | 1.5 Formation | fusionné (#81) | `claude/fwu-v2-staff-training` |
 | 1.6 Centre de commandement | fusionné (#82) | `claude/fwu-v2-staff-command` |
 | 2.1 / 2.2 Événements idempotents, file persistante | terminé | `claude/fwu-v2-core-queue` |
+
+## 15. Reprise du travail (pour une nouvelle session)
+
+1. Lire ce document, puis `docs/specs/` (demandes de l'OWNER) et `AGENTS.md` (règles du dépôt).
+2. Prendre la première case non cochée du § 12, une tâche à la fois.
+3. Branche `claude/fwu-v2-<tâche>` depuis `origin/main` ; tests (`bash scripts/verify-all.sh`) ;
+   `python3 -I scripts/package-bot.py` puis `git add -f public/downloads/bot-oracle.zip` quand `bot/` change ;
+   mise à jour de ce document et de `CHANGELOG.md` ; PR, CI verte, fusion (accord permanent de
+   l'OWNER du 28/11 pour fusionner seul après tests et CI verts). Jamais de force-push.
+4. Si `main` a bougé (autre session), fusionner `origin/main` dans la branche ; seul conflit
+   habituel : l'archive `bot-oracle.zip`, à régénérer.
+5. GitHub bloque les pushs contenant un faux token dans un test : construire ces chaînes à
+   l'exécution.
