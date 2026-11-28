@@ -3,7 +3,7 @@ export const KNOWLEDGE_TOPICS = Object.freeze([
     key: "permissions",
     label: "Permissions & hiérarchie",
     title: "Permissions du serveur",
-    content: "**OWNER PND** : autorité technique unique, définie par la configuration OWNER des bots.\n**SYS+** : accès aux outils SYS+ prévus, sans héritage automatique des scopes ADMIN+.\n**ADMIN+** : accès limité aux scopes explicitement activés.\n**WHITELIST** : exemption interne de certaines limites uniquement.\n\nLes permissions natives Discord, la hiérarchie des rôles et les contrôles de chaque module restent obligatoires.",
+    content: "**OWNER technique** : une seule identité configurée détient l'autorité technique des bots.\nAucun statut de cofondateur, rôle de confiance ou propriété du serveur Discord ne confère une autorité OWNER équivalente.\n**SYS+** : accès aux outils SYS+ prévus, sans héritage automatique des scopes ADMIN+.\n**ADMIN+** : accès limité aux scopes explicitement activés.\n**WHITELIST** : exemption interne de certaines limites uniquement.\n\nLes permissions natives Discord, la hiérarchie des rôles et les contrôles de chaque module restent obligatoires.",
   },
   {
     key: "recruitment",
