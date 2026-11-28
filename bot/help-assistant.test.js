@@ -89,10 +89,12 @@ test("command reference validator rejects invented roots, subcommands and prefix
 test("assistant redacts identifiers and blocks secrets before contacting the model", async () => {
   assert.equal(containsSecretInput("token: abcdefghijklmnop"), true);
   assert.equal(containsSecretInput("question ordinaire sur les tickets"), false);
-  const redacted = redactPrivateText("Contact user@example.com, mention <@123456789012345678>, IP 192.168.1.4.");
+  const redacted = redactPrivateText("Contact user@example.com, mention <@123456789012345678>, IP 192.168.1.4, tel +33 6 12 34 56 78, erreur 2026-11-28 04:50.");
   assert.doesNotMatch(redacted, /user@example.com|123456789012345678|192\.168\.1\.4/);
   assert.match(redacted, /adresse e-mail masquée/);
   assert.match(redacted, /@membre/);
+  assert.match(redacted, /2026-11-28 04:50/);
+  assert.match(redacted, /numéro masqué/);
 
   const secretQuestion = interaction({ guildId: "555555555555555555", userId: "666666666666666666", question: "Voici mon token: abcdefghijklmnop" });
   let fetched = false;
