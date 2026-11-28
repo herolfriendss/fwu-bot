@@ -236,6 +236,31 @@ test("unwet lifts only bans created by this exact WET case and preserves indepen
   assert.deepEqual(removed, [["300000000000000011", MEMBER]]);
 });
 
+test("unwet keeps an account banned if a new WET case was opened after revocation", async () => {
+  createWetCase({
+    guildId: GUILD, actorId: OWNER, user: user(MEMBER),
+    reason: "Nouveau dossier WET réouvert avec preuves", evidence: EVIDENCE,
+  });
+  const removed = [];
+  const client = { guilds: { cache: new Map([[
+    GUILD,
+    {
+      id: GUILD,
+      ownerId: "300000000000000009",
+      bans: {
+        fetch: async (userId) => ({ user: { id: userId }, reason: "WET · dossier ancien · motif" }),
+        remove: async (userId) => removed.push(userId),
+      },
+    },
+  ]]) } };
+  const result = await unbanWetAccountsAcrossNetwork(
+    client, [{ user_id: MEMBER }], OWNER, "12345678-1234-1234-1234-123456789012",
+  );
+  assert.equal(result.stillWet, 1);
+  assert.equal(result.unbanned, 0);
+  assert.deepEqual(removed, []);
+});
+
 test("unwet never lifts an independent local blacklist ban", async () => {
   db.exec(`
     CREATE TABLE IF NOT EXISTS blacklist_entries (
