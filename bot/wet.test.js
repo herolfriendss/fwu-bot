@@ -9,6 +9,7 @@ import {
   enforceWetOnJoin,
   getActiveWetCase,
   getWetCaseAccounts,
+  handleWetInteraction,
   isWet,
   isWetOwner,
   linkWetAccount,
@@ -297,4 +298,38 @@ test("unwet never lifts an independent local blacklist ban", async () => {
   const result = await unbanWetAccountsAcrossNetwork(client, [{ user_id: MEMBER }], OWNER, "12345678-1234-1234-1234-123456789012");
   assert.equal(result.stillBlacklisted, 1);
   assert.equal(result.unbanned, 0);
+});
+
+test("the /unwet interaction passes the revoked case to exact-reason unban", async () => {
+  const reason = "Contournement documenté des sanctions répétées";
+  const caseId = createWetCase({
+    guildId: GUILD, actorId: OWNER, user: user(MEMBER), reason, evidence: EVIDENCE,
+  });
+  const removed = [];
+  const guild = {
+    id: GUILD,
+    ownerId: "300000000000000009",
+    bans: {
+      fetch: async (userId) => ({
+        user: { id: userId },
+        reason: `WET · dossier ${caseId.slice(0, 8)} · ${reason}`,
+      }),
+      remove: async (userId) => removed.push(userId),
+    },
+  };
+  const replies = [];
+  const interaction = {
+    isChatInputCommand: () => true,
+    commandName: "unwet",
+    guild: { id: GUILD },
+    member: member(OWNER),
+    user: { id: OWNER },
+    client: { guilds: { cache: new Map([[GUILD, guild]]) } },
+    options: { getString: (name) => name === "id" ? MEMBER : "Réexamen complet et décision de levée" },
+    deferReply: async () => {},
+    editReply: async (payload) => replies.push(payload),
+  };
+  assert.equal(await handleWetInteraction(interaction, null), true);
+  assert.deepEqual(removed, [MEMBER]);
+  assert.match(replies.at(-1).content, /Débannissements WET : \\*\\*1\\*\\*/);
 });
