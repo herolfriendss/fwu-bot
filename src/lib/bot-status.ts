@@ -270,8 +270,6 @@ export const EVENT_LABELS: Record<typeof runtimeEventCodes[number], string> = {
   wet_reban_error: "Échec du bannissement automatique WET",
   blacklist_rebanned: "Compte blacklisté rebanni",
   blacklist_reban_error: "Échec du rebannissement blacklist",
-  wet_rebanned: "Compte WET rebanni à son arrivée",
-  wet_reban_error: "Échec du rebannissement WET",
   investment_daily_tick_error: "Échec de la mise à jour des investissements",
   investment_daily_tick_complete: "Investissements mis à jour",
   giveaway_rerolled: "Giveaway : nouveau tirage",
