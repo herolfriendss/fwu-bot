@@ -295,12 +295,13 @@ export async function sendWeeklySummary(guild, { grant, now = Date.now() }) {
   const podium = safe(() => db.prepare("SELECT user_id, SUM(duration_ms) AS ms FROM voice_sessions WHERE guild_id=? AND joined_at>? AND duration_ms IS NOT NULL GROUP BY user_id ORDER BY ms DESC LIMIT 3").all(guild.id, since), []);
   podium.forEach((row, i) => { try { grant(guild.id, row.user_id, VOICE_PODIUM_REWARDS[i], "podium_vocal"); } catch { /* plafond */ } });
   const challenge = safe(() => db.prepare("SELECT * FROM weekly_challenge WHERE guild_id=? AND week=?").get(guild.id, week), null);
-  const lines = [
-    "📅 **Résumé de la semaine**",
-    `Arrivées : ${arrivals}`,
-    podium.length ? `🎙️ Podium vocal : ${podium.map((r, i) => `${["🥇", "🥈", "🥉"][i]} <@${r.user_id}> (${Math.round(r.ms / 3_600_000)} h, +${VOICE_PODIUM_REWARDS[i]} PND)`).join(" · ")}` : "🎙️ Pas de vocal cette semaine.",
-    challenge ? `🎯 Défi collectif : ${challenge.done ? "réussi ✅" : `${challenge.progress}/${challenge.goal}, raté de peu`}` : null,
-  ].filter(Boolean);
+  const podiumLine = podium.length
+    ? "🎙️ Podium vocal : " + podium.map((r, i) => ["🥇", "🥈", "🥉"][i] + ` <@${r.user_id}> (${Math.round(r.ms / 3_600_000)} h, +${VOICE_PODIUM_REWARDS[i]} PND)`).join(" · ")
+    : "🎙️ Pas de vocal cette semaine.";
+  const challengeLine = challenge
+    ? "🎯 Défi collectif : " + (challenge.done ? "réussi ✅" : `${challenge.progress}/${challenge.goal}, raté de peu`)
+    : null;
+  const lines = ["📅 **Résumé de la semaine**", `Arrivées : ${arrivals}`, podiumLine, challengeLine].filter(Boolean);
   await guild.systemChannel?.send?.({ content: lines.join("\n"), allowedMentions: { parse: [] } }).catch(() => {});
   return true;
 }
