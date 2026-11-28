@@ -2259,7 +2259,7 @@ client.on("interactionCreate", (interaction) => {
     }
     if (interaction.isChatInputCommand?.() && interaction.commandName === "ia" && interaction.options.getSubcommand(false) === "question") {
       if (await handleHelpAssistantInteraction(interaction, { apiUrl: API, secret: BOT_SYNC_SECRET, ...buildAiHelpContext(interaction.guildId) })) {
-        auditSlashUsage(interaction, "Assistant d'aide FWU");
+        auditSlashUsage(interaction, "Assistant d'aide");
         return;
       }
     }
