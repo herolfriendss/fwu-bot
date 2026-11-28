@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { parseWebhookEncryptionKey, encryptWebhookToken, decryptWebhookToken } from "./webhooks-crypto.js";
+import { parseWebhookEncryptionKey, encryptWebhookToken, decryptWebhookToken, encryptWebhookTokenWithHexKey, decryptWebhookTokenWithHexKey } from "./webhooks-crypto.js";
 
 test("webhook tokens are encrypted and can be decrypted with the same key", () => {
   const key = parseWebhookEncryptionKey("ab".repeat(32));
@@ -20,4 +20,14 @@ test("webhook token ciphertext is authenticated and rejects tampering", () => {
 
 test("invalid encryption keys are rejected", () => {
   assert.throws(() => parseWebhookEncryptionKey("short"));
+});
+
+test("configured hexadecimal key is used for webhook token storage and retrieval", () => {
+  const keyHex = "ef".repeat(32);
+  const token = "webhook-token-that-must-remain-secret";
+  const encrypted = encryptWebhookTokenWithHexKey(token, keyHex);
+  assert.notEqual(encrypted, token);
+  assert.equal(decryptWebhookTokenWithHexKey(encrypted, keyHex), token);
+  assert.throws(() => encryptWebhookTokenWithHexKey(token, "missing"));
+  assert.throws(() => decryptWebhookTokenWithHexKey(encrypted, "missing"));
 });
