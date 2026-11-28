@@ -131,6 +131,17 @@ export const HELP_TUTORIALS = Object.freeze({
       { title: "3 · Permissions Discord", content: "Un palier ne remplace jamais les permissions natives Discord ni la hiérarchie des rôles. Une action peut être refusée même si ton palier l'autorise." },
     ]),
   }),
+  troubleshoot: Object.freeze({
+    title: "Dépanner un problème",
+    description: "Vérifie les points essentiels avant d'ouvrir un ticket.",
+    steps: Object.freeze([
+      { title: "1 · Identifier le bon bot", content: "Ouvre `/aide`, sélectionne le service concerné et vérifie la syntaxe exacte de la commande." },
+      { title: "2 · Vérifier tes accès", content: "Consulte `/quota moi` pour tes limites et `/guide voir` pour les paliers, permissions et règles d'accès." },
+      { title: "3 · Isoler l'erreur", content: "Si le problème persiste, note le nom du bot, la commande exacte, l'heure et le message d'erreur. Évite de relancer la même action en boucle." },
+      { title: "4 · Ouvrir un ticket", content: "Utilise le panneau de tickets existant et joins les informations relevées. Ne transmets jamais de token, mot de passe ou secret." },
+      { title: "5 · Suivre la résolution", content: "Réponds dans le ticket si le staff demande une précision. Une fois le problème résolu, ferme le ticket avec son bouton." },
+    ]),
+  }),
   support: Object.freeze({
     title: "Demander de l'aide",
     description: "Prépare une demande claire et protège tes informations.",
