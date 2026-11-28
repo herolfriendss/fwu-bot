@@ -278,7 +278,7 @@ export function startLogMaintenance({ client, record = () => {}, sources = () =>
           continue;
         }
         try {
-          const delivered = await send(guild, null, buildLogSummary(guildId, last || current - period, current), [], [], [], { category: "system", archived: true });
+          const delivered = await send(guild, null, buildLogSummary(guildId, last || current - period, current), [], [], [], { category: "system", archived: true, noQueue: true });
           if (delivered !== true) throw new Error("Résumé non confirmé par le transport de logs.");
           markSummarySent(current, guildId);
         } catch {
