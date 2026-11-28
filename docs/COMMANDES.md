@@ -954,7 +954,7 @@ Catégorie : Général · Utilisation : `/ia memoire etat:activer|desactiver · 
 - `/ia oublier` — Efface immédiatement tes conversations mémorisées sur ce serveur · préfixe `=ia oublier`
 - `/ia demande` — PND Intelligence : demande une action (aperçu puis confirmation) · préfixe `=ia demande`<br>`texte` (texte, obligatoire, 1500 caractères max) — Ta demande, ex. « crée un rôle Animateur »
 - `/ia historique` — PND Intelligence : tes 10 dernières actions · préfixe `=ia historique`
-- `/ia question` — Pose une question sur les commandes et le fonctionnement du serveur · préfixe `=ia question`<br>`question` (texte, obligatoire, 1000 caractères max) — Ta question sur le serveur
+- `/ia question` — Pose une question sur les commandes et le fonctionnement du serveur · préfixe `=ia question`<br>`question` (texte, obligatoire, 1000 caractères max) — Question sans données personnelles ni secrets
 
 ### /invitations
 
