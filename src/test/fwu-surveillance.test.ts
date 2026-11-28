@@ -49,7 +49,7 @@ describe("surveillance FWU", () => {
     expect(connectedMarkerMatchesPid("122 2026-11-28T12:00:00.000Z", 123)).toBe(false);
     expect(connectedMarkerMatchesPid("", 123)).toBe(false);
     const processes = { "fwu-guard": { online: true, pid: 123, restarts: 0 } };
-    expect(applyMarkerReadiness(processes, { "fwu-guard": false })["fwu-guard"]?.ready).toBe(false);
+    expect(applyMarkerReadiness(processes, { "fwu-guard": false })?.["fwu-guard"]?.ready).toBe(false);
   });
 
   it("prévient après 2 min d'arrêt seulement, une fois, puis au retour", () => {
