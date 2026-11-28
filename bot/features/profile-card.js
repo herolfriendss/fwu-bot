@@ -69,7 +69,7 @@ function stat(canvas, x, y, width, label, value, color = WHITE) {
  * Draws the card. `overview` comes from memberOverview, `avatar` is a decoded
  * PNG or null — a member with no readable avatar still gets a full card.
  */
-export function renderProfileCard({ overview, username, avatar = null }) {
+export function renderProfileCard({ overview, username, avatar = null, showPrivate = false }) {
   const canvas = createCanvas(W, H, BG);
   background(canvas);
 
@@ -86,8 +86,10 @@ export function renderProfileCard({ overview, username, avatar = null }) {
   }
 
   drawText(canvas, username, 200, 44, 38, WHITE, { maxWidth: 480 });
-  const tier = overview.trust.tier;
-  drawText(canvas, `${tier.label} · confiance ${overview.trust.score}/100`, 200, 92, 20, GREY, { maxWidth: 480 });
+  const profileLabel = showPrivate
+    ? `${overview.trust.tier.label} · confiance ${overview.trust.score}/100`
+    : "Profil communautaire public";
+  drawText(canvas, profileLabel, 200, 92, 20, GREY, { maxWidth: 480 });
 
   // Level badge, right-aligned against the stripes.
   const badge = `NIVEAU ${lvl}`;
@@ -108,16 +110,21 @@ export function renderProfileCard({ overview, username, avatar = null }) {
   const y = 196;
   stat(canvas, 38, y, width, "Messages", compact(level?.messages ?? 0));
   stat(canvas, 38 + (width + gap), y, width, "Vocal", hours(level?.voiceMinutes ?? 0));
-  stat(canvas, 38 + (width + gap) * 2, y, width, "PND", compact(overview.economy?.balance ?? 0), RED);
+  stat(
+    canvas, 38 + (width + gap) * 2, y, width,
+    showPrivate ? "PND" : "Réputation",
+    compact(showPrivate ? (overview.economy?.balance ?? 0) : (overview.extras?.reputation ?? 0)),
+    RED,
+  );
   stat(canvas, 38 + (width + gap) * 3, y, width, "Succès", String(level?.achievements ?? 0));
 
   return encodePng(W, H, canvas.data);
 }
 
 /** Builds the Discord attachment for a member. */
-export async function profileCardAttachment({ guildId, userId, username, avatarUrl, member = null, fetchImpl = fetch }) {
+export async function profileCardAttachment({ guildId, userId, username, avatarUrl, member = null, fetchImpl = fetch, showPrivate = false }) {
   const overview = memberOverview(guildId, userId, { member });
   const avatar = await fetchAvatar(avatarUrl, fetchImpl);
-  const png = renderProfileCard({ overview, username, avatar });
+  const png = renderProfileCard({ overview, username, avatar, showPrivate });
   return { attachment: new AttachmentBuilder(png, { name: "profil.png" }), overview };
 }
