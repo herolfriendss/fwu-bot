@@ -135,7 +135,7 @@ export const HELP_TUTORIALS = Object.freeze({
     title: "Demander de l'aide",
     description: "Prépare une demande claire et protège tes informations.",
     steps: Object.freeze([
-      { title: "1 · Trouver le support", content: "Repère le panneau de tickets publié par l'équipe du serveur, puis utilise le bouton d'ouverture. FWU réutilise le système de tickets existant du serveur." },
+      { title: "1 · Trouver le support", content: "Repère le panneau de tickets publié par l'équipe du serveur, puis utilise le bouton d'ouverture. Le système de tickets existant du serveur est réutilisé." },
       { title: "2 · Décrire le problème", content: "Explique ce que tu essayais de faire, la commande utilisée et le message de refus ou d'erreur. N'envoie pas de mot de passe, token ou secret." },
       { title: "3 · Suivre le ticket", content: "Réponds dans le salon privé du ticket et attends la prise en charge. Quand le problème est résolu, utilise le bouton de fermeture." },
     ]),
@@ -230,7 +230,16 @@ export function helpViewFromInteraction(interaction) {
   if (id === `${HELP_PREFIX}menu`) return { section: interaction.values?.[0] ?? "accueil", page: 0 };
   if (id === `${HELP_PREFIX}tutorial-menu`) return { section: "tutorials", tutorialId: interaction.values?.[0] ?? null, page: -1 };
   if (id.startsWith(`${HELP_PREFIX}tutorial:`)) {
-    const [, , ownerId, tutorialId, action, page] = id.split(":");
+    const parts = id.split(":");
+    const ownerId = parts[2];
+    const fourth = parts[3];
+    const fifth = parts[4];
+    const page = parts[5];
+    const actions = new Set(["start", "back", "next", "restart", "quit"]);
+    const actionFirst = actions.has(fourth);
+    const tutorialId = actionFirst ? fifth : fourth;
+    const action = actionFirst ? fourth : fifth;
+    if (!ownerId || !HELP_TUTORIALS[tutorialId] || !actions.has(action)) return null;
     return { section: "tutorials", ownerId, tutorialId, action, page: Number(page) || 0 };
   }
   const [, section, page] = id.split(":");
