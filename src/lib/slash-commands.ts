@@ -151,6 +151,9 @@ export const SLASH_COMMANDS: SlashCommandDef[] = [
         opt(3, "texte", "Ta demande, ex. « crée un rôle Animateur »", { required: true, max_length: 1500 }),
       ]),
       sub("historique", "PND Intelligence : tes 10 dernières actions"),
+      sub("question", "Pose une question sur les commandes et le fonctionnement de FWU", [
+        opt(3, "question", "Ta question sur FWU", { required: true, max_length: 1000 }),
+      ]),
     ],
   },
   { name: "status", description: "Affiche l’état du bot et sa durée de fonctionnement", usage: "/status", category: "Général" },
