@@ -10,6 +10,8 @@ import { addEvidence, addNote, assignIntervention, closeIntervention, formatInte
 import { addMinutes, cancelMeeting, createMission, finishMission, listMeetings, listMissions, parseParisDate, planMeeting, takeDueMeetingReminders } from "../staff-missions.js";
 import { answerExercise, certify, formatExercise, startExercise, trainingRecord } from "../staff-training.js";
 import { getAcademyProgress, listAcademyTracks } from "../organization.js";
+import { commandCenterData, formatCommandCenter } from "../staff-command-center.js";
+import { BOT_PROFILES } from "../bot-runtime.js";
 import { activeOnCall, addHandover, availabilityOf, endOnCall, expireOnCall, formatCoverage, formatSlots, parseSlots, reachableStaff, recentHandovers, saveAvailability, startOnCall, weeklyCoverage } from "../staff-availability.js";
 
 export const SUCKME_COMMANDS = new Set(["roletemp", "annonce", "staff", "pseudo"]);
@@ -225,6 +227,11 @@ async function staffCenter(interaction, settings, sub, guild) {
       ? `📝 **Dernières passations**\n${notes.map((n) => `**n°${n.id}** <t:${Math.floor(n.createdAt / 1000)}:R> par <@${n.authorId}> : ${n.note}`).join("\n")}`.slice(0, 1900)
       : "Aucune passation pour le moment. `/staff passation note:…` pour en laisser une.";
   }
+  if (sub === "centre") {
+    const absentIds = new Set(db.prepare("SELECT user_id FROM suckme_staff_absences WHERE guild_id=? AND (until_at IS NULL OR until_at > ?)").all(guild.id, Date.now()).map((a) => a.user_id));
+    const profiles = Object.entries(BOT_PROFILES).map(([id, profile]) => ({ id, label: profile.label, optional: Boolean(profile.optional) }));
+    return formatCommandCenter(commandCenterData(guild.id, { staffIds: [...staffIds], absentIds, profiles }));
+  }
   // disponibles
   const absent = new Set(db.prepare("SELECT user_id FROM suckme_staff_absences WHERE guild_id=? AND (until_at IS NULL OR until_at > ?)").all(guild.id, Date.now()).map((a) => a.user_id));
   const reach = reachableStaff(guild.id, [...staffIds], { absentIds: absent });
@@ -373,7 +380,7 @@ async function staff(interaction, settings) {
   if (group === "formation") return training(interaction, settings, sub, interaction.guild);
   if (group === "mission" || group === "reunion") return missionsAndMeetings(interaction, settings, group, sub, interaction.guild);
   if (interaction.options.getSubcommandGroup?.(false) === "intervention") return interventions(interaction, settings, sub, interaction.guild);
-  if (["dispo", "astreinte", "disponibles", "planning", "passation"].includes(sub)) return staffCenter(interaction, settings, sub, interaction.guild);
+  if (["dispo", "astreinte", "disponibles", "planning", "passation", "centre"].includes(sub)) return staffCenter(interaction, settings, sub, interaction.guild);
   const { guild, me, actor, actorFull } = await context(interaction);
   if (sub === "absence") {
     const until = interaction.options.getString("duree") ? parseDuration(interaction.options.getString("duree")) : null;

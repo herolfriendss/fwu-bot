@@ -2722,7 +2722,7 @@ export const EXTRA_SLASH_COMMANDS: SlashCommandDef[] = [
   {
     name: "staff",
     description: "SUCK ME : échelle, promotions, absences, disponibilités, astreintes, planning, passation",
-    usage: "/staff liste · echelle · promouvoir · retrograder · absence · retour · dispo · astreinte · disponibles · planning · passation · intervention · mission · reunion · formation",
+    usage: "/staff centre · liste · echelle · promouvoir · retrograder · absence · retour · dispo · astreinte · disponibles · planning · passation · intervention · mission · reunion · formation",
     category: "SYS+",
     dmPermission: false,
     requiresBotProcess: true,
@@ -2741,6 +2741,7 @@ export const EXTRA_SLASH_COMMANDS: SlashCommandDef[] = [
         opt(3, "duree", "Durée si tu prends : 4h, 12h, 1j (12 h par défaut, 7 j maximum)", { max_length: 20 }),
       ]),
       sub("disponibles", "Staff joignable maintenant : astreinte, créneaux, absences"),
+      sub("centre", "Centre de commandement : staff joignable, dossiers, tickets, alertes, bots"),
       sub("planning", "Couverture de la semaine par tranche horaire, et les trous"),
       sub("passation", "Laisse une note de relève à l'équipe suivante, ou lis les dernières", [opt(3, "note", "Ce que l'équipe suivante doit savoir (vide pour lire)", { max_length: 1500 })]),
       {

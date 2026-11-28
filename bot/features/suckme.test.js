@@ -243,3 +243,15 @@ test("STAFF CENTER: training exercises and certification of a finished Academy t
   assert.match(await run(OWNER, "valider", { membre: B, parcours: short }), /certifié.*aucun rôle/);
   assert.match(await run(A, "certifications", { membre: B }), /Modération 1.*\n.*Exercice de gestion de conflit 4\/4/);
 });
+
+test("STAFF CENTER: /staff centre is staff only and shows every section", async () => {
+  s.saveLadder("gs", ["staffrole"]);
+  const outsider = staffInteraction({ userId: "u-out", sub: "centre" });
+  await s.handleSuckmeInteraction(outsider, {});
+  assert.match(outsider.replies[0], /Réservé au staff/);
+  const i = staffInteraction({ userId: "u-staff", sub: "centre", staffRoleMembers: ["u-staff"] });
+  await s.handleSuckmeInteraction(i, {});
+  assert.match(i.replies[0], /Centre de commandement/);
+  assert.match(i.replies[0], /Dossiers et demandes/);
+  assert.match(i.replies[0], /Bots/);
+});
