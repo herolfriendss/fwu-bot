@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { BOT_MODULE_SETTINGS_KEYS } from "@/lib/bot-settings";
+import { BOT_MODULE_SETTINGS_KEYS, applySectionPatch, sanitizeSettings } from "@/lib/bot-settings";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
@@ -41,7 +41,11 @@ describe("V4 dashboard wiring", () => {
   it("keeps the settings server functions owner-gated", () => {
     const calls = functions.match(/requireOwner\(\)/g) ?? [];
     expect(calls.length).toBeGreaterThanOrEqual(4);
-    expect(functions).toContain("sanitizeSettings(d.settings)");
+    // No full-settings overwrite endpoint: a stale whole-object save would undo sections changed
+    // meanwhile from Discord (/setup). Dashboard saves go through the conflict-checked section patch.
+    expect(functions).not.toMatch(/export const saveBotSettings\s*=/);
+    const patched = applySectionPatch(sanitizeSettings({}), { moderation: { warnExpiryDays: 9_999, dmOnWarn: "yes" } });
+    expect(patched.moderation).toMatchObject({ warnExpiryDays: 365, dmOnWarn: true });
     expect(functions).toContain("writeSettingsSections(data.guildId, data.patch, data.base)");
   });
 

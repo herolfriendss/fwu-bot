@@ -235,7 +235,7 @@ export const SLASH_COMMANDS: SlashCommandDef[] = [
     options: [
       opt(6, "membre", "Membre à avertir", { required: true }),
       opt(3, "raison", "Raison de l’avertissement", { required: true, max_length: 300 }),
-      opt(4, "expire", "Expiration en jours (0 = jamais)", { min_value: 0, max_value: 365 }),
+      opt(4, "expire", "Expiration en jours (0 = jamais, vide = réglage du serveur)", { min_value: 0, max_value: 365 }),
     ],
   },
   {

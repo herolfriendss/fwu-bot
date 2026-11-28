@@ -49,6 +49,15 @@ export function canModerate({
   return { allowed: true, reason: null };
 }
 
+/**
+ * Days before a warning expires: the explicit /warn option wins (0 = never); without it, the
+ * server's « Expiration des avertissements » setting applies (dashboard and /setup, 0..365).
+ */
+export function warningExpiryDays(optionDays, moderationSettings = null) {
+  const pick = (value) => (Number.isInteger(value) && value >= 0 && value <= 365 ? value : null);
+  return pick(optionDays) ?? pick(Number(moderationSettings?.warnExpiryDays)) ?? 0;
+}
+
 export function warningExpiry(now, days) {
   return days > 0 ? now + days * 86_400_000 : null;
 }

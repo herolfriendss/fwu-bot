@@ -12,7 +12,7 @@ import { db, transaction } from "./database.js";
 import { sendCentralLog } from "./logs.js";
 import { LOGS_HUB_GUILD_ID, logSourceForGuild, sendToLogsHub } from "./logs-hub.js";
 import {
-  activeWarnings, sanitizeReason, verificationEligible, warningExpiry,
+  activeWarnings, sanitizeReason, verificationEligible, warningExpiry, warningExpiryDays,
 } from "./moderation-policy.js";
 import { respondInPlaceSafe } from "./interaction-reply.js";
 import { runModerationAction } from "./moderation-actions.js";
@@ -440,7 +440,7 @@ export async function handleModerationInteraction(interaction, guildSettings = {
 
     // warn / unmute / kick / ban : accès par palier de rôle + quota partagé (shared/).
     if (command === "warn") {
-      const days = interaction.options.getInteger("expire") ?? 0;
+      const days = warningExpiryDays(interaction.options.getInteger("expire"), settings.moderation);
       const expiresAt = warningExpiry(Date.now(), days) ?? null;
       const { caseId } = await runModerationAction({
         ...common,
