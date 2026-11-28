@@ -54,7 +54,7 @@ export async function summarise(lines, {
   fetchImpl = fetch,
 } = {}) {
   if (!String(apiUrl ?? "").trim() || !String(secret ?? "").trim()) {
-    throw new UserError("Résumé indisponible : la passerelle IA FWU n'est pas configurée sur ce bot.");
+    throw new UserError("Résumé indisponible : la passerelle IA centrale n'est pas configurée sur ce bot.");
   }
   let response;
   try {
@@ -72,13 +72,13 @@ export async function summarise(lines, {
       signal: AbortSignal.timeout(45_000),
     });
   } catch {
-    throw new UserError("Le service IA FWU est momentanément inaccessible. Réessaie plus tard.");
+    throw new UserError("Le service IA central est momentanément inaccessible. Réessaie plus tard.");
   }
   const payload = await response.json().catch(() => null);
   if (!response.ok) {
     if (response.status === 429) throw new UserError("Limite de résumés IA atteinte : réessaie dans une minute.");
     if (response.status === 402) throw new UserError("Le budget IA du serveur est épuisé. Contacte l'OWNER.");
-    if (response.status === 503) throw new UserError("Le fournisseur IA FWU n'est pas configuré côté serveur.");
+    if (response.status === 503) throw new UserError("Le fournisseur IA n'est pas configuré côté serveur.");
     throw new UserError("Le résumé a échoué. Réessaie plus tard.");
   }
   const out = String(payload?.summary ?? "").trim();
