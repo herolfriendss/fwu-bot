@@ -266,6 +266,8 @@ export const EVENT_LABELS: Record<typeof runtimeEventCodes[number], string> = {
   automation_approval_channel_unavailable: "Salon d’approbation des automatisations introuvable",
   automation_approval_channel_forbidden: "Salon d’approbation des automatisations inaccessible",
   automation_preview_error: "Échec d’aperçu d’automatisation",
+  wet_rebanned: "Compte WET rebanni à son arrivée",
+  wet_reban_error: "Échec du bannissement automatique WET",
   blacklist_rebanned: "Compte blacklisté rebanni",
   blacklist_reban_error: "Échec du rebannissement blacklist",
   wet_rebanned: "Compte WET rebanni à son arrivée",
