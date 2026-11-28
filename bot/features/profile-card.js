@@ -123,7 +123,7 @@ export function renderProfileCard({ overview, username, avatar = null, showPriva
 
 /** Builds the Discord attachment for a member. */
 export async function profileCardAttachment({ guildId, userId, username, avatarUrl, member = null, fetchImpl = fetch, showPrivate = false }) {
-  const overview = memberOverview(guildId, userId, { member });
+  const overview = memberOverview(guildId, userId, { member, includePrivate: showPrivate });
   const avatar = await fetchAvatar(avatarUrl, fetchImpl);
   const png = renderProfileCard({ overview, username, avatar, showPrivate });
   return { attachment: new AttachmentBuilder(png, { name: "profil.png" }), overview };
