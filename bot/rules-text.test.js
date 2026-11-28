@@ -50,7 +50,7 @@ test("règlement IA : utilise la passerelle FWU et ne demande aucune clé fourni
 
 test("règlement IA : signale clairement l'absence de passerelle ou de budget", async () => {
   const { generateRules } = await import("./rules-ai.js");
-  await assert.rejects(generateRules({}), /passerelle IA FWU n'est pas configurée/i);
+  await assert.rejects(generateRules({}), /passerelle IA centrale n'est pas configurée/i);
   await assert.rejects(generateRules({
     apiUrl: "https://fwu.example/api/public/bot-sync",
     secret: "bot-sync-secret",
