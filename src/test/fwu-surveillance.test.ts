@@ -2,6 +2,8 @@
 // Surveillance extérieure des bots (scripts/installation/fwu-surveillance.mjs) : logique pure.
 import { describe, expect, it } from "vitest";
 import {
+  applyMarkerReadiness,
+  connectedMarkerMatchesPid,
   evaluate,
   parsePm2List,
   PROCESSES,
@@ -23,6 +25,32 @@ function processStates(state: Record<string, unknown>): ProcessStates {
 }
 
 describe("surveillance FWU", () => {
+  it("détecte un processus PM2 en ligne dont la connexion Discord n'est pas prête", () => {
+    let r = evaluate(
+      {},
+      { processes: allOnline(), outbox: 0, diskPercent: 50, backup: null },
+      0,
+    );
+    const notReady = {
+      ...allOnline(),
+      "fwu-guard": { online: true, ready: false, restarts: 0 },
+    };
+    r = evaluate(
+      r.state,
+      { processes: notReady, outbox: 0, diskPercent: 50, backup: null },
+      3 * MIN,
+    );
+    expect(r.messages.join()).toMatch(/GUARD.*processus PM2 en ligne mais connexion Discord non confirmée/);
+  });
+
+  it("valide le marqueur de connexion avec le PID courant et refuse les marqueurs périmés", () => {
+    expect(connectedMarkerMatchesPid("123 2026-11-28T12:00:00.000Z", 123)).toBe(true);
+    expect(connectedMarkerMatchesPid("122 2026-11-28T12:00:00.000Z", 123)).toBe(false);
+    expect(connectedMarkerMatchesPid("", 123)).toBe(false);
+    const processes = { "fwu-guard": { online: true, pid: 123, restarts: 0 } };
+    expect(applyMarkerReadiness(processes, { "fwu-guard": false })["fwu-guard"]?.ready).toBe(false);
+  });
+
   it("prévient après 2 min d'arrêt seulement, une fois, puis au retour", () => {
     let r = evaluate(
       {},
@@ -199,7 +227,7 @@ describe("surveillance FWU", () => {
           },
         ]),
       ),
-    ).toEqual({ "fwu-guard": { online: false, restarts: 4 } });
+    ).toEqual({ "fwu-guard": { online: false, restarts: 4, pid: null } });
     expect(parsePm2List("pas du json")).toBeNull();
   });
 });
