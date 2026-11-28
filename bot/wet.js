@@ -373,7 +373,7 @@ export async function handleWetInteraction(interaction, settings = null, network
         color: 0x991b1b,
       })).catch(() => {});
       await interaction.editReply({
-        content: `⛔ Dossier WET ${caseId.slice(0, 8)} créé pour <@${userId}>. Bannissements envoyés : **${result.banned}** · déjà bannis : **${result.alreadyBanned}** · échecs : **${result.failed.length}**. Le registre est actif sur tout le réseau FWU ; les comptes seront rebannis à leur arrivée même si un bannissement immédiat a échoué.`,
+        content: `⛔ Dossier WET ${caseId.slice(0, 8)} créé pour <@${userId}>. Bannissements envoyés : **${result.banned}** · déjà bannis : **${result.alreadyBanned}** · échecs : **${result.failed.length}**. Le registre est actif sur tous les serveurs autorisés ; les comptes seront rebannis à leur arrivée même si un bannissement immédiat a échoué.`,
         allowedMentions: { parse: [] },
       });
       return true;
