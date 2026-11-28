@@ -549,7 +549,7 @@ Catégorie : Vocal & DOG · Utilisation : `/mvrole role cible`
 
 ### /nowplaying
 
-Affiche le morceau en cours de lecture  
+Affiche le morceau en cours  
 Catégorie : Musique & radio · Utilisation : `/nowplaying`
 
 ### /pause
@@ -588,7 +588,7 @@ Catégorie : Vocal & DOG · Utilisation : `/pv`
 
 ### /queue
 
-Affiche la file d'attente musicale  
+Affiche la file d'attente  
 Catégorie : Musique & radio · Utilisation : `/queue`
 
 ### /radio
