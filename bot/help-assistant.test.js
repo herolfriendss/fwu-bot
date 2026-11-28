@@ -89,7 +89,7 @@ test("assistant redacts identifiers and blocks secrets before contacting the mod
   assert.equal(containsSecretInput("token: abcdefghijklmnop"), true);
   assert.equal(containsSecretInput("question ordinaire sur les tickets"), false);
   const redacted = redactPrivateText("Contact user@example.com, mention <@123456789012345678>, IP 192.168.1.4.");
-  assert.doesNotMatch(redacted, /user@example.com|123456789012345678|192\\.168\\.1\\.4/);
+  assert.doesNotMatch(redacted, /user@example.com|123456789012345678|192\.168\.1\.4/);
   assert.match(redacted, /adresse e-mail masquée/);
   assert.match(redacted, /@membre/);
 
