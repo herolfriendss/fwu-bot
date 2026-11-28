@@ -7,6 +7,7 @@ import { isSysPlus } from "../systems/sysplus/permissions.js";
 import { parseDuration } from "./community.js";
 import { roleGrantRefusal as protectedGrantRefusal } from "../role-grant-guard.js";
 import { addEvidence, addNote, assignIntervention, closeIntervention, formatIntervention, getIntervention, listInterventions, openIntervention, STATUSES, validateIntervention } from "../staff-interventions.js";
+import { addMinutes, cancelMeeting, createMission, finishMission, listMeetings, listMissions, parseParisDate, planMeeting, takeDueMeetingReminders } from "../staff-missions.js";
 import { activeOnCall, addHandover, availabilityOf, endOnCall, expireOnCall, formatCoverage, formatSlots, parseSlots, reachableStaff, recentHandovers, saveAvailability, startOnCall, weeklyCoverage } from "../staff-availability.js";
 
 export const SUCKME_COMMANDS = new Set(["roletemp", "annonce", "staff", "pseudo"]);
@@ -80,6 +81,18 @@ async function roletemp(interaction, settings) {
 
 /** Every minute: remove expired temporary roles. */
 export function runStaffShiftExpiry() { return expireOnCall(); }
+
+/** Reminder 30 min before each staff meeting, in the channel where it was planned. No mass mention. */
+export async function runMeetingReminders(client, now = Date.now()) {
+  let sent = 0;
+  for (const meeting of takeDueMeetingReminders({ now })) {
+    const channel = await client.channels.fetch(meeting.channel_id).catch(() => null);
+    if (!channel?.isTextBased?.() || channel.guildId !== meeting.guild_id) continue;
+    await channel.send({ content: `📅 Rappel : réunion du staff n°${meeting.number} « ${meeting.topic} » <t:${Math.floor(meeting.starts_at / 1000)}:R>.`, allowedMentions: { parse: [] } }).catch(() => {});
+    sent += 1;
+  }
+  return sent;
+}
 
 export async function runTempRoles(client, now = Date.now()) {
   const due = db.prepare("SELECT * FROM suckme_temp_roles WHERE expires_at <= ? LIMIT 100").all(now);
@@ -262,8 +275,62 @@ async function interventions(interaction, settings, sub, guild) {
   return "❌ Action inconnue.";
 }
 
+const ts = (ms, style = "f") => `<t:${Math.floor(ms / 1000)}:${style}>`;
+
+async function missionsAndMeetings(interaction, settings, group, sub, guild) {
+  await guild.members.fetch().catch(() => null);
+  const staffIds = staffMemberIds(guild, ladderOf(guild.id), settings?.sysPlus?.roleId ?? null);
+  const canManage = allowed(interaction.member, settings);
+  if (!staffIds.has(interaction.user.id) && !canManage) return "⛔ Réservé au staff (rôles de l'échelle `/staff echelle`), aux SYS+ et à l'OWNER.";
+  const o = interaction.options;
+  const actorId = interaction.user.id;
+  const number = o.getInteger?.("numero") ?? null;
+  const say = (result, ok) => (result.error ? `❌ ${result.error}` : ok(result));
+  if (group === "mission") {
+    if (sub === "creer") {
+      if (!canManage) return "⛔ Seuls les SYS+ et l'OWNER créent des missions.";
+      const member = o.getUser?.("membre") ?? null;
+      if (member && !staffIds.has(member.id)) return "❌ Une mission ne se confie qu'à un membre du staff.";
+      let dueAt = null;
+      if (o.getString("echeance")) { const due = parseParisDate(o.getString("echeance")); if (due.error) return `❌ ${due.error}`; dueAt = due.at; }
+      return say(createMission({ guildId: guild.id, actorId, title: o.getString("titre"), assigneeId: member?.id ?? null, dueAt }),
+        (r) => `🎯 Mission **n°${r.number}** créée${member ? ` pour <@${member.id}>` : " pour tout le staff"}${dueAt ? `, échéance ${ts(dueAt)}` : ""}.`);
+    }
+    if (sub === "liste") {
+      const rows = listMissions(guild.id, { userId: actorId, all: canManage });
+      return rows.length
+        ? `🎯 **Missions en cours**\n${rows.map((m) => `**n°${m.number}** ${m.title} — ${m.assignee_id ? `<@${m.assignee_id}>` : "tout le staff"}${m.due_at ? ` · ${ts(m.due_at, "R")}${m.due_at < Date.now() ? " ⚠️ en retard" : ""}` : ""}`).join("\n")}`.slice(0, 1900)
+        : "Aucune mission en cours.";
+    }
+    if (sub === "terminer") return say(finishMission({ guildId: guild.id, number, actorId, report: o.getString("bilan"), canManage }), () => `✅ Mission n°${number} terminée. Merci !`);
+    if (sub === "annuler") return say(finishMission({ guildId: guild.id, number, actorId, canManage, cancel: true }), () => `🗑️ Mission n°${number} annulée.`);
+  }
+  if (group === "reunion") {
+    if (sub === "planifier") {
+      if (!canManage) return "⛔ Seuls les SYS+ et l'OWNER planifient les réunions.";
+      const when = parseParisDate(o.getString("date"));
+      if (when.error) return `❌ ${when.error}`;
+      return say(planMeeting({ guildId: guild.id, actorId, topic: o.getString("sujet"), channelId: interaction.channelId, startsAt: when.at }),
+        (r) => `📅 Réunion **n°${r.number}** planifiée ${ts(when.at)}. Rappel ici 30 min avant.`);
+    }
+    if (sub === "liste") {
+      const next = listMeetings(guild.id);
+      const past = listMeetings(guild.id, { past: true, limit: 3 });
+      return [
+        "📅 **Réunions à venir**", ...(next.length ? next.map((m) => `**n°${m.number}** ${m.topic} — ${ts(m.starts_at)}`) : ["—"]),
+        "", "🗒️ **Dernières réunions**", ...(past.length ? past.map((m) => `**n°${m.number}** ${m.topic} — ${m.minutes ? `compte rendu : ${m.minutes.slice(0, 200)}` : "pas encore de compte rendu"}`) : ["—"]),
+      ].join("\n").slice(0, 1900);
+    }
+    if (sub === "compte-rendu") return say(addMinutes({ guildId: guild.id, number, actorId, text: o.getString("texte") }), () => `🗒️ Compte rendu de la réunion n°${number} enregistré.`);
+    if (sub === "annuler") return say(cancelMeeting({ guildId: guild.id, number, actorId, canManage }), () => `🗑️ Réunion n°${number} annulée.`);
+  }
+  return "❌ Action inconnue.";
+}
+
 async function staff(interaction, settings) {
   const sub = interaction.options.getSubcommand();
+  const group = interaction.options.getSubcommandGroup?.(false);
+  if (group === "mission" || group === "reunion") return missionsAndMeetings(interaction, settings, group, sub, interaction.guild);
   if (interaction.options.getSubcommandGroup?.(false) === "intervention") return interventions(interaction, settings, sub, interaction.guild);
   if (["dispo", "astreinte", "disponibles", "planning", "passation"].includes(sub)) return staffCenter(interaction, settings, sub, interaction.guild);
   const { guild, me, actor, actorFull } = await context(interaction);

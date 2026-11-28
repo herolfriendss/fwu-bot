@@ -2722,7 +2722,7 @@ export const EXTRA_SLASH_COMMANDS: SlashCommandDef[] = [
   {
     name: "staff",
     description: "SUCK ME : échelle, promotions, absences, disponibilités, astreintes, planning, passation",
-    usage: "/staff liste · echelle · promouvoir · retrograder · absence · retour · dispo · astreinte · disponibles · planning · passation · intervention",
+    usage: "/staff liste · echelle · promouvoir · retrograder · absence · retour · dispo · astreinte · disponibles · planning · passation · intervention · mission · reunion",
     category: "SYS+",
     dmPermission: false,
     requiresBotProcess: true,
@@ -2758,6 +2758,31 @@ export const EXTRA_SLASH_COMMANDS: SlashCommandDef[] = [
           sub("note", "Ajoute une note d'enquête", [opt(4, "numero", "Numéro du dossier", { required: true, min_value: 1 }), opt(3, "texte", "Note", { required: true, max_length: 500 })]),
           sub("cloturer", "Clôt le dossier avec sa conclusion", [opt(4, "numero", "Numéro du dossier", { required: true, min_value: 1 }), opt(3, "conclusion", "Ce qui a été fait", { required: true, max_length: 500 })]),
           sub("valider", "Valide la clôture d'un dossier prioritaire (autre responsable)", [opt(4, "numero", "Numéro du dossier", { required: true, min_value: 1 })]),
+        ],
+      },
+      {
+        type: 2, name: "mission", description: "Missions et objectifs du staff",
+        options: [
+          sub("creer", "SYS+ : crée une mission (un membre du staff ou tout le staff)", [
+            opt(3, "titre", "La mission", { required: true, max_length: 150 }),
+            opt(6, "membre", "Membre du staff (vide = tout le staff)"),
+            opt(3, "echeance", "Échéance (heure de Paris) : 28/11 21h, demain 20h", { max_length: 30 }),
+          ]),
+          sub("liste", "Missions en cours"),
+          sub("terminer", "Termine une mission avec son bilan", [opt(4, "numero", "Numéro de la mission", { required: true, min_value: 1 }), opt(3, "bilan", "Ce qui a été fait", { required: true, max_length: 500 })]),
+          sub("annuler", "SYS+ : annule une mission", [opt(4, "numero", "Numéro de la mission", { required: true, min_value: 1 })]),
+        ],
+      },
+      {
+        type: 2, name: "reunion", description: "Réunions du staff et comptes rendus",
+        options: [
+          sub("planifier", "SYS+ : planifie une réunion (rappel 30 min avant dans ce salon)", [
+            opt(3, "sujet", "Sujet", { required: true, max_length: 150 }),
+            opt(3, "date", "Date et heure de Paris : 28/11 21h, demain 20h30", { required: true, max_length: 30 }),
+          ]),
+          sub("liste", "Réunions à venir et derniers comptes rendus"),
+          sub("compte-rendu", "Ajoute le compte rendu d'une réunion", [opt(4, "numero", "Numéro de la réunion", { required: true, min_value: 1 }), opt(3, "texte", "Compte rendu", { required: true, max_length: 1500 })]),
+          sub("annuler", "Annule une réunion", [opt(4, "numero", "Numéro de la réunion", { required: true, min_value: 1 })]),
         ],
       },
     ],

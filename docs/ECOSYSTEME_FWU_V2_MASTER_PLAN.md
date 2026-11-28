@@ -307,7 +307,7 @@ récompenses ; le centre d'aide peut avancer en parallèle de CORE car il lit le
 - [x] 1.1 Disponibilités et astreintes : `/staff dispo`, `/staff astreinte`, `/staff disponibles` (`bot/staff-availability.js`, expiration stockée donc fiable après redémarrage, aucun rôle donné, staff seulement).
 - [x] 1.2 Planning et passation : `/staff planning` (couverture de la semaine par tranche, trous signalés), `/staff passation` (notes de relève, sans mention possible).
 - [x] 1.3 Dossiers d'intervention : `/staff intervention` (ouvrir, liste, voir, assigner, preuve, note, cloturer, valider) — `bot/staff-interventions.js`. Numéro par serveur, historique en ajout seul, preuves https ou messages du même serveur, références `sanction:12` / `journal:34` / `ticket:7` / `appel:3` vers les systèmes existants, validation secondaire par un autre SYS+/OWNER pour la priorité haute. Rappels des dossiers inactifs : prévus avec `/staff centre` (1.6).
-- 1.4 Missions et objectifs ; réunions et comptes rendus.
+- [x] 1.4 Missions et réunions : `/staff mission` (creer, liste, terminer, annuler ; individuelle ou collective, échéance) et `/staff reunion` (planifier, liste, compte-rendu, annuler ; rappel 30 min avant, une seule fois même après redémarrage) — `bot/staff-missions.js`.
 - 1.5 Formation : étendre `/academy` (simulations, validation par un responsable, jamais de rôle automatique).
 - 1.6 `/staff centre` : tableau de commandement.
 
@@ -338,4 +338,5 @@ récompenses ; le centre d'aide peut avancer en parallèle de CORE car il lit le
 | 0.2 Garde de budget de connexions | fusionné (#76) | `claude/fwu-v2-audit-session-budget` |
 | 0.3 / 0.4a | fusionné (#77) | `claude/fwu-v2-fleet-watch` |
 | 1.1 / 1.2 | fusionné (#78) | `claude/fwu-v2-staff-center` |
-| 1.3 Dossiers d'intervention | terminé | `claude/fwu-v2-staff-cases` |
+| 1.3 Dossiers d'intervention | fusionné (#79) | `claude/fwu-v2-staff-cases` |
+| 1.4 Missions et réunions | terminé | `claude/fwu-v2-staff-missions` |
