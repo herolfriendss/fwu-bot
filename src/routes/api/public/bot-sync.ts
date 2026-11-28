@@ -246,7 +246,7 @@ export const Route = createFileRoute("/api/public/bot-sync")({
           }
           const commands = body.commands.flatMap((entry) => {
             if (!entry || typeof entry !== "object" || Array.isArray(entry)) return [];
-            const item = entry as { name?: unknown; description?: unknown; usage?: unknown; bot?: unknown; prefix?: unknown };
+            const item = entry as { name?: unknown; description?: unknown; usage?: unknown; paths?: unknown; bot?: unknown; prefix?: unknown };
             const name = String(item.name ?? "").trim().toLowerCase();
             if (!/^[a-z0-9_-]{1,32}$/.test(name)) return [];
             const bot = BOT_PROFILE_IDS.includes(String(item.bot) as (typeof BOT_PROFILE_IDS)[number]) ? String(item.bot) : "partagé";
@@ -255,6 +255,9 @@ export const Route = createFileRoute("/api/public/bot-sync")({
               bot,
               description: String(item.description ?? "").slice(0, 180),
               usage: String(item.usage ?? `/${name}`).slice(0, 350),
+              paths: Array.isArray(item.paths)
+                ? [...new Set(item.paths.slice(0, 30).map((path) => String(path).trim().slice(0, 80)).filter((path) => path === name || path.startsWith(`${name} `)))]
+                : [name],
               prefix: String(item.prefix ?? "/").slice(0, 4),
             }];
           });
