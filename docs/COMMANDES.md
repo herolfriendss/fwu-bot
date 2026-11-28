@@ -1293,6 +1293,7 @@ Catégorie : Administration & sécurité · Utilisation : `/stabilite commande-o
 - `/stabilite maintenance-global-on` — OWNER : suspend les commandes sur tous les bots · préfixe `=stabilite maintenance-global-on`<br>`raison` (texte, facultatif, 200 caractères max) — Message affiché aux membres<br>`salon` (salon, facultatif) — Salon où publier l'annonce de maintenance
 - `/stabilite maintenance-global-off` — OWNER : rétablit les commandes sur tous les bots · préfixe `=stabilite maintenance-global-off`<br>`salon` (salon, facultatif) — Salon où publier l'annonce de fin de maintenance
 - `/stabilite etat` — Commandes coupées et maintenance · préfixe `=stabilite etat`
+
 ### /staff
 
 SUCK ME : échelle, promotions, absences, disponibilités, astreintes, planning, passation  
