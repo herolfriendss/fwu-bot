@@ -211,7 +211,7 @@ export function parsePm2List(text) {
 /** Marker format: "<pid> <ISO timestamp>". A stale marker from an old PM2 process is not readiness. */
 export function connectedMarkerMatchesPid(markerContent, pid) {
   const expected = Number(pid);
-  const markerPid = Number(String(markerContent ?? "").trim().split(/\\s+/, 1)[0]);
+  const markerPid = Number(String(markerContent ?? "").trim().split(/\s+/, 1)[0]);
   return Number.isSafeInteger(expected) && expected > 0 && markerPid === expected;
 }
 
