@@ -1283,13 +1283,15 @@ Catégorie : Général · Utilisation : `/sondage question option1 option2 …`
 
 ### /stabilite
 
-OWNER/admins : couper une commande défaillante ou mettre un bot en maintenance  
-Catégorie : Administration & sécurité · Utilisation : `/stabilite commande-off commande [raison] · commande-on commande · maintenance-on bot [raison] · maintenance-off bot · etat`
+OWNER/admins : couper une commande ou mettre un bot en maintenance ; OWNER : maintenance globale  
+Catégorie : Administration & sécurité · Utilisation : `/stabilite commande-off commande [raison] · commande-on commande · maintenance-on bot [raison] · maintenance-off bot · maintenance-global-on|off [salon] · etat`
 
 - `/stabilite commande-off` — Coupe une commande sur les 6 bots sans redémarrer · préfixe `=stabilite commande-off`<br>`commande` (texte, obligatoire, 32 caractères max) — Nom de la commande<br>`raison` (texte, facultatif, 200 caractères max) — Raison affichée
 - `/stabilite commande-on` — Rétablit une commande · préfixe `=stabilite commande-on`<br>`commande` (texte, obligatoire, 32 caractères max) — Nom de la commande
 - `/stabilite maintenance-on` — Met un bot en maintenance (message clair aux membres) · préfixe `=stabilite maintenance-on`<br>`bot` (texte, obligatoire, choix : Bot principal, GUARD, FDPDLAVOC, SUCK ME, LE FISC, Invest +) — Bot<br>`raison` (texte, facultatif, 200 caractères max) — Message
 - `/stabilite maintenance-off` — Termine la maintenance d'un bot · préfixe `=stabilite maintenance-off`<br>`bot` (texte, obligatoire, choix : Bot principal, GUARD, FDPDLAVOC, SUCK ME, LE FISC, Invest +) — Bot
+- `/stabilite maintenance-global-on` — OWNER : suspend les commandes sur tous les bots · préfixe `=stabilite maintenance-global-on`<br>`raison` (texte, facultatif, 200 caractères max) — Message affiché aux membres<br>`salon` (salon, facultatif) — Salon où publier l'annonce de maintenance
+- `/stabilite maintenance-global-off` — OWNER : rétablit les commandes sur tous les bots · préfixe `=stabilite maintenance-global-off`<br>`salon` (salon, facultatif) — Salon où publier l'annonce de fin de maintenance
 - `/stabilite etat` — Commandes coupées et maintenance · préfixe `=stabilite etat`
 
 ### /staff
