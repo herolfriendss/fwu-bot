@@ -103,9 +103,10 @@ function ensureTargetAllowed(user, client, guilds) {
   if (user.bot) throw new Error("Un bot ne peut pas être placé dans le registre WET.");
   const ownerId = parsePndOwnerId(process.env.PND_OWNER_DISCORD_ID);
   if (user.id === ownerId || user.id === client?.user?.id) throw new Error("Ce compte est protégé et ne peut pas être placé en WET.");
-  if ([...guilds].some((guild) => guild.ownerId === user.id)) {
-    throw new Error("Ce compte est propriétaire d'un serveur accessible au réseau FWU ; WET ne peut pas le bannir de ce serveur.");
-  }
+  // Être propriétaire d'un serveur ne protège pas un compte dans les autres
+  // serveurs du réseau : le bannissement est simplement ignoré sur son propre
+  // serveur par banWetAccountsAcrossNetwork().
+  void guilds;
 }
 
 export function getActiveWetCase(userId) {
@@ -176,6 +177,8 @@ export function createWetCase({ guildId, actorId, user, reason, evidence, now = 
   requireWetOwner(actorId);
   if (!validSnowflake(user?.id)) throw new Error("Identifiant Discord invalide.");
   if (user.bot) throw new Error("Un bot ne peut pas être placé dans le registre WET.");
+  const protectedOwner = parsePndOwnerId(process.env.PND_OWNER_DISCORD_ID);
+  if (user.id === protectedOwner) throw new Error("Le compte OWNER technique est protégé et ne peut pas être placé en WET.");
   return createCaseRecord({ guildId, actorId, user, reason: cleanReason(reason), evidence: cleanEvidence(evidence), now });
 }
 
@@ -185,6 +188,8 @@ export function linkWetAccount({ guildId, actorId, sourceUserId, user, reason, e
   }
   requireWetOwner(actorId);
   if (user.bot) throw new Error("Un bot ne peut pas être relié à un dossier WET.");
+  const protectedOwner = parsePndOwnerId(process.env.PND_OWNER_DISCORD_ID);
+  if (user.id === protectedOwner) throw new Error("Le compte OWNER technique est protégé et ne peut pas être relié à un dossier WET.");
   if (sourceUserId === user.id) throw new Error("Un compte ne peut pas être lié à lui-même.");
   const source = getActiveWetCase(sourceUserId);
   if (!source) throw new Error("Le compte source n'est pas dans un dossier WET actif.");
@@ -194,6 +199,8 @@ export function linkWetAccount({ guildId, actorId, sourceUserId, user, reason, e
   const proof = cleanEvidence(evidence);
   db.exec("BEGIN IMMEDIATE");
   try {
+    const currentSource = getActiveWetCase(sourceUserId);
+    if (!currentSource || currentSource.id !== source.id) throw new Error("Le dossier source WET a été levé ou modifié pendant l'opération.");
     if (getActiveWetCase(user.id)) throw new Error("Ce compte vient d'être lié à un dossier WET par une autre session.");
     db.prepare(`
       INSERT INTO wet_case_accounts(case_id,user_id,username_snapshot,account_created_at,linked_from_id,
@@ -219,6 +226,8 @@ export function revokeWetCase(userId, { guildId, actorId, reason, now = Date.now
   if (!active) return null;
   db.exec("BEGIN IMMEDIATE");
   try {
+    const current = db.prepare("SELECT id FROM wet_cases WHERE id=? AND status='active'").get(active.id);
+    if (!current) throw new Error("Ce dossier WET vient d'être levé par une autre session.");
     db.prepare(`
       UPDATE wet_cases SET status='revoked', revoked_by=?, revoked_at=?, revoke_reason=?
       WHERE id=? AND status='active'
@@ -267,7 +276,11 @@ export async function unbanWetAccountsAcrossNetwork(client, accounts, actorId, c
       try {
         const stillBlacklisted = db.prepare("SELECT 1 FROM blacklist_entries WHERE guild_id=? AND user_id=?").get(guild.id, account.user_id);
         if (stillBlacklisted) { results.stillBlacklisted++; continue; }
-      } catch { /* Older databases without the local blacklist table are treated as not blacklisted. */ }
+      } catch (error) {
+        // Fail closed: never lift a ban when the local blacklist cannot be read.
+        results.failed.push({ guildId: guild.id, userId: account.user_id, code: Number(error?.code) || null, reason: "blacklist_unreadable" });
+        continue;
+      }
       try {
         await guild.bans.remove(account.user_id, `WET levé par ${actorId} · dossier ${caseId.slice(0, 8)}`.slice(0, 500));
         results.unbanned++;
