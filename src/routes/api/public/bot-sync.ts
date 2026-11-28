@@ -241,8 +241,14 @@ export const Route = createFileRoute("/api/public/bot-sync")({
           const userId = String(body.userId ?? "");
           const language = String(body.language ?? "").trim().slice(0, 40);
           const text = String(body.text ?? "").trim().slice(0, 1_500);
-          if (!isDiscordSnowflake(guildId) || !isDiscordSnowflake(userId) || !language
-            || /[\r\n]/.test(language) || text.length < 2) {
+          const supportedLanguages = new Set([
+            "français", "anglais", "espagnol", "allemand", "italien", "portugais", "néerlandais",
+            "russe", "ukrainien", "polonais", "turc", "japonais", "chinois simplifié",
+            "chinois traditionnel", "coréen", "arabe", "hindi", "grec", "suédois",
+            "norvégien", "danois", "finnois", "roumain", "vietnamien", "hébreu",
+          ]);
+          if (!isDiscordSnowflake(guildId) || !isDiscordSnowflake(userId) || !supportedLanguages.has(language)
+            || text.length < 2) {
             return json({ error: "invalid translation input" }, 400);
           }
           const { botAiTranslate } = await import("@/lib/bot-ai.server");
