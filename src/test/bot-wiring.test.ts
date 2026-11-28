@@ -178,6 +178,7 @@ describe("bot wiring", () => {
       read("bot/systems/sysplus/undo.js"),
       read("bot/systems/sysplus/auto-freeze.js"),
       read("bot/systems/sysplus/vote.js"),
+      read("bot/features/authority-commands.js"),
       read("bot/systems/sysplus/double-validation.js"),
       read("bot/systems/sysplus/staff-log.js"),
       read("bot/features/snipe.js"),

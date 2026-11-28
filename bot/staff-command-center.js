@@ -30,6 +30,8 @@ export function commandCenterData(guildId, { staffIds = [], absentIds = new Set(
     overdue: safe(() => overdueMissions(g, { db, now }), []),
     meetings: safe(() => listMeetings(g, { db, now, limit: 2 }), []),
     bots: safe(() => botStates(db, now, profiles), []),
+    authorityPending: count("SELECT COUNT(*) AS n FROM authority_requests WHERE guild_id = ? AND status = 'pending'", g),
+    authorityActive: count("SELECT COUNT(*) AS n FROM authority_requests WHERE guild_id = ? AND status = 'active' AND expires_at > ?", g, now),
     deadJobs: safe(() => queueStats({ db, guildId: g }).filter((r) => r.status === "dead").reduce((n, r) => n + r.count, 0), 0),
   };
 }
@@ -64,6 +66,7 @@ export function formatCommandCenter(d) {
     d.stale.length ? `⚠️ Sans nouvelle depuis 48 h : ${d.stale.slice(0, 6).map((r) => `n°${r.number}${r.assignee_id ? ` (<@${r.assignee_id}>)` : ""}`).join(", ")}` : null,
     `🎫 Tickets ouverts : ${v(d.tickets)}${d.unclaimedTickets ? ` (dont ${d.unclaimedTickets} sans prise en charge)` : ""}`,
     `🛡️ Signalements Guardian à revoir : ${v(d.guardian)} · ⚖️ Contestations en attente : ${v(d.appeals)}`,
+    `🔐 Dérogations AUTHORITY : ${v(d.authorityPending)} en attente de l'OWNER · ${v(d.authorityActive)} actives`,
     "",
     "**🎯 Organisation**",
     `Missions en retard : ${d.overdue.length ? d.overdue.slice(0, 5).map((m) => `n°${m.number}${m.assignee_id ? ` (<@${m.assignee_id}>)` : ""}`).join(", ") : "aucune"}`,
