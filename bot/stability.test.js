@@ -43,3 +43,18 @@ test("scenario: a repeated error raises one alert per window", () => {
   watch("music_error", 2000); watch("music_error", 2010); watch("music_error", 2020);
   assert.equal(alerts.length, 2);
 });
+
+test("global maintenance blocks every bot and can only be ended by the OWNER", () => {
+  const owner = { id: env.PND_OWNER_DISCORD_ID, guild: { ownerId: "2" }, permissions: { has: () => false } };
+  assert.match(S.runToolCommand({ member: owner, sub: "maintenance-global-on", reason: "mise à jour globale", profile: "fwu" }, { env }), /Maintenance globale activée/);
+  for (const profile of ["fwu", "guard", "fdpdlavoc", "suckme", "fisc", "investplus"]) {
+    assert.match(S.stabilityRefusal({ profile, command: "ban", userId: "5", env }), /maintenance : mise à jour globale/);
+  }
+  assert.equal(S.stabilityRefusal({ profile: "guard", command: "ban", userId: owner.id, env }), null, "OWNER keeps emergency access");
+  assert.match(S.runToolCommand({ member: admin, sub: "maintenance-global-off", profile: "fwu" }, { env }), /Seul l'OWNER/);
+  assert.match(S.runToolCommand({ member: owner, sub: "maintenance-global-off", profile: "fwu" }, { env }), /Maintenance globale terminée/);
+  for (const profile of ["fwu", "guard", "fdpdlavoc", "suckme", "fisc", "investplus"]) {
+    assert.equal(S.stabilityRefusal({ profile, command: "ban", userId: "5", env }), null);
+  }
+  assert.equal(S.globalMaintenanceState(), null);
+});
