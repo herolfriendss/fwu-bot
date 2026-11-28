@@ -217,7 +217,7 @@ le staff (`/smash retablir` ou `/smash retirer`), avec alerte typée. Personne n
 - Base de départ : `main` au commit `c7b81862faf6011ab99b63dc379e94d41742df2d`.
 - Dépôt : `herolfriendss/fwu-bot`. Ne jamais écrire sur les branches d'autres sessions.
 - Portée confirmée par l'OWNER : tout l'écosystème, autonomie maximale, staff/sécurité/social/économie/jeux/automatisation ; conserver toutes les fonctionnalités déjà développées et toutes les propositions ULTIMATE.
-- Exigences ajoutées : refonte UX et fiabilité musique ; suppression de la dépendance directe Anthropic pour la génération du règlement ; SENTINEL superviseur indépendant ; outils avancés hauts gradés ; API prête pour le site existant, sans développement ni déploiement du site maintenant.
+- Exigences ajoutées : refonte UX et fiabilité musique ; suppression de la dépendance directe Anthropic pour la génération du règlement ; SENTINEL superviseur indépendant ; outils avancés hauts gradés ; API prête pour le site existant, sans développement ni déploiement du site maintenant ; WET comme registre réseau supérieur à la blacklist, avec `/wet` et `/unwet`.
 
 ### Constat initial sur main (audit de lecture)
 
@@ -251,3 +251,13 @@ Aucun test n'est déclaré exécuté par cette session à ce stade. Le connecteu
 - Demander l'intervention de l'OWNER uniquement pour une décision réellement bloquante, un secret, un accès, une application/token, une migration distante ou une opération irréversible.
 - En cas de doute sur un comportement non documenté, préserver l'existant et ajouter un test avant de changer.
 
+
+
+### Ajout WET — 28/11
+
+- Le cadrage WET a été retrouvé dans les échanges OWNER : niveau supérieur de blacklist pour les sanctions durables et le traitement documenté des comptes alternatifs.
+- Commandes enregistrées sur la branche : `/wet ajouter|lier|verifier|liste` et `/unwet`.
+- Module ajouté : `bot/wet.js`, registre dans le SQLite partagé, dossiers multi-comptes, preuves HTTPS, audit append-only, application réseau et enforcement à l'arrivée.
+- Garde-fous : mutations OWNER uniquement au niveau handler et service ; lecture OWNER/SYS+ ; aucun rapprochement automatique depuis les scores de ressemblance ; aucune collecte IP/MAC/empreinte matérielle.
+- Tests ajoutés : `bot/wet.test.js`. Résultat CI et recette staging non encore confirmés.
+- La commande `/unwet` révoque le dossier complet. Un bannissement local indépendant encore inscrit dans `/blacklist` n'est pas levé silencieusement.
