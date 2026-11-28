@@ -2722,7 +2722,7 @@ export const EXTRA_SLASH_COMMANDS: SlashCommandDef[] = [
   {
     name: "staff",
     description: "SUCK ME : échelle, promotions, absences, disponibilités, astreintes, planning, passation",
-    usage: "/staff liste · echelle · promouvoir · retrograder · absence · retour · dispo · astreinte · disponibles · planning · passation",
+    usage: "/staff liste · echelle · promouvoir · retrograder · absence · retour · dispo · astreinte · disponibles · planning · passation · intervention",
     category: "SYS+",
     dmPermission: false,
     requiresBotProcess: true,
@@ -2743,6 +2743,23 @@ export const EXTRA_SLASH_COMMANDS: SlashCommandDef[] = [
       sub("disponibles", "Staff joignable maintenant : astreinte, créneaux, absences"),
       sub("planning", "Couverture de la semaine par tranche horaire, et les trous"),
       sub("passation", "Laisse une note de relève à l'équipe suivante, ou lis les dernières", [opt(3, "note", "Ce que l'équipe suivante doit savoir (vide pour lire)", { max_length: 1500 })]),
+      {
+        type: 2, name: "intervention", description: "Dossiers d'intervention du staff (incident, enquête, plainte)",
+        options: [
+          sub("ouvrir", "Ouvre un dossier d'intervention", [
+            opt(3, "titre", "De quoi s'agit-il ?", { required: true, max_length: 120 }),
+            opt(6, "membre", "Membre concerné"),
+            opt(3, "priorite", "Priorité (haute = clôture validée par un autre responsable)", { choices: [{ name: "Basse", value: "basse" }, { name: "Normale", value: "normale" }, { name: "Haute", value: "haute" }] }),
+          ]),
+          sub("liste", "Dossiers en cours, à valider ou clos", [opt(3, "statut", "Lesquels", { choices: [{ name: "En cours", value: "actifs" }, { name: "À valider", value: "a_valider" }, { name: "Clos", value: "clos" }, { name: "Tous", value: "tous" }] })]),
+          sub("voir", "Affiche un dossier et son historique", [opt(4, "numero", "Numéro du dossier", { required: true, min_value: 1 })]),
+          sub("assigner", "Confie le dossier à un membre du staff", [opt(4, "numero", "Numéro du dossier", { required: true, min_value: 1 }), opt(6, "membre", "Membre du staff", { required: true })]),
+          sub("preuve", "Ajoute une preuve (lien https, message du serveur) ou une référence (sanction:12)", [opt(4, "numero", "Numéro du dossier", { required: true, min_value: 1 }), opt(3, "lien", "Lien ou référence", { required: true, max_length: 400 })]),
+          sub("note", "Ajoute une note d'enquête", [opt(4, "numero", "Numéro du dossier", { required: true, min_value: 1 }), opt(3, "texte", "Note", { required: true, max_length: 500 })]),
+          sub("cloturer", "Clôt le dossier avec sa conclusion", [opt(4, "numero", "Numéro du dossier", { required: true, min_value: 1 }), opt(3, "conclusion", "Ce qui a été fait", { required: true, max_length: 500 })]),
+          sub("valider", "Valide la clôture d'un dossier prioritaire (autre responsable)", [opt(4, "numero", "Numéro du dossier", { required: true, min_value: 1 })]),
+        ],
+      },
     ],
   },
   {

@@ -6,6 +6,7 @@ import { parsePndOwnerId } from "../pnd-owner-policy.js";
 import { isSysPlus } from "../systems/sysplus/permissions.js";
 import { parseDuration } from "./community.js";
 import { roleGrantRefusal as protectedGrantRefusal } from "../role-grant-guard.js";
+import { addEvidence, addNote, assignIntervention, closeIntervention, formatIntervention, getIntervention, listInterventions, openIntervention, STATUSES, validateIntervention } from "../staff-interventions.js";
 import { activeOnCall, addHandover, availabilityOf, endOnCall, expireOnCall, formatCoverage, formatSlots, parseSlots, reachableStaff, recentHandovers, saveAvailability, startOnCall, weeklyCoverage } from "../staff-availability.js";
 
 export const SUCKME_COMMANDS = new Set(["roletemp", "annonce", "staff", "pseudo"]);
@@ -222,8 +223,48 @@ async function staffCenter(interaction, settings, sub, guild) {
   ].filter(Boolean).join("\n");
 }
 
+async function interventions(interaction, settings, sub, guild) {
+  await guild.members.fetch().catch(() => null);
+  const staffIds = staffMemberIds(guild, ladderOf(guild.id), settings?.sysPlus?.roleId ?? null);
+  const canManage = allowed(interaction.member, settings);
+  if (!staffIds.has(interaction.user.id) && !canManage) return "⛔ Réservé au staff (rôles de l'échelle `/staff echelle`), aux SYS+ et à l'OWNER.";
+  const o = interaction.options;
+  const number = o.getInteger?.("numero") ?? null;
+  const actorId = interaction.user.id;
+  const say = (result, ok) => (result.error ? `❌ ${result.error}` : ok(result));
+  if (sub === "ouvrir") {
+    const target = o.getUser?.("membre") ?? null;
+    return say(openIntervention({ guildId: guild.id, actorId, title: o.getString("titre"), targetId: target?.id ?? null, priority: o.getString("priorite") ?? "normale" }),
+      (r) => `📂 Dossier d'intervention **n°${r.number}** ouvert (priorité ${r.priority}). \`/staff intervention assigner numero:${r.number}\` pour le confier.`);
+  }
+  if (sub === "liste") {
+    const rows = listInterventions(guild.id, { status: o.getString("statut") ?? "actifs" });
+    return rows.length
+      ? `📂 **Dossiers d'intervention**\n${rows.map((r) => `**n°${r.number}** ${r.priority === "haute" ? "🔴 " : ""}${r.title} — ${STATUSES[r.status] ?? r.status}${r.assignee_id ? ` · <@${r.assignee_id}>` : ""} · <t:${Math.floor(r.updated_at / 1000)}:R>`).join("\n")}`.slice(0, 1900)
+      : "Aucun dossier dans cette liste.";
+  }
+  if (sub === "voir") {
+    const file = getIntervention(guild.id, number);
+    return file ? formatIntervention(file) : `❌ Dossier n°${number} introuvable sur ce serveur.`;
+  }
+  if (sub === "assigner") {
+    const assignee = o.getUser?.("membre");
+    if (!assignee || !staffIds.has(assignee.id)) return "❌ Le dossier ne peut être confié qu'à un membre du staff.";
+    return say(assignIntervention({ guildId: guild.id, number, actorId, assigneeId: assignee.id }), () => `👤 Dossier n°${number} confié à <@${assignee.id}>.`);
+  }
+  if (sub === "preuve") return say(addEvidence({ guildId: guild.id, number, actorId, link: o.getString("lien") }), (r) => `📎 Ajouté au dossier n°${number} : ${r.value}`);
+  if (sub === "note") return say(addNote({ guildId: guild.id, number, actorId, text: o.getString("texte") }), () => `📝 Note ajoutée au dossier n°${number}.`);
+  if (sub === "cloturer") {
+    return say(closeIntervention({ guildId: guild.id, number, actorId, resolution: o.getString("conclusion"), canManage }),
+      (r) => (r.pending ? `⏳ Clôture du dossier n°${number} demandée : priorité haute, un **autre** SYS+ ou l'OWNER doit la valider (\`/staff intervention valider numero:${number}\`).` : `✅ Dossier n°${number} clos.`));
+  }
+  if (sub === "valider") return say(validateIntervention({ guildId: guild.id, number, actorId, canManage }), () => `✅ Dossier n°${number} validé et clos.`);
+  return "❌ Action inconnue.";
+}
+
 async function staff(interaction, settings) {
   const sub = interaction.options.getSubcommand();
+  if (interaction.options.getSubcommandGroup?.(false) === "intervention") return interventions(interaction, settings, sub, interaction.guild);
   if (["dispo", "astreinte", "disponibles", "planning", "passation"].includes(sub)) return staffCenter(interaction, settings, sub, interaction.guild);
   const { guild, me, actor, actorFull } = await context(interaction);
   if (sub === "absence") {
