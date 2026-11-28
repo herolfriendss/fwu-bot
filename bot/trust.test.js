@@ -118,7 +118,8 @@ test("expiry reports what was lifted, once", () => {
 });
 
 test("an unknown scope is refused", () => {
-  assert.throws(() => applySanction({ guildId: GUILD, userId: USER, scope: "nimportequoi", durationMs: 1000 }), /inconnu/);
+  assert.throws(() => applySanction({ guildId: GUILD, userId: USER, scope: "nimportequoi", durationMs: 1000, reason: "Test" }), /inconnu/);
+  assert.throws(() => applySanction({ guildId: GUILD, userId: USER, scope: "casino", durationMs: 1000, reason: " " }), /raison/);
 });
 
 test("permission answers with a ceiling, and says why when it refuses", () => {
