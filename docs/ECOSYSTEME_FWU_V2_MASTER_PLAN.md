@@ -107,7 +107,7 @@ fourni par l'OWNER lui-même, jamais par le chat) et les tests de profil.
 
 | Brique demandée | Existe | À faire |
 |---|---|---|
-| Bus d'événements, file persistante | `event-bus.js` (SQLite, curseurs) | identifiants uniques globaux, clé d'idempotence, schéma versionné des événements |
+| Bus d'événements, file persistante | `event-bus.js` (uid, idempotence, version) + `core-queue.js` (tâches, bail, reprises) | — (fait en 2.1 / 2.2) |
 | Reprise après panne | outbox des journaux, curseurs | file générique « à traiter quand le destinataire revient » avec reprises bornées |
 | Identité universelle | IDs Discord partout | table d'identité par serveur (membre ↔ profils, historique) |
 | Permissions | `role-grant-guard.js`, `shared/tiers.js`, `hierarchy-guard.js`, `pnd-owner-policy.js` | service unique de décision (API) consommé par tous les bots |
@@ -313,7 +313,12 @@ récompenses ; le centre d'aide peut avancer en parallèle de CORE car il lit le
 - [x] 1.5 Formation : `/staff formation` (exercice : cas pratiques raid / conflit / signalement avec correction expliquée ; reponse ; valider : certification d'un parcours `/academy` terminé par un autre SYS+/OWNER ; certifications) — `bot/staff-training.js`. Jamais de rôle donné ; un test vérifie que les cas pratiques ne citent que des commandes existantes.
 - [x] 1.6 `/staff centre` : tableau de commandement (staff joignable, interventions dont urgentes et inactives depuis 48 h, validations, tickets, Guardian, contestations, missions en retard, réunions, état des bots) — `bot/staff-command-center.js`. Les demandes de dérogation AUTHORITY s'y ajouteront en phase 3.
 
-**Phase 2 — FWU CORE** : 2.1 événements à identifiant unique et idempotence ; 2.2 file générique de reprise ; 2.3 service de décision des permissions ; 2.4 journal d'audit unifié ; 2.5 registre transactionnel (préparation).
+**Phase 2 — FWU CORE**
+- [x] 2.1 Événements : identifiant universel (`uid`), clé d'idempotence par serveur, version de schéma (`bot/event-bus.js`, colonnes ajoutées sans réécrire l'existant).
+- [x] 2.2 File persistante de tâches entre bots (`bot/core-queue.js`) : idempotence, bail (une tâche jamais faite deux fois en parallèle, jamais perdue si le bot plante), reprises 30 s → 1 h, échec définitif visible dans `/staff centre`, relance manuelle seulement. Chaque bot traite les tâches de son profil toutes les 15 s.
+- [ ] 2.3 Service de décision des permissions.
+- [ ] 2.4 Journal d'audit unifié.
+- [ ] 2.5 Registre transactionnel (préparation).
 
 **Phase 3 — AUTHORITY** : 3.1 registre + API `checkException` + tests d'attaque (sans bot) ; 3.2 migration des exemptions de quota ; 3.3 profil `authority` et `/authority` (après validation OWNER et token fourni par lui) ; 3.4 page console.
 
@@ -343,4 +348,5 @@ récompenses ; le centre d'aide peut avancer en parallèle de CORE car il lit le
 | 1.3 Dossiers d'intervention | fusionné (#79) | `claude/fwu-v2-staff-cases` |
 | 1.4 Missions et réunions | fusionné (#80) | `claude/fwu-v2-staff-missions` |
 | 1.5 Formation | fusionné (#81) | `claude/fwu-v2-staff-training` |
-| 1.6 Centre de commandement | terminé | `claude/fwu-v2-staff-command` |
+| 1.6 Centre de commandement | fusionné (#82) | `claude/fwu-v2-staff-command` |
+| 2.1 / 2.2 Événements idempotents, file persistante | terminé | `claude/fwu-v2-core-queue` |

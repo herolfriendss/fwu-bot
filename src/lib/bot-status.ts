@@ -23,6 +23,8 @@ export const runtimeEventCodes = [
   "remote_restart", "remote_command_ignored", "voice_drop_guard", "voice_drop_guard_error", "relay_takeover", "relay_released", "degraded_mode_on", "degraded_mode_off", "degraded_mode_error", "native_automod_installed", "native_automod_error", "malus_applied", "malus_expired", "malus_error", "malus_permission_error", "garde_error", "ban_evader_suspected", "phishing_quarantine", "integration_changed", "bot_permission_lost", "fwu_plus_error", "voice_plus_error", "vps_health_warning", "vps_health_ok", "member_flow_abnormal",
   // Surveillance de la flotte (bot/fleet-watch.js).
   "fleet_bot_down", "fleet_bot_waiting", "fleet_bot_stopped", "fleet_bot_online", "fleet_watch_error",
+  // File persistante FWU CORE (bot/core-queue.js).
+  "core_job_dead", "core_job_error",
 ] as const;
 
 const runtimeGuildSchema = z.object({
@@ -311,6 +313,8 @@ export const EVENT_LABELS: Record<typeof runtimeEventCodes[number], string> = {
   fleet_bot_stopped: "Un autre bot s’est arrêté définitivement",
   fleet_bot_online: "Un autre bot est de retour",
   fleet_watch_error: "Échec de la surveillance des bots",
+  core_job_dead: "Tâche entre bots en échec définitif",
+  core_job_error: "Erreur de la file de tâches entre bots",
   temp_voice_transferred: "Vocal temporaire : propriété transférée",
   webhook_created: "Webhook créé",
   webhook_deleted: "Webhook supprimé",

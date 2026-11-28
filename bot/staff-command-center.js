@@ -9,6 +9,7 @@ import { db as defaultDb } from "./database.js";
 import { interventionCounts, listInterventions, staleInterventions } from "./staff-interventions.js";
 import { listMeetings, overdueMissions } from "./staff-missions.js";
 import { reachableStaff } from "./staff-availability.js";
+import { queueStats } from "./core-queue.js";
 
 const safe = (fn, fallback = null) => { try { return fn(); } catch { return fallback; } };
 
@@ -29,6 +30,7 @@ export function commandCenterData(guildId, { staffIds = [], absentIds = new Set(
     overdue: safe(() => overdueMissions(g, { db, now }), []),
     meetings: safe(() => listMeetings(g, { db, now, limit: 2 }), []),
     bots: safe(() => botStates(db, now, profiles), []),
+    deadJobs: safe(() => queueStats({ db, guildId: g }).filter((r) => r.status === "dead").reduce((n, r) => n + r.count, 0), 0),
   };
 }
 
@@ -68,5 +70,6 @@ export function formatCommandCenter(d) {
     `Prochaines réunions : ${d.meetings.length ? d.meetings.map((m) => `n°${m.number} ${m.topic} <t:${Math.floor(m.starts_at / 1000)}:R>`).join(" · ") : "aucune"}`,
   ];
   if (d.bots.length) lines.push("", "**🤖 Bots**", d.bots.filter((b) => b.state !== "absent").map((b) => `${ICON[b.state]} ${b.label}`).join(" · "));
+  if (d.deadJobs) lines.push(`⚠️ Tâches entre bots en échec définitif : ${d.deadJobs} (à examiner par l'OWNER)`);
   return lines.filter((line) => line !== null).join("\n").slice(0, 1950);
 }

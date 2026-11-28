@@ -185,6 +185,7 @@ import { db } from "./database.js";
 import { clearConnectedMarker, clearGatewayFailures, createGatewayWatchdog, listGatewayFailures, parseSessionLimit, recordGatewayFailure, writeConnectedMarker } from "./gateway-watchdog.js";
 import { clearGatewayWait, clearSessionWaitMarker, listGatewayWaits, planGatewayLogin, recentlyStartedProfiles, recordGatewayStart, recordGatewayWait, sessionReserveFromEnv, writeSessionWaitMarker } from "./session-budget.js";
 import { createFleetWatcher, describeFleetChange, profileState, watchedProfiles } from "./fleet-watch.js";
+import { pruneJobs, runJobs } from "./core-queue.js";
 import { LOGS_HUB_GUILD_ID, ACTIVE_SOURCE_GUILD_IDS, allowedRuntimeGuild, filterInactiveSourceGuilds, isLogsHub, inspectLogsHub, lastLogsHubFailure } from "./logs-hub.js";
 
 const { SITE_URL, BOT_SYNC_SECRET } = process.env;
@@ -270,6 +271,21 @@ async function watchFleet() {
   }
 }
 if (FLEET_WATCHED.length) setInterval(() => { void watchFleet().catch(() => record("fleet_watch_error")); }, 30_000).unref?.();
+
+// FWU CORE 2.2 (bot/core-queue.js): each bot runs the jobs addressed to its own profile, for the
+// servers it serves. Jobs wait while the bot is down and run when it comes back. Modules register
+// their handlers in CORE_JOB_HANDLERS as they start using the queue.
+const CORE_JOB_HANDLERS = {
+  "core.ping": async () => {},
+};
+const CORE_JOB_HOLDER = `${RUNTIME.profile}:${process.pid}`;
+setInterval(() => {
+  if (!client?.isReady?.()) return;
+  void runJobs(RUNTIME.profile, CORE_JOB_HOLDER, CORE_JOB_HANDLERS, { guildIds: ALLOWED_GUILDS.filter((id) => !isLogsHub(id)) })
+    .then((r) => { if (r.dead) record("core_job_dead"); })
+    .catch(() => record("core_job_error"));
+}, 15_000).unref?.();
+if (IS_FWU) setInterval(() => { try { pruneJobs(); } catch { record("core_job_error"); } }, 6 * 3_600_000).unref?.();
 if (!IS_FWU) {
   // Dedicated bots hand their logs to FWU (Logs Hub owner, RESUME source).
   setCentralLogRelay(({ guild, embed, fallbackChannelIds, components, allowedUserIds, category, mentionRoleIds }) => enqueueRelayedLog({
