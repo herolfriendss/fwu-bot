@@ -15,6 +15,7 @@ import { parseDuration } from "./community.js";
 
 export const AUTHORITY_LABELS = Object.freeze({
   "voice.room.extra": "Salon vocal supplémentaire",
+  "moderation.quota.extra": "Quota de modération doublé (staff)",
   "economy.quota.extra": "Quota économique supplémentaire",
   "module.beta.access": "Accès à un module en test",
   "staff.mission.create": "Créer des missions du staff",

@@ -325,7 +325,7 @@ récompenses ; le centre d'aide peut avancer en parallèle de CORE car il lit le
 
 **Phase 3 — AUTHORITY**
 - [x] 3.1 Registre et vérification (`bot/authority.js`) : demandes avec justification et durée (1 h à 30 j), décisions OWNER seul (approuver, refuser, suspendre, réactiver, révoquer, prolonger), nonce à usage unique, signature HMAC (`PND_AUTHORITY_SECRET`, sinon `BOT_SYNC_SECRET`), expiration à la lecture, rappels, journal chaîné. `hasException()` branché sur `core-permissions.js`. Les 15 cas d'attaque du cahier des charges sont testés (`bot/authority.test.js`).
-- [ ] 3.2 Brancher les exemptions de quota existantes (`/quota exemption`) sur AUTHORITY sans casser l'existant.
+- [x] 3.2 Quotas de modération : une dérogation `moderation.quota.extra` approuvée par l'OWNER double le quota du membre pendant sa durée (`bot/shared/quotas.js`). Elle ne remplace jamais l'accès à la modération, n'ouvre jamais une commande interdite au palier (0), ne passe jamais le gel d'urgence ; les exemptions `/quota exemption` existantes sont inchangées.
 - [x] 3.3 Commandes `/authority` (demander, mes-demandes, statut, historique ; OWNER : panneau, decider ; MP à l'OWNER avec boutons Approuver / Refuser à usage unique) — `bot/features/authority-commands.js`. Portées par SUCK ME (84/100 commandes) jusqu'à la création du bot AUTHORITY : l'OWNER crée l'application Discord et fournit son token lui-même, puis la racine `authority` passe au profil `authority` dans `src/lib/bot-profiles.ts`. `/staff centre` affiche les dérogations en attente et actives.
 - [ ] 3.4 Page AUTHORITY de la console (même service).
 
@@ -360,7 +360,8 @@ récompenses ; le centre d'aide peut avancer en parallèle de CORE car il lit le
 | 2.4 Journal d'audit unifié | fusionné (#85) | `claude/fwu-v2-core-audit` |
 | 2.3 Décision des permissions | fusionné (#86) | `claude/fwu-v2-core-permissions` |
 | 3.1 Registre AUTHORITY | fusionné (#87) | `claude/fwu-v2-authority-core` |
-| 3.3 Commandes AUTHORITY | terminé | `claude/fwu-v2-authority-commands` |
+| 3.3 Commandes AUTHORITY | fusionné (#88) | `claude/fwu-v2-authority-commands` |
+| 3.2 Quotas et AUTHORITY | terminé | `claude/fwu-v2-authority-quota` |
 
 ## 15. Reprise du travail (pour une nouvelle session)
 

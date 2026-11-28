@@ -32,6 +32,7 @@ export const ACTIONS = Object.freeze({
   "help.ask": { level: "member" },
   "economy.quota.extra": { level: "member", exception: true },
   "voice.room.extra": { level: "member", exception: true },
+  "moderation.quota.extra": { level: "staff", exception: true },
   "module.beta.access": { level: "sysplus", exception: true },
 });
 

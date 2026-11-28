@@ -13,7 +13,7 @@ import pg from "pg";
 
 import { closeSharedDb, initSharedDb, sharedDbAvailable, sharedQuery } from "./db.js";
 import { runSharedMigrations } from "./migrate.js";
-import { quotaStatusForUser, formatQuotaStatus, consumeQuota, formatDurationFr, formatQuotaRefusal, refundQuota, setQuota, resetQuota, addExemption, removeExemption, addWhitelistedBot, removeWhitelistedBot, listQuotas } from "./quotas.js";
+import { effectiveQuotaLimit, quotaStatusForUser, formatQuotaStatus, consumeQuota, formatDurationFr, formatQuotaRefusal, refundQuota, setQuota, resetQuota, addExemption, removeExemption, addWhitelistedBot, removeWhitelistedBot, listQuotas } from "./quotas.js";
 import { resolveTier, setRoleTier, loadRoleTiers, canUseModeration } from "./tiers.js";
 import { listSanctionTypes, addSanctionType, updateSanctionType, deleteSanctionType, listMemberSanctions, parseDurationToSeconds } from "./sanctions.js";
 import { flushOutbox, logCommandUsage, pendingOutboxEntries, recordSanction, setOutboxPathForTests } from "./audit.js";
@@ -405,4 +405,27 @@ pgTest("stats du staff : sanctions, commandes et refus de quota regroupés par m
   assert.deepEqual(data.sanctions.map((s) => [s.userId, s.action, s.count]), [["m1", "warn", 2]], "la sanction de plus de 30 jours est exclue");
   assert.equal(data.usage[0].count, 1);
   assert.deepEqual(data.violations, []);
+});
+
+test("AUTHORITY doubles a quota, never opens a forbidden command", () => {
+  assert.equal(effectiveQuotaLimit(2, true), 4);
+  assert.equal(effectiveQuotaLimit(2, false), 2);
+  assert.equal(effectiveQuotaLimit(0, true), 0);
+  assert.equal(effectiveQuotaLimit(null, true), null);
+});
+
+pgTest("AUTHORITY: an approved exception doubles the quota; a failing check counts as none", async () => {
+  const user = "300000000000000077";
+  const yes = async () => true;
+  const results = [];
+  for (let i = 0; i < 5; i++) results.push(await consumeQuota({ guildId: G, userId: user, command: "tempmute", tier: 50, bot: "fwu", exceptionCheck: yes }));
+  assert.deepEqual(results.map((r) => r.allowed), [true, true, true, true, false]);
+  assert.equal(results[0].authority, true);
+  const other = "300000000000000078";
+  const broken = async () => { throw new Error("registre indisponible"); };
+  const r = [];
+  for (let i = 0; i < 3; i++) r.push(await consumeQuota({ guildId: G, userId: other, command: "tempmute", tier: 50, bot: "fwu", exceptionCheck: broken }));
+  assert.deepEqual(r.map((x) => x.allowed), [true, true, false]);
+  // No moderation access: an exception never replaces it.
+  assert.equal((await consumeQuota({ guildId: G, userId: "300000000000000079", command: "tempmute", tier: null, bot: "fwu", exceptionCheck: yes })).allowed, false);
 });

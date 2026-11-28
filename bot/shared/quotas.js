@@ -9,6 +9,7 @@
 // consultatif transactionnel PostgreSQL. Deux commandes simultanées, même
 // envoyées par deux bots différents, ne peuvent donc pas dépasser la limite.
 // L'heure de référence est celle de la base (now()), commune à tous les bots.
+import { hasException } from "../authority.js";
 import { isConnectionError, SharedDbUnavailableError, sharedDbAvailable, sharedQuery, sharedTransaction } from "./db.js";
 import { logQuotaViolation } from "./audit.js";
 import { MODERATION_TIERS, TIER_LABELS, canUseModeration } from "./tiers.js";
@@ -85,7 +86,17 @@ async function quotaRow(client, guildId, command, tier) {
  *
  * @param {{ guildId: string, userId: string, command: string, tier: number|null, bot: string, isBot?: boolean }} input
  */
-export async function consumeQuota({ guildId, userId, command, tier, bot, isBot = false }) {
+/**
+ * AUTHORITY (moderation.quota.extra): an OWNER-approved, signed, current exception doubles the
+ * member's quota while it lasts. It never opens a command forbidden to the tier (max 0), never
+ * replaces moderation access, never passes the emergency freeze.
+ */
+export function effectiveQuotaLimit(maxUses, extra) {
+  if (maxUses == null || maxUses === 0) return maxUses;
+  return extra ? maxUses * 2 : maxUses;
+}
+
+export async function consumeQuota({ guildId, userId, command, tier, bot, isBot = false, exceptionCheck = authorityQuotaException }) {
   if (!isQuotaCommand(command)) throw new Error(`Commande sans quota : ${command}`);
   // Owner (0 %) : exempté de tout, même base injoignable.
   if (tier === 0 && !isBot) return { allowed: true, exempt: "owner" };
@@ -102,6 +113,8 @@ export async function consumeQuota({ guildId, userId, command, tier, bot, isBot 
     const freeze = await getStaffFreeze(guildId);
     if (freeze) return { allowed: false, reason: "frozen", tier, until: freeze.until };
 
+    let extra = false;
+    try { extra = Boolean(await exceptionCheck({ guildId, userId })); } catch { extra = false; }
     const decision = await sharedTransaction(async (client) => {
       await client.query("SELECT pg_advisory_xact_lock(hashtext($1))", [`quota:${guildId}:${userId}:${command}`]);
       const row = await quotaRow(client, guildId, command, tier);
@@ -109,7 +122,8 @@ export async function consumeQuota({ guildId, userId, command, tier, bot, isBot 
       const windowSeconds = Number(row.window_seconds);
       const maxUses = row.max_uses == null ? null : Number(row.max_uses);
       if (maxUses === 0) return { allowed: false, reason: "command_forbidden", tier, maxUses, windowSeconds };
-      if (maxUses != null) {
+      const limit = effectiveQuotaLimit(maxUses, extra);
+      if (limit != null) {
         const { rows } = await client.query(
           `SELECT used_at, EXTRACT(EPOCH FROM (used_at + make_interval(secs => $4) - now())) AS remaining
            FROM quota_usage
@@ -118,9 +132,9 @@ export async function consumeQuota({ guildId, userId, command, tier, bot, isBot 
            ORDER BY used_at DESC`,
           [guildId, userId, command, windowSeconds],
         );
-        if (rows.length >= maxUses) {
+        if (rows.length >= limit) {
           // The slot frees up when the oldest use still counting leaves the window.
-          const freeing = rows[maxUses - 1];
+          const freeing = rows[limit - 1];
           const retryAfterSeconds = Math.max(1, Math.ceil(Number(freeing.remaining)));
           return { allowed: false, reason: "quota", tier, maxUses, windowSeconds, used: rows.length, retryAfterSeconds };
         }
@@ -129,7 +143,7 @@ export async function consumeQuota({ guildId, userId, command, tier, bot, isBot 
         "INSERT INTO quota_usage(guild_id, user_id, command, bot) VALUES ($1, $2, $3, $4) RETURNING id",
         [guildId, userId, command, bot],
       );
-      return { allowed: true, usageId: String(inserted.rows[0].id), tier, maxUses, windowSeconds };
+      return { allowed: true, usageId: String(inserted.rows[0].id), tier, maxUses, windowSeconds, ...(extra ? { authority: true } : {}) };
     });
     if (!decision.allowed && decision.reason === "quota") {
       await logQuotaViolation({
@@ -319,4 +333,9 @@ export async function recentConfigChanges(guildId, limit = 10) {
     [guildId, Math.min(25, Math.max(1, limit))],
   );
   return rows;
+}
+
+/** Default exception check: the AUTHORITY registry (any problem answers false). */
+function authorityQuotaException({ guildId, userId }) {
+  return hasException({ guildId, userId, permission: "moderation.quota.extra" });
 }

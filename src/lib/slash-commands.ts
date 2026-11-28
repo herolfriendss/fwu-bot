@@ -2811,6 +2811,7 @@ export const EXTRA_SLASH_COMMANDS: SlashCommandDef[] = [
       sub("demander", "Demande une autorisation exceptionnelle (décision de l'OWNER)", [
         opt(3, "type", "Autorisation", { required: true, choices: [
           { name: "Salon vocal supplémentaire", value: "voice.room.extra" },
+          { name: "Quota de modération doublé (staff)", value: "moderation.quota.extra" },
           { name: "Quota économique supplémentaire", value: "economy.quota.extra" },
           { name: "Accès à un module en test", value: "module.beta.access" },
           { name: "Créer des missions du staff", value: "staff.mission.create" },
