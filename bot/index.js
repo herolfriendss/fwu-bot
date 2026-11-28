@@ -62,7 +62,9 @@ import { handleGamesInteraction, handleGamesMessage, startGamesScheduler } from 
 import { handleTicketChannelDelete, handleTicketsInteraction, handleTicketsMessage } from "./tickets.js";
 import { buildWelcomePayload, buildDeparturePayload } from "./welcome.js";
 import { purgeExpiredTranscripts } from "./ticket-records.js";
-import { handleKnowledgeInteraction, handleKnowledgeMessage } from "./pnd-knowledge.js";
+import { getKnowledgePage, handleKnowledgeInteraction, handleKnowledgeMessage } from "./pnd-knowledge.js";
+import { KNOWLEDGE_TOPICS } from "./pnd-knowledge-policy.js";
+import { handleHelpAssistantInteraction } from "./help-assistant.js";
 import { handleAutomationInteraction, handleAutomationJoin, handleAutomationMessage, startAutomationScheduler } from "./automation.js";
 import { handleRoleInteraction, handleRoleMessage } from "./role-commands.js";
 import { handleCustomRolesInteraction, handleCustomRolesMessage } from "./systems/sysplus/custom-roles.js";
@@ -333,6 +335,41 @@ function globalMaintenanceActionRow(ownerId, active) {
       .setLabel(active ? "Terminer la maintenance globale" : "Activer la maintenance globale")
       .setStyle(active ? ButtonStyle.Success : ButtonStyle.Danger),
   );
+}
+function buildAiHelpContext(guildId) {
+  let prefixes = {};
+  try { prefixes = loadBotPrefixes(); } catch { /* slash catalogue remains usable without prefix config */ }
+  const commandPaths = (command) => {
+    const paths = [command.name];
+    const walk = (options = [], groups = []) => {
+      for (const option of options) {
+        if (option.type === 1) paths.push([command.name, ...groups, option.name].join(" "));
+        else if (option.type === 2) walk(option.options ?? [], [...groups, option.name]);
+      }
+    };
+    walk(command.options ?? []);
+    return [...new Set(paths)];
+  };
+  const commands = [...SLASH_COMMANDS, ...EXTRA_SLASH_COMMANDS].map((command) => {
+    const owner = slashCommandOwner(command.name);
+    return {
+      name: command.name,
+      description: String(command.description ?? ""),
+      usage: String(command.usage ?? `/${command.name}`),
+      paths: commandPaths(command),
+      bot: owner ?? "partagé",
+      prefix: owner === "fwu" || !owner ? "/" : prefixes[owner] ?? "/",
+    };
+  });
+  const knowledge = KNOWLEDGE_TOPICS.flatMap((topic) => {
+    try {
+      const page = getKnowledgePage(guildId, topic.key) ?? topic;
+      return [{ key: topic.key, title: page.title, content: page.content }];
+    } catch {
+      return [];
+    }
+  });
+  return { commands, knowledge };
 }
 const STATUS_API = `${SITE_URL.replace(/\/$/, "")}/api/public/bot-status`;
 const ECONOMY_API = `${SITE_URL.replace(/\/$/, "")}/api/public/economy-snapshot`;
@@ -2368,6 +2405,12 @@ client.on("interactionCreate", (interaction) => {
     if (await handleCasinoInteraction(interaction)) { auditSlashUsage(interaction, "PND Casino"); return; }
     if (await handlePerkInteraction(interaction)) { auditSlashUsage(interaction, "Avantages"); return; }
     if (await handleGamesInteraction(interaction, settings[interaction.guildId], record)) { auditSlashUsage(interaction, "Jeux & événements"); return; }
+    if (interaction.isChatInputCommand?.() && interaction.commandName === "ia" && interaction.options.getSubcommand(false) === "question") {
+      if (await handleHelpAssistantInteraction(interaction, { apiUrl: API, secret: BOT_SYNC_SECRET, ...buildAiHelpContext(interaction.guildId) })) {
+        auditSlashUsage(interaction, "Assistant d'aide");
+        return;
+      }
+    }
     if (await handleKnowledgeInteraction(interaction)) return;
     if (await handleTicketsInteraction(interaction, settings[interaction.guildId], {
       apiUrl: API,
