@@ -119,15 +119,24 @@ export function decideRequest({ guildId, number, actorId, action, nonce = null, 
   ensureAuthorityTables(db);
   const ownerId = parsePndOwnerId(env.PND_OWNER_DISCORD_ID);
   if (!ownerId || actorId !== ownerId) return { error: "Seul l'OWNER décide des dérogations." };
-  const row = getRequest(guildId, number, { db });
+  let row = getRequest(guildId, number, { db });
   if (!row) return { error: `Demande n°${number} introuvable sur ce serveur.` };
-  if (row.requester_id === actorId && (action === "approve" || action === "extend")) return { error: "Personne ne peut approuver sa propre demande." };
-  if (row.beneficiary_id === ownerId) return { error: "L'OWNER ne peut pas être bénéficiaire." };
   const secret = secretOf(env);
-  const status = effectiveStatus(row, now);
   const rotate = randomUUID();
   db.exec("BEGIN IMMEDIATE");
   try {
+    // Re-read only after acquiring the write lock. A second OWNER interaction may have
+    // loaded the same pending row before the first decision committed.
+    row = getRequest(guildId, number, { db });
+    if (!row) throw new Error(`Demande n°${number} introuvable sur ce serveur.`);
+    if (row.requester_id === actorId && (action === "approve" || action === "extend")) throw new Error("Personne ne peut approuver sa propre demande.");
+    if (row.beneficiary_id === ownerId) throw new Error("L'OWNER ne peut pas être bénéficiaire.");
+    const status = effectiveStatus(row, now);
+    const update = (sql, ...params) => {
+      const result = db.prepare(sql).run(...params);
+      if (result.changes !== 1) throw new Error("Cette demande a déjà été modifiée : recharge son état avant de réessayer.");
+      return result;
+    };
     let result;
     if (action === "approve" || action === "refuse") {
       if (row.status !== "pending") throw new Error(`Demande déjà traitée (${STATUS_LABELS[status] ?? status}).`);
@@ -135,26 +144,27 @@ export function decideRequest({ guildId, number, actorId, action, nonce = null, 
       if (action === "approve") {
         if (!secret) throw new Error("Secret serveur absent (PND_AUTHORITY_SECRET) : aucune dérogation ne peut être accordée.");
         const signed = { ...row, starts_at: now, expires_at: now + Number(row.duration_ms) };
-        db.prepare("UPDATE authority_requests SET status = 'active', decided_by = ?, decided_at = ?, starts_at = ?, expires_at = ?, signature = ?, nonce = ? WHERE id = ? AND status = 'pending' AND nonce = ?")
-          .run(actorId, now, signed.starts_at, signed.expires_at, sign(signed, secret), rotate, row.id, nonce);
+        update("UPDATE authority_requests SET status = 'active', decided_by = ?, decided_at = ?, starts_at = ?, expires_at = ?, signature = ?, nonce = ? WHERE id = ? AND status = 'pending' AND nonce = ?",
+          actorId, now, signed.starts_at, signed.expires_at, sign(signed, secret), rotate, row.id, nonce);
         result = { status: "active", expiresAt: signed.expires_at };
       } else {
-        db.prepare("UPDATE authority_requests SET status = 'refused', decided_by = ?, decided_at = ?, nonce = ? WHERE id = ? AND status = 'pending' AND nonce = ?").run(actorId, now, rotate, row.id, nonce);
+        update("UPDATE authority_requests SET status = 'refused', decided_by = ?, decided_at = ?, nonce = ? WHERE id = ? AND status = 'pending' AND nonce = ?",
+          actorId, now, rotate, row.id, nonce);
         result = { status: "refused" };
       }
     } else if (action === "suspend") {
       if (status !== "active") throw new Error("Seule une dérogation active peut être suspendue.");
-      db.prepare("UPDATE authority_requests SET status = 'suspended', nonce = ? WHERE id = ?").run(rotate, row.id);
+      update("UPDATE authority_requests SET status = 'suspended', nonce = ? WHERE id = ? AND status = 'active'", rotate, row.id);
       result = { status: "suspended" };
     } else if (action === "resume") {
       if (row.status !== "suspended") throw new Error("Cette dérogation n'est pas suspendue.");
       if (Number(row.expires_at) <= now) throw new Error("Cette dérogation a expiré pendant la suspension.");
       if (!signatureValid(row, secret)) throw new Error("Signature invalide : dérogation non réactivable.");
-      db.prepare("UPDATE authority_requests SET status = 'active', nonce = ? WHERE id = ?").run(rotate, row.id);
+      update("UPDATE authority_requests SET status = 'active', nonce = ? WHERE id = ? AND status = 'suspended'", rotate, row.id);
       result = { status: "active" };
     } else if (action === "revoke") {
       if (!["active", "suspended", "pending"].includes(status)) throw new Error(`Rien à révoquer (${STATUS_LABELS[status] ?? status}).`);
-      db.prepare("UPDATE authority_requests SET status = 'revoked', signature = NULL, nonce = ? WHERE id = ?").run(rotate, row.id);
+      update("UPDATE authority_requests SET status = 'revoked', signature = NULL, nonce = ? WHERE id = ? AND status IN ('active', 'suspended', 'pending')", rotate, row.id);
       result = { status: "revoked" };
     } else if (action === "extend") {
       const extra = Number(durationMs);
@@ -164,7 +174,7 @@ export function decideRequest({ guildId, number, actorId, action, nonce = null, 
       if (!signatureValid(row, secret)) throw new Error("Signature invalide : prolongation refusée.");
       const expires = Math.min(Number(row.expires_at) + extra, now + MAX_DURATION_MS);
       const signed = { ...row, expires_at: expires };
-      db.prepare("UPDATE authority_requests SET expires_at = ?, signature = ?, reminded = 0, nonce = ? WHERE id = ?").run(expires, sign(signed, secret), rotate, row.id);
+      update("UPDATE authority_requests SET expires_at = ?, signature = ?, reminded = 0, nonce = ? WHERE id = ? AND status = 'active'", expires, sign(signed, secret), rotate, row.id);
       result = { status: "active", expiresAt: expires };
     } else {
       throw new Error("Décision inconnue.");
