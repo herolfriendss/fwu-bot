@@ -482,7 +482,7 @@ Catégorie : Musique & radio · Utilisation : `/loop [mode]`
 ### /music
 
 Contrôle la lecture, la file et le lecteur vocal  
-Catégorie : Musique & radio · Utilisation : `/music player play|pause|resume|skip|stop|queue|nowplaying|volume|loop|shuffle|clearqueue|remove|join|leave|panel`
+Catégorie : Musique & radio · Utilisation : `/music player play|pause|resume|skip|stop|queue|nowplaying|volume|loop|shuffle|clearqueue|remove|join|leave|panel (alias historique ; préférer les commandes directes)`
 
 - `/music player play` — Joue un lien YouTube/SoundCloud ou recherche un titre · préfixe `;music player play`<br>`recherche` (texte, obligatoire, 500 caractères max) — Lien YouTube/SoundCloud ou titre à rechercher
 - `/music player recherche` — Cherche un titre et choisis parmi 5 résultats · préfixe `;music player recherche`<br>`titre` (texte, obligatoire, 200 caractères max) — Titre, artiste…
@@ -506,6 +506,29 @@ Catégorie : Musique & radio · Utilisation : `/music player play|pause|resume|s
 Affiche le panneau de contrôle musical  
 Catégorie : Musique & radio · Utilisation : `/musicpanel`
 
+### /muteall
+
+Rend muets les membres d'un vocal (aperçu puis confirmation)  
+Catégorie : Vocal & DOG · Utilisation : `/muteall [salon]`
+
+- `salon` (salon, facultatif) — Vocal (par défaut : le tien)
+
+### /mvall
+
+Déplace tous les membres d'un vocal vers un autre (aperçu puis confirmation)  
+Catégorie : Vocal & DOG · Utilisation : `/mvall source cible`
+
+- `source` (salon, obligatoire) — Vocal source
+- `cible` (salon, obligatoire) — Vocal cible
+
+### /mvrole
+
+Déplace les membres d'un rôle connectés vers un vocal  
+Catégorie : Vocal & DOG · Utilisation : `/mvrole role cible`
+
+- `role` (rôle, obligatoire) — Rôle
+- `cible` (salon, obligatoire) — Vocal cible
+
 ### /nowplaying
 
 Affiche le morceau en cours de lecture  
@@ -523,10 +546,47 @@ Catégorie : Musique & radio · Utilisation : `/play recherche`
 
 - `recherche` (texte, obligatoire, 500 caractères max) — Lien YouTube/SoundCloud ou titre à rechercher
 
+### /playlist
+
+FDPDLAVOC : tes playlists enregistrées  
+Catégorie : Musique & radio · Utilisation : `/playlist sauver nom · charger nom · liste · supprimer nom`
+
+- `/playlist sauver` — Enregistre la musique en cours et la file · préfixe `;playlist sauver`<br>`nom` (texte, obligatoire, 40 caractères max) — Nom
+- `/playlist charger` — Lance une de tes playlists · préfixe `;playlist charger`<br>`nom` (texte, obligatoire, 40 caractères max) — Nom
+- `/playlist liste` — Tes playlists · préfixe `;playlist liste`
+- `/playlist supprimer` — Supprime une playlist · préfixe `;playlist supprimer`<br>`nom` (texte, obligatoire, 40 caractères max) — Nom
+
+### /pull
+
+Amène un membre dans ton salon vocal  
+Catégorie : Vocal & DOG · Utilisation : `/pull membre`
+
+- `membre` (membre, obligatoire) — Membre
+
+### /pv
+
+Rend privé le salon vocal où tu te trouves  
+Catégorie : Vocal & DOG · Utilisation : `/pv`
+
 ### /queue
 
 Affiche la file d'attente musicale  
 Catégorie : Musique & radio · Utilisation : `/queue`
+
+### /radio
+
+Gère la radio PND 24/7 et ses hôtes autorisés  
+Catégorie : Musique & radio · Utilisation : `/radio status | station | set | host-add | host-remove | host-list | start | stop | clear`
+
+- `/radio status` — Affiche l’état de la radio · préfixe `;radio status`
+- `/radio set` — Configure et lance la radio (administration) · préfixe `;radio set`<br>`salon` (salon, obligatoire) — Salon vocal de diffusion<br>`source` (texte, obligatoire, 2000 caractères max) — URL de flux audio HTTPS direct
+- `/radio station` — Lance une station prête à l'emploi (FIP, Mouv', France Inter…) · préfixe `;radio station`<br>`salon` (salon, obligatoire) — Salon vocal de diffusion<br>`station` (texte, obligatoire, choix : FIP, FIP Rock, FIP Jazz, FIP Groove, FIP Electro, Mouv', France Inter) — Station
+- `/radio host-add` — Autorise un hôte audio HTTPS pour ce serveur · préfixe `;radio host-add`<br>`hote` (texte, obligatoire, 253 caractères max) — Nom DNS exact, par exemple audio.example.org
+- `/radio host-remove` — Retire un hôte audio autorisé · préfixe `;radio host-remove`<br>`hote` (texte, obligatoire, 253 caractères max) — Nom DNS exact
+- `/radio host-list` — Liste les hôtes audio autorisés · préfixe `;radio host-list`
+- `/radio start` — Démarre la radio configurée (administration) · préfixe `;radio start`
+- `/radio stop` — Arrête la radio sans effacer sa configuration (administration) · préfixe `;radio stop`
+- `/radio clear` — Supprime la configuration radio (administration) · préfixe `;radio clear`
 
 ### /recherche
 
@@ -561,73 +621,6 @@ Catégorie : Musique & radio · Utilisation : `/skip`
 
 Arrête la lecture et vide la file  
 Catégorie : Musique & radio · Utilisation : `/stop`
-
-### /volume
-
-Règle le volume du lecteur musical  
-Catégorie : Musique & radio · Utilisation : `/volume niveau`
-
-- `niveau` (nombre entier, obligatoire) — Volume entre 0 et 100
-
-### /muteall
-
-Rend muets les membres d'un vocal (aperçu puis confirmation)  
-Catégorie : Vocal & DOG · Utilisation : `/muteall [salon]`
-
-- `salon` (salon, facultatif) — Vocal (par défaut : le tien)
-
-### /mvall
-
-Déplace tous les membres d'un vocal vers un autre (aperçu puis confirmation)  
-Catégorie : Vocal & DOG · Utilisation : `/mvall source cible`
-
-- `source` (salon, obligatoire) — Vocal source
-- `cible` (salon, obligatoire) — Vocal cible
-
-### /mvrole
-
-Déplace les membres d'un rôle connectés vers un vocal  
-Catégorie : Vocal & DOG · Utilisation : `/mvrole role cible`
-
-- `role` (rôle, obligatoire) — Rôle
-- `cible` (salon, obligatoire) — Vocal cible
-
-### /playlist
-
-FDPDLAVOC : tes playlists enregistrées  
-Catégorie : Musique & radio · Utilisation : `/playlist sauver nom · charger nom · liste · supprimer nom`
-
-- `/playlist sauver` — Enregistre la musique en cours et la file · préfixe `;playlist sauver`<br>`nom` (texte, obligatoire, 40 caractères max) — Nom
-- `/playlist charger` — Lance une de tes playlists · préfixe `;playlist charger`<br>`nom` (texte, obligatoire, 40 caractères max) — Nom
-- `/playlist liste` — Tes playlists · préfixe `;playlist liste`
-- `/playlist supprimer` — Supprime une playlist · préfixe `;playlist supprimer`<br>`nom` (texte, obligatoire, 40 caractères max) — Nom
-
-### /pull
-
-Amène un membre dans ton salon vocal  
-Catégorie : Vocal & DOG · Utilisation : `/pull membre`
-
-- `membre` (membre, obligatoire) — Membre
-
-### /pv
-
-Rend privé le salon vocal où tu te trouves  
-Catégorie : Vocal & DOG · Utilisation : `/pv`
-
-### /radio
-
-Gère la radio PND 24/7 et ses hôtes autorisés  
-Catégorie : Musique & radio · Utilisation : `/radio status | station | set | host-add | host-remove | host-list | start | stop | clear`
-
-- `/radio status` — Affiche l’état de la radio · préfixe `;radio status`
-- `/radio set` — Configure et lance la radio (administration) · préfixe `;radio set`<br>`salon` (salon, obligatoire) — Salon vocal de diffusion<br>`source` (texte, obligatoire, 2000 caractères max) — URL de flux audio HTTPS direct
-- `/radio station` — Lance une station prête à l'emploi (FIP, Mouv', France Inter…) · préfixe `;radio station`<br>`salon` (salon, obligatoire) — Salon vocal de diffusion<br>`station` (texte, obligatoire, choix : FIP, FIP Rock, FIP Jazz, FIP Groove, FIP Electro, Mouv', France Inter) — Station
-- `/radio host-add` — Autorise un hôte audio HTTPS pour ce serveur · préfixe `;radio host-add`<br>`hote` (texte, obligatoire, 253 caractères max) — Nom DNS exact, par exemple audio.example.org
-- `/radio host-remove` — Retire un hôte audio autorisé · préfixe `;radio host-remove`<br>`hote` (texte, obligatoire, 253 caractères max) — Nom DNS exact
-- `/radio host-list` — Liste les hôtes audio autorisés · préfixe `;radio host-list`
-- `/radio start` — Démarre la radio configurée (administration) · préfixe `;radio start`
-- `/radio stop` — Arrête la radio sans effacer sa configuration (administration) · préfixe `;radio stop`
-- `/radio clear` — Supprime la configuration radio (administration) · préfixe `;radio clear`
 
 ### /swap
 
@@ -706,6 +699,13 @@ Catégorie : Vocal & DOG · Utilisation : `/voice access grant|revoke · /voice 
 - `/voice private activer` — Rend ton salon vocal actuel privé · préfixe `;voice private activer`
 - `/voice private liste` — Liste les salons privatisés du serveur · préfixe `;voice private liste`
 - `/voice private retirer` — Rétablit les permissions d’origine de ton salon vocal · préfixe `;voice private retirer`
+
+### /volume
+
+Règle le volume du lecteur musical  
+Catégorie : Musique & radio · Utilisation : `/volume niveau`
+
+- `niveau` (nombre entier, obligatoire) — Volume entre 0 et 100
 
 ## SUCK ME (préfixe `=`)
 
