@@ -81,7 +81,7 @@ function ticketButtons() {
 async function ticketTemplateContext(interaction, guildSettings) {
   const guild = interaction.guild;
   if (!guild) throw new Error("Cette action doit être utilisée dans un ticket de serveur.");
-  const member = interaction.member ?? await guild.members.fetch(interaction.user.id).catch(() => null);
+  const member = interaction.member ?? guild.members.cache.get(interaction.user.id) ?? null;
   if (!member || !isTicketStaff(member, guildSettings)) throw new Error("Réservé au staff support.");
   const row = ticketRow(interaction.channelId, guild.id);
   if (!row || row.status !== "open") throw new Error("Ce ticket est déjà fermé.");
