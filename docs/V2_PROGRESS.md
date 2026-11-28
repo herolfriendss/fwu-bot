@@ -209,3 +209,45 @@ le staff (`/smash retablir` ou `/smash retirer`), avec alerte typée. Personne n
 - Agent quotidien « vérification et correction des bugs » créé (tâche planifiée, 3 h 13 heure de Paris, nouvelle session à chaque
   exécution) : `scripts/verify-all.sh`, correction au plus juste avec test, avance rapide de `main` seulement.
 - Mise à jour automatique du VPS chaque nuit à 5 h (voir `docs/VERSIONS_ET_MAJ.md`), après un premier `/maj lancer`.
+
+
+## Prise en charge ChatGPT — mandat ULTIMATE (28/11/2026)
+
+- Branche de travail courante : `work/fwu-ultimate-autonomous-2026-11-28`, créée depuis `main`.
+- Base de départ : `main` au commit `c7b81862faf6011ab99b63dc379e94d41742df2d`.
+- Dépôt : `herolfriendss/fwu-bot`. Ne jamais écrire sur les branches d'autres sessions.
+- Portée confirmée par l'OWNER : tout l'écosystème, autonomie maximale, staff/sécurité/social/économie/jeux/automatisation ; conserver toutes les fonctionnalités déjà développées et toutes les propositions ULTIMATE.
+- Exigences ajoutées : refonte UX et fiabilité musique ; suppression de la dépendance directe Anthropic pour la génération du règlement ; SENTINEL superviseur indépendant ; outils avancés hauts gradés ; API prête pour le site existant, sans développement ni déploiement du site maintenant.
+
+### Constat initial sur main (audit de lecture)
+
+- Fondations déjà présentes : 6 profils Discord, bus d'événements, file persistante, permissions CORE, audit chaîné, AUTHORITY, STAFF CENTER, gestion de sanctions, monitoring fleet/watchdog, budgets Gateway, santé VPS, automatisations, système musical, fournisseurs IA via passerelle.
+- Musique : `/music` regroupe les commandes sous le groupe `player`; pont V4 vers les handlers historiques. Le moteur/résolveur/flux audio existent. `bot/music/README.md` documente YouTube/SoundCloud et yt-dlp, tandis que `docs/modules/music-radio.md` décrit une politique de flux directs autorisés sans extracteur YouTube : incohérence à résoudre. La recette précise qu'aucun son audible Discord n'a été validé dans l'environnement de travail.
+- IA : `/ia` et l'assistant d'aide passent déjà par la passerelle serveur (`LOVABLE_API_KEY` ou `AI_GATEWAY_API_KEY`). En revanche, `bot/rules-ai.js` importe directement le SDK Anthropic et exige `ANTHROPIC_API_KEY` pour `/reglement generer` ; c'est un chemin distinct à unifier.
+- SENTINEL : `fleet-watch.js`, `session-budget.js`, `gateway-watchdog.js`, `health-report.js`, `vps-health.js`, stabilité, baux et surveillance externe documentés existent déjà. Le manque principal est la supervision fonctionnelle corrélée et l'indépendance de l'alerte lorsque les processus supervisés tombent.
+- Staff : disponibilité, astreinte, passation, missions, réunions, dossiers, formation et centre de commandement existent ; les statistiques avancées, les outils de sanctions et le regroupement CONTROL ROOM sont à évaluer avant d'ajouter.
+- API/site : `/api/public/bot-sync` existe pour les opérations bot-sync et IA. Il faut auditer les services serveur et les protections avant d'étendre les contrats. Le site ne doit pas être déployé ou remanié dans ce chantier.
+
+### État d'exécution
+
+| Lot | État | Prochaine action |
+|---|---|---|
+| 0 — Audit et cartographie | En cours | Inventorier handlers, commandes, modules, tests, API et scripts d'installation |
+| 1 — Musique | À auditer | Réconcilier les sources supportées, le routage slash/préfixe, les dépendances et les erreurs de lecture |
+| 2 — IA | À auditer | Unifier `rules-ai.js` avec `bot-ai.server.ts` et la passerelle déjà configurée |
+| 3 — SENTINEL | À auditer | Évaluer le monitoring existant, identifier les trous fonctionnels et éviter un watchdog redondant |
+| 4 — Staff/hauts gradés | À auditer | Comparer les besoins confirmés aux systèmes existants et développer seulement les lacunes |
+| 5 — API prête pour le site | À auditer | Contrats versionnés côté serveur uniquement ; aucun frontend ou déploiement |
+| 6 — Audit général et tests | Non commencé | Après les développements : tests complets, sécurité, régression, packaging et recette staging |
+
+Aucun test n'est déclaré exécuté par cette session à ce stade. Le connecteur GitHub permet de lire et modifier le dépôt et de déclencher la CI via une PR ; il ne donne pas un terminal Node local dans cette session. Les validations locales devront donc être effectuées par CI ou dans un environnement de travail approprié, sans prétendre qu'un test a réussi avant d'en avoir lu le résultat.
+
+### Garde-fous d'exécution
+
+- Travailler uniquement sur la branche ci-dessus ; reconsulter `main` avant chaque lot et ne jamais écraser une branche parallèle.
+- Petits lots indépendants, tests ciblés puis suite complète.
+- Relecture du diff, recherche des effets de bord, vérification du catalogue des commandes et des exports d'installation.
+- Ne pas modifier `main`, les secrets, les migrations distantes, le VPS ou les paramètres Discord de production.
+- Demander l'intervention de l'OWNER uniquement pour une décision réellement bloquante, un secret, un accès, une application/token, une migration distante ou une opération irréversible.
+- En cas de doute sur un comportement non documenté, préserver l'existant et ajouter un test avant de changer.
+
