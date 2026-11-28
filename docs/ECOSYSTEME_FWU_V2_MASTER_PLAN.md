@@ -370,7 +370,8 @@ récompenses ; le centre d'aide peut avancer en parallèle de CORE car il lit le
 | 3.4 Console AUTHORITY | fusionné (#90) | `claude/fwu-v2-authority-console` |
 | Demande OWNER : `/ui` (fiche membre) | fusionné (#91) | `claude/fwu-v2-ui-card` |
 | Demande OWNER : panneau « rôle perso » (`/rolepanel espace`) | fusionné (#92) | `claude/fwu-v2-personal-role-panel` |
-| 4.1 Documentation des commandes | terminé | `claude/fwu-v2-command-docs` |
+| 4.1 Documentation des commandes | fusionné (#93) | `claude/fwu-v2-command-docs` |
+| Extension « Ultimate » : plan d'intégration (§ 16) | terminé | `claude/fwu-v2-extension-plan` |
 
 ## 15. Reprise du travail (pour une nouvelle session)
 
@@ -384,3 +385,37 @@ récompenses ; le centre d'aide peut avancer en parallèle de CORE car il lit le
    habituel : l'archive `bot-oracle.zip`, à régénérer.
 5. GitHub bloque les pushs contenant un faux token dans un test : construire ces chaînes à
    l'exécution.
+
+## 16. Extension « Ultimate » — plan d'intégration (sans code)
+
+Source : `docs/specs/EXTENSION_ULTIMATE.md`. Règle : rien n'est créé en double ; aucun nouveau
+processus PM2, application Discord ou token sans décision OWNER. Documents demandés
+(ARCHITECTURE, SECURITY, FEATURES, ROADMAP, OPERATIONS) : couverts par ce plan (§ 2 à 4, 9, 12),
+`docs/COMMANDES.md`, `docs/security/`, `docs/FEUILLE_DE_ROUTE.md`, `docs/SURVEILLANCE.md` et
+`docs/SAUVEGARDES.md` — pas de fichiers redondants.
+
+| Demande | Déjà couvert | Lacune réelle | Forme | Phase |
+|---|---|---|---|---|
+| SENTINEL (surveillance) | `fleet-watch.js`, `session-budget.js`, `gateway-watchdog.js`, `vps-health.js`, `guard/flow-watch.js`, `health-report.js`, alertes Supabase, `fwu-surveillance.mjs` | commandes qui échouent souvent, régressions, rapport d'incident unifié | service interne (CORE) | 10 |
+| PERSONAL (assistant membre) | `/aide`, `/ui`, `/profil`, `/ia`, tickets, `/authority mes-demandes` | page « mon espace » qui regroupe tout | module du bot principal | 4.2–4.5 |
+| STAFF INTELLIGENCE | STAFF CENTER (phase 1) : `/staff centre`, totaux d'astreinte et de missions, dossiers inactifs, `rapportstaff` | bilans hebdomadaires, surcharge, besoins de formation | module SUCK ME + INSIGHT | 9 |
+| MEMORY | `/knowledge`, `pnd-knowledge.js`, `core-audit.js`, dossiers d'intervention, passations | base « incident → solution validée », recherche, documentation obsolète | service interne (CORE) | après 4.4 |
+| FLOW (workflows) | `automation-rules*.js`, `core-queue.js` (idempotence, reprises, échec définitif), `core-permissions.js` | scénarios multi-bots avec validation humaine et annulation | service interne sur `core-queue` | 10 |
+| TRUST (réputation) | `trust.js`, `/rep`, ancienneté, succès | règles publiées ; aucun score secret ni sanction automatique | module SOCIAL | 5 |
+| RECOVERY | `fwu-sauvegarde.sh`, rollback de `/maj`, `SAUVEGARDES.md` | vérification d'intégrité, test de restauration périodique, rapport | script VPS + console | 10 (accès VPS OWNER) |
+| ACADEMY / CASES / FEEDBACK / CREATOR / LIVE | `/academy` + `/staff formation` ; tickets + `/staff intervention` ; `/suggestion`, `/sondage` ; `creator-studio.js` ; console « En direct » | regroupements d'interface seulement | modules existants | au fil des phases |
+| BRIDGE (intégrations) | webhooks, `/live`, sync site | registre des intégrations, limites de débit | service interne | après 7 |
+| LAB (test) | CI GitHub, tests (1 360+), smoke 3 200 cas | serveur et bot Discord de test | décision OWNER (staging) | dès que possible |
+| INTELLIGENCE | INSIGHT (phase 9), page Analyse de la console | fonctions inutilisées, erreurs récurrentes | service interne | 9 |
+| Multi-serveur | isolation par `guild_id` partout, MZ désactivé, allowlists par bot | activation module par serveur, export/suppression des données | CORE | 10 |
+| Commercial | Invest + (abonnements, paiement réel validé à la main) | licences, espace client | **décision OWNER**, rien activé | — |
+
+Gouvernance (trois niveaux) : niveau 1 automatique = diagnostics, rapports, notifications,
+pauses de connexion (déjà en place) ; niveau 2 proposé puis validé = configuration, restauration,
+workflows (validation humaine, à construire avec FLOW) ; niveau 3 = AUTHORITY + OWNER par ID
+(`core-permissions.js`, `authority.js`, déjà en place). Une IA ne reçoit jamais d'instruction
+d'un message membre comme venant d'un administrateur (`pnd-intelligence-policy.js` existant).
+
+Décisions OWNER nécessaires : serveur et bot Discord de test (LAB) ; application Discord pour
+chacun des 5 nouveaux bots ; activation de l'intent Presence (si « En train de » est voulu) ;
+toute ouverture commerciale ; accès VPS pour RECOVERY et la rotation des journaux.
