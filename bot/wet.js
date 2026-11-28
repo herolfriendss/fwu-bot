@@ -363,6 +363,11 @@ export async function processPendingWetUnbans(client, { now = Date.now(), limit 
     const guild = guilds?.get?.(job.guild_id);
     if (!guild) { result.deferred++; continue; }
     const attempts = Number(job.attempts) || 0;
+    if (guild.ownerId === job.user_id) {
+      update.run("preserved", attempts, now, "guild_owner", now, job.case_id, job.guild_id, job.user_id);
+      result.preservedOtherBan++;
+      continue;
+    }
     const defer = (errorCode, delay = Math.min(6 * 60 * 60_000, 30_000 * (2 ** Math.min(attempts, 10)))) => {
       update.run("pending", attempts + 1, now + delay, String(errorCode ?? "discord_error").slice(0, 120), now, job.case_id, job.guild_id, job.user_id);
       result.failed.push({ guildId: job.guild_id, userId: job.user_id, code: Number(errorCode) || null });
