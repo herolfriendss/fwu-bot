@@ -185,6 +185,30 @@ test("domain leases: one holder at a time, FWU takes the domain back when the le
   assert.equal(listDomainLeases(clock).filter((l) => l.live).length, 0);
 });
 
+
+test("an unreadable lease never makes FWU or a backup bot assume a domain", () => {
+  db.exec("DELETE FROM bot_domain_leases");
+  let clock = 2_000_000;
+  let unavailable = true;
+  const readLease = () => {
+    if (unavailable) throw new Error("SQLite unavailable");
+    return null;
+  };
+  const fwu = createDomainGate({ profile: "fwu", holder: "fwu:unknown", now: () => clock, cacheMs: 0, readLease });
+  const backup = createDomainGate({ profile: "suckme", holder: "suckme:unknown", now: () => clock, cacheMs: 0, readLease });
+  fwu.tick();
+  backup.tick();
+  assert.equal(fwu.serves("guard"), false, "FWU does not take over an unknown GUARD lease");
+  assert.equal(fwu.servesAll(), false, "unknown leases prevent single-bot fallback mode");
+  assert.equal(backup.serves("guard"), false, "a backup does not take over when lease state is unknown");
+  unavailable = false;
+  fwu.forgetCache();
+  backup.forgetCache();
+  assert.equal(fwu.serves("guard"), true, "FWU resumes only after absence is confirmed");
+  assert.equal(fwu.servesAll(), true);
+  backup.release();
+});
+
 test("lease helpers are idempotent for the holder", () => {
   db.exec("DELETE FROM bot_domain_leases");
   assert.equal(claimDomainLease("fisc", "a", 10, 100), true);
