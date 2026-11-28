@@ -85,7 +85,7 @@ async function createCustomRole({ guild, actor, botMember, name, color }) {
     if (!quota.allowed) throw new Error(quota.reason);
     const role = await guild.roles.create({
       name: normalizedName,
-      color: Number.parseInt(normalizedColor.slice(1), 16),
+      colors: { primaryColor: Number.parseInt(normalizedColor.slice(1), 16) },
       permissions: [],
       hoist: false,
       mentionable: false,
