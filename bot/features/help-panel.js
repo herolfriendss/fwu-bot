@@ -112,11 +112,11 @@ export function permissionsEmbed({ prefixes, quotas = DEFAULT_QUOTAS }) {
 
 export const HELP_TUTORIALS = Object.freeze({
   start: Object.freeze({
-    title: "Bien démarrer sur FWU",
+    title: "Bien démarrer",
     description: "Découvre comment trouver le bon bot et lancer une commande.",
     steps: Object.freeze([
       { title: "1 · Choisir le bon service", content: "Ouvre `/aide` et sélectionne le bot correspondant à ton besoin. Chaque bot a une mission précise ; le panneau affiche sa description et ses commandes." },
-      { title: "2 · Lancer une commande", content: "Les commandes slash commencent par `/`. Certains bots acceptent aussi leur préfixe affiché dans l'aide. FWU principal fonctionne en slash uniquement." },
+      { title: "2 · Lancer une commande", content: "Les commandes slash commencent par `/`. Certains bots acceptent aussi leur préfixe affiché dans l'aide. Le bot principal fonctionne en slash uniquement." },
       { title: "3 · Lire les indications", content: "Les symboles ⏳ signalent une commande soumise à quota ; 🔒 indique une permission Discord requise. Une commande peut aussi dépendre de ton palier ou de tes accès." },
       { title: "4 · Comprendre un refus", content: "Lis le motif affiché par le bot. Pour les permissions, consulte la rubrique « Permissions et quotas » de l'aide, puis le guide disponible via `/guide` sur SUCK ME." },
       { title: "5 · Continuer", content: "Tu peux relancer ce parcours à tout moment depuis `/aide`. Si tu as besoin d'une intervention du staff, utilise le panneau de support publié sur le serveur." },
@@ -128,14 +128,14 @@ export const HELP_TUTORIALS = Object.freeze({
     steps: Object.freeze([
       { title: "1 · Palier et rôle", content: "Les droits de modération dépendent du palier configuré, pas du nom du rôle. Le guide des permissions explique les niveaux et leurs limites." },
       { title: "2 · Quotas partagés", content: "Les commandes marquées ⏳ consomment un quota commun aux bots. Utilise `/quota moi` pour consulter tes limites et ton usage." },
-      { title: "3 · Permissions Discord", content: "Un palier FWU ne remplace jamais les permissions natives Discord ni la hiérarchie des rôles. Une action peut être refusée même si ton palier l'autorise." },
+      { title: "3 · Permissions Discord", content: "Un palier ne remplace jamais les permissions natives Discord ni la hiérarchie des rôles. Une action peut être refusée même si ton palier l'autorise." },
     ]),
   }),
   support: Object.freeze({
     title: "Demander de l'aide",
     description: "Prépare une demande claire et protège tes informations.",
     steps: Object.freeze([
-      { title: "1 · Trouver le support", content: "Repère le panneau de tickets publié par le staff, puis utilise le bouton d'ouverture. FWU réutilise le système de tickets existant du serveur." },
+      { title: "1 · Trouver le support", content: "Repère le panneau de tickets publié par l'équipe du serveur, puis utilise le bouton d'ouverture. FWU réutilise le système de tickets existant du serveur." },
       { title: "2 · Décrire le problème", content: "Explique ce que tu essayais de faire, la commande utilisée et le message de refus ou d'erreur. N'envoie pas de mot de passe, token ou secret." },
       { title: "3 · Suivre le ticket", content: "Réponds dans le salon privé du ticket et attends la prise en charge. Quand le problème est résolu, utilise le bouton de fermeture." },
     ]),
