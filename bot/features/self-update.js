@@ -181,6 +181,8 @@ export function startAutoUpdate({ spawnFn = spawn, record = () => {}, env = proc
       return false;
     }
   };
+  // Évalue immédiatement au démarrage : sinon un démarrage à 11 h 50 pourrait manquer la fin du rattrapage à midi.
+  tick();
   const timer = setInterval(tick, intervalMs);
   timer.unref?.();
   return { tick, stop: () => clearInterval(timer) };
