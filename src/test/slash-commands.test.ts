@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { SLASH_COMMANDS, slashCommandsByCategory, toDiscordCommand } from "@/lib/slash-commands";
+import { EXTRA_SLASH_COMMANDS, SLASH_COMMANDS, slashCommandsByCategory, toDiscordCommand } from "@/lib/slash-commands";
 import { BOT_PROFILE_IDS, slashCommandNamesForProfile } from "@/lib/bot-profiles";
 
 // Leaf subcommand names of a command, looking inside Discord subcommand groups too.
@@ -98,8 +98,8 @@ describe("V4 slash commands", () => {
   });
 
   it("registers WET and UNWET on GUARD with owner-controlled durable sanctions", () => {
-    const wet = SLASH_COMMANDS.find((command) => command.name === "wet");
-    const unwet = SLASH_COMMANDS.find((command) => command.name === "unwet");
+    const wet = EXTRA_SLASH_COMMANDS.find((command) => command.name === "wet");
+    const unwet = EXTRA_SLASH_COMMANDS.find((command) => command.name === "unwet");
     expect(wet?.requiresBotProcess).toBe(true);
     expect(wet?.dmPermission).toBe(false);
     expect(wet?.options?.map((option) => option.name)).toEqual(["ajouter", "lier", "verifier", "liste"]);
@@ -108,7 +108,8 @@ describe("V4 slash commands", () => {
     expect(unwet?.requiresBotProcess).toBe(true);
     expect(unwet?.options?.map((option) => option.name)).toEqual(["id", "raison"]);
     expect(slashCommandNamesForProfile("guard")).toEqual(expect.arrayContaining(["wet", "unwet"]));
-    expect(slashCommandNamesForProfile("fwu")).not.toEqual(expect.arrayContaining(["wet", "unwet"]));
+    expect(slashCommandNamesForProfile("fwu")).not.toContain("wet");
+    expect(slashCommandNamesForProfile("fwu")).not.toContain("unwet");
     expect(SLASH_COMMANDS.some((command) => command.name === "whois")).toBe(false);
   });
 
