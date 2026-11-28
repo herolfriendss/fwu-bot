@@ -28,6 +28,7 @@ const ACTIONS = new Set([
   "member_removed",
   "closed",
   "channel_deleted",
+  "template_sent",
 ]);
 export const TRANSCRIPT_MAX_MESSAGES = 500;
 export const TRANSCRIPT_MAX_CHARS = 200_000;
@@ -75,6 +76,7 @@ const LABELS = {
   member_removed: "membre retiré",
   closed: "fermé",
   channel_deleted: "salon supprimé manuellement",
+  template_sent: "réponse rapide envoyée",
 };
 export function formatTicketTimeline(ticketId, events) {
   if (!events.length)
