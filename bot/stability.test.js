@@ -57,4 +57,5 @@ test("global maintenance blocks every bot and can only be ended by the OWNER", (
     assert.equal(S.stabilityRefusal({ profile, command: "ban", userId: "5", env }), null);
   }
   assert.equal(S.globalMaintenanceState(), null);
+  assert.match(S.runToolCommand({ member: owner, sub: "maintenance-global-off", profile: "fwu" }, { env }), /Aucune maintenance globale/);
 });
