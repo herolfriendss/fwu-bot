@@ -32,6 +32,22 @@ else
   warn "PM2 is not available in PATH for the current user."
 fi
 
+section "PM2 startup persistence"
+PM2_USER="$(id -un 2>/dev/null || echo unknown)"
+PM2_UNIT="pm2-${PM2_USER}.service"
+if systemctl list-unit-files "$PM2_UNIT" --no-legend 2>/dev/null | grep -q "$PM2_UNIT"; then
+  PM2_ENABLED="$(systemctl is-enabled "$PM2_UNIT" 2>/dev/null || true)"
+  printf 'PM2 startup unit (%s): %s\n' "$PM2_UNIT" "${PM2_ENABLED:-unknown}"
+  [[ "$PM2_ENABLED" == "enabled" ]] || warn "PM2 startup unit is not confirmed enabled."
+else
+  warn "No PM2 systemd startup unit found for user $PM2_USER."
+fi
+if [[ -s "$HOME_DIR/.pm2/dump.pm2" ]]; then
+  info "Saved PM2 process list exists (pm2 save)."
+else
+  warn "No PM2 saved process list found at $HOME_DIR/.pm2/dump.pm2."
+fi
+
 section "Listening TCP sockets"
 if command -v ss >/dev/null 2>&1; then
   ss -ltnp 2>&1 || warn "Could not read listening sockets."
