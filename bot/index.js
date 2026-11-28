@@ -1152,7 +1152,7 @@ client.on("messageReactionAdd", async (reaction, user) => {
     const guildId = reaction.message.guildId ?? reaction.message.guild?.id;
     if (guildId && (!guildAllowed(guildId, ALLOWED_GUILDS) || isLogsHub(guildId))) return;
     if (guildId && serves("suckme")) void handleStarboardReaction(reaction, user).catch(() => record("starboard_error"));
-    if (guildId && serves("suckme")) void handleFlagReaction(reaction, user).catch(() => record("flag_translate_error"));
+    if (guildId && serves("suckme")) void handleFlagReaction(reaction, user, { apiUrl: API, secret: BOT_SYNC_SECRET }).catch(() => record("flag_translate_error"));
     if (!serves("guard")) return;
     await handleReactionVerificationReaction(reaction, user);
   } catch {
