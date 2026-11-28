@@ -89,6 +89,7 @@ export function runToolCommand({ member, sub, command = null, reason = null, pro
     }
     if (sub === "maintenance-global-off") {
       if (member.id !== parsePndOwnerId(env.PND_OWNER_DISCORD_ID)) return "⛔ Seul l'OWNER peut terminer la maintenance globale.";
+      if (!globalMaintenanceState()) return "ℹ️ Aucune maintenance globale n'est active.";
       clearGlobalMaintenance();
       return "✅ Maintenance globale terminée : les commandes sont rétablies sur tous les bots.";
     }
