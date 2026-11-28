@@ -95,6 +95,7 @@ test("assistant redacts identifiers and blocks secrets before contacting the mod
   assert.match(redacted, /adresse e-mail masquée/);
   assert.match(redacted, /@membre/);
   assert.match(redacted, /2026-11-28 04:50/);
+  assert.match(redactPrivateText("Événement prévu le 2026-11-28 04:50:30."), /2026-11-28 04:50:30/);
   assert.match(redacted, /numéro masqué/);
 
   const secretQuestion = interaction({ guildId: "555555555555555555", userId: "666666666666666666", question: "Voici mon token: abcdefghijklmnop" });
