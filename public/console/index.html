@@ -603,6 +603,7 @@ const ICON={
  vocal:'<rect x="6" y="2" width="4" height="7" rx="2"/><path d="M3.5 8a4.5 4.5 0 009 0M8 12.5V14"/>',
  securite:'<circle cx="8" cy="8" r="6"/><path d="M8 4v4l3 2"/>',
  journal:'<path d="M3 3h10M3 6.5h10M3 10h7M3 13.5h5"/>',
+ authority:'<rect x="3.5" y="7" width="9" height="7"/><path d="M5.5 7V5a2.5 2.5 0 015 0v2"/>',
  analyse:'<path d="M3 13V8M7 13V4M11 13V6M14 13H2"/>',
  embeds:'<rect x="2" y="3" width="12" height="10"/><path d="M2 3v10M5 6h6M5 9h4"/>',
  commandes:'<path d="M3 4l4 4-4 4M8 12h5"/>',
@@ -617,6 +618,7 @@ const PANELS=[
  {id:'securite',label:'Sécurité',sub:'Anti-raid, piège, plafonds anti-nuke, verrouillage.'},
  {id:'analyse',label:'Analyse',sub:'Messages, arrivées, départs, événements et membres les plus actifs.'},
  {id:'journal',label:'Journal',sub:'Événements typés et filtrables.'},
+ {id:'authority',label:'AUTHORITY',sub:'Dérogations : demandes, décisions de l’OWNER, autorisations actives, historique.'},
  {id:'embeds',label:'Embeds',sub:'Composer, publier, modifier sur place.'},
  {id:'commandes',label:'Commandes',sub:'Commandes de tous les bots.'},
  {id:'reglages',label:'Réglages',sub:'Connexion, configuration, raccourcis.'}
@@ -815,6 +817,39 @@ function logsHTML(){
  const rows=S.logs.filter(e=>(!logQ.cat||e.cat===logQ.cat)&&(logQ.sev===''||e.sev===+logQ.sev)&&(!logQ.bot||e.bot===logQ.bot)&&(!q||(e.txt+' '+(e.dos?('#'+e.dos):'')+' '+e.act).toLowerCase().includes(q))).slice(0,150);
  const c=$('#lcount');if(c)c.textContent=rows.length+' événement'+(rows.length>1?'s':'');
  return rows.length?rows.map(e=>`<div class="log sev v${e.sev}"><time title="${new Date(e.ts).toLocaleString('fr-FR')}">${hhmm(e.ts)}</time><p>${esc(e.txt)}</p><div class="meta">${e.dos?`<span class="tag f">#${pad(e.dos,4)}</span>`:''}<span class="tag">${CATS[e.cat]}</span><span class="tag d">${esc(botN(e.bot)?.name||e.bot)}</span></div></div>`).join(''):`<div class="empty">Aucun événement ne correspond à ces filtres.</div>`}
+/* --- AUTHORITY (dérogations) : miroir envoyé par le bot, décisions appliquées par le bot --- */
+const AU={data:null,err:null,loading:false};
+const auStatus={pending:'En attente',refused:'Refusée',active:'Active',suspended:'Suspendue',expired:'Expirée',revoked:'Révoquée'};
+async function auLoad(){
+ if(AU.loading)return;AU.loading=true;
+ try{const r=await fetch('/api/console/authority',{credentials:'same-origin',cache:'no-store',headers:{Accept:'application/json'}});
+  const j=await r.json().catch(()=>({}));if(!r.ok)throw new Error(j.error||('Erreur '+r.status));AU.data=j;AU.err=null;}
+ catch(e){AU.err=e.message||'Lecture impossible.'}
+ AU.loading=false;if(S.panel==='authority'){const b=$('#auBody');if(b)b.innerHTML=auHTML()}
+}
+function auRow(g,q){
+ const end=q.expiresAt?new Date(q.expiresAt).toLocaleString('fr-FR'):'—';
+ const btn=(act,label,cls='')=>`<button class="btn sm ${cls}" data-act="au-decide" data-g="${esc(g)}" data-n="${q.number}" data-a="${act}"${q.nonce?` data-nonce="${esc(q.nonce)}"`:''}>${label}</button>`;
+ const acts=q.status==='pending'?btn('approve','Approuver','pri')+btn('refuse','Refuser','danger')
+  :q.status==='active'?btn('suspend','Suspendre')+btn('extend','Prolonger')+btn('revoke','Révoquer','danger')
+  :q.status==='suspended'?btn('resume','Réactiver')+btn('revoke','Révoquer','danger'):'';
+ return `<tr><td>n°${q.number}</td><td>${esc(q.label)}</td><td>${esc(q.beneficiaryId)}</td><td>${esc(q.requesterId)}</td><td>${esc(auStatus[q.status]||q.status)}</td><td>${end}</td><td title="${esc(q.justification)}">${esc(q.justification.slice(0,60))}${q.justification.length>60?'…':''}</td><td><div class="row">${acts}</div></td></tr>`;
+}
+function auHTML(){
+ if(AU.err)return `<p class="nb"><b>AUTHORITY indisponible.</b> ${esc(AU.err)}</p>`;
+ if(!AU.data)return '<div class="empty">Chargement…</div>';
+ const snaps=AU.data.snapshots||[];
+ if(!snaps.length)return '<div class="empty">Aucun instantané reçu. Le bot qui porte /authority envoie le registre chaque minute dès qu’il tourne avec cette version.</div>';
+ const all=snaps.flatMap(s=>s.requests.map(q=>({g:s.guildId,q})));
+ const pend=all.filter(x=>x.q.status==='pending'),act=all.filter(x=>x.q.status==='active'||x.q.status==='suspended');
+ const table=(rows)=>rows.length?`<table class="tbl"><thead><tr><th>N°</th><th>Autorisation</th><th>Bénéficiaire</th><th>Demandeur</th><th>Statut</th><th>Fin</th><th>Justification</th><th></th></tr></thead><tbody>${rows.map(x=>auRow(x.g,x.q)).join('')}</tbody></table>`:'<div class="empty">Aucune.</div>';
+ const dec=(AU.data.decisions||[]).slice(0,15).map(d=>`<tr><td>${new Date(d.requested_at).toLocaleString('fr-FR')}</td><td>n°${d.number}</td><td>${esc(d.action)}</td><td>${esc(d.status)}</td><td>${esc(d.result||'')}</td></tr>`).join('');
+ return `<div class="blk c12"><h3>En attente <small>${pend.length}</small></h3>${table(pend)}</div>
+ <div class="blk c12"><h3>Actives et suspendues <small>${act.length}</small></h3>${table(act)}</div>
+ <div class="blk c12"><h3>Historique <small>${all.length} demandes</small></h3>${table(all.slice(0,40))}<p class="sm">Export : <button class="btn sm" data-act="au-csv">Copier en CSV</button></p></div>
+ <div class="blk c12"><h3>Décisions envoyées depuis la console</h3>${dec?`<table class="tbl"><thead><tr><th>Date</th><th>Demande</th><th>Décision</th><th>État</th><th>Résultat</th></tr></thead><tbody>${dec}</tbody></table>`:'<div class="empty">Aucune.</div>'}<p class="sm">Chaque décision est appliquée par le bot dans la minute, avec les mêmes contrôles que sur Discord (OWNER seul, décision à usage unique, signature).</p></div>`;
+}
+R.authority=()=>`<div class="grid" id="auBody">${auHTML()}</div>`;
 R.journal=()=>`<div class="grid"><div class="blk c12"><h3>Événements <small id="lcount"></small></h3>
  <div class="row" style="margin-bottom:12px">
   <div class="fld" style="flex:2 1 220px"><label class="sr" for="lq">Rechercher</label><input type="search" id="lq" placeholder="Texte, action ou numéro de dossier (#0432)" value="${esc(logQ.q)}" data-in="lq"></div>
@@ -907,6 +942,7 @@ function afterRender(id){
  if(id==='reglages'){const c=$('#cfg');if(c)c.value=cfgJSON()}
  if(id==='commandes'){const k=$('#ccount');if(k)k.textContent=$$('#cmdList tbody tr').length+' commandes'}
  if(id==='journal'){logsHTML()}
+ if(id==='authority'){auLoad()}
 }
 function refreshGlobal(){
  const n=online();$('#pillt').textContent=`${n}/${S.bots.length} en ligne`;$('#pill .dot').className='dot '+(n===S.bots.length?'on':n?'mt':'off');
@@ -988,6 +1024,21 @@ function toH1(){
 /* ---------- actions ---------- */
 function pushHour(){S.hours[23]++}
 const A={
+ 'au-decide':async(el)=>{
+  const a=el.dataset.a,body={guildId:el.dataset.g,number:Number(el.dataset.n),action:a,nonce:el.dataset.nonce||null};
+  if(a==='extend'){const h=Number(prompt('Prolonger de combien d’heures ? (1 à 720)','24'));if(!h||h<1||h>720)return;body.durationHours=Math.round(h)}
+  if((a==='revoke'||a==='refuse')&&!confirm(a==='revoke'?'Révoquer cette dérogation maintenant ?':'Refuser cette demande ?'))return;
+  try{const r=await fetch('/api/console/authority',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json','X-Console-Action':'authority'},body:JSON.stringify(body)});
+   const j=await r.json().catch(()=>({}));if(r.ok)toast(j.message||'Décision envoyée.');else toast(j.error||('Erreur '+r.status),{err:1});}
+  catch(e){toast('Réseau indisponible.',{err:1})}
+  setTimeout(auLoad,1500);
+ },
+ 'au-csv':async()=>{
+  const rows=(AU.data?.snapshots||[]).flatMap(s=>s.requests.map(q=>[s.guildId,q.number,q.label,q.beneficiaryId,q.requesterId,auStatus[q.status]||q.status,q.expiresAt?new Date(q.expiresAt).toISOString():'',q.justification]));
+  const cell=v=>{let t=String(v??'');if(/^[=+\-@]/.test(t))t="'"+t;return '"'+t.replace(/"/g,'""')+'"'};
+  const csv=['serveur,numero,autorisation,beneficiaire,demandeur,statut,fin,justification',...rows.map(r=>r.map(cell).join(','))].join('\n');
+  try{await navigator.clipboard.writeText(csv);toast('CSV copié.')}catch(e){toast('Copie impossible.',{err:1})}
+ },
  'restart':async el=>{
   const b=botN(el.dataset.id);if(!b||!b.real||!isLive())return;
   if(!confirm2(el))return;
@@ -1064,7 +1115,7 @@ const IN={
 function mvPrev(){const s=$('#mvS'),t=$('#mvT'),o=$('#mvPrev');if(!s||!o)return;const a=S.voice[+s.value],b=S.voice[+t.value];o.textContent=s.value===t.value?'Choisissez deux salons différents.':a.m.length?`${a.m.length} membre${a.m.length>1?'s':''} de ${a.n} iront dans ${b.n}.`:`${a.n} est vide.`}
 
 /* En mode réel, seules les actions branchées au site partent ; le reste (aperçu local) est refusé, jamais simulé. */
-const LIVE_OK=new Set(['restart-all','copy-cmd','bot-open','bot-pick','ack','restart','csv','tpl','emb-new','emb-edit','live']);
+const LIVE_OK=new Set(['au-decide','au-csv','restart-all','copy-cmd','bot-open','bot-pick','ack','restart','csv','tpl','emb-new','emb-edit','live']);
 const NOT_WIRED='Pas encore relié au bot : rien n’a été envoyé à Discord.';
 document.addEventListener('click',ev=>{
  const g=ev.target.closest('[data-go]');if(g){ev.preventDefault();go(g.dataset.go);return}
