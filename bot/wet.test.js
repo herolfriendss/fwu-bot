@@ -200,6 +200,35 @@ test("unwet revokes the complete linked case and leaves a historical audit trail
   );
 });
 
+test("unwet lifts only bans created by this exact WET case and preserves independent bans", async () => {
+  const caseId = "12345678-1234-1234-1234-123456789012";
+  const removed = [];
+  const makeGuild = (id, reason) => ({
+    id,
+    ownerId: "300000000000000009",
+    bans: {
+      fetch: async (userId) => {
+        if (reason === null) throw Object.assign(new Error("not banned"), { code: 10026 });
+        if (reason === "lookup-error") throw Object.assign(new Error("permission denied"), { code: 50013 });
+        return { user: { id: userId }, reason };
+      },
+      remove: async (userId) => removed.push([id, userId]),
+    },
+  });
+  const client = { guilds: { cache: new Map([
+    ["owned", makeGuild("300000000000000011", "WET · dossier 12345678 · motif documenté")],
+    ["manual", makeGuild("300000000000000012", "Raid — décision de modération indépendante")],
+    ["absent", makeGuild("300000000000000013", null)],
+    ["lookup-error", makeGuild("300000000000000014", "lookup-error")],
+  ]) } };
+  const result = await unbanWetAccountsAcrossNetwork(client, [{ user_id: MEMBER }], OWNER, caseId);
+  assert.equal(result.unbanned, 1);
+  assert.equal(result.preservedOtherBan, 1);
+  assert.equal(result.notBanned, 1);
+  assert.equal(result.failed.length, 1);
+  assert.deepEqual(removed, [["300000000000000011", MEMBER]]);
+});
+
 test("unwet never lifts an independent local blacklist ban", async () => {
   db.exec(`
     CREATE TABLE IF NOT EXISTS blacklist_entries (
