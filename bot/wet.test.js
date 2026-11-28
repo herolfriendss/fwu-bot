@@ -230,12 +230,30 @@ test("unwet lifts only bans created by this exact WET case and preserves indepen
     ["null", makeGuild("300000000000000015", "return-null")],
     ["lookup-error", makeGuild("300000000000000014", "lookup-error")],
   ]) } };
-  const result = await unbanWetAccountsAcrossNetwork(client, [{ user_id: MEMBER }], OWNER, caseId);
+  const result = await unbanWetAccountsAcrossNetwork(client, [{ user_id: MEMBER }], OWNER, { id: caseId, reason: "motif documenté" });
   assert.equal(result.unbanned, 1);
   assert.equal(result.preservedOtherBan, 1);
   assert.equal(result.notBanned, 2);
   assert.equal(result.failed.length, 1);
   assert.deepEqual(removed, [["300000000000000011", MEMBER]]);
+});
+
+test("unwet preserves a ban whose reason only imitates the WET case prefix", async () => {
+  const caseEntry = { id: "12345678-1234-1234-1234-123456789012", reason: "Motif WET exact attendu" };
+  const client = { guilds: { cache: new Map([[
+    GUILD,
+    {
+      id: GUILD,
+      ownerId: "300000000000000009",
+      bans: {
+        fetch: async (userId) => ({ user: { id: userId }, reason: "WET · dossier 12345678 · motif différent" }),
+        remove: async () => { throw new Error("must preserve a non-exact ban reason"); },
+      },
+    },
+  ]]) } };
+  const result = await unbanWetAccountsAcrossNetwork(client, [{ user_id: MEMBER }], OWNER, caseEntry);
+  assert.equal(result.preservedOtherBan, 1);
+  assert.equal(result.unbanned, 0);
 });
 
 test("unwet keeps an account banned if a new WET case was opened after revocation", async () => {
@@ -256,7 +274,7 @@ test("unwet keeps an account banned if a new WET case was opened after revocatio
     },
   ]]) } };
   const result = await unbanWetAccountsAcrossNetwork(
-    client, [{ user_id: MEMBER }], OWNER, "12345678-1234-1234-1234-123456789012",
+    client, [{ user_id: MEMBER }], OWNER, { id: "12345678-1234-1234-1234-123456789012", reason: "Nouveau dossier WET réouvert avec preuves" },
   );
   assert.equal(result.stillWet, 1);
   assert.equal(result.unbanned, 0);
