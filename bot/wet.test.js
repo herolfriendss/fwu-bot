@@ -16,6 +16,7 @@ import {
   listWetCases,
   revokeWetCase,
   unbanWetAccountsAcrossNetwork,
+  processPendingWetUnbans,
 } from "./wet.js";
 
 const OWNER = "100000000000000001";
@@ -29,7 +30,7 @@ const EVIDENCE = "https://discord.com/channels/300000000000000001/40000000000000
 process.env.PND_OWNER_DISCORD_ID = OWNER;
 
 beforeEach(() => {
-  db.exec("DELETE FROM wet_audit_events; DELETE FROM wet_case_accounts; DELETE FROM wet_cases;");
+  db.exec("DELETE FROM wet_unban_jobs; DELETE FROM wet_audit_events; DELETE FROM wet_case_accounts; DELETE FROM wet_cases;");
 });
 
 function user(id, extra = {}) {
@@ -199,6 +200,88 @@ test("unwet revokes the complete linked case and leaves a historical audit trail
     revokeWetCase(MEMBER, { guildId: GUILD, actorId: OWNER, reason: "Nouvelle levée documentée" }),
     null,
   );
+});
+
+test("unwet queues every linked account and resumes exact-reason removals after a transient Discord failure", async () => {
+  const caseId = createWetCase({
+    guildId: GUILD, actorId: OWNER, user: user(MEMBER),
+    reason: "Contournement documenté des sanctions répétées", evidence: EVIDENCE,
+  });
+  linkWetAccount({
+    guildId: GUILD, actorId: OWNER, sourceUserId: MEMBER, user: user(ALT),
+    reason: "Preuve directe du lien entre les deux comptes", evidence: EVIDENCE,
+  });
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS blacklist_entries (
+      guild_id TEXT NOT NULL, user_id TEXT NOT NULL, reason TEXT NOT NULL DEFAULT '',
+      added_by TEXT NOT NULL, added_at INTEGER NOT NULL, PRIMARY KEY(guild_id,user_id)
+    );
+  `);
+  const revoked = revokeWetCase(MEMBER, {
+    guildId: GUILD, actorId: OWNER, reason: "Réexamen complet et décision de levée",
+    guildIds: [GUILD], now: 1_800_000_000_000,
+  });
+  assert.equal(revoked.id, caseId);
+  assert.equal(db.prepare("SELECT COUNT(*) AS n FROM wet_unban_jobs WHERE case_id=? AND status='pending'").get(caseId).n, 2);
+  let fetchAttempts = 0;
+  const removed = [];
+  const guild = {
+    id: GUILD,
+    ownerId: "300000000000000009",
+    bans: {
+      fetch: async (userId) => {
+        fetchAttempts++;
+        if (fetchAttempts === 1) throw Object.assign(new Error("temporary Discord failure"), { code: 50013 });
+        return { user: { id: userId }, reason: `WET · dossier ${caseId.slice(0, 8)} · Contournement documenté des sanctions répétées` };
+      },
+      remove: async (userId) => removed.push(userId),
+    },
+  };
+  const client = { guilds: { cache: new Map([[GUILD, guild]]) } };
+  const first = await processPendingWetUnbans(client, { now: 1_800_000_000_000 });
+  assert.equal(first.failed.length, 1);
+  assert.equal(first.unbanned, 1);
+  assert.equal(removed.length, 1);
+  const retry = await processPendingWetUnbans(client, { now: 1_800_000_030_000 });
+  assert.equal(retry.unbanned, 1);
+  assert.equal(db.prepare("SELECT COUNT(*) AS n FROM wet_unban_jobs WHERE case_id=? AND status='pending'").get(caseId).n, 0);
+  assert.equal(db.prepare("SELECT COUNT(*) AS n FROM wet_unban_jobs WHERE case_id=? AND status='completed'").get(caseId).n, 2);
+  assert.equal(removed.length, 2);
+});
+
+test("durable WET unban queue waits while a local blacklist remains active", async () => {
+  const caseId = createWetCase({
+    guildId: GUILD, actorId: OWNER, user: user(MEMBER),
+    reason: "Contournement documenté des sanctions répétées", evidence: EVIDENCE,
+  });
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS blacklist_entries (
+      guild_id TEXT NOT NULL, user_id TEXT NOT NULL, reason TEXT NOT NULL DEFAULT '',
+      added_by TEXT NOT NULL, added_at INTEGER NOT NULL, PRIMARY KEY(guild_id,user_id)
+    );
+    DELETE FROM blacklist_entries;
+    INSERT INTO blacklist_entries(guild_id,user_id,added_by,added_at) VALUES('${GUILD}','${MEMBER}','${OWNER}',1);
+  `);
+  revokeWetCase(MEMBER, {
+    guildId: GUILD, actorId: OWNER, reason: "Réexamen complet et décision de levée",
+    guildIds: [GUILD], now: 1_800_000_000_000,
+  });
+  let removed = 0;
+  const guild = {
+    id: GUILD, ownerId: "300000000000000009",
+    bans: {
+      fetch: async (userId) => ({ user: { id: userId }, reason: `WET · dossier ${caseId.slice(0, 8)} · Contournement documenté des sanctions répétées` }),
+      remove: async () => { removed++; },
+    },
+  };
+  const client = { guilds: { cache: new Map([[GUILD, guild]]) } };
+  const held = await processPendingWetUnbans(client, { now: 1_800_000_000_000 });
+  assert.equal(held.stillBlacklisted, 1);
+  assert.equal(removed, 0);
+  db.prepare("DELETE FROM blacklist_entries WHERE guild_id=? AND user_id=?").run(GUILD, MEMBER);
+  const resumed = await processPendingWetUnbans(client, { now: 1_800_000_300_000 });
+  assert.equal(resumed.unbanned, 1);
+  assert.equal(removed, 1);
 });
 
 test("unwet lifts only bans created by this exact WET case and preserves independent bans", async () => {
