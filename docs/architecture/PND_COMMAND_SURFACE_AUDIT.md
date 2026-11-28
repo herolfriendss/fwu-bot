@@ -13,7 +13,7 @@
 |---|---:|---:|---:|---:|
 | Bot principal | 20 | 2 | 22/100 | OK |
 | GUARD | 23 | 2 | 25/100 | OK |
-| FDPDLAVOC | 22 | 2 | 24/100 | OK |
+| FDPDLAVOC | 38 | 2 | 40/100 | OK |
 | SUCK ME | 82 | 2 | 84/100 | OK |
 | LE FISC | 35 | 2 | 37/100 | OK |
 | Invest + | 2 | 2 | 4/100 | OK |
@@ -72,6 +72,22 @@
 - /voice
 - /voc
 - /music
+- /play
+- /recherche
+- /pause
+- /resume
+- /skip
+- /stop
+- /queue
+- /nowplaying
+- /volume
+- /loop
+- /shuffle
+- /clearqueue
+- /remove
+- /join
+- /leave
+- /musicpanel
 - /radio
 - /effet
 - /playlist
