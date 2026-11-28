@@ -216,6 +216,7 @@ test("unwet lifts only bans created by this exact WET case and preserves indepen
     bans: {
       fetch: async (userId) => {
         if (reason === null) throw Object.assign(new Error("not banned"), { code: 10026 });
+        if (reason === "return-null") return null;
         if (reason === "lookup-error") throw Object.assign(new Error("permission denied"), { code: 50013 });
         return { user: { id: userId }, reason };
       },
@@ -226,12 +227,13 @@ test("unwet lifts only bans created by this exact WET case and preserves indepen
     ["owned", makeGuild("300000000000000011", "WET · dossier 12345678 · motif documenté")],
     ["manual", makeGuild("300000000000000012", "Raid — décision de modération indépendante")],
     ["absent", makeGuild("300000000000000013", null)],
+    ["null", makeGuild("300000000000000015", "return-null")],
     ["lookup-error", makeGuild("300000000000000014", "lookup-error")],
   ]) } };
   const result = await unbanWetAccountsAcrossNetwork(client, [{ user_id: MEMBER }], OWNER, caseId);
   assert.equal(result.unbanned, 1);
   assert.equal(result.preservedOtherBan, 1);
-  assert.equal(result.notBanned, 1);
+  assert.equal(result.notBanned, 2);
   assert.equal(result.failed.length, 1);
   assert.deepEqual(removed, [["300000000000000011", MEMBER]]);
 });
