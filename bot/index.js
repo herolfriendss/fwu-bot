@@ -326,7 +326,8 @@ const API = `${SITE_URL.replace(/\/$/, "")}/api/public/bot-sync`;
 const AUTH = { Authorization: `Bearer ${BOT_SYNC_SECRET}` };
 
 function buildAiHelpContext(guildId) {
-  const prefixes = loadBotPrefixes();
+  let prefixes = {};
+  try { prefixes = loadBotPrefixes(); } catch { /* slash catalogue remains usable without prefix config */ }
   const commands = [...SLASH_COMMANDS, ...EXTRA_SLASH_COMMANDS].map((command) => {
     const owner = slashCommandOwner(command.name);
     return {
@@ -337,9 +338,13 @@ function buildAiHelpContext(guildId) {
       prefix: owner === "fwu" || !owner ? "/" : prefixes[owner] ?? "/",
     };
   });
-  const knowledge = KNOWLEDGE_TOPICS.map((topic) => {
-    const page = getKnowledgePage(guildId, topic.key) ?? topic;
-    return { key: topic.key, title: page.title, content: page.content };
+  const knowledge = KNOWLEDGE_TOPICS.flatMap((topic) => {
+    try {
+      const page = getKnowledgePage(guildId, topic.key) ?? topic;
+      return [{ key: topic.key, title: page.title, content: page.content }];
+    } catch {
+      return [];
+    }
   });
   return { commands, knowledge };
 }
