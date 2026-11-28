@@ -144,7 +144,7 @@ test("scheduled digest retries only failed sources without duplicating successfu
     record: (code) => records.push(code),
     send: async (guild) => {
       firstAttempts.push(guild.id);
-      if (guild.id === GUILD.id) throw new Error("temporary Discord delivery failure");
+      if (guild.id === GUILD.id) return false; // sendCentralLog reports unconfirmed delivery without throwing.
       return true;
     },
   });
