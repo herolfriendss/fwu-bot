@@ -76,6 +76,21 @@ export function isPublicIpv4(address) {
   return true;
 }
 
+/** Keep only non-sensitive extractor headers needed by public media CDNs. */
+export function sanitizeAudioRequestHeaders(input) {
+  if (!input || typeof input !== "object" || Array.isArray(input)) return {};
+  const allowed = new Set(["user-agent", "accept", "accept-language"]);
+  const headers = {};
+  for (const [rawName, rawValue] of Object.entries(input)) {
+    const name = String(rawName).trim().toLowerCase();
+    if (!allowed.has(name) || (typeof rawValue !== "string" && typeof rawValue !== "number")) continue;
+    const value = String(rawValue).trim();
+    if (!value || value.length > 512 || /[\u0000-\u001f\u007f]/u.test(value)) continue;
+    headers[name] = value;
+  }
+  return headers;
+}
+
 export function isPlayableAudioContentType(value) {
   const type = String(value ?? "")
     .split(";", 1)[0]
