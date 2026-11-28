@@ -130,27 +130,41 @@ test("community digest includes daily activity and sanction counts", async () =>
   assert.equal(fields.Sanctions, "1");
 });
 
-test("scheduled digest checkpoint advances only after every source is processed", async () => {
+test("scheduled digest retries only failed sources without duplicating successful deliveries", async () => {
   config.setLogSummaryFrequency("daily");
   config.markSummarySent(1_000);
+  db.exec("DELETE FROM log_summary_deliveries");
   const now = 10 * 86_400_000;
-  const client = { guilds: { cache: new Map([[GUILD.id, GUILD]]) } };
+  const secondGuild = { id: "1562643485981544560", name: "Second" };
+  const client = { guilds: { cache: new Map([[GUILD.id, GUILD], [secondGuild.id, secondGuild]]) } };
   const records = [];
-  const failed = events.startLogMaintenance({
-    client, sources: () => [GUILD.id], intervalMs: 60_000, now: () => now,
+  const firstAttempts = [];
+  const first = events.startLogMaintenance({
+    client, sources: () => [GUILD.id, secondGuild.id], intervalMs: 60_000, now: () => now,
     record: (code) => records.push(code),
-    send: async () => { throw new Error("temporary Discord delivery failure"); },
+    send: async (guild) => {
+      firstAttempts.push(guild.id);
+      if (guild.id === GUILD.id) throw new Error("temporary Discord delivery failure");
+      return true;
+    },
   });
-  await failed.tick();
-  failed.stop();
-  assert.equal(config.lastSummaryAt(), 1_000);
+  await first.tick();
+  first.stop();
+  assert.deepEqual(firstAttempts, [GUILD.id, secondGuild.id]);
+  assert.equal(config.lastSummaryAt(), 1_000, "global checkpoint stays behind while one source failed");
+  assert.equal(config.lastSummaryAt(GUILD.id), 0, "failed source remains due");
+  assert.equal(config.lastSummaryAt(secondGuild.id), now, "successful source is checkpointed");
   assert.ok(records.includes("log_summary_error"));
 
-  const succeeded = events.startLogMaintenance({
-    client, sources: () => [GUILD.id], intervalMs: 60_000, now: () => now,
-    send: async () => true,
+  const retryAttempts = [];
+  const retry = events.startLogMaintenance({
+    client, sources: () => [GUILD.id, secondGuild.id], intervalMs: 60_000, now: () => now + 60_000,
+    send: async (guild) => { retryAttempts.push(guild.id); return true; },
   });
-  await succeeded.tick();
-  succeeded.stop();
-  assert.equal(config.lastSummaryAt(), now);
+  await retry.tick();
+  retry.stop();
+  assert.deepEqual(retryAttempts, [GUILD.id], "only the failed source is retried");
+  assert.equal(config.lastSummaryAt(GUILD.id), now + 60_000);
+  assert.equal(config.lastSummaryAt(secondGuild.id), now);
+  assert.equal(config.lastSummaryAt(), now + 60_000);
 });
