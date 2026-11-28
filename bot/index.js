@@ -2155,7 +2155,14 @@ client.on("interactionCreate", (interaction) => {
         return;
       }
       const sub = action === "on" ? "maintenance-global-on" : "maintenance-global-off";
-      runToolCommand({ member: interaction.member, sub, reason: "Maintenance globale", profile: RUNTIME.profile });
+      const actionResult = runToolCommand({ member: interaction.member, sub, reason: "Maintenance globale", profile: RUNTIME.profile });
+      const succeeded = action === "on"
+        ? actionResult.startsWith("🛠️ Maintenance globale activée")
+        : actionResult.startsWith("✅ Maintenance globale terminée");
+      if (!succeeded) {
+        await interaction.update({ content: actionResult, components: [globalMaintenanceActionRow(ownerId, wasActive)], allowedMentions: { parse: [] } }).catch(() => {});
+        return;
+      }
       const active = Boolean(globalMaintenanceState());
       const changed = action === "on" ? active : !active;
       let announcementError = false;
