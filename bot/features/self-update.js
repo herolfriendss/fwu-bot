@@ -124,11 +124,7 @@ export function autoUpdateDue({ now = new Date(), lastRunDay = null, env = proce
   const parts = new Intl.DateTimeFormat("fr-FR", { timeZone: "Europe/Paris", hour: "2-digit", hourCycle: "h23", year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(now);
   const get = (type) => parts.find((p) => p.type === type)?.value;
   const day = `${get("year")}-${get("month")}-${get("day")}`;
-  const statusDay = status?.at
-    ? new Intl.DateTimeFormat("fr-CA", { timeZone: "Europe/Paris", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date(Number(status.at) * 1000))
-    : null;
-  if (day === lastRunDay || (statusDay === day && status?.state !== "running")) return false;
-  return Number(get("hour")) >= hour ? day : false;
+  return Number(get("hour")) >= hour && day !== lastRunDay ? day : false;
 }
 
 export function startAutoUpdate({ spawnFn = spawn, record = () => {}, env = process.env, intervalMs = 15 * 60_000 } = {}) {
