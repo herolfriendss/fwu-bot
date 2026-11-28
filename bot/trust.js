@@ -129,14 +129,16 @@ export const invalidateTrust = (guildId, userId) =>
 export const SANCTION_SCOPES = Object.freeze(["casino", "economie", "dj", "vocal", "social"]);
 
 /** A moderation action freezes one capability for a while, across every bot. */
-export function applySanction({ guildId, userId, scope, durationMs, reason = null, now = Date.now() }) {
+export function applySanction({ guildId, userId, scope, durationMs, reason, now = Date.now() }) {
   if (!SANCTION_SCOPES.includes(scope)) throw new Error(`Domaine de sanction inconnu : ${scope}`);
   if (!Number.isFinite(durationMs) || durationMs <= 0) throw new Error("Durée de sanction invalide.");
+  const note = String(reason ?? "").trim();
+  if (note.length < 3 || note.length > 300) throw new Error("Une raison de sanction de 3 à 300 caractères est obligatoire.");
   const until = now + durationMs;
   db.prepare(`INSERT INTO fwu_sanctions(guild_id,user_id,scope,until,reason,created_at) VALUES(?,?,?,?,?,?)
     ON CONFLICT(guild_id,user_id,scope) DO UPDATE SET
     until=MAX(fwu_sanctions.until,excluded.until), reason=excluded.reason`)
-    .run(guildId, userId, scope, until, reason, now);
+    .run(guildId, userId, scope, until, note, now);
   return until;
 }
 
