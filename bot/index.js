@@ -1,5 +1,5 @@
 // Bot Discord 24h/24 — à lancer sur ton VPS. Les réglages viennent du site (onglet « Bot 24h/24 »).
-import { Client, GatewayIntentBits, Partials, PermissionFlagsBits, REST } from "discord.js";
+import { ActionRowBuilder, ButtonBuilder, ButtonStyle, Client, GatewayIntentBits, Partials, PermissionFlagsBits, REST } from "discord.js";
 import { applyBotDescription, handlePresenceInteraction, startPresence } from "./presence.js";
 import { currentlyPlayingTitle } from "./music/music.js";
 import { jackpotAmount } from "./casino/store.js";
@@ -107,7 +107,7 @@ import { SLASH_FOR_PREFIX, prefixifyPayload, slashifyPayload } from "./prefix-to
 import { enableLearnMore, handleDossierButton, installMessageReplyLayer, installReplyLayer } from "./reply-layer.js";
 import { installMonochromeTheme } from "./monochrome-theme.js";
 import { installBlrShield } from "./blr-shield.js";
-import { createErrorWatch, globalMaintenanceState, maintenanceState, runToolCommand, stabilityRefusal } from "./stability.js";
+import { createErrorWatch, globalMaintenanceState, maintenanceState, parseGlobalMaintenanceButton, runToolCommand, stabilityRefusal } from "./stability.js";
 import { handleSmashInteraction } from "./features/smash.js";
 import { handleFamilyInteraction } from "./features/family.js";
 import { expireTempbans } from "./guard/tempban.js";
@@ -325,6 +325,15 @@ for (const signal of ["SIGINT", "SIGTERM"]) {
 try { assertOwnerConfig(process.env); } catch { process.exit(1); }
 const API = `${SITE_URL.replace(/\/$/, "")}/api/public/bot-sync`;
 const AUTH = { Authorization: `Bearer ${BOT_SYNC_SECRET}` };
+
+function globalMaintenanceActionRow(ownerId, active) {
+  return new ActionRowBuilder().addComponents(
+    new ButtonBuilder()
+      .setCustomId(`stability:global:${active ? "off" : "on"}:${ownerId}`)
+      .setLabel(active ? "Terminer la maintenance globale" : "Activer la maintenance globale")
+      .setStyle(active ? ButtonStyle.Success : ButtonStyle.Danger),
+  );
+}
 const STATUS_API = `${SITE_URL.replace(/\/$/, "")}/api/public/bot-status`;
 const ECONOMY_API = `${SITE_URL.replace(/\/$/, "")}/api/public/economy-snapshot`;
 const ACTIVITY_API = `${SITE_URL.replace(/\/$/, "")}/api/public/activity-snapshot`;
@@ -2131,6 +2140,46 @@ client.on("interactionCreate", (interaction) => {
   runAsActor(interaction.user?.id, async () => {
     if (interaction.guildId && (!guildAllowed(interaction.guildId, ALLOWED_GUILDS)
       || (isLogsHub(interaction.guildId) && !interaction.customId?.startsWith("moderation:appeal-review:") && !interaction.customId?.startsWith("trap:pardon:")))) return;
+    // Boutons de maintenance globale : visibles uniquement dans la session éphémère de l'OWNER.
+    if (interaction.isButton?.() && String(interaction.customId).startsWith("stability:global:")) {
+      const action = parseGlobalMaintenanceButton(interaction.customId, interaction.user?.id, process.env);
+      const ownerId = parsePndOwnerId(process.env.PND_OWNER_DISCORD_ID);
+      if (!action || !ownerId) {
+        await interaction.reply({ content: "⛔ Seul l'OWNER configuré peut piloter la maintenance globale.", ephemeral: true, allowedMentions: { parse: [] } }).catch(() => {});
+        return;
+      }
+      const wasActive = Boolean(globalMaintenanceState());
+      if ((action === "on" && wasActive) || (action === "off" && !wasActive)) {
+        const current = runToolCommand({ member: interaction.member, sub: "etat", profile: RUNTIME.profile });
+        await interaction.update({ content: current, components: [globalMaintenanceActionRow(ownerId, wasActive)], allowedMentions: { parse: [] } }).catch(() => {});
+        return;
+      }
+      const sub = action === "on" ? "maintenance-global-on" : "maintenance-global-off";
+      const actionResult = runToolCommand({ member: interaction.member, sub, reason: "Maintenance globale", profile: RUNTIME.profile });
+      const succeeded = action === "on"
+        ? actionResult.startsWith("🛠️ Maintenance globale activée")
+        : actionResult.startsWith("✅ Maintenance globale terminée");
+      if (!succeeded) {
+        await interaction.update({ content: actionResult, components: [globalMaintenanceActionRow(ownerId, wasActive)], allowedMentions: { parse: [] } }).catch(() => {});
+        return;
+      }
+      const active = Boolean(globalMaintenanceState());
+      const changed = action === "on" ? active : !active;
+      let announcementError = false;
+      if (changed) {
+        const channel = interaction.channel;
+        const announcement = action === "on"
+          ? "🛠️ **Maintenance globale activée.** Les commandes sont temporairement suspendues sur tous les bots."
+          : "✅ **La maintenance globale est terminée.** Les commandes sont de nouveau disponibles.";
+        if (channel?.isTextBased?.() && typeof channel.send === "function") {
+          await channel.send({ content: announcement, allowedMentions: { parse: [] } }).catch(() => { announcementError = true; });
+        } else announcementError = true;
+      }
+      const status = runToolCommand({ member: interaction.member, sub: "etat", profile: RUNTIME.profile });
+      const reply = announcementError ? `${status}\n⚠️ L'annonce publique n'a pas pu être envoyée dans ce salon.` : status;
+      await interaction.update({ content: reply, components: [globalMaintenanceActionRow(ownerId, active)], allowedMentions: { parse: [] } }).catch(() => {});
+      return;
+    }
     // Note de ticket (bouton reçu en MP, sans serveur).
     if (await handleTicketRatingButton(interaction).catch(() => true)) return;
     // A slash command is handled only by the bot that owns its domain. Buttons
@@ -2159,7 +2208,11 @@ client.on("interactionCreate", (interaction) => {
         } else if (started || ended) announcementError = true;
       }
       const reply = announcementError ? `${content}\n⚠️ L'annonce publique n'a pas pu être envoyée dans le salon choisi.` : content;
-      await interaction.reply({ content: reply, ephemeral: true, allowedMentions: { parse: [] } }).catch(() => {});
+      const ownerId = parsePndOwnerId(process.env.PND_OWNER_DISCORD_ID);
+      const controls = sub === "etat" && ownerId && interaction.user?.id === ownerId
+        ? [globalMaintenanceActionRow(ownerId, Boolean(globalMaintenanceState()))]
+        : [];
+      await interaction.reply({ content: reply, components: controls, ephemeral: true, allowedMentions: { parse: [] } }).catch(() => {});
       return;
     }
     if (interaction.isChatInputCommand?.() && interaction.guildId) {

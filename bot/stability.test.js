@@ -59,3 +59,12 @@ test("global maintenance blocks every bot and can only be ended by the OWNER", (
   assert.equal(S.globalMaintenanceState(), null);
   assert.match(S.runToolCommand({ member: owner, sub: "maintenance-global-off", profile: "fwu" }, { env }), /Aucune maintenance globale/);
 });
+
+test("global maintenance buttons are bound to the configured OWNER", () => {
+  const owner = env.PND_OWNER_DISCORD_ID;
+  assert.equal(S.parseGlobalMaintenanceButton(`stability:global:on:${owner}`, owner, env), "on");
+  assert.equal(S.parseGlobalMaintenanceButton(`stability:global:off:${owner}`, owner, env), "off");
+  assert.equal(S.parseGlobalMaintenanceButton(`stability:global:on:${owner}`, "1", env), null);
+  assert.equal(S.parseGlobalMaintenanceButton("stability:global:on:900000000000000001", owner, env), null);
+  assert.equal(S.parseGlobalMaintenanceButton("stability:global:delete:900000000000000009", owner, env), null);
+});
