@@ -106,18 +106,20 @@ trap - ERR INT TERM
 printf '\n✅ Mise à jour terminée.\n'
 
 # Anciennes versions complètes (.prev-* : code, node_modules, build et copie de bot/data ; .failed-* :
-# versions en échec). Rien n'est supprimé par défaut : FWU_KEEP_PREVIOUS=N (N >= 1) garde les N plus
-# récentes de chaque sorte et supprime les plus anciennes, uniquement après une mise à jour réussie.
+# versions en échec). Après une mise à jour réussie, les FWU_KEEP_PREVIOUS plus récentes de chaque sorte
+# sont gardées (3 par défaut, décision OWNER du 28/11/2026) et les plus anciennes supprimées, pour que
+# les mises à jour quotidiennes ne remplissent pas le disque. FWU_KEEP_PREVIOUS=0 garde tout.
 mapfile -t OLD_PREV < <(find "$(dirname "$ROOT")" -maxdepth 1 -type d -name "$(basename "$ROOT").prev-*" | sort -r)
 mapfile -t OLD_FAILED < <(find "$(dirname "$ROOT")" -maxdepth 1 -type d -name "$(basename "$ROOT").failed-*" | sort -r)
-KEEP="${FWU_KEEP_PREVIOUS:-}"
-if [[ "$KEEP" =~ ^[1-9][0-9]?$ ]]; then
+KEEP="${FWU_KEEP_PREVIOUS:-3}"
+[[ "$KEEP" =~ ^[0-9]{1,2}$ ]] || { printf '⚠️ FWU_KEEP_PREVIOUS=%s illisible : 3 retenu.\n' "$KEEP"; KEEP=3; }
+if (( KEEP > 0 )); then
   for old in "${OLD_PREV[@]:$KEEP}" "${OLD_FAILED[@]:$KEEP}"; do
     [[ -n "$old" && "$old" != "$PREV" && "$old" != "$ROOT" ]] || continue
-    rm -rf -- "$old" && printf 'Ancienne version supprimée (FWU_KEEP_PREVIOUS=%s) : %s\n' "$KEEP" "$old"
+    rm -rf -- "$old" && printf 'Ancienne version supprimée (gardées : %s) : %s\n' "$KEEP" "$old"
   done
 elif (( ${#OLD_PREV[@]} + ${#OLD_FAILED[@]} > 3 )); then
-  printf '⚠️ %s anciennes versions conservées à côté de %s (%s). Supprime les plus anciennes ou règle FWU_KEEP_PREVIOUS=3 dans le .env de SUCK ME (qui lance les mises à jour).\n' \
+  printf '⚠️ %s anciennes versions conservées à côté de %s (%s), FWU_KEEP_PREVIOUS=0 : rien n'"'"'est supprimé.\n' \
     "$(( ${#OLD_PREV[@]} + ${#OLD_FAILED[@]} ))" "$ROOT" "$(du -sch "${OLD_PREV[@]}" "${OLD_FAILED[@]}" 2>/dev/null | tail -n 1 | cut -f1)"
 fi
 printf 'Ancienne version conservée : %s (supprimable après quelques jours de bon fonctionnement).\n' "$PREV"

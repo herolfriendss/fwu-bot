@@ -47,9 +47,10 @@ Aucune branche ne peut être choisie par une variable.
 
 - Chaque mise à jour de FWU et du site garde la version précédente complète dans `her-v5-production.prev-<date>`
   (code, `node_modules`, build et copie de `bot/data`) ; une mise à jour en échec est gardée dans `.failed-<date>`.
-- Par défaut rien n'est supprimé. Au-delà de 3 dossiers, `maj.log` affiche un avertissement avec leur taille.
-- `FWU_KEEP_PREVIOUS=3` dans le `.env` de SUCK ME (le bot qui lance les mises à jour) garde les 3 plus récentes
-  de chaque sorte et supprime les plus anciennes, uniquement après une mise à jour réussie. Les sauvegardes de
+- Après chaque mise à jour réussie, les 3 plus récentes de chaque sorte sont gardées et les plus anciennes supprimées
+  (décision OWNER du 28/11/2026), pour que les mises à jour quotidiennes ne remplissent pas le disque.
+- `FWU_KEEP_PREVIOUS=N` dans le `.env` de SUCK ME (le bot qui lance les mises à jour) change ce nombre ;
+  `FWU_KEEP_PREVIOUS=0` garde tout (avertissement dans `maj.log` au-delà de 3). Les sauvegardes de
   `docs/SAUVEGARDES.md` restent la vraie copie de sécurité des données.
 
 ## Migrations Supabase et mise à jour automatique (28/11/2026)

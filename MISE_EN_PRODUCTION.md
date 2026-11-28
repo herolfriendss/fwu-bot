@@ -27,7 +27,8 @@ Le script de mise à jour vérifie tout cela et s'arrête avec un message clair 
 
 ## Étape 2 — Une seule fois : migrations Supabase
 
-`supabase/migrations/` contient 14 fichiers au 28/11/2026 (le plus récent : `202611280001_bot_authority_console.sql`).
+`supabase/migrations/` contient 15 fichiers au 28/11/2026 (le plus récent : `202611280002_authority_server_only_policies.sql`),
+tous appliqués dans le projet Supabase de production le 28/11/2026 (vérifié : tables, droits et règles RLS, aucune alerte de sécurité).
 Ils ne sont jamais exécutés par les scripts du VPS : `PND_SUPABASE_MIGRATIONS_APPLIED=YES` est ta confirmation
 qu'ils sont appliqués.
 

@@ -27,15 +27,13 @@ Fermée comme doublon : #134 (même correction que #132). #127 remplacée par #1
 
 ## Actions manuelles (OWNER)
 
-1. **Migrations Supabase non appliquées en production** (constaté en lecture seule le 28/11) :
-   - `202611250002_bot_settings_least_privilege.sql` : `anon` et `authenticated` ont encore tous les droits
-     (dont `DELETE` et `TRUNCATE`) sur `bot_settings`. Non exploitable par l'API publique grâce au RLS « refus
-     total », mais la défense en profondeur prévue manque.
-   - `202611280001_bot_authority_console.sql` : tables `bot_authority_snapshots` et `bot_authority_decisions`
-     absentes ; la console d'autorité du site ne peut rien enregistrer tant qu'elle n'est pas appliquée.
-   Les appliquer dans l'éditeur SQL de Supabase, dans l'ordre des noms, après une sauvegarde.
-2. **Disque du VPS** : décider de `FWU_KEEP_PREVIOUS=3` dans le `.env` de SUCK ME (sinon les copies
-   `her-v5-production.prev-*` s'accumulent ; `maj.log` avertit au-delà de 3).
+1. ~~Migrations Supabase~~ : faites le 28/11 avec l'accord de l'OWNER. `202611250002_bot_settings_least_privilege`
+   (`bot_settings` : plus aucun droit pour `anon`/`authenticated`, `service_role` limité à SELECT/INSERT/UPDATE),
+   `202611280001_bot_authority_console` (tables créées, RLS) et `202611280002_authority_server_only_policies`
+   (règle « server only » explicite). Aucune alerte de sécurité Supabase ensuite.
+   Si la mise à jour automatique s'arrête une fois en les citant (version installée plus ancienne que ces
+   fichiers), c'est normal : elles sont appliquées, lancer `/maj lancer` (confirmation manuelle).
+2. ~~Disque du VPS~~ : `FWU_KEEP_PREVIOUS` vaut 3 par défaut depuis le 28/11 (décision OWNER) ; `0` garde tout.
 3. **Recette en staging** (`RECETTE_STAGING.md`) : `/maj lancer` puis « paquet inchangé » dans `maj.log` ;
    boutons de `/stabilite etat` ; `/ia question` (refus d'un token, limites 3/min et 20/min par serveur) ;
    `/warn` sans option `expire` (expiration à 90 jours ou selon le réglage).
