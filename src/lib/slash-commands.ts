@@ -2721,8 +2721,8 @@ export const EXTRA_SLASH_COMMANDS: SlashCommandDef[] = [
   },
   {
     name: "staff",
-    description: "SUCK ME : échelle du staff, promotions, absences",
-    usage: "/staff liste · echelle · promouvoir · retrograder · absence · retour",
+    description: "SUCK ME : échelle du staff, promotions, absences, disponibilités, astreintes",
+    usage: "/staff liste · echelle · promouvoir · retrograder · absence · retour · dispo · astreinte · disponibles",
     category: "SYS+",
     dmPermission: false,
     requiresBotProcess: true,
@@ -2735,6 +2735,12 @@ export const EXTRA_SLASH_COMMANDS: SlashCommandDef[] = [
       sub("retrograder", "Fait descendre un membre d'un rang", [opt(6, "membre", "Membre", { required: true })]),
       sub("absence", "Déclare ton absence", [opt(3, "raison", "Raison", { max_length: 200 }), opt(3, "duree", "Durée : 3j, 1j12h…", { max_length: 20 })]),
       sub("retour", "Met fin à ton absence"),
+      sub("dispo", "Tes créneaux habituels (heure de Paris), ex. lun-ven 18-23, sam 14-2", [opt(3, "creneaux", "Ex. « lun-ven 18-23, sam 14-2 » ; « aucun » pour effacer ; vide pour voir", { max_length: 200 })]),
+      sub("astreinte", "Prendre, terminer ou voir les astreintes (aucun rôle donné)", [
+        opt(3, "action", "Action", { choices: [{ name: "Prendre", value: "prendre" }, { name: "Terminer", value: "terminer" }, { name: "Voir", value: "voir" }] }),
+        opt(3, "duree", "Durée si tu prends : 4h, 12h, 1j (12 h par défaut, 7 j maximum)", { max_length: 20 }),
+      ]),
+      sub("disponibles", "Staff joignable maintenant : astreinte, créneaux, absences"),
     ],
   },
   {

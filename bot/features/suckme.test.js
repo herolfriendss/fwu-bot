@@ -103,3 +103,48 @@ test("sécurité : /staff — échelle limitée aux rôles donnables, pas d'auto
   assert.deepEqual(w.added, []);
   forgetTierCache();
 });
+
+function staffInteraction({ userId, sub, options = {}, guildId = "gs", staffRoleMembers = [] }) {
+  const replies = [];
+  const roles = new Map([["staffrole", { id: "staffrole", members: new Map(staffRoleMembers.map((id) => [id, {}])) }]]);
+  return {
+    replies,
+    isChatInputCommand: () => true,
+    commandName: "staff",
+    user: { id: userId },
+    member: { id: userId, roles: { cache: new Map() }, guild: { ownerId: "owner-discord" } },
+    guildId,
+    guild: { id: guildId, ownerId: "owner-discord", roles: { cache: roles }, members: { fetch: async () => null } },
+    options: { getSubcommand: () => sub, getString: (name) => options[name] ?? null },
+    deferReply: async () => {},
+    editReply: async (payload) => { replies.push(payload.content); },
+  };
+}
+
+test("STAFF CENTER: availability and on call are staff only and never give a role", async () => {
+  s.saveLadder("gs", ["staffrole"]);
+  const outsider = staffInteraction({ userId: "u-out", sub: "dispo", options: { creneaux: "lun 18-20" } });
+  await s.handleSuckmeInteraction(outsider, {});
+  assert.match(outsider.replies[0], /Réservé au staff/);
+
+  const dispo = staffInteraction({ userId: "u-staff", sub: "dispo", options: { creneaux: "lun-ven 18-23" }, staffRoleMembers: ["u-staff"] });
+  await s.handleSuckmeInteraction(dispo, {});
+  assert.match(dispo.replies[0], /lun mar mer jeu ven 18h-23h/);
+
+  const bad = staffInteraction({ userId: "u-staff", sub: "dispo", options: { creneaux: "n'importe quoi" }, staffRoleMembers: ["u-staff"] });
+  await s.handleSuckmeInteraction(bad, {});
+  assert.match(bad.replies[0], /illisible/);
+
+  const take = staffInteraction({ userId: "u-staff", sub: "astreinte", options: { action: "prendre", duree: "4h" }, staffRoleMembers: ["u-staff"] });
+  await s.handleSuckmeInteraction(take, {});
+  assert.match(take.replies[0], /aucun rôle ni permission/);
+
+  const who = staffInteraction({ userId: "u-staff", sub: "disponibles", staffRoleMembers: ["u-staff", "u-other"] });
+  await s.handleSuckmeInteraction(who, {});
+  assert.match(who.replies[0], /D'astreinte : <@u-staff>/);
+  assert.match(who.replies[0], /Sans créneaux déclarés : 1/);
+
+  const end = staffInteraction({ userId: "u-staff", sub: "astreinte", options: { action: "terminer" }, staffRoleMembers: ["u-staff"] });
+  await s.handleSuckmeInteraction(end, {});
+  assert.match(end.replies[0], /terminée/);
+});

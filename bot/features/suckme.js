@@ -1,10 +1,12 @@
-// SUCK ME — /roletemp (temporary roles), /annonce (now or scheduled), /staff (ladder, promotions, absences), /pseudo.
+// SUCK ME — /roletemp (temporary roles), /annonce (now or scheduled), /staff (ladder, promotions, absences,
+// availability and on-call: STAFF CENTER, bot/staff-availability.js), /pseudo.
 import { EmbedBuilder, PermissionFlagsBits as P } from "discord.js";
 import { db } from "../database.js";
 import { parsePndOwnerId } from "../pnd-owner-policy.js";
 import { isSysPlus } from "../systems/sysplus/permissions.js";
 import { parseDuration } from "./community.js";
 import { roleGrantRefusal as protectedGrantRefusal } from "../role-grant-guard.js";
+import { activeOnCall, availabilityOf, endOnCall, expireOnCall, formatSlots, parseSlots, reachableStaff, saveAvailability, startOnCall } from "../staff-availability.js";
 
 export const SUCKME_COMMANDS = new Set(["roletemp", "annonce", "staff", "pseudo"]);
 const DANGEROUS = [P.Administrator, P.ManageGuild, P.ManageRoles, P.ManageChannels, P.BanMembers, P.KickMembers, P.ManageWebhooks];
@@ -76,6 +78,8 @@ async function roletemp(interaction, settings) {
 }
 
 /** Every minute: remove expired temporary roles. */
+export function runStaffShiftExpiry() { return expireOnCall(); }
+
 export async function runTempRoles(client, now = Date.now()) {
   const due = db.prepare("SELECT * FROM suckme_temp_roles WHERE expires_at <= ? LIMIT 100").all(now);
   for (const row of due) {
@@ -152,8 +156,62 @@ export function ladderStep(ladder, memberRoleIds, dir) {
   return { add: next >= 0 ? ladder[next] : null, remove: current >= 0 ? ladder[current] : null };
 }
 
+/** Members holding a ladder role (the staff), plus the guild's configured SYS+ role holders. */
+export function staffMemberIds(guild, ladder, sysPlusRoleId = null) {
+  const ids = new Set();
+  for (const roleId of [...ladder, sysPlusRoleId].filter(Boolean)) {
+    for (const id of guild.roles.cache.get(roleId)?.members?.keys?.() ?? []) ids.add(id);
+  }
+  return ids;
+}
+
+const hoursOf = (ms) => Math.round(ms / 360_000) / 10;
+
+async function staffCenter(interaction, settings, sub, guild) {
+  expireOnCall();
+  await guild.members.fetch().catch(() => null);
+  const staffIds = staffMemberIds(guild, ladderOf(guild.id), settings?.sysPlus?.roleId ?? null);
+  const isStaff = staffIds.has(interaction.user.id) || allowed(interaction.member, settings);
+  if (!isStaff) return "⛔ Réservé au staff (rôles de l'échelle `/staff echelle`), aux SYS+ et à l'OWNER.";
+  if (sub === "dispo") {
+    const text = interaction.options.getString("creneaux");
+    if (!text) return `🗓️ Tes disponibilités (heure de Paris) : ${formatSlots(availabilityOf(guild.id, interaction.user.id))}.\nPour les changer : \`/staff dispo creneaux:"lun-ven 18-23, sam 14-2"\` (\`aucun\` pour effacer).`;
+    const parsed = parseSlots(text);
+    if (parsed.error) return `❌ ${parsed.error}`;
+    saveAvailability(guild.id, interaction.user.id, parsed.slots);
+    return parsed.slots.length ? `✅ Disponibilités enregistrées (heure de Paris) : ${formatSlots(parsed.slots)}.` : "✅ Disponibilités effacées.";
+  }
+  if (sub === "astreinte") {
+    const action = interaction.options.getString("action") ?? "voir";
+    if (action === "prendre") {
+      const raw = interaction.options.getString("duree");
+      const duration = raw ? parseDuration(raw) : null;
+      if (raw && !duration) return "❌ Durée illisible (ex. 4h, 12h, 1j).";
+      const until = startOnCall(guild.id, interaction.user.id, duration ?? undefined);
+      return `🟢 Tu es d'astreinte jusqu'à <t:${Math.floor(until / 1000)}:F>. L'astreinte ne donne aucun rôle ni permission : elle indique à l'équipe qui est joignable. \`/staff astreinte action:terminer\` pour l'arrêter.`;
+    }
+    if (action === "terminer") return endOnCall(guild.id, interaction.user.id) ? "✅ Astreinte terminée, merci !" : "Tu n'étais pas d'astreinte.";
+    const shifts = activeOnCall(guild.id);
+    return shifts.length
+      ? `🟢 **D'astreinte**\n${shifts.map((s) => `<@${s.userId}> jusqu'à <t:${Math.floor(s.until / 1000)}:t>`).join("\n")}`
+      : "Personne n'est d'astreinte pour le moment.";
+  }
+  // disponibles
+  const absent = new Set(db.prepare("SELECT user_id FROM suckme_staff_absences WHERE guild_id=? AND (until_at IS NULL OR until_at > ?)").all(guild.id, Date.now()).map((a) => a.user_id));
+  const reach = reachableStaff(guild.id, [...staffIds], { absentIds: absent });
+  const list = (ids) => ids.map((id) => `<@${id}>`).join(", ") || "—";
+  return [
+    "📟 **Staff joignable maintenant** (heure de Paris)",
+    `🟢 D'astreinte : ${list(reach.onCall)}`,
+    `🗓️ Disponibles selon leurs créneaux : ${list(reach.available)}`,
+    `🌙 Absents : ${absent.size}`,
+    reach.declaredNone.length ? `❔ Sans créneaux déclarés : ${reach.declaredNone.length} (\`/staff dispo\`)` : null,
+  ].filter(Boolean).join("\n");
+}
+
 async function staff(interaction, settings) {
   const sub = interaction.options.getSubcommand();
+  if (["dispo", "astreinte", "disponibles"].includes(sub)) return staffCenter(interaction, settings, sub, interaction.guild);
   const { guild, me, actor, actorFull } = await context(interaction);
   if (sub === "absence") {
     const until = interaction.options.getString("duree") ? parseDuration(interaction.options.getString("duree")) : null;
