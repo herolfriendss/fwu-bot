@@ -295,12 +295,14 @@ test("unwet never lifts an independent local blacklist ban", async () => {
     GUILD,
     { id: GUILD, ownerId: "300000000000000009", bans: { remove: async () => { throw new Error("must not unban"); } } },
   ]]) } };
-  const result = await unbanWetAccountsAcrossNetwork(client, [{ user_id: MEMBER }], OWNER, "12345678-1234-1234-1234-123456789012");
+  const result = await unbanWetAccountsAcrossNetwork(client, [{ user_id: MEMBER }], OWNER, { id: "12345678-1234-1234-1234-123456789012", reason: "Ancien dossier WET" });
   assert.equal(result.stillBlacklisted, 1);
   assert.equal(result.unbanned, 0);
 });
 
 test("the /unwet interaction passes the revoked case to exact-reason unban", async () => {
+  // The previous blacklist test intentionally leaves its row behind; isolate this case.
+  db.prepare("DELETE FROM blacklist_entries WHERE guild_id=? AND user_id=?").run(GUILD, MEMBER);
   const reason = "Contournement documenté des sanctions répétées";
   const caseId = createWetCase({
     guildId: GUILD, actorId: OWNER, user: user(MEMBER), reason, evidence: EVIDENCE,
