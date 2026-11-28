@@ -28,13 +28,15 @@ test("music query accepts YouTube links and converts plain text to a YouTube sea
 
 test("resolver extracts metadata and a trusted signed YouTube CDN URL", async () => {
   const track = await resolveMusicInput("https://youtube.com/watch?v=abc", {
-    spawn: fakeSpawn({ title: "Track", uploader: "Artist", duration: 123, thumbnail: "https://i.ytimg.com/thumb.jpg", webpage_url: "https://www.youtube.com/watch?v=abc", url: "https://rr.googlevideo.com/audio?sig=secret" }),
+    spawn: fakeSpawn({ title: "Track", uploader: "Artist", duration: 123, thumbnail: "https://i.ytimg.com/thumb.jpg", webpage_url: "https://www.youtube.com/watch?v=abc", http_headers: { "User-Agent": "FWU-test/1.0", Accept: "audio/*", Cookie: "secret" }, url: "https://rr.googlevideo.com/audio?sig=secret" }),
   });
   assert.equal(track.title, "Track");
   assert.equal(track.artist, "Artist");
   assert.equal(track.duration, 123);
   assert.equal(track.allowedMediaHost, "rr.googlevideo.com");
   assert.match(track.url, /sig=secret/);
+  assert.equal(track.webpageUrl, "https://www.youtube.com/watch?v=abc");
+  assert.deepEqual(track.httpHeaders, { "user-agent": "FWU-test/1.0", accept: "audio/*" });
 });
 
 test("resolver rejects an untrusted extractor media host", async () => {
