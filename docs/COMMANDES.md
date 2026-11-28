@@ -193,7 +193,7 @@ Catégorie : Modération · Utilisation : `/warnings [membre]`
 
 Administration lourde (+ban, +kick, blacklist), GuildGuard, vérification, anti-spam
 
-23 commandes.
+25 commandes.
 
 ### /antinuke
 
@@ -394,6 +394,14 @@ Catégorie : Modération · Utilisation : `/tempban membre duree raison`
 Déverrouille le salon pour @everyone  
 Catégorie : Modération · Utilisation : `/unlock`
 
+### /unwet
+
+OWNER : lève un dossier WET et débannit les comptes qui lui sont liés  
+Catégorie : Modération · Utilisation : `/unwet id raison`
+
+- `id` (texte, obligatoire, 25 caractères max) — Identifiant Discord de l'un des comptes du dossier
+- `raison` (texte, obligatoire, 300 caractères max) — Motif obligatoire de la levée
+
 ### /verify
 
 Vérifie un membre ou publie le panneau de vérification  
@@ -403,6 +411,16 @@ Catégorie : Modération · Utilisation : `/verify moi | panel [salon] [role]`
 - `/verify panel` — Publie le panneau de vérification (et règle la vérification si tu choisis un rôle) · préfixe `+verify panel`<br>`salon` (salon, facultatif) — Salon où publier le panneau<br>`role` (rôle, facultatif) — Rôle « Vérifié » donné après la vérification (active le module)
 - `/verify reaction` — Vérification par réaction : publie le message dans un salon · préfixe `+verify reaction`<br>`salon` (salon, obligatoire) — Salon d’accès<br>`role` (rôle, obligatoire) — Rôle donné après réaction
 - `/verify reaction-off` — Désactive la vérification par réaction · préfixe `+verify reaction-off`
+
+### /wet
+
+OWNER : registre réseau de sanctions durables et de comptes liés sur preuve  
+Catégorie : Modération · Utilisation : `/wet ajouter|lier|verifier|liste`
+
+- `/wet ajouter` — Place un compte dans le registre WET et le bannit du réseau FWU · préfixe `+wet ajouter`<br>`id` (texte, obligatoire, 25 caractères max) — Identifiant Discord du compte<br>`raison` (texte, obligatoire, 300 caractères max) — Motif détaillé de la décision<br>`preuve` (texte, obligatoire, 1000 caractères max) — Lien HTTPS vers les éléments de preuve
+- `/wet lier` — Relie un compte alternatif après vérification humaine et preuve · préfixe `+wet lier`<br>`source` (texte, obligatoire, 25 caractères max) — Identifiant du compte déjà en WET<br>`compte` (texte, obligatoire, 25 caractères max) — Identifiant du compte alternatif confirmé<br>`raison` (texte, obligatoire, 300 caractères max) — Éléments établissant le lien<br>`preuve` (texte, obligatoire, 1000 caractères max) — Lien HTTPS vers les éléments de preuve
+- `/wet verifier` — Vérifie le statut WET d'un compte · préfixe `+wet verifier`<br>`id` (texte, obligatoire, 25 caractères max) — Identifiant Discord du compte
+- `/wet liste` — Affiche les dossiers WET actifs du réseau FWU · préfixe `+wet liste`
 
 ## FDPDLAVOC (préfixe `;`)
 
