@@ -54,7 +54,7 @@ export function renderCommandDocs() {
     for (const name of names) {
       const def = catalogue.get(name);
       if (!def) continue;
-      const subs = subcommandLines(def, prefix);
+      const subs = subcommandLines(def, def.prefixEnabled === false ? null : prefix);
       const params = subs.length ? [] : (def.options ?? []).map(optionLine);
       lines.push(`### /${def.name}`, "", `${clean(def.description)}  `, `Catégorie : ${clean(def.category)} · Utilisation : \`${clean(def.usage)}\``, "");
       if (subs.length) lines.push(...subs, "");
