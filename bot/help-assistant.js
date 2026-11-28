@@ -83,7 +83,10 @@ export async function handleHelpAssistantInteraction(interaction, { apiUrl, secr
         prompt: question,
         guildId,
         commands: commands.slice(0, 250),
-        knowledge: knowledge.slice(0, 6).map((page) => ({ ...page, content: redactPrivateText(page.content) })),
+        knowledge: knowledge.slice(0, 6).map((page) => ({
+          ...page,
+          content: containsSecretInput(page.content) ? "[contenu masqué : information sensible détectée]" : redactPrivateText(page.content),
+        })),
       }),
     });
     const data = await response.json().catch(() => ({}));
