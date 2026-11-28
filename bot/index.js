@@ -190,6 +190,7 @@ import { expireDue as expireAuthorityExceptions } from "./authority.js";
 import { handleAuthorityInteraction } from "./features/authority-commands.js";
 import { runAuthoritySync } from "./authority-sync.js";
 import { handleUserCardInteraction } from "./features/user-card.js";
+import { enforcePersonalRole, handlePersonalRolePanel, publishPanel as publishPersonalRolePanel, restoreOwnerRole } from "./systems/sysplus/personal-role-panel.js";
 import { LOGS_HUB_GUILD_ID, ACTIVE_SOURCE_GUILD_IDS, allowedRuntimeGuild, filterInactiveSourceGuilds, isLogsHub, inspectLogsHub, lastLogsHubFailure } from "./logs-hub.js";
 
 const { SITE_URL, BOT_SYNC_SECRET } = process.env;
@@ -709,6 +710,9 @@ client.on("guildMemberRemove", async (member) => { if (guardWatch(member.guild))
 client.on("webhooksUpdate", (channel) => { if (guardWatch(channel.guild)) void antiNuke.webhooksUpdate(channel).catch(() => record("antinuke_error")); });
 // V2 GUARD : webhook créé hors écosystème → signalé ; dérive de permissions d'un rôle → alerte typée.
 client.on("webhooksUpdate", (channel) => { if (guardWatch(channel.guild)) void handleWebhookCreated(channel, { settings: settings[channel.guild.id], trustedIds: new Set([client.user?.id, ...fwuBotIds()].filter(Boolean)) }).catch(() => record("antinuke_error")); });
+// Rôles perso (espace membres) : jamais de permission, état restauré si la protection est active.
+client.on("roleUpdate", (oldRole, newRole) => { if (serves("suckme") && guildAllowed(newRole.guild?.id, ALLOWED_GUILDS)) void enforcePersonalRole(newRole, { record }).catch(() => record("personal_role_restore_error")); });
+client.on("guildMemberUpdate", (oldMember, newMember) => { if (serves("suckme") && guildAllowed(newMember.guild?.id, ALLOWED_GUILDS)) void restoreOwnerRole(oldMember, newMember, { record }).catch(() => record("personal_role_restore_error")); });
 client.on("roleUpdate", (oldRole, newRole) => { if (guardWatch(newRole.guild)) void handleRoleDrift(oldRole, newRole, { settings: settings[newRole.guild.id] }).catch(() => record("antinuke_error")); });
 client.on("guildMemberAdd", (member) => {
   if (!guardWatch(member.guild)) return;
@@ -2245,6 +2249,13 @@ client.on("interactionCreate", (interaction) => {
       // Les handlers SYS+ appellent audit(guild, titre, description) : on ajoute les réglages du serveur.
       audit: (guild, title, description) => auditLog(guild, settings[guild?.id], title, description),
     })) return;
+    if (await handlePersonalRolePanel(interaction, settings[interaction.guildId])) return;
+    if (interaction.isChatInputCommand?.() && interaction.commandName === "rolepanel" && interaction.options.getSubcommand(false) === "espace") {
+      await interaction.deferReply({ ephemeral: true });
+      const content = await publishPersonalRolePanel(interaction, settings[interaction.guildId]).catch((error) => `❌ ${error instanceof Error ? error.message : "Publication impossible."}`);
+      await interaction.editReply({ content, allowedMentions: { parse: [] } }).catch(() => {});
+      return;
+    }
     if (await handleCustomRolesInteraction(interaction, settings[interaction.guildId])) return;
     if (await handleRoleInteraction(interaction, settings[interaction.guildId])) return;
 

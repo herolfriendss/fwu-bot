@@ -381,12 +381,17 @@ export const SLASH_COMMANDS: SlashCommandDef[] = [
   {
     name: "rolepanel",
     description: "Panneau SYS+ de rôles personnalisés et gestion des rôles membres",
-    usage: "/rolepanel panel | membre | create | rename | color | delete | list | manage",
+    usage: "/rolepanel panel | espace | membre | create | rename | color | delete | list | manage",
     category: "SYS+",
     dmPermission: false,
     requiresBotProcess: true,
     options: [
       sub("panel", "Ouvre le panneau interactif des rôles personnalisés"),
+      sub("espace", "Publie ici le panneau « Rôles personnels — Espace membres »", [
+        opt(8, "eligible1", "Rôle autorisé à créer son rôle perso (vide = création par le staff seulement)"),
+        opt(8, "eligible2", "Autre rôle autorisé"),
+        opt(8, "eligible3", "Autre rôle autorisé"),
+      ]),
       sub("membre", "Crée ou modifie le rôle perso d'un membre (nom, couleur)", [
         opt(6, "membre", "Membre concerné", { required: true }),
       ]),
