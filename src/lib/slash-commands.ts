@@ -152,7 +152,7 @@ export const SLASH_COMMANDS: SlashCommandDef[] = [
       ]),
       sub("historique", "PND Intelligence : tes 10 dernières actions"),
       sub("question", "Pose une question sur les commandes et le fonctionnement de FWU", [
-        opt(3, "question", "Ta question sur FWU", { required: true, max_length: 1000 }),
+        opt(3, "question", "Ta question sur le serveur", { required: true, max_length: 1000 }),
       ]),
     ],
   },
