@@ -138,7 +138,7 @@ export const SLASH_COMMANDS: SlashCommandDef[] = [
   // ── Général ────────────────────────────────────────────────────────────────
   { name: "aide", description: "Affiche la liste des commandes du bot", usage: "/aide", category: "Général" },
   {
-    name: "ia", description: "Gère ta mémoire de conversation avec le bot", usage: "/ia memoire etat:activer|desactiver · /ia oublier", category: "Général", dmPermission: false, requiresBotProcess: true,
+    name: "ia", description: "Gère ta mémoire de conversation et pose une question sur le serveur", usage: "/ia memoire etat:activer|desactiver · /ia oublier · /ia question", category: "Général", dmPermission: false, requiresBotProcess: true,
     options: [
       sub("memoire", "Choisis si le bot peut conserver le contexte de tes conversations", [
         opt(3, "etat", "Ton choix de consentement", { required: true, choices: [
@@ -151,6 +151,9 @@ export const SLASH_COMMANDS: SlashCommandDef[] = [
         opt(3, "texte", "Ta demande, ex. « crée un rôle Animateur »", { required: true, max_length: 1500 }),
       ]),
       sub("historique", "PND Intelligence : tes 10 dernières actions"),
+      sub("question", "Pose une question sur les commandes et le fonctionnement du serveur", [
+        opt(3, "question", "Ta question sur le serveur", { required: true, max_length: 1000 }),
+      ]),
     ],
   },
   { name: "status", description: "Affiche l’état du bot et sa durée de fonctionnement", usage: "/status", category: "Général" },
