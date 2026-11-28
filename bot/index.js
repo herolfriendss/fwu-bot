@@ -182,6 +182,7 @@ import { STAFF_ONLY_MESSAGE, isServerStaff } from "./server-staff.js";
 import { installOwnerShield, runAsActor } from "./owner-shield.js";
 import { assertOwnerConfig } from "./owner-config.js";
 import { db } from "./database.js";
+import { installDiscordCompat } from "./discord-compat.js";
 import { clearConnectedMarker, clearGatewayFailures, createGatewayWatchdog, listGatewayFailures, parseSessionLimit, recordGatewayFailure, writeConnectedMarker } from "./gateway-watchdog.js";
 import { clearGatewayWait, clearSessionWaitMarker, listGatewayWaits, planGatewayLogin, recentlyStartedProfiles, recordGatewayStart, recordGatewayWait, sessionReserveFromEnv, writeSessionWaitMarker } from "./session-budget.js";
 import { createFleetWatcher, describeFleetChange, profileState, watchedProfiles } from "./fleet-watch.js";
@@ -193,6 +194,8 @@ import { handleUserCardInteraction } from "./features/user-card.js";
 import { enforcePersonalRole, handlePersonalRolePanel, publishPanel as publishPersonalRolePanel, restoreOwnerRole } from "./systems/sysplus/personal-role-panel.js";
 import { LOGS_HUB_GUILD_ID, ACTIVE_SOURCE_GUILD_IDS, allowedRuntimeGuild, filterInactiveSourceGuilds, isLogsHub, inspectLogsHub, lastLogsHubFailure } from "./logs-hub.js";
 
+// Convert legacy ephemeral/fetchReply options once at the interaction boundary.
+installDiscordCompat();
 const { SITE_URL, BOT_SYNC_SECRET } = process.env;
 // FWU multi-bot: PND_BOT_PROFILE selects the application (fwu by default, the
 // historical one). See src/lib/bot-profiles.ts and bot-runtime.js.
@@ -2150,8 +2153,8 @@ client.on("interactionCreate", (interaction) => {
         const ended = sub === "maintenance-global-off" && content.startsWith("✅ Maintenance globale terminée");
         if ((started || ended) && channel?.isTextBased?.() && typeof channel.send === "function") {
           const announcement = started
-            ? `🛠️ **Maintenance globale activée.** Les commandes sont temporairement suspendues sur tous les bots.${reason ? `\\nMotif : ${reason}` : ""}`
-            : "✅ **Maintenance globale terminée.** Les commandes sont de nouveau disponibles.";
+            ? `🛠️ **FWU passe en maintenance globale.** Les commandes sont temporairement suspendues sur tous les bots.${reason ? `\\nMotif : ${reason}` : ""}`
+            : "✅ **La maintenance globale de FWU est terminée.** Les commandes sont de nouveau disponibles.";
           await channel.send({ content: announcement, allowedMentions: { parse: [] } }).catch(() => { announcementError = true; });
         } else if (started || ended) announcementError = true;
       }
