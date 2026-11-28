@@ -62,7 +62,7 @@ Une tâche à la fois, dans l'ordre. Cocher au fur et à mesure.
 - [x] 33. **Journal des changements** (`CHANGELOG`) tenu automatiquement, pour savoir ce qui a été mis en ligne et quand. _(Fait le 27/11 : `CHANGELOG.md` à la racine)_
 - [x] 34. **Mode d'emploi pour reprendre sans aide** : où est quoi (Render, VPS, Supabase, Discord), comment déployer, comment restaurer. _(Fait le 27/11 : `docs/MODE_EMPLOI.md`)_
 - [ ] 35. **Gestion du staff depuis la console** : voir qui a quel palier et quels quotas, sans passer par les commandes.
-- [ ] 36. **Modèles prêts à l'emploi** : embeds (règlement, annonces), messages de sanction, réponses fréquentes.
+- [~] 36. **Modèles prêts à l'emploi** : bibliothèque de réponses support avec prévisualisation/modification avant envoi et historique du ticket ; modèles d'embeds et de sanctions encore à intégrer.
 - [ ] 37. **Tests automatiques avant chaque mise en ligne** (la CI existe déjà : la rendre obligatoire avant de fusionner).
 - [ ] 38. **Rapport hebdomadaire par e-mail ou Discord** : état des bots, pannes, activité, sanctions de la semaine.
 - [x] 39. **Vue « tout va bien ? »** : un seul voyant vert ou rouge en haut de la console, avec la raison quand il est rouge. _(28/11 : voyant vert/orange/rouge avec les raisons, aussi dans le badge)_
