@@ -5,6 +5,7 @@ import {
   isPlayableAudioContentType,
   isPublicIpv4,
   normalizeAudioHost,
+  sanitizeAudioRequestHeaders,
   validateAudioUrl,
 } from "./audio-source-policy.js";
 
@@ -66,4 +67,22 @@ test("FFmpeg input accepts media content but rejects nested playlists", () => {
   assert.equal(isPlayableAudioContentType("application/dash+xml"), false);
   assert.ok(ffmpegOpusArgs().includes("-protocol_whitelist"));
   assert.ok(ffmpegOpusArgs().includes("libopus"));
+});
+
+
+test("extractor headers are reduced to a small non-sensitive allowlist", () => {
+  assert.deepEqual(sanitizeAudioRequestHeaders({
+    "User-Agent": "FWU-test/1.0",
+    Accept: "audio/*",
+    "Accept-Language": "fr-FR",
+    Cookie: "session=secret",
+    Authorization: "Bearer secret",
+    Referer: "https://www.youtube.com/watch?v=private",
+    "X-Forwarded-For": "127.0.0.1",
+  }), {
+    "user-agent": "FWU-test/1.0",
+    accept: "audio/*",
+    "accept-language": "fr-FR",
+  });
+  assert.deepEqual(sanitizeAudioRequestHeaders({ "User-Agent": "bad\r\nInjected: yes" }), {});
 });
