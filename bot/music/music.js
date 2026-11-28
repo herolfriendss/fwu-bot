@@ -205,16 +205,21 @@ async function connectMember(member, textChannel) {
 }
 
 async function playTrack(state, track) {
-  const hosts = track.allowedMediaHost ? [track.allowedMediaHost] : await allowedAudioHosts(state.guildId);
-  const stream = await openAuthorizedAudioStream(track.url, hosts, { audioFilter: AUDIO_FILTERS[state.filterKey] ?? null });
+  const resolved = track?.resolveOnPlay ? await resolveMusicInput(track.url) : track;
+  const playable = { ...resolved, ...(track?.requesterId ? { requesterId: track.requesterId } : {}) };
+  const hosts = playable.allowedMediaHost ? [playable.allowedMediaHost] : await allowedAudioHosts(state.guildId);
+  const stream = await openAuthorizedAudioStream(playable.url, hosts, {
+    audioFilter: AUDIO_FILTERS[state.filterKey] ?? null,
+    headers: playable.httpHeaders,
+  });
   const resource = createAudioResource(stream.stream, {
     inputType: StreamType.OggOpus,
     inlineVolume: true,
-    metadata: track,
+    metadata: playable,
   });
   resource.playStream.once("close", stream.stop);
   resource.volume?.setVolume(state.volume);
-  state.current = track;
+  state.current = playable;
   state.player.play(resource);
   await updatePanel(state);
 }
