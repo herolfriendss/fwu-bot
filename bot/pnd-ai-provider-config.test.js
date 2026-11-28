@@ -26,3 +26,13 @@ test("AI model can be explicitly overridden per task", () => {
   assert.equal(resolvePndAiGatewayConfig({ LOVABLE_API_KEY: "k", PND_AI_MODEL: "openai/shared" }).model, "openai/shared");
   assert.equal(resolvePndAiGatewayConfig({}), null);
 });
+
+
+test("rules generation reuses the action provider and supports a dedicated model override", () => {
+  const fallback = resolvePndAiGatewayConfig({ AI_GATEWAY_API_KEY: "vercel-secret", PND_AI_ACTION_MODEL: "openai/action" }, "rules");
+  assert.equal(fallback.model, "openai/action");
+  const dedicated = resolvePndAiGatewayConfig({ AI_GATEWAY_API_KEY: "vercel-secret", PND_AI_RULES_MODEL: "openai/rules" }, "rules");
+  assert.equal(dedicated.model, "openai/rules");
+  const lovable = resolvePndAiGatewayConfig({ LOVABLE_API_KEY: "lovable-secret" }, "rules");
+  assert.equal(lovable.model, "openai/gpt-5.5");
+});
