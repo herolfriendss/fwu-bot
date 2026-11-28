@@ -2156,6 +2156,7 @@ export const EXTRA_SLASH_COMMANDS: SlashCommandDef[] = [
   {
     name: "wet",
     description: "OWNER : registre de sanctions durables et de comptes liés sur preuve",
+    prefixEnabled: false,
     usage: "/wet ajouter|lier|verifier|liste",
     category: "Modération",
     dmPermission: false,
