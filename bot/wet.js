@@ -315,8 +315,11 @@ export async function unbanWetAccountsAcrossNetwork(client, accounts, actorId, c
 
 /** guildMemberAdd: the primary account and every manually confirmed linked account are enforced. */
 export async function enforceWetOnJoin(member, record = () => {}) {
-  if (!member?.guild || !isWet(member.id)) return false;
+  if (!member?.guild) return false;
+  // Read the case once: a concurrent /unwet must not leave a stale positive
+  // check that blocks a member after the case has already been revoked.
   const entry = getActiveWetCase(member.id);
+  if (!entry) return false;
   try {
     await member.ban({ reason: banReason(entry) });
     record("wet_rebanned");
