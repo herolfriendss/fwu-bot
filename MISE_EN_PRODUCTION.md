@@ -27,7 +27,13 @@ Le script de mise à jour vérifie tout cela et s'arrête avec un message clair 
 
 ## Étape 2 — Une seule fois : migrations Supabase
 
-Ce lot n'ajoute **aucune** migration Supabase. Les 7 fichiers de `supabase/migrations/` sont ceux d'avant (le plus récent : `202611200001_bot_settings_sync.sql`).
+`supabase/migrations/` contient 14 fichiers au 28/11/2026 (le plus récent : `202611280001_bot_authority_console.sql`).
+Ils ne sont jamais exécutés par les scripts du VPS : `PND_SUPABASE_MIGRATIONS_APPLIED=YES` est ta confirmation
+qu'ils sont appliqués.
+
+La mise à jour automatique de 8 h compare les migrations de la nouvelle version avec celles de la version
+installée. S'il y en a une nouvelle, elle s'arrête **avant tout changement** et `/maj etat` (et le message privé
+de résultat) donne leurs noms : applique-les dans Supabase, puis lance `/maj lancer`, qui vaut confirmation.
 
 - S'ils sont déjà appliqués dans Supabase (cas normal si la V5 tourne déjà) : rien à faire.
 - Sinon : applique-les dans l'éditeur SQL de Supabase, dans l'ordre des noms, après une sauvegarde.

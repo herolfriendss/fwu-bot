@@ -135,6 +135,20 @@ gh_api -o "$WORK/src.zip" "https://api.github.com/repos/$REPO_SLUG/zipball/$REF"
 mkdir "$WORK/src" && unzip -q "$WORK/src.zip" -d "$WORK/src" || fail "Archive GitHub illisible."
 REPO="$(find "$WORK/src" -mindepth 1 -maxdepth 1 -type d | head -n 1)"
 [[ -f "$REPO/bot/index.js" && -f "$REPO/scripts/update-1942.sh" ]] || fail "Archive incomplète."
+
+# Migrations Supabase : le script de déploiement exige qu'elles soient appliquées avant le nouveau code.
+# Une nouvelle migration n'est jamais confirmée en mode automatique : la mise à jour s'arrête avant tout
+# changement, et l'OWNER l'applique dans Supabase puis lance /maj lancer (confirmation manuelle).
+INSTALLED_MIGRATIONS="$H/her-v5-production/supabase/migrations"
+NEW_MIGRATIONS=""
+if [[ -d "$INSTALLED_MIGRATIONS" && -d "$REPO/supabase/migrations" ]]; then
+  NEW_MIGRATIONS="$(comm -13 <(find "$INSTALLED_MIGRATIONS" -maxdepth 1 -name '*.sql' -printf '%f\n' | sort) \
+    <(find "$REPO/supabase/migrations" -maxdepth 1 -name '*.sql' -printf '%f\n' | sort) | paste -sd ' ' -)"
+fi
+if [[ -n "$NEW_MIGRATIONS" ]]; then
+  [[ -n "$AUTO" ]] && fail "Nouvelles migrations Supabase à appliquer d'abord : $NEW_MIGRATIONS. Applique-les dans Supabase, puis /maj lancer."
+  echo "⚠️ Nouvelles migrations Supabase dans cette version : $NEW_MIGRATIONS (mise à jour lancée à la main : elles doivent déjà être appliquées)."
+fi
 echo "Version : $(basename "$REPO")"
 
 status running "Préparation des paquets"
