@@ -124,7 +124,7 @@ import { handleLogsInteraction, handleLogsMessage } from "./logs-commands.js";
 import { logEvent, startLogMaintenance } from "./log-events.js";
 import { activeSourceGuildIds } from "./logs-config.js";
 import { enforceBlacklistOnJoin, handleBlacklistInteraction, handleBlacklistMessage, isBlacklisted } from "./blacklist.js";
-import { enforceWetOnJoin, handleWetInteraction } from "./wet.js";
+import { enforceWetOnJoin, handleWetInteraction, processPendingWetUnbans } from "./wet.js";
 import { handleDmAllInteraction, handleDmAllMessage, recoverInterruptedDmAllJobs } from "./dmall.js";
 import { handleResumeInteraction, handleResumeMessage, pruneResumeEvents, recordResumeEvent } from "./resume.js";
 import { handleStaffModerationInteraction, STAFF_COMMANDS } from "./staff-moderation.js";
@@ -1570,6 +1570,9 @@ client.once("clientReady", () => {
   // expiration automatique (contrôle chaque minute).
   // GUARD : double authentification non exigée → alerte ; sortie automatique du mode raid.
   if (serves("guard")) {
+    // Resume durable /unwet jobs after restarts and retry Discord permission/network failures.
+    void processPendingWetUnbans(client, { record }).catch(() => record("wet_unban_recovery_error"));
+    setInterval(() => { void processPendingWetUnbans(client, { record }).catch(() => record("wet_unban_recovery_error")); }, 60_000).unref?.();
     for (const guild of client.guilds.cache.values()) if (guardWatch(guild)) void checkMfa(guild, { settings: settings[guild.id] }).catch(() => {});
     setInterval(() => { void raidAutoExit(client, { getSettings: (guildId) => settings[guildId] }).catch(() => record("guild_guard_error")); }, 60_000).unref?.();
     // AutoMod natif de Discord, posé une seule fois par serveur (jamais recréé si le staff le supprime).
