@@ -218,6 +218,28 @@ describe("surveillance FWU", () => {
     expect(r.messages.join()).toMatch(/plus de 36 h/);
   });
 
+  it("alerte sur une pression mémoire et une charge CPU durables, puis confirme le retour à la normale", () => {
+    const base = {
+      processes: allOnline(),
+      outbox: 0,
+      diskPercent: 50,
+      backup: null,
+      memoryPercent: 92,
+      load1: 9,
+      cpuCount: 4,
+    };
+    let r = evaluate({}, base, 0);
+    expect(r.messages).toEqual([]);
+    r = evaluate(r.state, base, 4 * MIN);
+    expect(r.messages).toEqual([]);
+    r = evaluate(r.state, base, 5 * MIN);
+    expect(r.messages.join("\n")).toMatch(/Mémoire du VPS élevée depuis 5 min : 92 %/);
+    expect(r.messages.join("\n")).toMatch(/Charge système élevée depuis 5 min/);
+    r = evaluate(r.state, { ...base, memoryPercent: 84, load1: 5 }, 6 * MIN);
+    expect(r.messages.join("\n")).toMatch(/Mémoire du VPS revenue à 84 %/);
+    expect(r.messages.join("\n")).toMatch(/Charge système revenue à un niveau normal/);
+  });
+
   it("lit la sortie de pm2 jlist", () => {
     expect(
       parsePm2List(
