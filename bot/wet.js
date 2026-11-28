@@ -58,6 +58,21 @@ db.exec(`
     created_at INTEGER NOT NULL
   );
   CREATE INDEX IF NOT EXISTS wet_audit_case_idx ON wet_audit_events(case_id, created_at DESC);
+  CREATE TABLE IF NOT EXISTS wet_unban_jobs (
+    case_id TEXT NOT NULL,
+    guild_id TEXT NOT NULL,
+    user_id TEXT NOT NULL,
+    actor_id TEXT NOT NULL,
+    expected_reason TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending','completed','preserved')),
+    attempts INTEGER NOT NULL DEFAULT 0,
+    next_attempt_at INTEGER NOT NULL,
+    last_error TEXT NOT NULL DEFAULT '',
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL,
+    PRIMARY KEY(case_id, guild_id, user_id)
+  );
+  CREATE INDEX IF NOT EXISTS wet_unban_jobs_due_idx ON wet_unban_jobs(status, next_attempt_at);
 `);
 
 export const WET_DENIED = "⛔ La gestion WET est réservée à l'OWNER technique. La consultation est réservée à l'OWNER et aux SYS+.";
@@ -218,7 +233,7 @@ export function linkWetAccount({ guildId, actorId, sourceUserId, user, reason, e
   return source.id;
 }
 
-export function revokeWetCase(userId, { guildId, actorId, reason, now = Date.now() } = {}) {
+export function revokeWetCase(userId, { guildId, actorId, reason, guildIds = [], now = Date.now() } = {}) {
   if (!validSnowflake(userId) || !validSnowflake(guildId) || !validSnowflake(actorId)) throw new Error("Identifiant Discord invalide.");
   requireWetOwner(actorId);
   const cleanWhy = cleanReason(reason);
@@ -232,6 +247,19 @@ export function revokeWetCase(userId, { guildId, actorId, reason, now = Date.now
       UPDATE wet_cases SET status='revoked', revoked_by=?, revoked_at=?, revoke_reason=?
       WHERE id=? AND status='active'
     `).run(actorId, now, cleanWhy, active.id);
+    const accounts = getWetCaseAccounts(active.id);
+    const targetGuildIds = [...new Set(guildIds.filter(validSnowflake))];
+    const queueJob = db.prepare(`
+      INSERT OR IGNORE INTO wet_unban_jobs(
+        case_id,guild_id,user_id,actor_id,expected_reason,status,attempts,next_attempt_at,last_error,created_at,updated_at
+      ) VALUES(?,?,?,?,?,'pending',0,?,'',?,?)
+    `);
+    const expectedReason = banReason(active);
+    for (const account of accounts) {
+      for (const targetGuildId of targetGuildIds) {
+        queueJob.run(active.id, targetGuildId, account.user_id, actorId, expectedReason, now, now, now);
+      }
+    }
     addAudit({ caseId: active.id, guildId, actorId, targetId: userId, action: "revoked", reason: cleanWhy, evidence: "", now });
     db.exec("COMMIT");
   } catch (error) {
@@ -311,6 +339,83 @@ export async function unbanWetAccountsAcrossNetwork(client, accounts, actorId, c
     }
   }
   return results;
+}
+
+/**
+ * Process durable /unwet jobs. A failed Discord request remains pending with
+ * bounded exponential backoff; only an exact audit reason can be removed.
+ */
+export async function processPendingWetUnbans(client, { now = Date.now(), limit = 100, record = () => {} } = {}) {
+  const guilds = client?.guilds?.cache;
+  const jobs = db.prepare(`
+    SELECT case_id,guild_id,user_id,actor_id,expected_reason,attempts
+    FROM wet_unban_jobs
+    WHERE status='pending' AND next_attempt_at<=?
+    ORDER BY created_at ASC LIMIT ?
+  `).all(now, Math.min(500, Math.max(1, Number(limit) || 100)));
+  const result = { unbanned: 0, notBanned: 0, stillBlacklisted: 0, stillWet: 0, preservedOtherBan: 0, deferred: 0, failed: [] };
+  const update = db.prepare(`
+    UPDATE wet_unban_jobs
+    SET status=?,attempts=?,next_attempt_at=?,last_error=?,updated_at=?
+    WHERE case_id=? AND guild_id=? AND user_id=? AND status='pending'
+  `);
+  for (const job of jobs) {
+    const guild = guilds?.get?.(job.guild_id);
+    if (!guild) { result.deferred++; continue; }
+    const attempts = Number(job.attempts) || 0;
+    const defer = (errorCode, delay = Math.min(6 * 60 * 60_000, 30_000 * (2 ** Math.min(attempts, 10)))) => {
+      update.run("pending", attempts + 1, now + delay, String(errorCode ?? "discord_error").slice(0, 120), now, job.case_id, job.guild_id, job.user_id);
+      result.failed.push({ guildId: job.guild_id, userId: job.user_id, code: Number(errorCode) || null });
+      record("wet_unban_retry_failed");
+    };
+    if (isWet(job.user_id)) {
+      update.run("pending", attempts, now + 60_000, "active_wet_case", now, job.case_id, job.guild_id, job.user_id);
+      result.stillWet++;
+      continue;
+    }
+    try {
+      const blacklist = db.prepare("SELECT 1 FROM blacklist_entries WHERE guild_id=? AND user_id=?").get(job.guild_id, job.user_id);
+      if (blacklist) {
+        update.run("pending", attempts, now + 5 * 60_000, "local_blacklist_active", now, job.case_id, job.guild_id, job.user_id);
+        result.stillBlacklisted++;
+        continue;
+      }
+    } catch (error) {
+      defer(error?.code ?? "blacklist_unreadable");
+      continue;
+    }
+    let existingBan;
+    try {
+      existingBan = await guild.bans.fetch(job.user_id);
+    } catch (error) {
+      if (Number(error?.code) === 10026) {
+        update.run("completed", attempts, now, "", now, job.case_id, job.guild_id, job.user_id);
+        result.notBanned++;
+      } else defer(error?.code ?? "ban_lookup_failed");
+      continue;
+    }
+    if (!existingBan) {
+      update.run("completed", attempts, now, "", now, job.case_id, job.guild_id, job.user_id);
+      result.notBanned++;
+      continue;
+    }
+    if (String(existingBan.reason ?? "") !== job.expected_reason) {
+      update.run("preserved", attempts, now, "independent_ban_reason", now, job.case_id, job.guild_id, job.user_id);
+      result.preservedOtherBan++;
+      continue;
+    }
+    try {
+      await guild.bans.remove(job.user_id, `WET levé par ${job.actor_id} · dossier ${job.case_id.slice(0, 8)}`.slice(0, 500));
+      update.run("completed", attempts, now, "", now, job.case_id, job.guild_id, job.user_id);
+      result.unbanned++;
+    } catch (error) {
+      if (Number(error?.code) === 10026) {
+        update.run("completed", attempts, now, "", now, job.case_id, job.guild_id, job.user_id);
+        result.notBanned++;
+      } else defer(error?.code ?? "ban_remove_failed");
+    }
+  }
+  return result;
 }
 
 /** guildMemberAdd: the primary account and every manually confirmed linked account are enforced. */
