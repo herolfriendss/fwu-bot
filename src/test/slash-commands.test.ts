@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { EXTRA_SLASH_COMMANDS, SLASH_COMMANDS, slashCommandsByCategory, toDiscordCommand } from "@/lib/slash-commands";
-import { BOT_PROFILE_IDS, slashCommandNamesForProfile } from "@/lib/bot-profiles";
+import { BOT_PROFILE_IDS, isBridgedPrefixCommand, slashCommandNamesForProfile } from "@/lib/bot-profiles";
 
 // Leaf subcommand names of a command, looking inside Discord subcommand groups too.
 function leafNames(options: SlashOptionLike[] | undefined): string[] {
@@ -101,6 +101,7 @@ describe("V4 slash commands", () => {
     const wet = EXTRA_SLASH_COMMANDS.find((command) => command.name === "wet");
     const unwet = EXTRA_SLASH_COMMANDS.find((command) => command.name === "unwet");
     expect(wet?.requiresBotProcess).toBe(true);
+    expect(wet?.prefixEnabled).toBe(false);
     expect(wet?.dmPermission).toBe(false);
     expect(wet?.options?.map((option) => option.name)).toEqual(["ajouter", "lier", "verifier", "liste"]);
     expect(wet?.options?.find((option) => option.name === "ajouter")?.options?.map((option) => option.name)).toEqual(["id", "raison", "preuve"]);
@@ -108,6 +109,8 @@ describe("V4 slash commands", () => {
     expect(unwet?.requiresBotProcess).toBe(true);
     expect(unwet?.options?.map((option) => option.name)).toEqual(["id", "raison"]);
     expect(slashCommandNamesForProfile("guard")).toEqual(expect.arrayContaining(["wet", "unwet"]));
+    expect(isBridgedPrefixCommand("guard", "wet")).toBe(false);
+    expect(isBridgedPrefixCommand("guard", "unwet")).toBe(false);
     expect(slashCommandNamesForProfile("fwu")).not.toContain("wet");
     expect(slashCommandNamesForProfile("fwu")).not.toContain("unwet");
     expect([...SLASH_COMMANDS, ...EXTRA_SLASH_COMMANDS].some((command) => command.name === "whois")).toBe(false);
