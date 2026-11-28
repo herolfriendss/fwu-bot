@@ -3,7 +3,7 @@ import { z } from "zod";
 export const runtimeEventCodes = [
   "started", "connected", "disconnected", "reconnecting", "sync_ok", "sync_error", "gateway_error",
   "message_error", "voice_error", "interaction_error", "welcome_error", "welcome_channel_unavailable", "departure_channel_unavailable", "departure_message_error", "dog_enforcement_error",
-  "dog_nickname_restored", "dog_leashes_restored", "dog_reconcile_error", "dog_voice_returned", "dog_voice_error",
+  "dog_nickname_restored", "dog_conflict_paused", "dog_leashes_restored", "dog_reconcile_error", "dog_voice_returned", "dog_voice_error",
   "lockname_restored", "lockname_reconcile_error", "lockname_restore_error",
   "menotte_expired", "menotte_expiration_error",
   "waouf_expired", "waouf_expiration_error", "waouf_error", "waouf_permission_error",
@@ -73,6 +73,7 @@ export const EVENT_LABELS: Record<typeof runtimeEventCodes[number], string> = {
   departure_message_error: "Échec du message de départ",
   dog_enforcement_error: "Échec de réapplication du surnom DOG",
   dog_nickname_restored: "Surnom de laisse DOG rétabli",
+  dog_conflict_paused: "DOG : maintien suspendu après conflit entre bots",
   dog_leashes_restored: "État DOG restauré après reconnexion",
   dog_reconcile_error: "Échec de restauration DOG",
   dog_voice_returned: "Membre DOG ramené dans le vocal du propriétaire",
