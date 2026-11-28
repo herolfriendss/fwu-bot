@@ -947,7 +947,7 @@ Catégorie : Général · Utilisation : `/guide voir · configurer public [staff
 
 ### /ia
 
-Gère ta mémoire et pose des questions sur FWU  
+Gère ta mémoire et pose des questions sur le fonctionnement du serveur  
 Catégorie : Général · Utilisation : `/ia memoire etat:activer|desactiver · /ia oublier · /ia question question`
 
 - `/ia memoire` — Choisis si le bot peut conserver le contexte de tes conversations · préfixe `=ia memoire`<br>`etat` (texte, obligatoire, choix : Activer la mémoire pour moi, Désactiver la mémoire pour moi) — Ton choix de consentement
