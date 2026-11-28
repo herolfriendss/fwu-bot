@@ -534,12 +534,12 @@ export async function handleWetInteraction(interaction, settings = null, network
     if (command === "unwet") {
       const userId = interaction.options.getString("id", true).trim();
       const reason = interaction.options.getString("raison", true);
-      const revoked = revokeWetCase(userId, { guildId: interaction.guild.id, actorId: interaction.user.id, reason });
+      const revoked = revokeWetCase(userId, { guildId: interaction.guild.id, actorId: interaction.user.id, reason, guildIds: networkGuilds.map((guild) => guild.id) });
       if (!revoked) {
         await interaction.editReply({ content: `ℹ️ ${userId} n'appartient à aucun dossier WET actif.`, allowedMentions: { parse: [] } });
         return true;
       }
-      const result = await unbanWetAccountsAcrossNetwork(interaction.client, revoked.accounts, interaction.user.id, revoked, networkGuilds);
+      const result = await processPendingWetUnbans(interaction.client);
       await sendCentralLog(interaction.guild, settings, systemLogEmbed({
         category: "moderation",
         title: "♻️ WET — dossier levé",
