@@ -26,7 +26,7 @@ function makeMember(id, position, roles = []) {
   return { id, roles: { highest: { position }, cache: new Map(roles.map((r) => [r, {}])) }, guild: { id: "g" }, permissions: { has: () => false } };
 }
 
-function makeGuild({ canBan = true } = {}) {
+function makeGuild({ canBan = true, fetchError = null } = {}) {
   const present = new Map([[MEMBER, makeMember(MEMBER, 1)], [HIGH, makeMember(HIGH, 9)]]);
   const bans = [];
   return {
@@ -39,7 +39,7 @@ function makeGuild({ canBan = true } = {}) {
     },
     banned: bans,
     members: {
-      fetch: async ({ user }) => { if (present.has(user)) return present.get(user); throw Object.assign(new Error("unknown"), { code: 10007 }); },
+      fetch: async ({ user }) => { if (fetchError) throw fetchError; if (present.has(user)) return present.get(user); throw Object.assign(new Error("unknown"), { code: 10007 }); },
       fetchMe: async () => makeMember("999999999999999999", 10),
     },
   };
@@ -63,6 +63,18 @@ test("add bans by ID, even an absent account, and is idempotent", async () => {
   assert.equal(isBlacklisted("g", absent), true);
   const again = await addToBlacklist({ guild, actor, userId: absent, reason: "raid 2" });
   assert.equal(again.alreadyListed, true);
+});
+
+
+test("member lookup outages refuse blacklist changes instead of treating the target as absent", async () => {
+  reset();
+  const guild = makeGuild({ fetchError: Object.assign(new Error("rate limited"), { status: 429 }) });
+  const actor = makeMember(SYS, 5, [SYS_ROLE]);
+  await assert.rejects(
+    addToBlacklist({ guild, actor, userId: "100000000000000077", reason: "test" }),
+    /Hiérarchie illisible/,
+  );
+  assert.equal(isBlacklisted("g", "100000000000000077"), false);
 });
 
 test("hierarchy and protected accounts are refused, nothing stored", async () => {

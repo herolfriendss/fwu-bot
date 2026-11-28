@@ -72,6 +72,19 @@ test("central guard fails closed when the target cannot be read, but allows a ta
   assert.equal(await checkInteractionHierarchy(interaction({ path: "ban", actorId: "2", targetId: "404", positions }), { pndOwnerId: OWNER }), null, "unknown member (10007) → absent, allowed");
 });
 
+
+test("only ban and blacklist-add may target a confirmed non-member", async () => {
+  const positions = { 2: 10 };
+  const dogMissing = interaction({ path: "dog", actorId: "2", targetId: "404", positions });
+  const blacklistMissing = interaction({ path: "blacklist add", actorId: "2", targetId: "404", positions });
+  const rankMissing = interaction({ path: "rank", actorId: "2", targetId: "404", positions });
+  assert.equal(await checkInteractionHierarchy(dogMissing, { pndOwnerId: OWNER }), HIERARCHY_MESSAGES.targetMissing);
+  assert.equal(await checkInteractionHierarchy(rankMissing, { pndOwnerId: OWNER }), HIERARCHY_MESSAGES.targetMissing);
+  assert.equal(await checkInteractionHierarchy(blacklistMissing, { pndOwnerId: OWNER }), null);
+  const ownerDogMissing = interaction({ path: "dog", actorId: OWNER, targetId: "404", positions });
+  assert.equal(await checkInteractionHierarchy(ownerDogMissing, { pndOwnerId: OWNER }), HIERARCHY_MESSAGES.targetMissing, "OWNER still needs a present member for member-only actions");
+});
+
 test("decideHierarchy refuses an unreadable target marker", () => {
   assert.equal(decideHierarchy({ actorId: "2", targetId: "3", actorPosition: 10, targetPosition: Number.NaN, guildOwnerId: GUILD_OWNER, pndOwnerId: OWNER }), HIERARCHY_MESSAGES.unreadable);
 });
@@ -141,4 +154,5 @@ test("prefix hierarchy refuses a higher target and fails closed on read errors",
   assert.equal(await checkPrefixHierarchy(message(Object.assign(new Error("x"), { status: 429 })), "=wakeup <@300000000000000003>", { pndOwnerId: OWNER }), HIERARCHY_MESSAGES.unreadable);
   assert.equal(await checkPrefixHierarchy(message(), "=balance <@300000000000000003>", { pndOwnerId: OWNER }), null);
   assert.equal(await checkPrefixHierarchy(message(), "=ban 999999999999999999", { pndOwnerId: OWNER }), null, "absent → allowed (ban by ID)");
+  assert.equal(await checkPrefixHierarchy(message(), "=dog 999999999999999999", { pndOwnerId: OWNER }), HIERARCHY_MESSAGES.targetMissing, "absent → refused for member-only action");
 });

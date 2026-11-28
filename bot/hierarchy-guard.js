@@ -62,8 +62,11 @@ export const HIERARCHY_MESSAGES = Object.freeze({
   owner: "⛔ Cette personne est l'OWNER : personne d'autre ne peut agir sur elle.",
   guildOwner: "⛔ Le propriétaire du serveur ne peut pas être visé.",
   notLower: "⛔ Tu ne peux agir que sur un membre dont le rôle le plus élevé est en dessous du tien.",
+  targetMissing: "⛔ Ce membre n'est pas présent sur le serveur : cette commande exige un membre présent.",
   unreadable: "⛔ Hiérarchie des rôles illisible : action refusée par sécurité.",
 });
+
+const ABSENT_TARGET_ALLOWED_PATHS = new Set(["ban", "blacklist add"]);
 
 export function commandPath(interaction) {
   const o = interaction?.options;
@@ -110,21 +113,34 @@ export async function readMemberState(guild, userId) {
 }
 
 /** Shared core: refusal text for `actorId` acting on `targetId` in `guild`, or null. */
-export async function checkTargetHierarchy(guild, actorId, targetId, { pndOwnerId = parsePndOwnerId(process.env.PND_OWNER_DISCORD_ID) } = {}) {
+export async function checkTargetHierarchy(guild, actorId, targetId, { pndOwnerId = parsePndOwnerId(process.env.PND_OWNER_DISCORD_ID), path = null } = {}) {
   if (!guild || !targetId) return null;
-  if (hasFullAccess(actorId, { guildOwnerId: guild.ownerId, pndOwnerId }) && targetId !== pndOwnerId) return null;
+  if (hasFullAccess(actorId, { guildOwnerId: guild.ownerId, pndOwnerId }) && targetId !== pndOwnerId) {
+    const targetState = await readMemberState(guild, targetId);
+    if (targetState.state === "unreadable") return HIERARCHY_MESSAGES.unreadable;
+    if (targetState.state === "absent" && !ABSENT_TARGET_ALLOWED_PATHS.has(path)) return HIERARCHY_MESSAGES.targetMissing;
+    return null;
+  }
   const [actorState, targetState] = await Promise.all([readMemberState(guild, actorId), readMemberState(guild, targetId)]);
   const actor = actorState.state === "member" ? actorState.member : null;
   const position = (member) => {
     const value = member?.roles?.highest?.position;
     return Number.isFinite(value) ? value : NaN;
   };
+  if (actorState.state !== "member" || targetState.state === "unreadable") return HIERARCHY_MESSAGES.unreadable;
+  if (targetState.state === "absent" && !ABSENT_TARGET_ALLOWED_PATHS.has(path)) {
+    const protectedTarget = decideHierarchy({
+      actorId, targetId, actorPosition: position(actor), targetPosition: null,
+      guildOwnerId: guild.ownerId, pndOwnerId,
+    });
+    return protectedTarget ?? HIERARCHY_MESSAGES.targetMissing;
+  }
   return decideHierarchy({
     actorId,
     targetId,
     actorPosition: position(actor),
-    // absent → null (nothing to compare, e.g. ban by ID); unreadable → NaN (refused).
-    targetPosition: targetState.state === "absent" ? null : targetState.state === "member" ? position(targetState.member) : NaN,
+    // An absent target is allowed only for explicit ID-based ban/blacklist operations.
+    targetPosition: targetState.state === "absent" ? null : position(targetState.member),
     guildOwnerId: guild.ownerId,
     pndOwnerId,
   });
@@ -137,7 +153,7 @@ export async function checkInteractionHierarchy(interaction, { pndOwnerId = pars
   if (!option) return null;
   const user = interaction.options.getUser?.(option, false);
   if (!user) return null;
-  return checkTargetHierarchy(interaction.guild, interaction.user?.id, user.id, { pndOwnerId });
+  return checkTargetHierarchy(interaction.guild, interaction.user?.id, user.id, { pndOwnerId, path: commandPath(interaction) });
 }
 
 /**
@@ -172,5 +188,5 @@ export async function checkPrefixHierarchy(message, canonical, options = {}) {
   if (!prefixHierarchyPath(canonical)) return null;
   const targetId = prefixTargetId(canonical);
   if (!targetId) return null;
-  return checkTargetHierarchy(message.guild, message.author.id, targetId, options);
+  return checkTargetHierarchy(message.guild, message.author.id, targetId, { ...options, path: prefixHierarchyPath(canonical) });
 }
