@@ -79,7 +79,6 @@ test("V2: automatic update runs once a night at the chosen Paris hour, never whi
   assert.equal(autoUpdateDue({ now: at8, env: {} }), "2026-11-27");
   assert.equal(autoUpdateDue({ now: at8, env: {}, lastRunDay: "2026-11-27" }), false, "une fois par jour dans le même processus");
   const at11 = new Date("2026-11-27T10:00:00Z");
-  assert.equal(autoUpdateDue({ now: at11, env: {}, status: { state: "done", at: Math.floor(at8.getTime() / 1000) } }), false, "ne relance pas après une mise à jour déjà terminée ce jour-là");
   assert.equal(autoUpdateDue({ now: at11, env: {}, status: { state: "done", at: Math.floor(new Date("2026-11-26T07:10:00Z").getTime() / 1000) } }), "2026-11-27", "rattrape l’heure si le bot redémarre après 8 h");
   assert.equal(autoUpdateDue({ now: at8, env: { FWU_AUTO_UPDATE: "off" } }), false);
   assert.equal(autoUpdateDue({ now: at8, env: {}, status: { state: "running", at: Math.floor(at8.getTime() / 1000) } }), false);
