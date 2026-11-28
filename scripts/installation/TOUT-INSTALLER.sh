@@ -145,9 +145,9 @@ write_env_value "$ROOT/.env" PND_OWNER_DISCORD_ID "$OWNER_ID"
 AI_PROVIDER_KEY="$(read_env_value "$ROOT/.env" LOVABLE_API_KEY)"
 if ! is_configured "$AI_PROVIDER_KEY"; then AI_PROVIDER_KEY="$(read_env_value "$ROOT/.env" AI_GATEWAY_API_KEY)"; fi
 if ! is_configured "$AI_PROVIDER_KEY"; then
-  printf '%s\\n' "⚠️ Aucune clé fournisseur IA détectée dans .env : les fonctions IA resteront indisponibles jusqu'a la configuration de LOVABLE_API_KEY ou AI_GATEWAY_API_KEY."
+  printf '%s\n' "⚠️ Aucune clé fournisseur IA détectée dans .env : les fonctions IA resteront indisponibles jusqu'a la configuration de LOVABLE_API_KEY ou AI_GATEWAY_API_KEY."
 else
-  printf '%s\\n' "Passerelle IA : clé fournisseur présente côté site (jamais copiée dans les bots)."
+  printf '%s\n' "Passerelle IA : clé fournisseur présente côté site (jamais copiée dans les bots)."
 fi
 unset WEB_SECRET BOT_SECRET AI_PROVIDER_KEY
 pm2 restart her-v5-bot --update-env >/dev/null || fail "Redémarrage de FWU impossible."
