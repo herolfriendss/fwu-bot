@@ -57,7 +57,7 @@ Une tâche à la fois, dans l'ordre. Cocher au fur et à mesure.
 - [ ] 28. **Raccourci SSH** (`ssh fwu` au lieu de l'adresse et de la clé à chaque fois), côté ordinateur.
 - [ ] 29. **Déploiement automatique du VPS** à chaque mise à jour validée de `main`, par une clé SSH dédiée aux droits limités. Plus besoin de taper quoi que ce soit.
 - [x] 30. **Console installable sur le téléphone** (icône sur l'écran d'accueil, plein écran), pour redémarrer un bot en deux appuis. _(Fait le 27/11 : manifeste et icône : sur le téléphone, ouvrir /console/ puis « Ajouter à l'écran d'accueil »)_
-- [ ] 31. **Mode maintenance global** : un bouton qui annonce l'arrêt aux membres, coupe les commandes sensibles, puis remet tout en route.
+- [x] 31. **Mode maintenance global** : commandes OWNER et bouton éphémère dans `/stabilite etat` ; annonce publique, suspension des commandes sur les six bots et rétablissement par bouton. Validation staging restante.
 - [x] 32. **Aide-mémoire dans la console** : les commandes utiles (PM2, logs, redémarrage) à copier en un clic, par bot. _(Fait le 27/11 : bloc « Aide-mémoire du serveur » dans Réglages, chaque commande se copie en un clic)_
 - [x] 33. **Journal des changements** (`CHANGELOG`) tenu automatiquement, pour savoir ce qui a été mis en ligne et quand. _(Fait le 27/11 : `CHANGELOG.md` à la racine)_
 - [x] 34. **Mode d'emploi pour reprendre sans aide** : où est quoi (Render, VPS, Supabase, Discord), comment déployer, comment restaurer. _(Fait le 27/11 : `docs/MODE_EMPLOI.md`)_
