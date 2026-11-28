@@ -8,10 +8,14 @@ import { db, transaction } from "../database.js";
 import { grantPnd } from "../economy.js";
 
 export const DAY = 86_400_000;
-export const PAY_MODES = Object.freeze(["manuel", "pnd"]);
+// pnd : payé dans le bot en PND ; manuel : payé hors du bot (argent réel, géré par l'administration) ;
+// mixte : au choix du membre, PND ou paiement réel.
+export const PAY_MODES = Object.freeze(["manuel", "pnd", "mixte"]);
+export const payableInPnd = (plan) => plan?.payMode === "pnd" || plan?.payMode === "mixte";
+export const payableReal = (plan) => plan?.payMode === "manuel" || plan?.payMode === "mixte";
 export const STATUSES = Object.freeze(["active", "paused", "expired", "cancelled"]);
 export const STATUS_LABELS = Object.freeze({ active: "🟢 Actif", paused: "⏸️ En pause", expired: "⚪ Expiré", cancelled: "🔴 Résilié" });
-export const REQUEST_KINDS = Object.freeze({ renouveler: "Renouvellement", changer: "Changement de formule", question: "Question" });
+export const REQUEST_KINDS = Object.freeze({ souscrire: "Souscription (paiement réel)", renouveler: "Renouvellement", changer: "Changement de formule", question: "Question" });
 export const LIMITS = Object.freeze({ name: 40, description: 300, benefits: 900, note: 200, request: 500, welcome: 900, maxPlans: 25, maxDays: 3650, maxPrice: 1_000_000_000 });
 
 db.exec(`
@@ -46,6 +50,9 @@ db.exec(`
   );
   CREATE INDEX IF NOT EXISTS investplus_requests_open ON investplus_requests(guild_id, status, created_at);
 `);
+// Prix en argent réel affiché aux membres (texte libre, ex. « 9,99 € / mois ») et instructions de paiement.
+try { db.exec("ALTER TABLE investplus_plans ADD COLUMN real_price TEXT"); } catch { /* déjà là */ }
+try { db.exec("ALTER TABLE investplus_config ADD COLUMN payment_info TEXT"); } catch { /* déjà là */ }
 
 /** Texte saisi par un humain : sans mention de masse, espaces normalisés, longueur bornée. */
 export function cleanText(value, max, label, { required = false, multiline = false } = {}) {
@@ -63,6 +70,7 @@ const rowToConfig = (guildId, row) => ({
   adminChannelId: row?.admin_channel_id ?? null,
   staffRoleId: row?.staff_role_id ?? null,
   welcome: row?.welcome ?? "",
+  paymentInfo: row?.payment_info ?? "",
   reminderDays: Number(row?.reminder_days ?? 3),
 });
 
@@ -74,16 +82,18 @@ export function saveInvestConfig(guildId, patch = {}) {
   const next = { ...investConfig(guildId), ...Object.fromEntries(Object.entries(patch).filter(([, v]) => v !== undefined)) };
   next.welcome = cleanText(next.welcome, LIMITS.welcome, "Le message d'accueil", { multiline: true });
   next.reminderDays = Math.min(30, Math.max(0, Math.trunc(Number(next.reminderDays) || 0)));
+  next.paymentInfo = cleanText(next.paymentInfo ?? "", LIMITS.welcome, "Les instructions de paiement", { multiline: true });
   db.prepare(`INSERT INTO investplus_config(guild_id,enabled,category_id,admin_channel_id,staff_role_id,welcome,reminder_days)
     VALUES(?,?,?,?,?,?,?) ON CONFLICT(guild_id) DO UPDATE SET enabled=excluded.enabled, category_id=excluded.category_id,
     admin_channel_id=excluded.admin_channel_id, staff_role_id=excluded.staff_role_id, welcome=excluded.welcome, reminder_days=excluded.reminder_days`)
     .run(guildId, next.enabled ? 1 : 0, next.categoryId, next.adminChannelId, next.staffRoleId, next.welcome, next.reminderDays);
+  db.prepare("UPDATE investplus_config SET payment_info=? WHERE guild_id=?").run(next.paymentInfo || null, guildId);
   return investConfig(guildId);
 }
 
 const rowToPlan = (row) => row && ({
   id: Number(row.id), guildId: row.guild_id, name: row.name, description: row.description, benefits: row.benefits,
-  price: Number(row.price), periodDays: Number(row.period_days), roleId: row.role_id ?? null, payMode: row.pay_mode,
+  price: Number(row.price), periodDays: Number(row.period_days), roleId: row.role_id ?? null, payMode: row.pay_mode, realPrice: row.real_price ?? null,
   active: Boolean(row.active), createdAt: Number(row.created_at),
 });
 
@@ -104,21 +114,22 @@ function checkPlanFields(fields) {
     out.periodDays = days;
   }
   if (fields.payMode !== undefined) {
-    if (!PAY_MODES.includes(fields.payMode)) throw new Error("Paiement : « manuel » ou « pnd ».");
+    if (!PAY_MODES.includes(fields.payMode)) throw new Error("Paiement : « manuel », « pnd » ou « mixte ».");
     out.payMode = fields.payMode;
   }
   if (fields.roleId !== undefined) out.roleId = fields.roleId || null;
+  if (fields.realPrice !== undefined) out.realPrice = cleanText(fields.realPrice ?? "", 60, "Le prix réel") || null;
   return out;
 }
 
 export function createPlan(guildId, fields, now = Date.now()) {
   const f = checkPlanFields({ description: "", benefits: "", price: 0, periodDays: 30, payMode: "manuel", roleId: null, ...fields });
-  if (f.payMode === "pnd" && f.price < 1) throw new Error("Une formule payée en PND doit avoir un prix d'au moins 1.");
+  if (payableInPnd(f) && f.price < 1) throw new Error("Une formule payable en PND doit avoir un prix d'au moins 1.");
   const count = Number(db.prepare("SELECT COUNT(*) AS n FROM investplus_plans WHERE guild_id=? AND active=1").get(guildId).n);
   if (count >= LIMITS.maxPlans) throw new Error(`${LIMITS.maxPlans} formules actives au maximum.`);
   if (planByName(guildId, f.name)) throw new Error(`Une formule « ${f.name} » existe déjà.`);
-  const info = db.prepare(`INSERT INTO investplus_plans(guild_id,name,description,benefits,price,period_days,role_id,pay_mode,active,created_at)
-    VALUES(?,?,?,?,?,?,?,?,1,?)`).run(guildId, f.name, f.description, f.benefits, f.price, f.periodDays, f.roleId, f.payMode, now);
+  const info = db.prepare(`INSERT INTO investplus_plans(guild_id,name,description,benefits,price,period_days,role_id,pay_mode,active,created_at,real_price)
+    VALUES(?,?,?,?,?,?,?,?,1,?,?)`).run(guildId, f.name, f.description, f.benefits, f.price, f.periodDays, f.roleId, f.payMode, now, f.realPrice ?? null);
   return planById(guildId, Number(info.lastInsertRowid));
 }
 
@@ -126,11 +137,11 @@ export function updatePlan(guildId, planId, fields) {
   const plan = planById(guildId, planId);
   if (!plan) throw new Error("Formule introuvable.");
   const f = { ...plan, ...checkPlanFields(fields) };
-  if (f.payMode === "pnd" && f.price < 1) throw new Error("Une formule payée en PND doit avoir un prix d'au moins 1.");
+  if (payableInPnd(f) && f.price < 1) throw new Error("Une formule payable en PND doit avoir un prix d'au moins 1.");
   const clash = planByName(guildId, f.name);
   if (clash && clash.id !== plan.id) throw new Error(`Une formule « ${f.name} » existe déjà.`);
-  db.prepare(`UPDATE investplus_plans SET name=?, description=?, benefits=?, price=?, period_days=?, role_id=?, pay_mode=? WHERE guild_id=? AND id=?`)
-    .run(f.name, f.description, f.benefits, f.price, f.periodDays, f.roleId, f.payMode, guildId, plan.id);
+  db.prepare(`UPDATE investplus_plans SET name=?, description=?, benefits=?, price=?, period_days=?, role_id=?, pay_mode=?, real_price=? WHERE guild_id=? AND id=?`)
+    .run(f.name, f.description, f.benefits, f.price, f.periodDays, f.roleId, f.payMode, f.realPrice ?? null, guildId, plan.id);
   return planById(guildId, plan.id);
 }
 
@@ -240,7 +251,7 @@ export function grantSubscription({ guildId, userId, planId, days, actorId = nul
 export function payWithPnd({ guildId, userId, planId }, now = Date.now()) {
   const plan = planById(guildId, planId);
   if (!plan || !plan.active) throw new Error("Formule introuvable ou plus proposée.");
-  if (plan.payMode !== "pnd") throw new Error("Cette formule ne se paie pas en PND : fais une demande à l'administration.");
+  if (!payableInPnd(plan)) throw new Error("Cette formule ne se paie pas en PND : choisis « Je la veux (paiement réel) ».");
   return transaction(() => {
     grantPnd(guildId, userId, -plan.price, "investplus_abonnement");
     return grantSubscription({ guildId, userId, planId: plan.id, actorId: userId, amount: plan.price, kind: "paiement" }, now);
@@ -256,7 +267,7 @@ export function giftWithPnd({ guildId, giverId, userId, planId }, now = Date.now
   if (String(giverId) === String(userId)) throw new Error("Pour toi-même, utilise le paiement de ta formule.");
   const plan = planById(guildId, planId);
   if (!plan || !plan.active) throw new Error("Formule introuvable ou plus proposée.");
-  if (plan.payMode !== "pnd") throw new Error("Seules les formules payables en PND peuvent être offertes.");
+  if (!payableInPnd(plan)) throw new Error("Seules les formules payables en PND peuvent être offertes.");
   const current = subscriptionOf(guildId, userId);
   if (current?.status === "paused") throw new Error("L'abonnement de ce membre est en pause : impossible de lui offrir une formule maintenant.");
   if (current?.status === "active" && current.planId !== plan.id) throw new Error("Ce membre a déjà une autre formule active : offre-lui la même formule pour la prolonger.");
@@ -446,9 +457,11 @@ export function listOpenRequests(guildId, limit = 10) {
 
 /** Format commun des montants. Les formules « manuel » affichent le prix tel quel, sans unité imposée. */
 export function formatPrice(plan) {
-  if (!plan?.price) return "Gratuit";
-  const amount = Number(plan.price).toLocaleString("fr-FR");
-  return plan.payMode === "pnd" ? `${amount} PND` : `${amount} (réglé hors bot)`;
+  const pnd = plan?.price ? `${Number(plan.price).toLocaleString("fr-FR")} PND` : "Gratuit";
+  const real = plan?.realPrice ? String(plan.realPrice) : "paiement réel";
+  if (plan?.payMode === "pnd") return pnd;
+  if (plan?.payMode === "mixte") return `${pnd} ou ${real}`;
+  return plan?.realPrice ? real : plan?.price ? `${Number(plan.price).toLocaleString("fr-FR")} (réglé hors bot)` : "Gratuit";
 }
 
 export function formatPeriod(days) {
