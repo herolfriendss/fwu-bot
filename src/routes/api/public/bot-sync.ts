@@ -39,7 +39,7 @@ export const Route = createFileRoute("/api/public/bot-sync")({
       POST: async ({ request }) => {
         const { checkBotSecret } = await import("@/lib/bot-settings.server");
         if (!checkBotSecret(request)) return json({ error: "unauthorized" }, 401);
-        let body: { action?: unknown; guildId?: unknown; userId?: unknown; memoryEnabled?: unknown; roleId?: unknown; actorId?: unknown; intelligenceEnabled?: unknown; intelligenceChannelId?: unknown; applicationId?: unknown; name?: unknown; permissions?: unknown; prompt?: unknown; instructions?: unknown; author?: unknown; guildName?: unknown; count?: unknown; module?: unknown; settings?: unknown; changes?: unknown; expected?: unknown; commands?: unknown; knowledge?: unknown };
+        let body: { action?: unknown; guildId?: unknown; userId?: unknown; memoryEnabled?: unknown; roleId?: unknown; actorId?: unknown; intelligenceEnabled?: unknown; intelligenceChannelId?: unknown; applicationId?: unknown; name?: unknown; permissions?: unknown; prompt?: unknown; instructions?: unknown; author?: unknown; guildName?: unknown; count?: unknown; transcript?: unknown; channelId?: unknown; module?: unknown; settings?: unknown; changes?: unknown; expected?: unknown; commands?: unknown; knowledge?: unknown };
         let rawBody: string | null;
         try {
           rawBody = await readBoundedText(request, 256_000);
