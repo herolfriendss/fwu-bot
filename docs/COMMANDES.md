@@ -417,10 +417,10 @@ Catégorie : Modération · Utilisation : `/verify moi | panel [salon] [role]`
 OWNER : registre de sanctions durables et de comptes liés sur preuve  
 Catégorie : Modération · Utilisation : `/wet ajouter|lier|verifier|liste`
 
-- `/wet ajouter` — Place un compte dans le registre WET et le bannit des serveurs autorisés · préfixe `+wet ajouter`<br>`id` (texte, obligatoire, 25 caractères max) — Identifiant Discord du compte<br>`raison` (texte, obligatoire, 300 caractères max) — Motif détaillé de la décision<br>`preuve` (texte, obligatoire, 1000 caractères max) — Lien HTTPS vers les éléments de preuve
-- `/wet lier` — Relie un compte alternatif après vérification humaine et preuve · préfixe `+wet lier`<br>`source` (texte, obligatoire, 25 caractères max) — Identifiant du compte déjà en WET<br>`compte` (texte, obligatoire, 25 caractères max) — Identifiant du compte alternatif confirmé<br>`raison` (texte, obligatoire, 300 caractères max) — Éléments établissant le lien<br>`preuve` (texte, obligatoire, 1000 caractères max) — Lien HTTPS vers les éléments de preuve
-- `/wet verifier` — Vérifie le statut WET d'un compte · préfixe `+wet verifier`<br>`id` (texte, obligatoire, 25 caractères max) — Identifiant Discord du compte
-- `/wet liste` — Affiche les dossiers WET actifs des serveurs autorisés · préfixe `+wet liste`
+- `/wet ajouter` — Place un compte dans le registre WET et le bannit des serveurs autorisés<br>`id` (texte, obligatoire, 25 caractères max) — Identifiant Discord du compte<br>`raison` (texte, obligatoire, 300 caractères max) — Motif détaillé de la décision<br>`preuve` (texte, obligatoire, 1000 caractères max) — Lien HTTPS vers les éléments de preuve
+- `/wet lier` — Relie un compte alternatif après vérification humaine et preuve<br>`source` (texte, obligatoire, 25 caractères max) — Identifiant du compte déjà en WET<br>`compte` (texte, obligatoire, 25 caractères max) — Identifiant du compte alternatif confirmé<br>`raison` (texte, obligatoire, 300 caractères max) — Éléments établissant le lien<br>`preuve` (texte, obligatoire, 1000 caractères max) — Lien HTTPS vers les éléments de preuve
+- `/wet verifier` — Vérifie le statut WET d'un compte<br>`id` (texte, obligatoire, 25 caractères max) — Identifiant Discord du compte
+- `/wet liste` — Affiche les dossiers WET actifs des serveurs autorisés
 
 ## FDPDLAVOC (préfixe `;`)
 
