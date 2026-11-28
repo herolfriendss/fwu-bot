@@ -153,3 +153,24 @@ test("la mise à jour ne reçoit ni le profil ni les tokens du bot qui la lance"
   m.launchUpdate((_c, _a, o) => { opts = o; return { unref() {} }; }, "/x.sh");
   assert.ok(opts.env && !("PND_BOT_PROFILE" in opts.env));
 });
+
+test("auto update refuses to launch when the daily marker cannot be persisted", async () => {
+  const { startAutoUpdate } = await import("./self-update.js");
+  const parent = mkdtempSync(join(tmpdir(), "fwu-maj-marker-"));
+  const missingDir = join(parent, "missing");
+  const spawned = [];
+  const events = [];
+  const updater = startAutoUpdate({
+    spawnFn: (...args) => { spawned.push(args); return { unref() {} }; },
+    record: (event) => events.push(event),
+    env: {},
+    dir: missingDir,
+    now: () => new Date("2026-11-27T07:10:00Z"),
+    scriptExists: () => true,
+    intervalMs: 3_600_000,
+  });
+  assert.equal(updater.tick(), false);
+  updater.stop();
+  assert.equal(spawned.length, 0, "no update without a durable once-per-day marker");
+  assert.deepEqual(events, ["auto_update_error"]);
+});
