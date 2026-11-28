@@ -1835,7 +1835,7 @@ export const SLASH_COMMANDS: SlashCommandDef[] = [
       clearqueue: "Vide la file d'attente",
       join: "Connecte le bot à ton salon vocal",
       leave: "Déconnecte le bot du salon vocal",
-    } as Record<string, string>)[name],
+    } as Record<string, string>)[name] ?? "Commande musicale",
     usage: `/${name}`,
     category: "Musique & radio",
     dmPermission: false,
