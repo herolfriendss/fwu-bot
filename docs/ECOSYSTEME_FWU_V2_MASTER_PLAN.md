@@ -319,9 +319,9 @@ récompenses ; le centre d'aide peut avancer en parallèle de CORE car il lit le
 **Phase 2 — FWU CORE**
 - [x] 2.1 Événements : identifiant universel (`uid`), clé d'idempotence par serveur, version de schéma (`bot/event-bus.js`, colonnes ajoutées sans réécrire l'existant).
 - [x] 2.2 File persistante de tâches entre bots (`bot/core-queue.js`) : idempotence, bail (une tâche jamais faite deux fois en parallèle, jamais perdue si le bot plante), reprises 30 s → 1 h, échec définitif visible dans `/staff centre`, relance manuelle seulement. Chaque bot traite les tâches de son profil toutes les 15 s.
-- [ ] 2.3 Service de décision des permissions.
+- [x] 2.3 Service de décision des permissions (`bot/core-permissions.js`) : catalogue fermé d'actions, refus par défaut, OWNER par ID configuré uniquement, gel du staff respecté, permissions Discord exigées en plus, dérogation AUTHORITY consultée seulement pour les actions « dérogeables », jamais pour une action OWNER ni pour l'OWNER. À utiliser par tout nouveau module et nouveau bot.
 - [x] 2.4 Journal d'audit unifié (`bot/core-audit.js`) : en ajout seul, numéroté par serveur, chaîné par empreinte SHA-256 (HMAC avec `PND_AUDIT_SECRET` si l'OWNER le crée) ; toute modification manuelle est détectée par `verifyAuditChain` ; secrets masqués ; export CSV protégé contre les formules.
-- [ ] 2.5 Registre transactionnel (préparation).
+- [ ] 2.5 Registre transactionnel : déplacé en phase 6 (il doit être construit avec le code économique de LE FISC, `economy.js` / `economy-integrity.js`, pour ne pas créer un second système).
 
 **Phase 3 — AUTHORITY** : 3.1 registre + API `checkException` + tests d'attaque (sans bot) ; 3.2 migration des exemptions de quota ; 3.3 profil `authority` et `/authority` (après validation OWNER et token fourni par lui) ; 3.4 page console.
 
@@ -353,7 +353,8 @@ récompenses ; le centre d'aide peut avancer en parallèle de CORE car il lit le
 | 1.5 Formation | fusionné (#81) | `claude/fwu-v2-staff-training` |
 | 1.6 Centre de commandement | fusionné (#82) | `claude/fwu-v2-staff-command` |
 | 2.1 / 2.2 Événements idempotents, file persistante | fusionné (#83) | `claude/fwu-v2-core-queue` |
-| 2.4 Journal d'audit unifié | terminé | `claude/fwu-v2-core-audit` |
+| 2.4 Journal d'audit unifié | fusionné (#85) | `claude/fwu-v2-core-audit` |
+| 2.3 Décision des permissions | terminé | `claude/fwu-v2-core-permissions` |
 
 ## 15. Reprise du travail (pour une nouvelle session)
 
