@@ -226,7 +226,7 @@ describe("V4 slash commands", () => {
     const descriptions = groups.map((group) => group.commands.map((c) => `**/${c.name}** — ${c.description}`).join("\n"));
     expect(groups.length).toBeLessThanOrEqual(10);
     for (const description of descriptions) expect(description.length).toBeLessThanOrEqual(4096);
-    expect(descriptions.reduce((total, description) => total + description.length, 0)).toBeLessThanOrEqual(6000);
+    // /aide is a per-bot paginated panel; the 6,000-character aggregate limit only applied to the retired all-in-one embed.
   });
 
   it("exposes Guardian human-review tools under the existing GuildGuard command", () => {
