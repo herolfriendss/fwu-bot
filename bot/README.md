@@ -14,6 +14,15 @@ npm start
 
 Pour PM2, le fichier `ecosystem.v5.config.cjs` à la racine du projet démarre le dashboard et le bot ensemble. Ne lance jamais plusieurs processus bot sur la même base SQLite.
 
+## Intelligence artificielle
+
+Les réponses de PND Intelligence et la génération assistée du règlement passent par
+`/api/public/bot-sync`, authentifié avec `BOT_SYNC_SECRET`. Les clés de fournisseur
+(`LOVABLE_API_KEY` ou `AI_GATEWAY_API_KEY`) restent exclusivement côté serveur web.
+Aucune clé Anthropic/Claude personnelle n'est nécessaire dans `bot/.env` ; l'utilisation
+de l'IA est facturée par le fournisseur API configuré, indépendamment d'un abonnement
+Claude Code ou Claude.ai.
+
 ## Commandes slash V4
 
 Le bot enregistre les commandes au démarrage en fusionnant chaque définition (jamais de `PUT` global). Les commandes interactives (économie, DOG, vocal, musique, radio, SYS+) nécessitent ce processus 24/7.
