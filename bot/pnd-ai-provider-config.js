@@ -3,14 +3,18 @@
  * Never send a Lovable key to Vercel's gateway or the reverse.
  */
 export function resolvePndAiGatewayConfig(env = process.env, task = "chat") {
-  const configuredModel = (task === "action" ? env.PND_AI_ACTION_MODEL : env.PND_AI_CHAT_MODEL)?.trim()
-    || env.PND_AI_MODEL?.trim();
+  const taskModel = task === "action"
+    ? env.PND_AI_ACTION_MODEL
+    : task === "rules"
+      ? env.PND_AI_RULES_MODEL || env.PND_AI_ACTION_MODEL
+      : env.PND_AI_CHAT_MODEL;
+  const configuredModel = taskModel?.trim() || env.PND_AI_MODEL?.trim();
   const vercelKey = env.AI_GATEWAY_API_KEY?.trim();
   if (vercelKey) {
     return {
       apiKey: vercelKey,
       baseURL: "https://ai-gateway.vercel.sh/v1",
-      model: configuredModel || (task === "action" ? "openai/gpt-6.2-astra" : "openai/gpt-6.2-sol"),
+      model: configuredModel || (task === "chat" ? "openai/gpt-6.2-sol" : "openai/gpt-6.2-astra"),
       headers: {},
       gateway: "vercel",
     };
