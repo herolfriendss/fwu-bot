@@ -41,7 +41,7 @@ test("create gives the role to the member (no permission), edit and remove work,
   const target = { id: "b", roles: { add: async (r) => added.push(r.id) } };
   const role = await createMemberRole({ guild, actor, botMember: bot, target, name: "Les Boss", color: "#ff66cc" });
   assert.deepEqual(role.permissions, []);
-  assert.equal(role.color, 0xff66cc);
+  assert.equal(role.colors.primaryColor, 0xff66cc);
   assert.equal(role.position, 9);
   assert.deepEqual(added, [role.id]);
   await assert.rejects(() => createMemberRole({ guild, actor, botMember: bot, target, name: "Deux", color: "#000000" }), /déjà un rôle perso/);
