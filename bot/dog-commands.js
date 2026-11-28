@@ -706,7 +706,7 @@ export async function handleDogCommand(message, guildSettings = null) {
   if (command === "=dogfix" && !message.mentions.members.first() && !parts[1]?.match(/^<@!?(\d+)>$/)) {
     const result = await repairGuildLeashes(message.guild);
     await message.reply({
-      content: `🔧 **Réparation DOG · ${message.guild.name}** : ${result.checked} laisse(s) vérifiée(s), ${result.repaired} remise(s) en état.${conflictWarning(result.conflicts)}` ,
+      content: `🔧 **Réparation DOG · ${message.guild.name}** : ${result.checked} laisse(s) vérifiée(s), ${result.repaired} remise(s) d'aplomb.${conflictWarning(result.conflicts)}` ,
       allowedMentions: { parse: [] },
     });
     return true;
