@@ -69,7 +69,7 @@ export const Route = createFileRoute("/api/auth/discord/callback")({
         void import("@/lib/ops-alert.server").then(({ describeDevice, postOpsAlert }) =>
           postOpsAlert(`🔐 Connexion à la console du site (${describeDevice(request.headers.get("user-agent"))}) à ${new Date().toLocaleTimeString("fr-FR", { timeZone: "Europe/Paris" })}. Si ce n'est pas toi : change ton mot de passe Discord et régénère SESSION_SECRET.`),
         ).catch(() => {});
-        return new Response(null, { status: 303, headers: { Location: "/", "Cache-Control": "no-store" } });
+        return new Response(null, { status: 303, headers: { Location: "/console/", "Cache-Control": "no-store" } });
       } catch (error) {
         console.error("Discord OAuth callback failed:", error instanceof Error ? error.message : "unknown error");
         return redirectToLogin("oauth_failed");

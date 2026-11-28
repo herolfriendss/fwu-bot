@@ -1,4 +1,4 @@
-import { createFileRoute, useRouter, Link, type ErrorComponentProps } from "@tanstack/react-router";
+import { createFileRoute, redirect, useRouter, Link, type ErrorComponentProps } from "@tanstack/react-router";
 import { SiteNav } from "@/components/SiteNav";
 import { queryOptions, useQuery, useQueryClient, useSuspenseQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
@@ -15,6 +15,8 @@ const overviewQuery = queryOptions({
 });
 
 export const Route = createFileRoute("/")({
+  // La console est l'accueil : l'ancien tableau de bord n'est plus affiché.
+  beforeLoad: () => { throw redirect({ href: "/console/" }); },
   head: () => ({
     meta: [
       { title: "Tableau de bord — FWU V2" },
