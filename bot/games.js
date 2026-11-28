@@ -327,12 +327,13 @@ export async function handleGamesInteraction(interaction, guildSettings = {}, re
         const winners = interaction.options.getInteger("gagnants") ?? 1;
         if (!interaction.channel?.isTextBased()) throw new Error("Ce salon ne permet pas les giveaways.");
         const draft = createGiveaway({ guildId: guild.id, channelId: interaction.channel.id, prize, hostId: interaction.user.id, durationMinutes: minutes, winnerCount: winners });
-        const message = await interaction.reply({
+        const response = await interaction.reply({
           embeds: [giveawayEmbed(draft)],
           components: [giveawayButton(draft.giveaway_id)],
-          fetchReply: true,
+          withResponse: true,
           allowedMentions: { parse: [] },
         });
+        const message = response.resource.message;
         db.prepare("UPDATE giveaways SET message_id=? WHERE giveaway_id=?").run(message.id, draft.giveaway_id);
         record("giveaway_created");
         return true;
