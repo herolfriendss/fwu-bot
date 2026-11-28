@@ -4,7 +4,7 @@ import { describePndAiFailure } from "./ai-error-messages.js";
 const rateLimiter = createPndIntelligenceRateLimiter({ windowMs: 60_000, maxRequests: 3, maxKeys: 10_000 });
 const noMentions = { parse: [] };
 
-const SECRET_INPUT = /(?:mfa\\.[A-Za-z0-9_-]{40,}|[A-Za-z0-9_-]{24}\\.[A-Za-z0-9_-]{6}\\.[A-Za-z0-9_-]{20,}|(?:api[_ -]?key|access[_ -]?token|bot[_ -]?token|password|mot de passe|secret|token)\\s*[:=]\\s*\\S{8,}|Bearer\\s+[A-Za-z0-9._-]{16,}|sk-(?:ant-)?[A-Za-z0-9_-]{16,}|gh[pousr]_[A-Za-z0-9]{20,}|xox[baprs]-[A-Za-z0-9-]{10,})/i;
+const SECRET_INPUT = /(?:mfa\.[A-Za-z0-9_-]{40,}|[A-Za-z0-9_-]{24}\.[A-Za-z0-9_-]{6}\.[A-Za-z0-9_-]{20,}|(?:api[_ -]?key|access[_ -]?token|bot[_ -]?token|password|mot de passe|secret|token)\s*[:=]\s*\S{8,}|Bearer\s+[A-Za-z0-9._-]{16,}|sk-(?:ant-)?[A-Za-z0-9_-]{16,}|gh[pousr]_[A-Za-z0-9]{20,}|xox[baprs]-[A-Za-z0-9-]{10,})/i;
 
 export function containsSecretInput(value) {
   return SECRET_INPUT.test(String(value ?? ""));
@@ -12,13 +12,13 @@ export function containsSecretInput(value) {
 
 export function redactPrivateText(value) {
   return String(value ?? "")
-    .replace(/<@!?\\d{17,20}>/g, "@membre")
-    .replace(/<@&\\d{17,20}>/g, "@rôle")
-    .replace(/<#\\d{17,20}>/g, "#salon")
-    .replace(/\\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\\.[A-Z]{2,}\\b/gi, "[adresse e-mail masquée]")
-    .replace(/\\b\\d{17,20}\\b/g, "[identifiant masqué]")
-    .replace(/\\b(?:\\d{1,3}\\.){3}\\d{1,3}\\b/g, "[adresse IP masquée]")
-    .replace(/\\+?\\d[\\d\\s().-]{7,}\\d/g, "[numéro masqué]");
+    .replace(/<@!?\d{17,20}>/g, "@membre")
+    .replace(/<@&\d{17,20}>/g, "@rôle")
+    .replace(/<#\d{17,20}>/g, "#salon")
+    .replace(/\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi, "[adresse e-mail masquée]")
+    .replace(/\b\d{17,20}\b/g, "[identifiant masqué]")
+    .replace(/\b(?:\d{1,3}\.){3}\d{1,3}\b/g, "[adresse IP masquée]")
+    .replace(/\+?\d[\d\s().-]{7,}\d/g, "[numéro masqué]");
 }
 
 /** Reject command syntax that is not present in the authoritative slash catalogue. */
