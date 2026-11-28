@@ -329,7 +329,12 @@ récompenses ; le centre d'aide peut avancer en parallèle de CORE car il lit le
 - [x] 3.3 Commandes `/authority` (demander, mes-demandes, statut, historique ; OWNER : panneau, decider ; MP à l'OWNER avec boutons Approuver / Refuser à usage unique) — `bot/features/authority-commands.js`. Portées par SUCK ME (84/100 commandes) jusqu'à la création du bot AUTHORITY : l'OWNER crée l'application Discord et fournit son token lui-même, puis la racine `authority` passe au profil `authority` dans `src/lib/bot-profiles.ts`. `/staff centre` affiche les dérogations en attente et actives.
 - [x] 3.4 Page AUTHORITY de la console : demandes en attente, actives, historique, décisions (approuver, refuser, suspendre, réactiver, révoquer, prolonger), export CSV. Le bot envoie le miroir chaque minute (`bot/authority-sync.js` → `/api/public/authority-sync`) et applique lui-même les décisions de la console avec les contrôles du registre. **À faire par l'OWNER : appliquer la migration `supabase/migrations/202611280001_bot_authority_console.sql`** (sinon la page affiche « migration non appliquée »).
 
-**Phase 4 — Centre d'aide** : 4.1 documentation générée depuis le catalogue ; 4.2 présentation des bots ; 4.3 tutoriels interactifs ; 4.4 assistant IA branché sur la documentation réelle ; 4.5 parcours dépannage → ticket existant.
+**Phase 4 — Centre d'aide**
+- [x] 4.1 Documentation générée depuis le catalogue réel : `docs/COMMANDES.md` (bot par bot, préfixe, sous-commandes, paramètres), par `bot/scripts/generate-command-docs.mjs` ; un test échoue si elle est périmée.
+- [ ] 4.2 Présentation de chaque bot dans `/aide` (mission, commandes, permissions, exemples), depuis le même catalogue.
+- [ ] 4.3 Tutoriels interactifs (boutons, retour, recommencer, quitter).
+- [ ] 4.4 Assistant IA branché sur `docs/COMMANDES.md` et `/knowledge` (jamais de commande inventée, jamais de donnée privée).
+- [ ] 4.5 Parcours dépannage → ticket existant (`bot/tickets.js`), sans second système.
 
 **Phase 5 — SOCIAL et EVENT** · **Phase 6 — Économie interconnectée** · **Phase 7 — DISPATCH** ·
 **Phase 8 — ARCADE** · **Phase 9 — INSIGHT** · **Phase 10 — Automatisation et supervision.**
@@ -364,7 +369,8 @@ récompenses ; le centre d'aide peut avancer en parallèle de CORE car il lit le
 | 3.2 Quotas et AUTHORITY | fusionné (#89) | `claude/fwu-v2-authority-quota` |
 | 3.4 Console AUTHORITY | fusionné (#90) | `claude/fwu-v2-authority-console` |
 | Demande OWNER : `/ui` (fiche membre) | fusionné (#91) | `claude/fwu-v2-ui-card` |
-| Demande OWNER : panneau « rôle perso » (`/rolepanel espace`) | terminé | `claude/fwu-v2-personal-role-panel` |
+| Demande OWNER : panneau « rôle perso » (`/rolepanel espace`) | fusionné (#92) | `claude/fwu-v2-personal-role-panel` |
+| 4.1 Documentation des commandes | terminé | `claude/fwu-v2-command-docs` |
 
 ## 15. Reprise du travail (pour une nouvelle session)
 
