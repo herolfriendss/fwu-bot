@@ -2,7 +2,7 @@
 
 > Ne pas modifier à la main : `node --experimental-strip-types bot/scripts/generate-command-docs.mjs`.
 > Source : `src/lib/slash-commands.ts` (définitions) et `src/lib/bot-profiles.ts` (bot qui porte chaque commande).
-> Les mêmes commandes existent avec le préfixe du bot (ex. `=staff centre`), sauf les fenêtres de saisie.
+> La plupart des commandes existent aussi avec le préfixe du bot (ex. `=staff centre`). Les commandes sans préfixe sont disponibles uniquement en slash.
 
 Commandes communes à tous les bots : `/aide`, `/status`.
 
