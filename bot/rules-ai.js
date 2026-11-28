@@ -39,7 +39,7 @@ export async function generateRules({
   fetchImpl = fetch,
 } = {}) {
   if (!String(apiUrl ?? "").trim() || !String(secret ?? "").trim()) {
-    throw new Error("La passerelle IA FWU n'est pas configurée sur ce bot (SITE_URL / BOT_SYNC_SECRET).");
+    throw new Error("La passerelle IA centrale n'est pas configurée sur ce bot (SITE_URL / BOT_SYNC_SECRET).");
   }
   const wanted = Math.min(MAX_RULES, Math.max(MIN_RULES, Number(count) || 10));
   let response;
@@ -58,13 +58,13 @@ export async function generateRules({
       signal: AbortSignal.timeout(45_000),
     });
   } catch {
-    throw new Error("Impossible de joindre le service IA FWU. Réessaie plus tard.");
+    throw new Error("Impossible de joindre le service IA central. Réessaie plus tard.");
   }
   const payload = await response.json().catch(() => null);
   if (!response.ok) {
     if (response.status === 429) throw new Error("Service IA saturé : réessaie dans une minute.");
     if (response.status === 402) throw new Error("Le budget IA du serveur est épuisé : contacte l'OWNER.");
-    if (response.status === 503) throw new Error("Le fournisseur IA FWU n'est pas configuré ou est temporairement indisponible.");
+    if (response.status === 503) throw new Error("Le fournisseur IA central n'est pas configuré ou est temporairement indisponible.");
     throw new Error("La génération du règlement a échoué. Réessaie plus tard.");
   }
   const checked = validateRules(payload?.rules, wanted);
