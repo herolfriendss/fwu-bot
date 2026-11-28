@@ -267,10 +267,13 @@ export async function banWetAccountsAcrossNetwork(client, accounts, entry, netwo
   return results;
 }
 
-export async function unbanWetAccountsAcrossNetwork(client, accounts, actorId, caseId, networkGuilds = null) {
+export async function unbanWetAccountsAcrossNetwork(client, accounts, actorId, caseEntry, networkGuilds = null) {
   const guilds = [...(networkGuilds ?? client?.guilds?.cache?.values?.() ?? [])];
   const results = { unbanned: 0, notBanned: 0, stillBlacklisted: 0, stillWet: 0, preservedOtherBan: 0, failed: [] };
-  const ownedBanPrefix = `WET · dossier ${caseId.slice(0, 8)} ·`;
+  if (!caseEntry || typeof caseEntry.id !== "string" || typeof caseEntry.reason !== "string") {
+    throw new Error("Le dossier WET complet est requis pour vérifier l’origine exacte du bannissement.");
+  }
+  const expectedBanReason = banReason(caseEntry);
   for (const account of accounts) {
     if (isWet(account.user_id)) { results.stillWet++; continue; }
     for (const guild of guilds) {
@@ -294,12 +297,12 @@ export async function unbanWetAccountsAcrossNetwork(client, accounts, actorId, c
       if (!existingBan) { results.notBanned++; continue; }
       // Never lift a manual or pre-existing ban: only remove a ban whose audit
       // reason proves it was created by this exact WET case.
-      if (!String(existingBan.reason ?? "").startsWith(ownedBanPrefix)) {
+      if (String(existingBan.reason ?? "") !== expectedBanReason) {
         results.preservedOtherBan++;
         continue;
       }
       try {
-        await guild.bans.remove(account.user_id, `WET levé par ${actorId} · dossier ${caseId.slice(0, 8)}`.slice(0, 500));
+        await guild.bans.remove(account.user_id, `WET levé par ${actorId} · dossier ${caseEntry.id.slice(0, 8)}`.slice(0, 500));
         results.unbanned++;
       } catch (error) {
         if (Number(error?.code) === 10026) results.notBanned++;
