@@ -180,7 +180,7 @@ export async function botAiGenerateRules(input: {
           openai: { forceReasoning: true, reasoningEffort: "low", reasoningSummary: "auto", store: false },
         },
       });
-      const output = result.text.trim().replace(/^\`\`\`(?:json)?/i, "").replace(/\`\`\`$/, "").trim();
+      const output = result.text.trim().replace(/^```(?:json)?/i, "").replace(/```$/, "").trim();
       const parsed: unknown = JSON.parse(output);
       const rawRules = Array.isArray(parsed)
         ? parsed
