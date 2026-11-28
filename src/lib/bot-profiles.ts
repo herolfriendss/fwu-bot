@@ -86,7 +86,7 @@ export const SLASH_COMMAND_OWNERS: Record<BotProfileId, readonly string[]> = {
     "ui",
   ],
   guard: [
-    "guildguard", "kick", "ban", "tempban", "blacklist", "purge", "nettoyer", "slowmode", "lock", "unlock", "verify",
+    "guildguard", "kick", "ban", "tempban", "blacklist", "wet", "unwet", "purge", "nettoyer", "slowmode", "lock", "unlock", "verify",
     "antinuke", "automod", "casier", "quarantaine", "bouclier",
     // V2 (26/11) : anti-raid
     "piege", "raid", "scan", "panic",
