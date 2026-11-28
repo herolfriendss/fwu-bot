@@ -2243,7 +2243,7 @@ export const EXTRA_SLASH_COMMANDS: SlashCommandDef[] = [
   },
   {
     name: "moi",
-    description: "Ton profil complet : niveau, argent, casino, confiance et casier",
+    description: "Ton profil complet (privé) ou le profil public d’un membre",
     usage: "/moi [membre]",
     category: "Communauté",
     dmPermission: false,
