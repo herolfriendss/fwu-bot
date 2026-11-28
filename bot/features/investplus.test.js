@@ -232,3 +232,23 @@ test("Invest + : renouvellement automatique en PND à l'échéance (opt-in, un e
   ip.setAutoRenew("ar-g", "rich", false);
   assert.equal(ip.autoRenewEnabled("ar-g", "rich"), false);
 });
+
+test("Invest + : formule mixte (PND très élevé ou paiement réel), demande « souscrire » prête à activer", async () => {
+  const ip = await import("./investplus.js");
+  const { grantPnd } = await import("../economy.js");
+  const plan = ip.createPlan("mx-g", { name: "Elite", price: 5_000_000, periodDays: 30, payMode: "mixte", realPrice: "19,99 € / mois" });
+  assert.equal(ip.payableInPnd(plan), true);
+  assert.equal(ip.payableReal(plan), true);
+  assert.equal(ip.formatPrice(plan), `${(5_000_000).toLocaleString("fr-FR")} PND ou 19,99 € / mois`);
+  const real = ip.createPlan("mx-g", { name: "VIP", price: 0, periodDays: 30, payMode: "manuel", realPrice: "9,99 €" });
+  assert.equal(ip.formatPrice(real), "9,99 €");
+  assert.throws(() => ip.payWithPnd({ guildId: "mx-g", userId: "u", planId: real.id }), /paiement réel/);
+  grantPnd("mx-g", "whale", 5_000_000, "test");
+  assert.equal(ip.payWithPnd({ guildId: "mx-g", userId: "whale", planId: plan.id }).subscription.status, "active");
+  const request = ip.createRequest({ guildId: "mx-g", userId: "buyer", kind: "souscrire", planId: real.id, body: "Souhaite VIP" });
+  assert.equal(request.kind, "souscrire");
+  assert.equal(request.planId, real.id);
+  ip.saveInvestConfig("mx-g", { paymentInfo: "PayPal : exemple@domaine.fr, indique ton pseudo Discord" });
+  assert.match(ip.investConfig("mx-g").paymentInfo, /PayPal/);
+  assert.equal(ip.updatePlan("mx-g", real.id, { realPrice: "12 €" }).realPrice, "12 €");
+});

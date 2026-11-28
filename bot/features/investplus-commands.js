@@ -9,7 +9,7 @@ import { parsePndOwnerId } from "../pnd-owner-policy.js";
 import { roleGrantRefusal } from "../role-grant-guard.js";
 import {
   DAY, LIMITS, REQUEST_KINDS, STATUS_LABELS, benefitLines, cancelSubscription, closeRequest, createPlan, createRequest,
-  deleteSpace, deleteSpaceByChannel, expireDueSubscriptions, autoRenewDue, autoRenewEnabled, setAutoRenew, findPlan, formatPeriod, formatPrice, grantSubscription,
+  deleteSpace, deleteSpaceByChannel, expireDueSubscriptions, autoRenewDue, payableInPnd, payableReal, autoRenewEnabled, setAutoRenew, findPlan, formatPeriod, formatPrice, grantSubscription,
   historyOf, investConfig, investStats, listOpenRequests, listPlans, listSpaces, listSubscriptions, pauseSubscription,
   giftWithPnd, payWithPnd, planById, requestById, resumeSubscription, saveInvestConfig, saveSpace, setPlanActive, setSpacePanel,
   setSubscriptionNote, spaceByChannel, spaceChannelName, spaceOf, subscriptionOf, takeDueReminders, updatePlan,
@@ -88,7 +88,7 @@ function historyEmbed(guildId, userId) {
   const rows = historyOf(guildId, userId, 15);
   const lines = rows.map((row) => {
     const plan = row.planId ? planById(guildId, row.planId) : null;
-    return `${ts(row.createdAt, "d")} ${HISTORY_LABELS[row.kind] ?? row.kind}${plan ? ` — ${plan.name}` : ""}${row.amount ? ` · ${row.amount.toLocaleString("fr-FR")}${plan?.payMode === "pnd" ? " PND" : ""}` : ""}${row.detail ? ` · ${row.detail}` : ""}`;
+    return `${ts(row.createdAt, "d")} ${HISTORY_LABELS[row.kind] ?? row.kind}${plan ? ` — ${plan.name}` : ""}${row.amount ? ` · ${row.amount.toLocaleString("fr-FR")}${payableInPnd(plan) ? " PND" : ""}` : ""}${row.detail ? ` · ${row.detail}` : ""}`;
   });
   return new EmbedBuilder().setColor(INVESTPLUS_COLOR).setTitle("🧾 Historique Invest +").setDescription(lines.join("\n").slice(0, 4000) || "Rien pour le moment.");
 }
@@ -106,13 +106,19 @@ function panelPayload(guildId, userId) {
   return { embeds: [subscriptionEmbed(guildId, userId, { welcome: investConfig(guildId).welcome || null })], components: panelComponents(userId), allowedMentions: { parse: [] } };
 }
 
-/** Menu « payer en PND » : seulement les formules actives payables dans le bot. */
+/** Menus des formules : « payer en PND » et « je la veux (paiement réel) ». L'administration n'a plus
+ *  qu'à cliquer « Paiement reçu : activer » sur la demande, sans jamais taper le membre. */
 function payMenu(guildId, userId) {
-  const plans = listPlans(guildId).filter((plan) => plan.payMode === "pnd").slice(0, 25);
-  if (!plans.length) return [];
-  return [new ActionRowBuilder().addComponents(new StringSelectMenuBuilder().setCustomId(`${PREFIX}pay:${userId}`)
+  const rows = [];
+  const pnd = listPlans(guildId).filter(payableInPnd).slice(0, 25);
+  if (pnd.length) rows.push(new ActionRowBuilder().addComponents(new StringSelectMenuBuilder().setCustomId(`${PREFIX}pay:${userId}`)
     .setPlaceholder("Payer une formule en PND…")
-    .addOptions(plans.map((plan) => ({ label: plan.name.slice(0, 100), value: String(plan.id), description: `${formatPrice(plan)} ${formatPeriod(plan.periodDays)}`.slice(0, 100) }))))];
+    .addOptions(pnd.map((plan) => ({ label: plan.name.slice(0, 100), value: String(plan.id), description: `${Number(plan.price).toLocaleString("fr-FR")} PND ${formatPeriod(plan.periodDays)}`.slice(0, 100) })))));
+  const real = listPlans(guildId).filter(payableReal).slice(0, 25);
+  if (real.length) rows.push(new ActionRowBuilder().addComponents(new StringSelectMenuBuilder().setCustomId(`${PREFIX}want:${userId}`)
+    .setPlaceholder("Je veux une formule (paiement réel)…")
+    .addOptions(real.map((plan) => ({ label: plan.name.slice(0, 100), value: String(plan.id), description: `${plan.realPrice ?? "paiement réel"} ${formatPeriod(plan.periodDays)}`.slice(0, 100) })))));
+  return rows;
 }
 
 // --- Espaces privés --------------------------------------------------------
@@ -331,7 +337,8 @@ function requestComponents(request) {
   if (request.status !== "open") return [];
   const row = new ActionRowBuilder();
   if (request.planId || request.kind === "renouveler") {
-    row.addComponents(new ButtonBuilder().setCustomId(`${PREFIX}req:grant:${request.id}`).setLabel(request.kind === "renouveler" ? "Prolonger d'une période" : "Attribuer la formule").setStyle(ButtonStyle.Success).setEmoji("✅"));
+    const label = request.kind === "souscrire" ? "Paiement reçu : activer" : request.kind === "renouveler" ? "Prolonger d'une période" : "Attribuer la formule";
+    row.addComponents(new ButtonBuilder().setCustomId(`${PREFIX}req:grant:${request.id}`).setLabel(label).setStyle(ButtonStyle.Success).setEmoji("✅"));
   }
   row.addComponents(
     new ButtonBuilder().setCustomId(`${PREFIX}req:done:${request.id}`).setLabel("Marquer traitée").setStyle(ButtonStyle.Primary),
@@ -366,6 +373,7 @@ async function adminCommand(interaction) {
         staffRoleId: interaction.options.getRole("role_staff")?.id,
         reminderDays: interaction.options.getInteger("rappel_jours") ?? undefined,
         welcome: interaction.options.getString("accueil") ?? undefined,
+        paymentInfo: interaction.options.getString("paiement_infos") ?? undefined,
       };
       saveInvestConfig(gid, patch);
       return { embeds: [dashboardEmbed(guild)], content: "✅ Configuration enregistrée." };
@@ -377,6 +385,7 @@ async function adminCommand(interaction) {
         price: interaction.options.getInteger("prix", true),
         periodDays: interaction.options.getInteger("duree", true),
         payMode: interaction.options.getString("paiement") ?? "manuel",
+        realPrice: interaction.options.getString("prix_reel") ?? undefined,
         roleId: (await readRole(interaction, "role")) ?? null,
         description: interaction.options.getString("description") ?? "",
         benefits: interaction.options.getString("avantages") ?? "",
@@ -391,6 +400,7 @@ async function adminCommand(interaction) {
         price: interaction.options.getInteger("prix") ?? undefined,
         periodDays: interaction.options.getInteger("duree") ?? undefined,
         payMode: interaction.options.getString("paiement") ?? undefined,
+        realPrice: interaction.options.getString("prix_reel") ?? undefined,
         roleId: removeRole ? null : await readRole(interaction, "role"),
         description: interaction.options.getString("description") ?? undefined,
         benefits: interaction.options.getString("avantages") ?? undefined,
@@ -486,7 +496,7 @@ async function memberCommand(interaction) {
       if (target.id === uid) throw new Error("Pour toi-même, paie ta formule depuis `/abonnement formules`.");
       if (!(await interaction.guild.members.fetch(target.id).catch(() => null))) throw new Error("Ce membre n'est pas sur le serveur.");
       const plan = planOption(interaction, "formule");
-      if (plan.payMode !== "pnd" || !plan.active) throw new Error("Seules les formules payables en PND peuvent être offertes (voir `/abonnement formules`).");
+      if (!payableInPnd(plan) || !plan.active) throw new Error("Seules les formules payables en PND peuvent être offertes (voir `/abonnement formules`).");
       const current = subscriptionOf(gid, target.id);
       if (current?.status === "active" && current.planId !== plan.id) throw new Error(`<@${target.id}> a déjà une autre formule active : offre-lui la même pour la prolonger.`);
       return {
@@ -591,6 +601,15 @@ async function handleComponent(interaction, settings) {
         )],
       }));
     }
+    case "want": {
+      if (interaction.user.id !== ownerId) return interaction.reply(ephemeral("Seul le membre peut demander sa formule."));
+      const plan = planById(gid, Number(interaction.values?.[0]));
+      if (!plan || !plan.active || !payableReal(plan)) return interaction.reply(ephemeral("Formule introuvable ou pas payable en réel."));
+      const request = createRequest({ guildId: gid, userId: ownerId, kind: "souscrire", planId: plan.id, body: `Souhaite ${plan.name} (${plan.realPrice ?? "paiement réel"}).` });
+      const sent = await notifyAdmin(interaction.guild, { embeds: [requestEmbed(interaction.guild, request)], components: requestComponents(request) });
+      const info = investConfig(gid).paymentInfo;
+      return interaction.reply(ephemeral(`✅ Demande #${request.id} envoyée pour **${plan.name}**${plan.realPrice ? ` (${plan.realPrice})` : ""}.\n${info ? `**Pour payer :** ${info}\n` : "L'administration va te contacter pour le paiement.\n"}Dès que le paiement est reçu, ta formule s'active toute seule et tu es prévenu ici.${sent ? "" : "\nℹ️ L'administration la verra dans \`/investadmin demandes\`."}`));
+    }
     case "payok": {
       if (interaction.user.id !== ownerId) return interaction.reply(ephemeral("Seul le membre peut payer son abonnement."));
       const result = payWithPnd({ guildId: gid, userId: ownerId, planId: Number(rest[1]) });
@@ -672,7 +691,7 @@ export async function runInvestPlusJobs(client, { isAllowedGuild = () => true, s
     const guild = guildOf(sub.guildId);
     if (!guild || !investConfig(guild.id).enabled) continue;
     const plan = planById(guild.id, sub.planId);
-    await notifyMember(guild, sub.userId, `ta formule **${plan?.name ?? "Invest +"}** arrive à échéance ${ts(sub.expiresAt, "R")}. ${plan?.payMode === "pnd" ? "Tu peux la renouveler depuis le bouton **Formules** de ton espace." : "Utilise **Écrire à l'administration** pour la renouveler."}`);
+    await notifyMember(guild, sub.userId, `ta formule **${plan?.name ?? "Invest +"}** arrive à échéance ${ts(sub.expiresAt, "R")}. ${payableInPnd(plan) ? "Tu peux la renouveler depuis le bouton **Formules** de ton espace." : "Bouton **Formules** de ton espace → « Je veux une formule (paiement réel) » pour la renouveler."}`);
     await refreshPanel(guild, sub.userId);
   }
   const auto = autoRenewDue(now);

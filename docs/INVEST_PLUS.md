@@ -8,6 +8,14 @@
 - **Chaque membre abonné** reçoit un **salon privé** (« 💼・son-pseudo ») dans la catégorie Invest +. Un panneau épinglé y montre sa formule, son statut, son échéance, **à quoi elle sert** et ses avantages, avec 4 boutons : Actualiser, Formules, Historique, Écrire à l'administration.
 - **Automatique, 24 h/24** : rappel dans le salon du membre avant l'échéance (3 jours par défaut), passage en « expiré » à l'échéance, retrait du rôle de la formule, panneau mis à jour, message dans le salon d'administration.
 
+## Paiement réel sans rien taper (28/11)
+
+- Une formule peut se payer **en PND** (prix jusqu'à 1 milliard), **en réel** (vous gérez la réception de l'argent) ou **au choix** (`paiement: mixte`), avec un prix réel affiché (`prix_reel: 9,99 € / mois`).
+- `/investadmin config paiement_infos:` : le texte montré au membre qui demande une formule (ex. comment vous payer, quoi indiquer).
+- Le membre ouvre **Formules** dans son espace (ou `/abonnement formules`) et choisit « Je veux une formule (paiement réel) ». Une demande arrive dans `#invest-admin` avec le bouton **« Paiement reçu : activer »**.
+- Un clic suffit : la formule s'active, le rôle est donné, l'espace privé est créé ou mis à jour, le membre est prévenu. Plus besoin de `/investadmin attribuer membre:`.
+- Renouvellement automatique en PND : `/abonnement auto`.
+
 ## Ce que fait le bot avec l'argent
 
 Invest + **ne détient ni ne place l'argent de personne**. Deux modes de paiement par formule :

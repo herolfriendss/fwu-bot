@@ -8,6 +8,7 @@ les bots du VPS prennent la mise à jour avec `/maj lancer` ou la mise à jour a
 - GUARD : alerte quand les arrivées ou les départs d'une heure dépassent nettement la normale.
 - Console : voyant global vert, orange ou rouge avec les raisons (aussi dans le badge « En direct »), historique des redémarrages.
 - Invest + : `/abonnement auto` (renouvellement automatique en PND à l'échéance, si le solde suffit).
+- Invest + : formules payables en PND (jusqu'à 1 milliard), en réel ou au choix, avec prix réel affiché ; le membre demande la formule en un clic et l'administration l'active avec « Paiement reçu : activer » (plus de membre à taper) ; instructions de paiement réglables.
 
 ## 27/11/2026 (soir et nuit)
 
