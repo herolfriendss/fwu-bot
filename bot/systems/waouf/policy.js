@@ -65,6 +65,8 @@ export function randomWaoufResponse({ phrases, memberId, previous = null, random
       : generateBark(random);
     if (response !== previous) break;
   }
+  // Eight unlucky draws in a row (one short phrase list): still never the same answer twice.
+  if (response === previous) response = response.endsWith(" 🐾") ? response.slice(0, -2).trimEnd() : `${response} 🐾`;
   return response;
 }
 

@@ -60,3 +60,9 @@ test("WOUAF answers each message with a different random bark", async () => {
   const fixed = [0.9, 0, 0, 0, 0];
   assert.equal(generateBark(() => fixed.shift() ?? 0), "Wouaf !");
 });
+
+test("WOUAF never repeats even when every draw gives the previous answer", async () => {
+  const { randomWaoufResponse } = await import("./policy.js");
+  assert.equal(randomWaoufResponse({ phrases: ["X"], memberId: "1", previous: "X", random: () => 0.1 }), "X 🐾");
+  assert.equal(randomWaoufResponse({ phrases: ["X 🐾"], memberId: "1", previous: "X 🐾", random: () => 0.1 }), "X");
+});

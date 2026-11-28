@@ -331,7 +331,7 @@ récompenses ; le centre d'aide peut avancer en parallèle de CORE car il lit le
 
 **Phase 4 — Centre d'aide**
 - [x] 4.1 Documentation générée depuis le catalogue réel : `docs/COMMANDES.md` (bot par bot, préfixe, sous-commandes, paramètres), par `bot/scripts/generate-command-docs.mjs` ; un test échoue si elle est périmée.
-- [ ] 4.2 Présentation de chaque bot dans `/aide` (mission, commandes, permissions, exemples), depuis le même catalogue.
+- [x] 4.2 Présentation de chaque bot : déjà couverte par `/aide` (`bot/features/help-panel.js` : vue d'ensemble, une page par bot avec sa mission, son préfixe et ses commandes tirées du catalogue, page des permissions et quotas).
 - [ ] 4.3 Tutoriels interactifs (boutons, retour, recommencer, quitter).
 - [ ] 4.4 Assistant IA branché sur `docs/COMMANDES.md` et `/knowledge` (jamais de commande inventée, jamais de donnée privée).
 - [ ] 4.5 Parcours dépannage → ticket existant (`bot/tickets.js`), sans second système.
@@ -371,7 +371,9 @@ récompenses ; le centre d'aide peut avancer en parallèle de CORE car il lit le
 | Demande OWNER : `/ui` (fiche membre) | fusionné (#91) | `claude/fwu-v2-ui-card` |
 | Demande OWNER : panneau « rôle perso » (`/rolepanel espace`) | fusionné (#92) | `claude/fwu-v2-personal-role-panel` |
 | 4.1 Documentation des commandes | fusionné (#93) | `claude/fwu-v2-command-docs` |
-| Extension « Ultimate » : plan d'intégration (§ 16) | terminé | `claude/fwu-v2-extension-plan` |
+| Extension « Ultimate » : plan d'intégration (§ 16) | fusionné (#94) | `claude/fwu-v2-extension-plan` |
+| 4.2 Présentation des bots | déjà couvert par `/aide` | — |
+| Prompt de reprise pour ChatGPT (`docs/PROMPT_REPRISE_CHATGPT.md`) | terminé | `claude/fwu-v2-help-bots` |
 
 ## 15. Reprise du travail (pour une nouvelle session)
 
