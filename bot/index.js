@@ -2351,7 +2351,7 @@ client.on("interactionCreate", (interaction) => {
     if (await handleWaoufInteraction(interaction, settings[interaction.guildId], record)) { auditSlashUsage(interaction, "WAOUF"); return; }
     if (await handleMalusInteraction(interaction, settings[interaction.guildId], record)) { auditSlashUsage(interaction, "MALUS"); return; }
     if (await handleGardeInteraction(interaction, settings[interaction.guildId], record)) { auditSlashUsage(interaction, "GARDE"); return; }
-    if (await handleFwuPlusInteraction(interaction, settings[interaction.guildId], { grant: grantPnd, record })) { auditSlashUsage(interaction, "Communauté"); return; }
+    if (await handleFwuPlusInteraction(interaction, settings[interaction.guildId], { grant: grantPnd, record, ai: { apiUrl: API, secret: BOT_SYNC_SECRET } })) { auditSlashUsage(interaction, "Communauté"); return; }
     if (await handleVoicePlusInteraction(interaction, record)) { auditSlashUsage(interaction, "Vocal"); return; }
     if (await handleSysPlusInteraction(interaction, settings, {
       apiUrl: API,
