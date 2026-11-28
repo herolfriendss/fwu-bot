@@ -241,7 +241,7 @@ Correctif (`bot/session-budget.js`, appelé par `bot/index.js` avant chaque conn
 |---|---|---|---|
 | S1 | Règles centrales présentes et testées : OWNER par ID seul, `role-grant-guard.js` (rôles protégés par ID et permissions, jamais par nom), Tier 0 (`tier0-shield.js`), BLR, MZ désactivé, test anti-« FWU » dans Discord (`discord-branding.test.js`). | OK | conserver |
 | S2 | Secrets passés par le chat (`DISCORD_CLIENT_SECRET`, `SESSION_SECRET`) non encore régénérés (feuille de route D.10). | Haute | OWNER : régénérer |
-| S3 | `fwu-auto-update.sh` télécharge par défaut `herolfriendss/her-v3-` alors que le dépôt est `herolfriendss/fwu-bot`. Fonctionne tant que GitHub redirige l'ancien nom. | Moyenne | vérifier `FWU_REPO_SLUG` sur le VPS, puis corriger la valeur par défaut |
+| S3 | `fwu-auto-update.sh` téléchargeait par défaut `herolfriendss/her-v3-` (ancien nom). | Corrigé | essaie `fwu-bot` puis `her-v3-` |
 | S4 | La mise à jour automatique installe `main` (ou la dernière version publiée) chaque nuit : **fusionner dans `main` = déployer en production**. | Moyenne | ne fusionner qu'après validation ; envisager des versions publiées uniquement |
 | S5 | Pas d'environnement de test (bot et serveur Discord séparés) (D.18). | Moyenne | à créer par l'OWNER |
 | S6 | Sauvegardes chiffrées hors VPS et test de restauration absents (D.19) ; `fwu-sauvegarde.sh` existe mais tourne seulement si sa ligne cron a été ajoutée. | Moyenne | vérifier sur le VPS |
@@ -296,10 +296,11 @@ récompenses ; le centre d'aide peut avancer en parallèle de CORE car il lit le
 
 **Phase 0 — Audit et stabilisation**
 - [x] 0.1 Audit du dépôt et ce plan.
-- [x] 0.2 Garde de budget de connexions pour tous les bots (code + tests ; **à valider puis déployer**).
-- [ ] 0.3 Alerte staff immédiate quand un bot tombe, attend sa limite de connexions ou s'arrête définitivement (feuille de route A.2).
-- [ ] 0.4 Contrôles VPS (avec l'OWNER) : `pm2 startup`/`pm2 save`, rotation des journaux, cron de sauvegarde, `FWU_REPO_SLUG`.
-- [ ] 0.5 Base PostgreSQL jetable dans `verify-all.sh` pour ne plus sauter 26 tests.
+- [x] 0.2 Garde de budget de connexions pour tous les bots (fusionnée, PR #76).
+- [x] 0.3 Alerte staff dans Discord quand un bot tombe, attend son budget de connexions, s'arrête définitivement ou revient (`bot/fleet-watch.js`) : le bot principal surveille tous les autres, SUCK ME surveille le bot principal ; MP à l'OWNER seulement pour un arrêt définitif.
+- [x] 0.4a `fwu-auto-update.sh` choisit seul le bon nom de dépôt (`fwu-bot` puis l'ancien `her-v3-`) ; surveillance externe : « Bot principal » au lieu de « FWU » dans Discord.
+- [ ] 0.4b Contrôles VPS (avec l'OWNER, accès VPS requis) : `pm2 startup`/`pm2 save`, rotation des journaux, cron de sauvegarde et de surveillance.
+- [x] 0.5 Les 26 tests PostgreSQL tournent déjà dans la CI GitHub (PostgreSQL 16) ; seuls les essais locaux sans base les sautent.
 
 **Phase 1 — STAFF CENTER (SUCK ME, sans nouvelle racine)**
 - 1.1 Disponibilités et astreintes (`/staff dispo`, `/staff astreinte`).
@@ -333,5 +334,6 @@ récompenses ; le centre d'aide peut avancer en parallèle de CORE car il lit le
 | Tâche | État | Branche |
 |---|---|---|
 | 0.1 Audit et plan directeur | terminé | `claude/fwu-v2-audit-session-budget` |
-| 0.2 Garde de budget de connexions | terminé (code), à déployer | `claude/fwu-v2-audit-session-budget` |
-| 0.3 Alerte staff bot tombé | proposée (prochaine tâche) | — |
+| 0.2 Garde de budget de connexions | fusionné (#76) | `claude/fwu-v2-audit-session-budget` |
+| 0.3 Surveillance de la flotte | terminé | `claude/fwu-v2-fleet-watch` |
+| 0.4a Nom du dépôt, identité surveillance | terminé | `claude/fwu-v2-fleet-watch` |

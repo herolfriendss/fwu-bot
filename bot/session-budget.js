@@ -132,3 +132,36 @@ export function writeSessionWaitMarker(untilMs, reason, path = SESSION_WAIT_MARK
 export function clearSessionWaitMarker(path = SESSION_WAIT_MARKER) {
   try { rmSync(path, { force: true }); } catch { /* best effort */ }
 }
+
+// Deliberate waits, in the shared SQLite file so the other bots (fleet-watch.js) can tell
+// "waiting for Discord's budget" from "down".
+export function ensureGatewayWaitTable(db) {
+  db.exec(`CREATE TABLE IF NOT EXISTS bot_gateway_waits (
+    profile TEXT PRIMARY KEY,
+    until INTEGER NOT NULL,
+    reason TEXT NOT NULL
+  )`);
+}
+
+export function recordGatewayWait(db, profile, untilMs, reason) {
+  ensureGatewayWaitTable(db);
+  db.prepare(`INSERT INTO bot_gateway_waits(profile, until, reason) VALUES (?, ?, ?)
+    ON CONFLICT(profile) DO UPDATE SET until = excluded.until, reason = excluded.reason`).run(String(profile), Math.round(untilMs), String(reason).slice(0, 40));
+}
+
+export function clearGatewayWait(db, profile) {
+  ensureGatewayWaitTable(db);
+  db.prepare("DELETE FROM bot_gateway_waits WHERE profile = ?").run(String(profile));
+}
+
+export function listGatewayWaits(db) {
+  ensureGatewayWaitTable(db);
+  return db.prepare("SELECT profile, until, reason FROM bot_gateway_waits").all()
+    .map((row) => ({ profile: row.profile, until: Number(row.until), reason: row.reason }));
+}
+
+/** Profiles that logged in during the last 24 h. */
+export function recentlyStartedProfiles(db, now = Date.now()) {
+  ensureGatewayStartTable(db);
+  return new Set(db.prepare("SELECT DISTINCT profile FROM bot_gateway_starts WHERE started_at >= ?").all(now - HISTORY_MS).map((row) => row.profile));
+}

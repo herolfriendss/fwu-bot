@@ -16,7 +16,9 @@ DATA="$H/fwu-data"
 TOKEN_FILE="$DATA/.github-token"
 LOG="$DATA/maj.log"
 STATUS="$DATA/maj-status.json"
-REPO_SLUG="${FWU_REPO_SLUG:-herolfriendss/her-v3-}"
+# Dépôt : herolfriendss/fwu-bot (ancien nom : her-v3-). Si FWU_REPO_SLUG n'est pas fixé, le premier
+# nom accessible avec le jeton est retenu plus bas (le jeton peut viser l'ancien ou le nouveau nom).
+REPO_SLUG="${FWU_REPO_SLUG:-}"
 export PATH="/usr/local/bin:/usr/bin:/bin:$HOME/.npm-global/bin:$PATH"
 
 # Node 24 comes from nvm on this VPS, and a script launched in the background
@@ -72,6 +74,12 @@ trap 'rm -rf "$WORK"' EXIT
 # The token goes through curl's stdin config, never on the command line.
 gh_api() { printf 'header = "Authorization: Bearer %s"\n' "$(tr -d '\r\n' < "$TOKEN_FILE")" | curl -fsSL -K - -H "Accept: application/vnd.github+json" "$@"; }
 
+if [[ -z "$REPO_SLUG" ]]; then
+  for candidate in herolfriendss/fwu-bot herolfriendss/her-v3-; do
+    if gh_api -o /dev/null "https://api.github.com/repos/$candidate" 2>/dev/null; then REPO_SLUG="$candidate"; break; fi
+  done
+  [[ -n "$REPO_SLUG" ]] || fail "Dépôt GitHub inaccessible avec le jeton (réseau ou jeton expiré)."
+fi
 [[ -z "$AUTO" ]] && status running "Recherche de la dernière version"
 echo "==> Version"
 if [[ -n "$WANTED" ]]; then
