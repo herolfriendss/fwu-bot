@@ -81,6 +81,8 @@ test("only ban and blacklist-add may target a confirmed non-member", async () =>
   assert.equal(await checkInteractionHierarchy(dogMissing, { pndOwnerId: OWNER }), HIERARCHY_MESSAGES.targetMissing);
   assert.equal(await checkInteractionHierarchy(rankMissing, { pndOwnerId: OWNER }), HIERARCHY_MESSAGES.targetMissing);
   assert.equal(await checkInteractionHierarchy(blacklistMissing, { pndOwnerId: OWNER }), null);
+  const ownerDogMissing = interaction({ path: "dog", actorId: OWNER, targetId: "404", positions });
+  assert.equal(await checkInteractionHierarchy(ownerDogMissing, { pndOwnerId: OWNER }), HIERARCHY_MESSAGES.targetMissing, "OWNER still needs a present member for member-only actions");
 });
 
 test("decideHierarchy refuses an unreadable target marker", () => {
