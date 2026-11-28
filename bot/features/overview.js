@@ -79,14 +79,14 @@ function extrasSection(guildId, userId) {
 }
 
 /** One read of everything the five bots know about a member. */
-export function memberOverview(guildId, userId, { member = null, now = Date.now() } = {}) {
+export function memberOverview(guildId, userId, { member = null, now = Date.now(), includePrivate = true } = {}) {
   return {
     level: levelSection(guildId, userId),
-    economy: economySection(guildId, userId),
-    record: recordSection(guildId, userId, now),
+    economy: includePrivate ? economySection(guildId, userId) : null,
+    record: includePrivate ? recordSection(guildId, userId, now) : null,
     extras: extrasSection(guildId, userId),
-    trust: trustFor(guildId, userId, member, now),
-    sanctions: activeSanctions(guildId, userId, now),
+    trust: includePrivate ? trustFor(guildId, userId, member, now) : null,
+    sanctions: includePrivate ? activeSanctions(guildId, userId, now) : [],
   };
 }
 
@@ -231,8 +231,8 @@ async function showProfile(interaction, target) {
     : await interaction.guild.members.fetch(target.id).catch(() => null);
   const username = member?.displayName ?? target.username;
   const avatarUrl = target.displayAvatarURL?.({ extension: "png", size: 256 }) ?? null;
-  const overview = memberOverview(interaction.guildId, target.id, { member });
   const showPrivate = target.id === interaction.user.id;
+  const overview = memberOverview(interaction.guildId, target.id, { member, includePrivate: showPrivate });
   const embed = overviewEmbed(overview, { username, avatarUrl, showPrivate });
 
   try {
