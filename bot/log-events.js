@@ -264,12 +264,13 @@ export function startLogMaintenance({ client, record = () => {}, sources = () =>
       if (frequency === "off") return;
       const period = frequency === "weekly" ? 7 * 86_400_000 : 86_400_000;
       const current = now();
-      const last = lastSummaryAt();
-      if (last && current - last < period) return;
+      const globalLast = lastSummaryAt();
       const guildIds = [...new Set(sources().map(String))];
       if (!guildIds.length) return;
       let complete = true;
       for (const guildId of guildIds) {
+        const last = lastSummaryAt(guildId) || globalLast;
+        if (last && current - last < period) continue;
         const guild = client.guilds.cache.get(guildId);
         if (!guild) {
           complete = false;
@@ -278,13 +279,14 @@ export function startLogMaintenance({ client, record = () => {}, sources = () =>
         }
         try {
           await send(guild, null, buildLogSummary(guildId, last || current - period, current), [], [], [], { category: "system", archived: true });
+          markSummarySent(current, guildId);
         } catch {
           complete = false;
           record("log_summary_error");
         }
       }
-      // Do not advance the global checkpoint when any source could not be processed.
-      // The next tick retries the period instead of silently losing its digest.
+      // Advance the global fallback only when every due source was processed. Per-source
+      // checkpoints ensure successful servers are not sent the same digest again on retry.
       if (complete) markSummarySent(current);
     } catch {
       record("log_summary_error");
