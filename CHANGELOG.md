@@ -12,6 +12,7 @@ les bots du VPS prennent la mise à jour avec `/maj lancer` ou la mise à jour a
 - SUCK ME (STAFF CENTER) : `/staff formation` (cas pratiques raid, conflit, signalement corrigés ; certification des parcours Academy par un responsable, sans rôle automatique).
 - SUCK ME (STAFF CENTER) : `/staff centre`, le tableau de commandement (staff joignable, dossiers, tickets, alertes, missions, réunions, état des bots).
 - Infrastructure commune : événements avec identifiant universel et sans doublon ; file de tâches entre bots qui attend le retour d'un bot arrêté, sans perte ni double exécution.
+- Infrastructure commune : journal d'audit chaîné (toute modification à la main dans la base est détectée).
 - Bot principal : alerte au staff quand le disque, la mémoire ou le processeur du VPS saturent (et quand ça revient).
 - GUARD : alerte quand les arrivées ou les départs d'une heure dépassent nettement la normale.
 - Console : voyant global vert, orange ou rouge avec les raisons (aussi dans le badge « En direct »), historique des redémarrages.
