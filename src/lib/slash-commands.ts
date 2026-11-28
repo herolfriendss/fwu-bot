@@ -33,6 +33,8 @@ export type SlashCommandDef = {
   dmPermission?: boolean;
   /** Informational: commands backed by the SQLite/Oracle bot need the gateway process. */
   requiresBotProcess?: boolean;
+  /** Some commands are slash-only even when their bot has a prefix bridge. */
+  prefixEnabled?: boolean;
 };
 
 const opt = (type: number, name: string, description: string, extra: Partial<SlashOption> = {}): SlashOption => ({
