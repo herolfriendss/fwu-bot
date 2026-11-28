@@ -8,7 +8,7 @@ python3 -m pip install --user --upgrade yt-dlp
 YTDLP_BIN="$(python3 -c 'import site,os; print(os.path.join(site.USER_BASE,"bin","yt-dlp"))')"
 "$YTDLP_BIN" --version
 ffmpeg -version | head -n 1
-if ! ffmpeg -hide_banner -encoders 2>/dev/null | grep -q 'libopus'; then
+if ! ffmpeg -hide_banner -encoders 2>/dev/null | grep 'libopus' >/dev/null; then
   echo "FFmpeg doit inclure l'encodeur libopus." >&2
   exit 1
 fi
