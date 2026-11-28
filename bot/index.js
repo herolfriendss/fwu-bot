@@ -188,6 +188,7 @@ import { createFleetWatcher, describeFleetChange, profileState, watchedProfiles 
 import { pruneJobs, runJobs } from "./core-queue.js";
 import { expireDue as expireAuthorityExceptions } from "./authority.js";
 import { handleAuthorityInteraction } from "./features/authority-commands.js";
+import { runAuthoritySync } from "./authority-sync.js";
 import { LOGS_HUB_GUILD_ID, ACTIVE_SOURCE_GUILD_IDS, allowedRuntimeGuild, filterInactiveSourceGuilds, isLogsHub, inspectLogsHub, lastLogsHubFailure } from "./logs-hub.js";
 
 const { SITE_URL, BOT_SYNC_SECRET } = process.env;
@@ -288,6 +289,14 @@ setInterval(() => {
     .catch(() => record("core_job_error"));
 }, 15_000).unref?.();
 if (IS_FWU) setInterval(() => { try { pruneJobs(); } catch { record("core_job_error"); } }, 6 * 3_600_000).unref?.();
+// AUTHORITY 3.4: mirror to the console and console decisions, by the bot carrying /authority.
+let authorityResults = [];
+setInterval(() => {
+  if (!client?.isReady?.() || !serves("suckme")) return;
+  void runAuthoritySync({ apiUrl: SITE_URL, secret: BOT_SYNC_SECRET, guildIds: ALLOWED_GUILDS.filter((id) => !isLogsHub(id)), pendingResults: authorityResults })
+    .then((round) => { authorityResults = round.results; })
+    .catch(() => record("core_job_error"));
+}, 60_000).unref?.();
 // AUTHORITY: marks expired exceptions for the history (checks never depend on this job).
 if (IS_FWU) setInterval(() => { try { expireAuthorityExceptions(); } catch { record("core_job_error"); } }, 5 * 60_000).unref?.();
 if (!IS_FWU) {

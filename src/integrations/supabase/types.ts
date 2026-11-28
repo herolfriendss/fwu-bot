@@ -107,6 +107,69 @@ export type Database = {
         }
         Relationships: []
       }
+      bot_authority_decisions: {
+        Row: {
+          action: string
+          applied_at: string | null
+          duration_ms: number | null
+          guild_id: string
+          id: string
+          nonce: string | null
+          number: number
+          requested_at: string
+          requested_by: string | null
+          result: string | null
+          status: string
+        }
+        Insert: {
+          action: string
+          applied_at?: string | null
+          duration_ms?: number | null
+          guild_id: string
+          id?: string
+          nonce?: string | null
+          number: number
+          requested_at?: string
+          requested_by?: string | null
+          result?: string | null
+          status?: string
+        }
+        Update: {
+          action?: string
+          applied_at?: string | null
+          duration_ms?: number | null
+          guild_id?: string
+          id?: string
+          nonce?: string | null
+          number?: number
+          requested_at?: string
+          requested_by?: string | null
+          result?: string | null
+          status?: string
+        }
+        Relationships: []
+      }
+      bot_authority_snapshots: {
+        Row: {
+          captured_at: string
+          guild_id: string
+          snapshot: Json
+          updated_at: string
+        }
+        Insert: {
+          captured_at: string
+          guild_id: string
+          snapshot: Json
+          updated_at?: string
+        }
+        Update: {
+          captured_at?: string
+          guild_id?: string
+          snapshot?: Json
+          updated_at?: string
+        }
+        Relationships: []
+      }
       bot_control_commands: {
         Row: {
           action: string
