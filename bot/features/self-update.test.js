@@ -84,6 +84,8 @@ test("V2: automatic update runs once a night at the chosen Paris hour, never whi
   assert.equal(autoUpdateDue({ now: at8, env: { FWU_AUTO_UPDATE: "off" } }), false);
   assert.equal(autoUpdateDue({ now: at8, env: {}, status: { state: "running", at: Math.floor(at8.getTime() / 1000) } }), false);
   assert.equal(autoUpdateDue({ now: new Date("2026-11-27T21:30:00Z"), env: { FWU_AUTO_UPDATE_HOUR: "22" } }), "2026-11-27");
+  assert.equal(autoUpdateDue({ now: at8, env: { FWU_AUTO_UPDATE_HOUR: "invalid" } }), "2026-11-27", "une valeur invalide garde le défaut de 8 h");
+  assert.equal(autoUpdateDue({ now: at8, env: {}, status: { state: "done", at: "invalid" } }), "2026-11-27", "un statut mal formé ne bloque pas le planificateur");
 });
 
 test("la mise à jour ne reçoit ni le profil ni les tokens du bot qui la lance", async () => {
