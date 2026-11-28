@@ -255,7 +255,7 @@ export function buildLogSummary(guildId, since, until = Date.now()) {
  * Maintenance (bot principal) : purge selon la conservation, résumé quotidien ou
  * hebdomadaire vers chaque serveur source actif (salon « bot » du hub).
  */
-export function startLogMaintenance({ client, record = () => {}, sources = () => [], intervalMs = 60 * 60_000 }) {
+export function startLogMaintenance({ client, record = () => {}, sources = () => [], intervalMs = 60 * 60_000, send = sendCentralLog, now = () => Date.now() }) {
   const tick = async () => {
     try { pruneLogArchive(); } catch { record("log_retention_error"); }
     try {
@@ -263,15 +263,29 @@ export function startLogMaintenance({ client, record = () => {}, sources = () =>
       const frequency = logSummaryFrequency();
       if (frequency === "off") return;
       const period = frequency === "weekly" ? 7 * 86_400_000 : 86_400_000;
-      const now = Date.now();
+      const current = now();
       const last = lastSummaryAt();
-      if (last && now - last < period) return;
-      markSummarySent(now);
-      for (const guildId of sources()) {
+      if (last && current - last < period) return;
+      const guildIds = [...new Set(sources().map(String))];
+      if (!guildIds.length) return;
+      let complete = true;
+      for (const guildId of guildIds) {
         const guild = client.guilds.cache.get(guildId);
-        if (!guild) continue;
-        await sendCentralLog(guild, null, buildLogSummary(guildId, last || now - period, now), [], [], [], { category: "system", archived: true }).catch(() => record("log_summary_error"));
+        if (!guild) {
+          complete = false;
+          record("log_summary_guild_unavailable");
+          continue;
+        }
+        try {
+          await send(guild, null, buildLogSummary(guildId, last || current - period, current), [], [], [], { category: "system", archived: true });
+        } catch {
+          complete = false;
+          record("log_summary_error");
+        }
       }
+      // Do not advance the global checkpoint when any source could not be processed.
+      // The next tick retries the period instead of silently losing its digest.
+      if (complete) markSummarySent(current);
     } catch {
       record("log_summary_error");
     }
