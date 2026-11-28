@@ -1,36 +1,46 @@
 # FWU — reprise de la finalisation (28/11/2026)
 
-Branche de travail : `claude/fwu-finalization-c4alv9` (PR #128 fusionnée, PR #132 en cours). D'autres sessions travaillent en parallèle sur
-`main` et sur leurs propres branches : toujours `git fetch` avant de reprendre, ne jamais pousser sur leurs branches.
+Branche de travail : `claude/fwu-finalization-c4alv9`. D'autres sessions travaillent en parallèle sur `main` et sur
+leurs propres branches : toujours `git fetch` avant de reprendre, ne jamais pousser sur leurs branches, et comparer
+une PR au `main` actuel (pas à sa base) avant de la fusionner : plusieurs doublons ont déjà été ouverts.
 
-## Fait
+## Fusionné
 
-- PR #119 (mise à jour automatique à 08:00 Paris) : relue, testée sur l'arbre fusionné, fusionnée (squash).
-- PR #128 :
-  - planificateur : heure stricte 0–23, un seul contrôle par jour même après redémarrage
-    (`fwu-data/auto-update-jour`), rattrapage limité à 4 h, évaluation au démarrage, échecs `--auto` journalisés ;
-  - `fwu-maj-un-bot.sh` : un bot au paquet inchangé et en ligne n'est ni réinstallé ni redémarré ;
-  - lot de dépendances vérifié ensemble (remplace dependabot #106–#108, #110–#118) ; eslint-plugin-react-hooks 7
-    avec les deux règles classiques explicites (les règles React Compiler ne sont pas adoptées).
-- Vérifications sur `main` (Node 24.22.3) : tests du bot (1407, 0 échec), vitest (297), tsc, eslint (0 erreur),
-  build, `audit:commands` (186 définitions, aucune sans propriétaire ni manquante), `audit:replies`, smoke
-  (3270 exécutions, 0 commande sans réponse), paquets des 5 bots (aucun `.env`, base, `node_modules` ni token).
-- Audit ciblé sans anomalie : toutes les server functions appellent `requireOwner` (sauf `logout`) ; les routes
-  `/api/public/*` vérifient le bearer en temps constant ; session OAuth (PKCE, state à usage unique, cookie
-  httpOnly/secure) ; un seul OWNER (`PND_OWNER_DISCORD_ID`), les cofondateurs ne sont plus privilégiés ;
-  leases liés à la connexion Discord et refus en cas de base illisible ; RLS sur toutes les tables Supabase.
+| PR | Contenu |
+| --- | --- |
+| #119 | Mise à jour automatique à 08:00 (heure de Paris). |
+| #128 | Un seul contrôle par jour même après redémarrage, rattrapage limité à 4 h, échecs journalisés, bots inchangés non redémarrés ; lot de dépendances (remplace dependabot #106–#118). |
+| #132 | Bouton de maintenance globale acquitté avant l'annonce ; assistant IA : 20 questions/min par serveur, chiffres non pris pour des commandes. |
+| #133 | Page `/knowledge permissions` : un seul OWNER technique. |
+| #135 | Test de fumée de toutes les commandes en CI (limites Discord, membre sans rôle) ; réglage « Expiration des avertissements » enfin appliqué ; fonction serveur d'écrasement complet retirée ; scripts shellcheck en CI, message de l'installateur corrigé, rétention optionnelle des anciennes versions. |
 
-- PR #132 : bouton de maintenance globale acquitté avant l'annonce publique (suite de #124) ; assistant IA :
-  plafond de 20 questions/min par serveur et chiffres (`-5`, `+10`) non lus comme des commandes (suite de #130).
-- Revue de #124 (boutons OWNER liés à l'ID configuré) et de #130 (pas d'historique, pas d'action Discord, contexte
-  limité au catalogue et aux pages publiques, secrets refusés, bearer côté serveur) : conformes.
+Fermée comme doublon : #134 (même correction que #132). #127 remplacée par #130.
 
-## Restant
+## Vérifié
 
-- PR #127 : remplacée par #130 (assistant IA), fusionnée par sa session ; #127 peut être fermée.
-- Validation en staging de `/ia question` (réponse éphémère, refus d'un token, limite 3/min et 20/min par serveur).
-- Validation en staging (manuelle) : `/maj lancer` puis vérifier `paquet inchangé` dans `maj.log`.
+- Node 24.22.3 : tests du bot (0 échec), vitest (297), tsc, eslint (0 erreur), build, `audit:commands`,
+  `audit:replies`, smoke (4 908 exécutions, 0 anomalie), shellcheck sur les 22 scripts, paquets des 5 bots et
+  `public/downloads/bot-oracle.zip` (aucun `.env`, base, dépendance ni vrai jeton), `npm audit` (0 vulnérabilité).
+- Sécurité : server functions toutes derrière `requireOwner` (sauf `logout`), routes publiques en bearer à temps
+  constant, OAuth PKCE à usage unique, un seul OWNER, leases liés à la connexion Discord, RLS « refus total » pour
+  `anon`/`authenticated` sur toutes les tables de production, aucune alerte de sécurité Supabase.
+
+## Actions manuelles (OWNER)
+
+1. **Migrations Supabase non appliquées en production** (constaté en lecture seule le 28/11) :
+   - `202611250002_bot_settings_least_privilege.sql` : `anon` et `authenticated` ont encore tous les droits
+     (dont `DELETE` et `TRUNCATE`) sur `bot_settings`. Non exploitable par l'API publique grâce au RLS « refus
+     total », mais la défense en profondeur prévue manque.
+   - `202611280001_bot_authority_console.sql` : tables `bot_authority_snapshots` et `bot_authority_decisions`
+     absentes ; la console d'autorité du site ne peut rien enregistrer tant qu'elle n'est pas appliquée.
+   Les appliquer dans l'éditeur SQL de Supabase, dans l'ordre des noms, après une sauvegarde.
+2. **Disque du VPS** : décider de `FWU_KEEP_PREVIOUS=3` dans le `.env` de SUCK ME (sinon les copies
+   `her-v5-production.prev-*` s'accumulent ; `maj.log` avertit au-delà de 3).
+3. **Recette en staging** (`RECETTE_STAGING.md`) : `/maj lancer` puis « paquet inchangé » dans `maj.log` ;
+   boutons de `/stabilite etat` ; `/ia question` (refus d'un token, limites 3/min et 20/min par serveur) ;
+   `/warn` sans option `expire` (expiration à 90 jours ou selon le réglage).
 
 ## Prochaine tâche précise
 
-Fusionner #132 quand la CI est verte sur le dernier commit ; relire #129 (réponses types des tickets) quand elle sort du brouillon.
+Aucune tâche de code ouverte de cette session. Reprendre par les actions manuelles ci-dessus, puis relire les
+nouvelles PR des autres sessions contre le `main` actuel.
