@@ -77,7 +77,7 @@ test("tutoriels interactifs : choix, étapes, retour, recommencer et quitter", (
 });
 
 test("tutoriel : les boutons sont liés à l'utilisateur et pilotent la navigation", async () => {
-  const parsed = helpViewFromInteraction({ customId: "aide:tutorial:123456789012345678:start:permissions:0" });
+  const parsed = helpViewFromInteraction({ customId: "aide:tutorial:123456789012345678:permissions:start:0" });
   assert.deepEqual(parsed, { section: "tutorials", ownerId: "123456789012345678", tutorialId: "permissions", action: "start", page: 0 });
   const calls = [];
   const allowed = {
