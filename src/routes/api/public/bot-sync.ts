@@ -39,7 +39,7 @@ export const Route = createFileRoute("/api/public/bot-sync")({
       POST: async ({ request }) => {
         const { checkBotSecret } = await import("@/lib/bot-settings.server");
         if (!checkBotSecret(request)) return json({ error: "unauthorized" }, 401);
-        let body: { action?: unknown; guildId?: unknown; userId?: unknown; memoryEnabled?: unknown; roleId?: unknown; actorId?: unknown; intelligenceEnabled?: unknown; intelligenceChannelId?: unknown; applicationId?: unknown; name?: unknown; permissions?: unknown; prompt?: unknown; instructions?: unknown; author?: unknown; module?: unknown; settings?: unknown; changes?: unknown; expected?: unknown; commands?: unknown; knowledge?: unknown };
+        let body: { action?: unknown; guildId?: unknown; userId?: unknown; memoryEnabled?: unknown; roleId?: unknown; actorId?: unknown; intelligenceEnabled?: unknown; intelligenceChannelId?: unknown; applicationId?: unknown; name?: unknown; permissions?: unknown; prompt?: unknown; instructions?: unknown; author?: unknown; guildName?: unknown; count?: unknown; module?: unknown; settings?: unknown; changes?: unknown; expected?: unknown; commands?: unknown; knowledge?: unknown };
         let rawBody: string | null;
         try {
           rawBody = await readBoundedText(request, 256_000);
@@ -235,6 +235,21 @@ export const Route = createFileRoute("/api/public/bot-sync")({
             content: saved.response,
             ephemeral: saved.ephemeral,
           });
+        }
+        if (body.action === "ai-rules") {
+          const guildId = String(body.guildId ?? "");
+          const userId = String(body.userId ?? "");
+          const guildName = String(body.guildName ?? "").trim().slice(0, 100);
+          const instructions = String(body.instructions ?? "").trim().slice(0, 1000);
+          const count = Number(body.count ?? 10);
+          if (!isDiscordSnowflake(guildId) || !isDiscordSnowflake(userId) || !guildName
+            || !Number.isInteger(count) || count < 5 || count > 20) {
+            return json({ error: "invalid rules generation input" }, 400);
+          }
+          if (!(await verifyGuildModuleSettingsActor(guildId, userId))) return json({ error: "forbidden" }, 403);
+          const { botAiGenerateRules } = await import("@/lib/bot-ai.server");
+          const result = await botAiGenerateRules({ guildId, userId, guildName, instructions, count });
+          return json(result.rules !== undefined ? { rules: result.rules } : { error: result.error ?? "rules generation failed" }, result.status);
         }
         if (body.action === "ai-help-answer") {
           const helpPrompt = String(body.prompt ?? "").trim().slice(0, 1000);
