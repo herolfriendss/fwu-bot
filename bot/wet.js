@@ -286,7 +286,7 @@ export async function enforceWetOnJoin(member, record = () => {}) {
 
 function formatCase(entry) {
   const accounts = entry.accounts.map((account) =>
-    `• <@${account.user_id}> (\\`${account.user_id}\\`)${account.linked_from_id ? ` — lié à ${account.linked_from_id}` : " — compte principal"}`,
+    `• <@${account.user_id}> (${account.user_id})${account.linked_from_id ? ` — lié à ${account.linked_from_id}` : " — compte principal"}`,
   ).join("\n");
   return [
     `**Dossier WET ${entry.id.slice(0, 8)}**`,
