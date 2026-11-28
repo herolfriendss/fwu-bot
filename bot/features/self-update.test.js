@@ -88,6 +88,64 @@ test("V2: automatic update runs once a night at the chosen Paris hour, never whi
   assert.equal(autoUpdateDue({ now: at8, env: {}, status: { state: "done", at: "invalid" } }), "2026-11-27", "un statut mal formé ne bloque pas le planificateur");
 });
 
+test("auto update: strict hour, DST-safe Paris time, bounded catch-up window", async () => {
+  const { autoUpdateDue, parseAutoUpdateHour } = await import("./self-update.js");
+  for (const bad of ["8abc", "24", "-1", "", " ", "7.5", "1e1"]) assert.equal(parseAutoUpdateHour(bad), 8, bad);
+  assert.equal(parseAutoUpdateHour(undefined), 8);
+  assert.equal(parseAutoUpdateHour(" 3 "), 3);
+  assert.equal(parseAutoUpdateHour("0"), 0);
+  // Summer time (UTC+2): 06:10 UTC is 08:10 in Paris; 05:59 UTC is still 07:59.
+  assert.equal(autoUpdateDue({ now: new Date("2026-07-14T06:10:00Z"), env: {} }), "2026-07-14");
+  assert.equal(autoUpdateDue({ now: new Date("2026-07-14T05:59:00Z"), env: {} }), false);
+  // DST switch days (29 March / 25 October 2026) still trigger exactly at 08:xx local time.
+  assert.equal(autoUpdateDue({ now: new Date("2026-03-29T06:05:00Z"), env: {} }), "2026-03-29");
+  assert.equal(autoUpdateDue({ now: new Date("2026-10-25T07:05:00Z"), env: {} }), "2026-10-25");
+  assert.equal(autoUpdateDue({ now: new Date("2026-10-25T06:05:00Z"), env: {} }), false, "07:05 heure d'hiver");
+  // Bot restarted before 08:00: nothing yet. Restarted late in the evening: no general restart.
+  assert.equal(autoUpdateDue({ now: new Date("2026-11-27T06:50:00Z"), env: {} }), false);
+  assert.equal(autoUpdateDue({ now: new Date("2026-11-27T10:50:00Z"), env: {} }), "2026-11-27", "rattrapage jusqu'à 11 h 59");
+  assert.equal(autoUpdateDue({ now: new Date("2026-11-27T11:00:00Z"), env: {} }), false, "plus de rattrapage à midi");
+  assert.equal(autoUpdateDue({ now: new Date("2026-11-27T19:00:00Z"), env: {} }), false);
+  assert.equal(autoUpdateDue({ now: new Date("2026-11-27T07:10:00Z"), env: { FWU_AUTO_UPDATE: " OFF " } }), false);
+  // A failed update today is not retried in a loop.
+  const at = Math.floor(new Date("2026-11-27T07:20:00Z").getTime() / 1000);
+  assert.equal(autoUpdateDue({ now: new Date("2026-11-27T08:00:00Z"), env: {}, status: { state: "failed", at } }), false);
+  // A stale "running" status (crashed script) no longer blocks.
+  const old = Math.floor(new Date("2026-11-27T05:00:00Z").getTime() / 1000);
+  assert.equal(autoUpdateDue({ now: new Date("2026-11-27T07:10:00Z"), env: {}, status: { state: "running", at: old } }), "2026-11-27");
+});
+
+test("auto update: one check per day survives restarts and never needs the script to exist twice", async () => {
+  const { startAutoUpdate, readAutoUpdateDay } = await import("./self-update.js");
+  const dataDir = mkdtempSync(join(tmpdir(), "fwu-maj-auto-"));
+  const spawned = [];
+  const spawnFn = (cmd, args) => { spawned.push(args); return { unref() {} }; };
+  const events = [];
+  // 11 h 50 à Paris : le contrôle immédiat au démarrage évite de manquer la fin de la fenêtre à midi.
+  const now = () => new Date("2026-11-27T10:50:00Z");
+  const first = startAutoUpdate({ spawnFn, record: (e) => events.push(e), env: {}, dir: dataDir, now, scriptExists: () => true, intervalMs: 3_600_000 });
+  assert.equal(spawned.length, 1, "contrôle immédiat au démarrage dans la fenêtre de rattrapage");
+  assert.equal(first.tick(), false, "pas deux fois dans le même processus");
+  first.stop();
+  assert.equal(readAutoUpdateDay(dataDir), "2026-11-27");
+  // Simulated restart of SUCK ME (the update restarts it) the same morning.
+  const second = startAutoUpdate({ spawnFn, record: (e) => events.push(e), env: {}, dir: dataDir, now, scriptExists: () => true, intervalMs: 3_600_000 });
+  assert.equal(second.tick(), false, "pas de nouveau contrôle après redémarrage");
+  second.stop();
+  assert.equal(spawned.length, 1);
+  assert.ok(spawned[0].includes("--auto"));
+  assert.deepEqual(events, ["auto_update_check"]);
+  // Corrupted day file is ignored, missing script is reported once and not retried all day.
+  writeFileSync(join(dataDir, "auto-update-jour"), "garbage");
+  assert.equal(readAutoUpdateDay(dataDir), null);
+  const third = startAutoUpdate({ spawnFn, record: (e) => events.push(e), env: {}, dir: dataDir, now, scriptExists: () => false, intervalMs: 3_600_000 });
+  assert.equal(third.tick(), false);
+  assert.equal(third.tick(), false);
+  third.stop();
+  assert.deepEqual(events, ["auto_update_check", "auto_update_error"]);
+  assert.equal(spawned.length, 1);
+});
+
 test("la mise à jour ne reçoit ni le profil ni les tokens du bot qui la lance", async () => {
   const m = await import("./self-update.js");
   const env = m.cleanUpdateEnv({ PATH: "/bin", PND_BOT_PROFILE: "suckme", DISCORD_TOKEN: "a", PND_SUCKME_TOKEN: "b", PND_GUARD_GUILD_IDS: "1", PND_OWNER_DISCORD_ID: "9", SITE_URL: "x" });
@@ -95,4 +153,25 @@ test("la mise à jour ne reçoit ni le profil ni les tokens du bot qui la lance"
   let opts;
   m.launchUpdate((_c, _a, o) => { opts = o; return { unref() {} }; }, "/x.sh");
   assert.ok(opts.env && !("PND_BOT_PROFILE" in opts.env));
+});
+
+test("auto update refuses to launch when the daily marker cannot be persisted", async () => {
+  const { startAutoUpdate } = await import("./self-update.js");
+  const parent = mkdtempSync(join(tmpdir(), "fwu-maj-marker-"));
+  const missingDir = join(parent, "missing");
+  const spawned = [];
+  const events = [];
+  const updater = startAutoUpdate({
+    spawnFn: (...args) => { spawned.push(args); return { unref() {} }; },
+    record: (event) => events.push(event),
+    env: {},
+    dir: missingDir,
+    now: () => new Date("2026-11-27T07:10:00Z"),
+    scriptExists: () => true,
+    intervalMs: 3_600_000,
+  });
+  assert.equal(updater.tick(), false);
+  updater.stop();
+  assert.equal(spawned.length, 0, "no update without a durable once-per-day marker");
+  assert.deepEqual(events, ["auto_update_error"]);
 });

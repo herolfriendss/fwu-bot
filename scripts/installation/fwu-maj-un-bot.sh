@@ -16,6 +16,19 @@ DIR="$BOTS/fwu-$PROFILE"
 SNAP="$BOTS/.avant-maj/fwu-$PROFILE"
 
 [[ -f "$ZIP" ]] || { echo "Paquet introuvable : $ZIP"; exit 1; }
+
+# Empreinte du contenu du paquet (noms + CRC, sans les dates) : un bot dont le code n'a pas changé
+# et qui tourne n'est ni réinstallé ni redémarré (pas d'interruption inutile des autres bots).
+FINGERPRINT_FILE="$DIR/.fwu-paquet-empreinte"
+fingerprint="$(python3 -I -c 'import hashlib, sys, zipfile
+h = hashlib.sha256()
+for info in sorted(zipfile.ZipFile(sys.argv[1]).infolist(), key=lambda i: i.filename):
+    h.update(f"{info.filename}\0{info.CRC}\0{info.file_size}\n".encode())
+print(h.hexdigest())' "$ZIP" 2>/dev/null || true)"
+if [[ -n "$fingerprint" && -f "$FINGERPRINT_FILE" && "$(tr -d '[:space:]' < "$FINGERPRINT_FILE")" == "$fingerprint" ]]; then
+  pid="$(pm2 pid "fwu-$PROFILE" 2>/dev/null | tr -d '[:space:]' || true)"
+  if [[ -n "$pid" && "$pid" != "0" ]]; then echo "$PROFILE : paquet inchangé et bot en ligne, rien à faire."; exit 0; fi
+fi
 mkdir -p "$BOTS/.avant-maj"
 rm -rf "$SNAP"
 had_previous=0
@@ -40,7 +53,7 @@ restore() {
 (cd "$BOTS" && unzip -oq "$ZIP") || { echo "Paquet $PROFILE illisible."; restore; exit 4; }
 bash "$DIR/installer.sh" </dev/null
 code=$?
-if [[ "$code" == 0 ]]; then rm -rf "$SNAP"; exit 0; fi
+if [[ "$code" == 0 ]]; then rm -rf "$SNAP"; [[ -n "$fingerprint" ]] && printf '%s\n' "$fingerprint" > "$FINGERPRINT_FILE"; exit 0; fi
 if [[ "$code" == 2 ]]; then rm -rf "$SNAP"; exit 2; fi
 restore && exit 4
 exit 1

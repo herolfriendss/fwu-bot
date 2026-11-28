@@ -19,7 +19,10 @@ export default tseslint.config(
       "react-refresh": reactRefresh,
     },
     rules: {
-      ...reactHooks.configs.recommended.rules,
+      // Classic hook rules only: the React Compiler rules of eslint-plugin-react-hooks v7 flag the
+      // deliberate client-only hydration effects (live status pages) and are not adopted yet.
+      "react-hooks/rules-of-hooks": "error",
+      "react-hooks/exhaustive-deps": "warn",
       "no-restricted-imports": [
         "error",
         {

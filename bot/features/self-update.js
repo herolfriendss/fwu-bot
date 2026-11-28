@@ -1,6 +1,6 @@
 // SUCK ME — /maj : the VPS updates itself from GitHub (OWNER only), so no computer is needed.
 import { spawn } from "node:child_process";
-import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { parsePndOwnerId } from "../pnd-owner-policy.js";
 
 export const SELF_UPDATE_COMMANDS = new Set(["maj"]);
@@ -113,41 +113,76 @@ export async function announceUpdateResult(client, dir = DATA()) {
 }
 
 /**
- * V2 — mise à jour automatique : chaque nuit (8 h, heure de Paris, réglable par
- * FWU_AUTO_UPDATE_HOUR), SUCK ME lance le script en mode --auto ; il ne réinstalle que si
+ * V2 — mise à jour automatique : chaque jour à 8 h (heure de Paris, réglable par
+ * FWU_AUTO_UPDATE_HOUR=0..23), SUCK ME lance le script en mode --auto ; il ne réinstalle que si
  * main (ou la dernière version publiée) a changé. FWU_AUTO_UPDATE=off la désactive.
+ *
+ * Rattrapage : si le bot était arrêté à l'heure prévue, le contrôle a lieu à son redémarrage, mais
+ * seulement pendant AUTO_UPDATE_CATCH_UP_HOURS heures (pas de redémarrage général en pleine soirée).
+ * Un seul contrôle par jour, même après plusieurs redémarrages : le jour du dernier contrôle est
+ * noté dans fwu-data/auto-update-jour, et une mise à jour (manuelle ou auto) terminée ou échouée
+ * aujourd'hui compte aussi.
  */
-export function autoUpdateDue({ now = new Date(), lastRunDay = null, env = process.env, status = null } = {}) {
-  if (String(env.FWU_AUTO_UPDATE ?? "on").toLowerCase() === "off") return false;
-  if (!canStartUpdate(status, now.getTime())) return false;
-  const configuredHour = Number.parseInt(env.FWU_AUTO_UPDATE_HOUR ?? "8", 10);
-  const hour = Number.isInteger(configuredHour) && configuredHour >= 0 && configuredHour <= 23 ? configuredHour : 8;
-  const parts = new Intl.DateTimeFormat("fr-FR", { timeZone: "Europe/Paris", hour: "2-digit", hourCycle: "h23", year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(now);
-  const get = (type) => parts.find((p) => p.type === type)?.value;
-  const day = `${get("year")}-${get("month")}-${get("day")}`;
-  const statusTimestamp = Number(status?.at);
-  const statusParts = Number.isFinite(statusTimestamp) && statusTimestamp > 0
-    ? new Intl.DateTimeFormat("fr-FR", { timeZone: "Europe/Paris", year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(new Date(statusTimestamp * 1000))
-    : [];
-  const statusValue = (type) => statusParts.find((part) => part.type === type)?.value;
-  const statusDay = statusParts.length ? `${statusValue("year")}-${statusValue("month")}-${statusValue("day")}` : null;
-  if (day === lastRunDay || (statusDay === day && status?.state !== "running")) return false;
-  return Number(get("hour")) >= hour ? day : false;
+export const AUTO_UPDATE_DEFAULT_HOUR = 8;
+export const AUTO_UPDATE_CATCH_UP_HOURS = 4;
+
+/** Heure configurée, ou 8 si la valeur n'est pas un entier 0..23 écrit en chiffres (« 8abc » refusé). */
+export function parseAutoUpdateHour(value) {
+  const text = String(value ?? "").trim();
+  if (!/^\d{1,2}$/.test(text)) return AUTO_UPDATE_DEFAULT_HOUR;
+  const hour = Number(text);
+  return hour <= 23 ? hour : AUTO_UPDATE_DEFAULT_HOUR;
 }
 
-export function startAutoUpdate({ spawnFn = spawn, record = () => {}, env = process.env, intervalMs = 15 * 60_000 } = {}) {
-  let lastRunDay = null;
+function parisParts(date) {
+  const parts = new Intl.DateTimeFormat("fr-FR", { timeZone: "Europe/Paris", hour: "2-digit", hourCycle: "h23", year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(date);
+  const get = (type) => parts.find((p) => p.type === type)?.value;
+  return { day: `${get("year")}-${get("month")}-${get("day")}`, hour: Number(get("hour")) };
+}
+
+export function autoUpdateDue({ now = new Date(), lastRunDay = null, env = process.env, status = null } = {}) {
+  if (String(env.FWU_AUTO_UPDATE ?? "on").trim().toLowerCase() === "off") return false;
+  if (!canStartUpdate(status, now.getTime())) return false;
+  const hour = parseAutoUpdateHour(env.FWU_AUTO_UPDATE_HOUR);
+  const { day, hour: current } = parisParts(now);
+  const statusTimestamp = Number(status?.at);
+  const statusDay = Number.isFinite(statusTimestamp) && statusTimestamp > 0 ? parisParts(new Date(statusTimestamp * 1000)).day : null;
+  if (day === lastRunDay || (statusDay === day && status?.state !== "running")) return false;
+  return current >= hour && current < hour + AUTO_UPDATE_CATCH_UP_HOURS ? day : false;
+}
+
+const LAST_DAY_FILE = (dir) => `${dir}/auto-update-jour`;
+export function readAutoUpdateDay(dir = DATA()) {
+  try {
+    const text = readFileSync(LAST_DAY_FILE(dir), "utf8").trim();
+    return /^\d{4}-\d{2}-\d{2}$/.test(text) ? text : null;
+  } catch { return null; }
+}
+function writeAutoUpdateDay(day, dir = DATA()) {
+  try { writeFileSync(`${LAST_DAY_FILE(dir)}.tmp`, `${day}\n`); renameSync(`${LAST_DAY_FILE(dir)}.tmp`, LAST_DAY_FILE(dir)); return true; } catch { return false; }
+}
+
+export function startAutoUpdate({ spawnFn = spawn, record = () => {}, env = process.env, intervalMs = 15 * 60_000, dir = DATA(), now = () => new Date(), scriptExists = existsSync } = {}) {
+  let lastRunDay = readAutoUpdateDay(dir);
   const tick = () => {
     try {
-      const day = autoUpdateDue({ lastRunDay, env, status: readUpdateStatus() });
-      if (!day) return;
+      const day = autoUpdateDue({ now: now(), lastRunDay, env, status: readUpdateStatus(dir) });
+      if (!day) return false;
       lastRunDay = day;
+      // Noté avant le lancement : le script redémarre SUCK ME, qui ne doit pas relancer un contrôle.
+      // Si le marqueur ne peut pas être persisté, ne lance pas une mise à jour qui pourrait repartir en boucle après redémarrage.
+      if (!writeAutoUpdateDay(day, dir)) { record("auto_update_error"); return false; }
+      if (!scriptExists(SCRIPT())) { record("auto_update_error"); return false; }
       launchUpdate(spawnFn, SCRIPT(), "--auto");
       record("auto_update_check");
+      return true;
     } catch {
       record("auto_update_error");
+      return false;
     }
   };
+  // Évalue immédiatement au démarrage : sinon un démarrage à 11 h 50 pourrait manquer la fin du rattrapage à midi.
+  tick();
   const timer = setInterval(tick, intervalMs);
   timer.unref?.();
   return { tick, stop: () => clearInterval(timer) };
