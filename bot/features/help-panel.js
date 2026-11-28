@@ -110,9 +110,103 @@ export function permissionsEmbed({ prefixes, quotas = DEFAULT_QUOTAS }) {
   };
 }
 
-/** Message complet : embed + menu (+ boutons de page). */
+export const HELP_TUTORIALS = Object.freeze({
+  start: Object.freeze({
+    title: "Bien démarrer",
+    description: "Découvre comment trouver le bon bot et lancer une commande.",
+    steps: Object.freeze([
+      { title: "1 · Choisir le bon service", content: "Ouvre `/aide` et sélectionne le bot correspondant à ton besoin. Chaque bot a une mission précise ; le panneau affiche sa description et ses commandes." },
+      { title: "2 · Lancer une commande", content: "Les commandes slash commencent par `/`. Certains bots acceptent aussi leur préfixe affiché dans l'aide. Le bot principal fonctionne en slash uniquement." },
+      { title: "3 · Lire les indications", content: "Les symboles ⏳ signalent une commande soumise à quota ; 🔒 indique une permission Discord requise. Une commande peut aussi dépendre de ton palier ou de tes accès." },
+      { title: "4 · Comprendre un refus", content: "Lis le motif affiché par le bot. Pour les permissions, consulte la rubrique « Permissions et quotas » de l'aide, puis le guide disponible via `/guide` sur SUCK ME." },
+      { title: "5 · Continuer", content: "Tu peux relancer ce parcours à tout moment depuis `/aide`. Si tu as besoin d'une intervention du staff, utilise le panneau de support publié sur le serveur." },
+    ]),
+  }),
+  permissions: Object.freeze({
+    title: "Comprendre les permissions",
+    description: "Comprends les paliers, les quotas et les protections.",
+    steps: Object.freeze([
+      { title: "1 · Palier et rôle", content: "Les droits de modération dépendent du palier configuré, pas du nom du rôle. Le guide des permissions explique les niveaux et leurs limites." },
+      { title: "2 · Quotas partagés", content: "Les commandes marquées ⏳ consomment un quota commun aux bots. Utilise `/quota moi` pour consulter tes limites et ton usage." },
+      { title: "3 · Permissions Discord", content: "Un palier ne remplace jamais les permissions natives Discord ni la hiérarchie des rôles. Une action peut être refusée même si ton palier l'autorise." },
+    ]),
+  }),
+  support: Object.freeze({
+    title: "Demander de l'aide",
+    description: "Prépare une demande claire et protège tes informations.",
+    steps: Object.freeze([
+      { title: "1 · Trouver le support", content: "Repère le panneau de tickets publié par l'équipe du serveur, puis utilise le bouton d'ouverture. Le système de tickets existant du serveur est réutilisé." },
+      { title: "2 · Décrire le problème", content: "Explique ce que tu essayais de faire, la commande utilisée et le message de refus ou d'erreur. N'envoie pas de mot de passe, token ou secret." },
+      { title: "3 · Suivre le ticket", content: "Réponds dans le salon privé du ticket et attends la prise en charge. Quand le problème est résolu, utilise le bouton de fermeture." },
+    ]),
+  }),
+});
+
+function mainHelpMenu(view, profiles) {
+  const select = new StringSelectMenuBuilder().setCustomId(`${HELP_PREFIX}menu`).setPlaceholder("Choisis un bot ou une rubrique").addOptions(
+    { label: "Vue d'ensemble", value: "accueil", emoji: "📖", default: !profiles[view.section] && view.section !== "permissions" && view.section !== "tutorials" },
+    ...Object.values(profiles).map((profile) => ({ label: profile.label.slice(0, 100), value: profile.id, emoji: BOT_EMOJI[profile.id] ?? "🤖", description: profile.summary.slice(0, 100), default: view.section === profile.id })),
+    { label: "Permissions et quotas", value: "permissions", emoji: "🔐", default: view.section === "permissions" },
+    { label: "Tutoriels interactifs", value: "tutorials", emoji: "🧭", default: view.section === "tutorials" },
+  );
+  return new ActionRowBuilder().addComponents(select);
+}
+
+function tutorialControls(userId, tutorialId, page, count, intro = false) {
+  const id = (action, targetPage = page) => `${HELP_PREFIX}tutorial:${userId}:${tutorialId}:${action}:${targetPage}`;
+  if (intro) return new ActionRowBuilder().addComponents(
+    new ButtonBuilder().setCustomId(id("start", 0)).setLabel("Commencer").setStyle(ButtonStyle.Primary),
+    new ButtonBuilder().setCustomId(id("quit", 0)).setLabel("Quitter").setStyle(ButtonStyle.Secondary),
+  );
+  return new ActionRowBuilder().addComponents(
+    new ButtonBuilder().setCustomId(id("back", Math.max(0, page - 1))).setLabel("Retour").setStyle(ButtonStyle.Secondary).setDisabled(page === 0),
+    new ButtonBuilder().setCustomId(id("next", Math.min(count - 1, page + 1))).setLabel("Suivant").setStyle(ButtonStyle.Primary).setDisabled(page >= count - 1),
+    new ButtonBuilder().setCustomId(id("restart", 0)).setLabel("Recommencer").setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder().setCustomId(id("quit", 0)).setLabel("Quitter").setStyle(ButtonStyle.Danger),
+  );
+}
+
+/** Page de tutoriel interactive : les boutons restent liés à l'utilisateur qui a ouvert le panneau. */
+export function tutorialPayload({ tutorialId = null, page = -1, userId }, ctx) {
+  const tutorial = HELP_TUTORIALS[tutorialId] ?? null;
+  const components = [mainHelpMenu({ section: "tutorials" }, ctx.profiles)];
+  const chooser = new StringSelectMenuBuilder().setCustomId(`${HELP_PREFIX}tutorial-menu`).setPlaceholder("Choisis un tutoriel").addOptions(
+    ...Object.entries(HELP_TUTORIALS).map(([value, item]) => ({ label: item.title, value, description: item.description.slice(0, 100), emoji: "🧭", default: value === tutorialId })),
+  );
+  components.push(new ActionRowBuilder().addComponents(chooser));
+  if (!tutorial) {
+    return {
+      embeds: [{ title: "🧭 Tutoriels interactifs", description: "Choisis un parcours dans le menu ci-dessous. Tu peux avancer, revenir en arrière, recommencer ou quitter à tout moment." }],
+      components,
+      allowedMentions: { parse: [] },
+    };
+  }
+  if (page < 0) {
+    components.push(tutorialControls(userId, tutorialId, -1, tutorial.steps.length, true));
+    return {
+      embeds: [{ title: `🧭 ${tutorial.title}`, description: `${tutorial.description}\n\n**${tutorial.steps.length} étapes** · Commence quand tu es prêt.` }],
+      components,
+      allowedMentions: { parse: [] },
+    };
+  }
+  const current = Math.max(0, Math.min(tutorial.steps.length - 1, Number(page) || 0));
+  const step = tutorial.steps[current];
+  components.push(tutorialControls(userId, tutorialId, current, tutorial.steps.length));
+  return {
+    embeds: [{
+      title: `🧭 ${tutorial.title} · étape ${current + 1}/${tutorial.steps.length}`,
+      description: `**${step.title}**\n\n${step.content}`,
+      footer: { text: "Retour · Suivant · Recommencer · Quitter" },
+    }],
+    components,
+    allowedMentions: { parse: [] },
+  };
+}
+
+/** Message complet : embed + menu (+ boutons de page ou tutoriel). */
 export function helpPayload(view, ctx) {
   const { profiles } = ctx;
+  if (view.section === "tutorials") return tutorialPayload(view, ctx);
   let embed;
   let nav = null;
   if (view.section === "permissions") embed = permissionsEmbed(ctx);
@@ -126,12 +220,7 @@ export function helpPayload(view, ctx) {
       );
     }
   } else embed = overviewEmbed(ctx);
-  const select = new StringSelectMenuBuilder().setCustomId(`${HELP_PREFIX}menu`).setPlaceholder("Choisis un bot ou une rubrique").addOptions(
-    { label: "Vue d'ensemble", value: "accueil", emoji: "📖", default: !profiles[view.section] && view.section !== "permissions" },
-    ...Object.values(profiles).map((profile) => ({ label: profile.label.slice(0, 100), value: profile.id, emoji: BOT_EMOJI[profile.id] ?? "🤖", description: profile.summary.slice(0, 100), default: view.section === profile.id })),
-    { label: "Permissions et quotas", value: "permissions", emoji: "🔐", default: view.section === "permissions" },
-  );
-  return { embeds: [embed], components: [new ActionRowBuilder().addComponents(select), ...(nav ? [nav] : [])], allowedMentions: { parse: [] } };
+  return { embeds: [embed], components: [mainHelpMenu(view, profiles), ...(nav ? [nav] : [])], allowedMentions: { parse: [] } };
 }
 
 /** Lit la vue demandée par un composant du panneau ; null si ce n'est pas le nôtre. */
@@ -139,14 +228,37 @@ export function helpViewFromInteraction(interaction) {
   const id = String(interaction?.customId ?? "");
   if (!id.startsWith(HELP_PREFIX)) return null;
   if (id === `${HELP_PREFIX}menu`) return { section: interaction.values?.[0] ?? "accueil", page: 0 };
+  if (id === `${HELP_PREFIX}tutorial-menu`) return { section: "tutorials", tutorialId: interaction.values?.[0] ?? null, page: -1 };
+  if (id.startsWith(`${HELP_PREFIX}tutorial:`)) {
+    const parts = id.split(":");
+    const ownerId = parts[2];
+    const fourth = parts[3];
+    const fifth = parts[4];
+    const page = parts[5];
+    const actions = new Set(["start", "back", "next", "restart", "quit"]);
+    const actionFirst = actions.has(fourth);
+    const tutorialId = actionFirst ? fifth : fourth;
+    const action = actionFirst ? fourth : fifth;
+    if (!ownerId || !HELP_TUTORIALS[tutorialId] || !actions.has(action)) return null;
+    return { section: "tutorials", ownerId, tutorialId, action, page: Number(page) || 0 };
+  }
   const [, section, page] = id.split(":");
   return { section, page: Number(page) || 0 };
 }
 
-/** Composant du panneau (menu ou page) : met le message à jour sur place. */
+/** Composant du panneau (menu, page ou tutoriel) : met le message à jour sur place. */
 export async function handleHelpComponent(interaction, ctx) {
   const view = helpViewFromInteraction(interaction);
   if (!view) return false;
-  await interaction.update(helpPayload(view, ctx)).catch(() => {});
+  if (view.ownerId && interaction.user?.id !== view.ownerId) {
+    await interaction.reply({ content: "Ce tutoriel appartient à une autre session d'aide.", ephemeral: true, allowedMentions: { parse: [] } }).catch(() => {});
+    return true;
+  }
+  let nextView = view;
+  if (view.action === "quit") nextView = { section: "accueil" };
+  else if (view.action === "start" || view.action === "restart") nextView = { section: "tutorials", tutorialId: view.tutorialId, page: 0, userId: view.ownerId };
+  else if (view.action === "back" || view.action === "next") nextView = { section: "tutorials", tutorialId: view.tutorialId, page: view.page, userId: view.ownerId };
+  else if (view.section === "tutorials") nextView = { ...view, userId: interaction.user?.id };
+  await interaction.update(helpPayload(nextView, ctx)).catch(() => {});
   return true;
 }
