@@ -15,6 +15,7 @@ les bots du VPS prennent la mise à jour avec `/maj lancer` ou la mise à jour a
 - Infrastructure commune : journal d'audit chaîné (toute modification à la main dans la base est détectée).
 - AUTHORITY (service) : registre des dérogations, approbation par l'OWNER seul, signature, expiration fiable, 15 cas d'attaque testés. 
 - AUTHORITY sur SUCK ME (provisoire) : `/authority demander`, `mes-demandes`, `statut`, `historique` ; l'OWNER reçoit chaque demande en MP avec Approuver / Refuser, et dispose de `/authority panneau` et `/authority decider`.
+- AUTHORITY : dérogation « quota de modération doublé » pour un membre du staff, pendant sa durée (jamais au-delà du palier, du gel ou des permissions).
 - Bot principal : alerte au staff quand le disque, la mémoire ou le processeur du VPS saturent (et quand ça revient).
 - GUARD : alerte quand les arrivées ou les départs d'une heure dépassent nettement la normale.
 - Console : voyant global vert, orange ou rouge avec les raisons (aussi dans le badge « En direct »), historique des redémarrages.
