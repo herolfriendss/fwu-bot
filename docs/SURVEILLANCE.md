@@ -1,26 +1,13 @@
-# Surveillance des bots FWU (alerte quand un bot tombe)
+# FWU SENTINEL — surveillance extérieure
 
-`~/fwu-surveillance.mjs` (posé par `/maj`) tourne **chaque minute par cron, en dehors des bots**. Les cinq bots principaux sont surveillés dès le premier passage ; Invest + est facultatif et n'est surveillé qu'après sa première apparition dans PM2.
-Si un bot plante, ou si FWU lui-même s'arrête, il le voit quand même et poste dans un salon staff, par webhook :
-- 🔴 « GUARD arrêté depuis 2 min » puis 🟢 « GUARD revenu » ;
-- 🟧 un bot qui redémarre 3 fois en 10 min ;
-- 🟧 plus de 50 logs des bots en attente de publication ;
-- 🟧 disque du VPS rempli à plus de 90 % ;
-- 🔴 sauvegarde échouée ou plus vieille que 36 h (si les sauvegardes sont installées).
+Le script `scripts/installation/fwu-surveillance.mjs` est un superviseur indépendant des processus PM2. Il tourne hors des bots, ce qui lui permet de continuer à signaler les pannes même si FWU CORE ou SENTINEL s'arrête.
 
-Un seul message par changement d'état. Il ne redémarre rien et ne modifie aucune donnée.
+Il surveille :
+- Les processus PM2 de FWU CORE, du dashboard et des bots spécialisés.
+- Le marqueur `.connected` de chaque bot, en vérifiant que son PID correspond au processus PM2 actuel. Un processus affiché « online » mais qui n'a pas rejoint Discord est donc signalé.
+- Les bots futurs (SOCIAL, EVENT, DISPATCH, ARCADE, AUTHORITY) comme facultatifs jusqu'à leur première apparition dans PM2.
+- Les redémarrages en boucle, les logs en attente, l'espace disque et l'état/âge de la dernière sauvegarde.
 
-## Installation (à taper sur le VPS, une seule fois)
-1. Sur Discord : salon staff → Paramètres → Intégrations → **Webhooks** → Nouveau webhook → **Copier l'URL**.
-2. Sur le VPS, ranger l'URL (elle ne doit pas être partagée) :
-   ```
-   install -m 600 /dev/stdin ~/fwu-data/.alerte-webhook
-   ```
-   colle l'URL, Entrée, puis Ctrl+D.
-3. Essai : `node ~/fwu-surveillance.mjs --test` → un message « message d'essai » arrive dans le salon.
-4. Lancer chaque minute :
-   ```
-   (crontab -l 2>/dev/null; echo "* * * * * $(command -v node) $HOME/fwu-surveillance.mjs") | crontab -
-   ```
+Le script envoie uniquement les changements d'état au webhook staff, avec une période de grâce de deux minutes pour éviter les alertes lors des redémarrages normaux. Il reste en lecture seule : PM2 et le watchdog de connexion gèrent les redémarrages. Il ne tente jamais de contourner un arrêt définitif lié à un token invalide ou à une limite de sessions Discord.
 
-Pour arrêter : `crontab -e` et supprimer la ligne `fwu-surveillance.mjs`.
+Installation initiale sur le VPS : créer le webhook staff dans `~/fwu-data/.alerte-webhook`, puis installer le cron minute par minute avec la commande indiquée en tête du script. La recette doit vérifier qu'un bot en ligne possède bien un marqueur dont le PID correspond à celui de PM2.
