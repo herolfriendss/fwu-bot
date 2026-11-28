@@ -278,7 +278,7 @@ export const Route = createFileRoute("/api/public/bot-sync")({
             "Tu ne peux exécuter aucune action Discord ni modifier de réglage. Ne prétends jamais l'avoir fait. N'utilise pas de mentions Discord.",
             "Contexte de commandes et de connaissance :",
             JSON.stringify({ commands, knowledge }),
-          ].join("\\n");
+          ].join("\n");
           const { botAiReply } = await import("@/lib/bot-ai.server");
           const result = await botAiReply(helpPrompt, instructions, "", []);
           return json(result.reply !== undefined ? { reply: result.reply } : { error: result.error ?? "help assistant failed" }, result.status);
