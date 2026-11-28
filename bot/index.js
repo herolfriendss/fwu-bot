@@ -180,6 +180,7 @@ import { installOwnerShield, runAsActor } from "./owner-shield.js";
 import { assertOwnerConfig } from "./owner-config.js";
 import { db } from "./database.js";
 import { clearConnectedMarker, clearGatewayFailures, createGatewayWatchdog, parseSessionLimit, recordGatewayFailure, writeConnectedMarker } from "./gateway-watchdog.js";
+import { clearSessionWaitMarker, planGatewayLogin, recordGatewayStart, sessionReserveFromEnv, writeSessionWaitMarker } from "./session-budget.js";
 import { LOGS_HUB_GUILD_ID, ACTIVE_SOURCE_GUILD_IDS, allowedRuntimeGuild, filterInactiveSourceGuilds, isLogsHub, inspectLogsHub, lastLogsHubFailure } from "./logs-hub.js";
 
 const { SITE_URL, BOT_SYNC_SECRET } = process.env;
@@ -2271,6 +2272,21 @@ function stopOffline(reason, detail = "") {
   setTimeout(() => process.exit(plan.exitCode), Math.max(1_000, plan.delayMs));
 }
 clearConnectedMarker();
+clearSessionWaitMarker();
+// Session budget guard (bot/session-budget.js): every start spends one of Discord's ~1000 daily
+// session starts, so a restart loop (crash, memory restart, deploy) is slowed down here, and the
+// last few starts are kept in reserve. The startup watchdog only starts once the login really begins.
+const loginPlan = await planGatewayLogin({ db, profile: RUNTIME.profile, token: DISCORD_TOKEN, reserve: sessionReserveFromEnv(process.env.PND_SESSION_RESERVE) });
+if (loginPlan.waitMs > 0) {
+  const minutes = Math.max(1, Math.round(loginPlan.waitMs / 60_000));
+  console.error(loginPlan.reason === "session_reserve"
+    ? `⏳ ${BOT_LABEL} : plus que ${loginPlan.remaining} connexions Discord disponibles aujourd'hui. Attente de ${minutes} min (réinitialisation Discord) avant de se connecter${RUNTIME.profile === "fwu" ? "" : " ; le bot principal couvre ce domaine en attendant"}.`
+    : `⏳ ${BOT_LABEL} : ${loginPlan.recentStarts} démarrages en moins de 6 h (boucle de redémarrage ?). Pause de ${minutes} min avant de se connecter pour ne pas épuiser les connexions Discord.`);
+  writeSessionWaitMarker(Date.now() + loginPlan.waitMs, loginPlan.reason);
+  await new Promise((resolve) => setTimeout(resolve, loginPlan.waitMs));
+}
+clearSessionWaitMarker();
+try { recordGatewayStart(db, RUNTIME.profile); } catch { /* diagnostic only */ }
 const gatewayWatchdog = createGatewayWatchdog({ isReady: () => client.isReady(), exit: stopOffline });
 setInterval(() => gatewayWatchdog.check(), 15_000).unref?.();
 client.login(DISCORD_TOKEN).catch((error) => { console.error(`[login] ${BOT_LABEL} : ${String(error?.message ?? error).slice(0, 200)}`); stopOffline(error?.code ?? error?.name ?? "login_failed", String(error?.message ?? "")); });

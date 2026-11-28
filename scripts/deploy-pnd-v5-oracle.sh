@@ -259,6 +259,8 @@ done
 info "Contrôle de la connexion de FWU à Discord"
 for attempt in $(seq 1 30); do
   [[ -f "$ROOT/bot/.connected" ]] && { printf 'FWU est connecté à Discord.\n'; break; }
+  # Deliberate wait to save Discord's daily session starts (bot/session-budget.js): not a failure.
+  [[ -f "$ROOT/bot/.session-wait" ]] && { printf 'FWU attend avant de se connecter (limite de connexions Discord) : il se connectera tout seul.\n'; break; }
   [[ "$attempt" -lt 30 ]] || { pm2 logs her-v5-bot --lines 40 --nostream | grep -vi token || true; fail "FWU ne se connecte pas à Discord (token, intents ou réseau)."; }
   sleep 5
 done

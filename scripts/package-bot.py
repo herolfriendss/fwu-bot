@@ -32,7 +32,7 @@ for path in sorted(BOT.rglob("*")):
     name = path.name
     if name == ".env" or (name.startswith(".env.") and name != ".env.example"):
         continue
-    if name == ".connected":  # runtime marker written by the running bot
+    if name in {".connected", ".session-wait"}:  # runtime marker written by the running bot
         continue
     if rel.as_posix() not in ALWAYS_INCLUDE and path.suffix.lower() in EXCLUDED_SUFFIXES:
         continue
