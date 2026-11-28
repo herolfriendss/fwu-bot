@@ -326,7 +326,7 @@ const AUTH = { Authorization: `Bearer ${BOT_SYNC_SECRET}` };
 
 function buildAiHelpContext(guildId) {
   const prefixes = loadBotPrefixes();
-  const commands = SLASH_COMMANDS.map((command) => {
+  const commands = [...SLASH_COMMANDS, ...EXTRA_SLASH_COMMANDS].map((command) => {
     const owner = slashCommandOwner(command.name);
     return {
       name: command.name,
