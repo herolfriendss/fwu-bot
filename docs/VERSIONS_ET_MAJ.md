@@ -42,3 +42,12 @@ Aucune branche ne peut être choisie par une variable.
   toujours écrit dans `maj.log` et visible dans `/maj etat`.
 - Les bots dont le paquet n'a pas changé (même contenu, même empreinte `.fwu-paquet-empreinte`) et qui tournent ne sont ni
   réinstallés ni redémarrés : une mise à jour qui ne touche que le site ou FWU n'interrompt pas GUARD, FDPDLAVOC, LE FISC…
+
+## Anciennes versions sur le VPS (28/11/2026)
+
+- Chaque mise à jour de FWU et du site garde la version précédente complète dans `her-v5-production.prev-<date>`
+  (code, `node_modules`, build et copie de `bot/data`) ; une mise à jour en échec est gardée dans `.failed-<date>`.
+- Par défaut rien n'est supprimé. Au-delà de 3 dossiers, `maj.log` affiche un avertissement avec leur taille.
+- `FWU_KEEP_PREVIOUS=3` dans le `.env` de SUCK ME (le bot qui lance les mises à jour) garde les 3 plus récentes
+  de chaque sorte et supprime les plus anciennes, uniquement après une mise à jour réussie. Les sauvegardes de
+  `docs/SAUVEGARDES.md` restent la vraie copie de sécurité des données.

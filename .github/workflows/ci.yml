@@ -209,6 +209,14 @@ jobs:
               -not -path '*/node_modules/*'
           )
 
+      # Static analysis of every shell script (unquoted heredocs, unassigned variables, unsafe cd…).
+      - name: Shellcheck
+        shell: bash
+        run: |
+          set -euo pipefail
+          find . -type f -name '*.sh' -not -path './.git/*' -not -path '*/node_modules/*' -print0 \
+            | xargs -0 shellcheck -S warning
+
       - name: Validate packaging scripts
         run: |
           python -m py_compile \

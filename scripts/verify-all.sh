@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Vérification complète V2 (section 4 du cahier des charges). Résumé en fin de sortie.
 set -u
-cd "$(dirname "$0")/.."
+cd "$(dirname "$0")/.." || exit 1
 OUT=${VERIFY_OUT:-/tmp/fwu-verify}; mkdir -p "$OUT"; status=0
 run() { local name=$1; shift; if "$@" >"$OUT/$name.log" 2>&1; then echo "OK   $name"; else echo "FAIL $name"; status=1; fi; }
 run bot-test npm --prefix bot test

@@ -135,12 +135,12 @@ fi
 step "6/6 — Résultat"
 printf 'FWU        : 🟢 (her-v5-bot / her-v5-web)\n'
 for bot in guard fdpdlavoc suckme fisc investplus; do printf '%-10s : %s\n' "$bot" "${RESULT[$bot]}"; done
-cat <<MSG
+cat <<'MSG'
 
 Dernières étapes, dans Discord :
   • Paramètres du serveur → Rôles : SUCK ME juste sous ton rôle (au-dessus du rôle 0 %), GUARD au-dessus des membres qu'il modère.
   • SUCK ME a besoin de : Rendre muet, Mettre en sourdine, Exclure temporairement, Bannir (rôle 0 % intouchable).
-  • Rôles de staff nommés « 1% », « 5% », « 10% », « 50% » : reconnus tout seuls (sinon /quota palier).
+  • Paliers du staff (0 %, 1 %, 5 %, 10 %, 50 %) : à déclarer avec /quota palier (jamais déduits du nom d'un rôle).
   • /quota voir : quotas en vigueur · /sysp diagnostic bots : chaque bot installé doit être 🟢.
   • Préfixes : GUARD +ban · FDPDLAVOC ;mv · SUCK ME =afk · LE FISC -dice · Invest + $abo · FWU en commandes slash.
   • Les commandes slash peuvent mettre jusqu'à 1 h à apparaître partout.
