@@ -109,6 +109,7 @@ describe("V4 slash commands", () => {
     expect(unwet?.options?.map((option) => option.name)).toEqual(["id", "raison"]);
     expect(slashCommandNamesForProfile("guard")).toEqual(expect.arrayContaining(["wet", "unwet"]));
     expect(slashCommandNamesForProfile("fwu")).not.toEqual(expect.arrayContaining(["wet", "unwet"]));
+    expect(SLASH_COMMANDS.some((command) => command.name === "whois")).toBe(false);
   });
 
   it("registers WHITELIST commands and limits them to the live bot process", () => {
