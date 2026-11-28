@@ -4,6 +4,7 @@
 // rows here and reading them back. A publisher never knows who reacts; a
 // consumer keeps its own cursor and is woken by a poll, which makes a bot that
 // was offline catch up instead of missing what happened.
+import { randomUUID } from "node:crypto";
 import { db, transaction } from "./database.js";
 
 db.exec(`
@@ -35,6 +36,18 @@ export const EVENT_KINDS = Object.freeze([
 ]);
 const KNOWN = new Set(EVENT_KINDS);
 
+// FWU CORE 2.1 : identifiant universel, clé d'idempotence et version de schéma par événement.
+// Colonnes ajoutées sans réécrire les lignes existantes (anciennes lignes : uid NULL, version 1).
+export const EVENT_SCHEMA_VERSION = 1;
+{
+  const columns = new Set(db.prepare("PRAGMA table_info(fwu_events)").all().map((c) => c.name));
+  if (!columns.has("uid")) db.exec("ALTER TABLE fwu_events ADD COLUMN uid TEXT");
+  if (!columns.has("idem_key")) db.exec("ALTER TABLE fwu_events ADD COLUMN idem_key TEXT");
+  if (!columns.has("version")) db.exec("ALTER TABLE fwu_events ADD COLUMN version INTEGER NOT NULL DEFAULT 1");
+  db.exec("CREATE UNIQUE INDEX IF NOT EXISTS fwu_events_idem ON fwu_events(guild_id, idem_key) WHERE idem_key IS NOT NULL");
+  db.exec("CREATE UNIQUE INDEX IF NOT EXISTS fwu_events_uid ON fwu_events(uid) WHERE uid IS NOT NULL");
+}
+
 const RETENTION_MS = 14 * 24 * 60 * 60_000;
 const MAX_BATCH = 200;
 const validId = (value) => typeof value === "string" && /^\d{5,25}$/.test(value);
@@ -43,13 +56,19 @@ const validId = (value) => typeof value === "string" && /^\d{5,25}$/.test(value)
  * Records one event. Returns its id, or 0 when the guild id is unusable —
  * publishing must never be able to break the action that triggered it.
  */
-export function publishEvent({ guildId, kind, actorId = null, subjectId = null, payload = {}, source, now = Date.now() }) {
+export function publishEvent({ guildId, kind, actorId = null, subjectId = null, payload = {}, source, idempotencyKey = null, now = Date.now() }) {
   if (!KNOWN.has(kind)) throw new Error(`Événement inconnu : ${kind}`);
   if (!validId(guildId)) return 0;
   const json = JSON.stringify(payload ?? {});
   if (json.length > 4000) throw new Error("Charge utile d'événement trop grande.");
-  const info = db.prepare(`INSERT INTO fwu_events(guild_id,kind,actor_id,subject_id,payload_json,source,created_at)
-    VALUES(?,?,?,?,?,?,?)`).run(guildId, kind, actorId, subjectId, json, String(source ?? "fwu"), now);
+  const key = idempotencyKey === null || idempotencyKey === undefined ? null : String(idempotencyKey).slice(0, 120);
+  if (key) {
+    // Same key on the same server = the same event (a retry, two bots reacting): no duplicate.
+    const existing = db.prepare("SELECT id FROM fwu_events WHERE guild_id=? AND idem_key=?").get(guildId, key);
+    if (existing) return Number(existing.id);
+  }
+  const info = db.prepare(`INSERT INTO fwu_events(guild_id,kind,actor_id,subject_id,payload_json,source,created_at,uid,idem_key,version)
+    VALUES(?,?,?,?,?,?,?,?,?,?)`).run(guildId, kind, actorId, subjectId, json, String(source ?? "fwu"), now, randomUUID(), key, EVENT_SCHEMA_VERSION);
   return Number(info.lastInsertRowid);
 }
 
@@ -67,6 +86,7 @@ const hydrate = (row) => ({
   id: Number(row.id), guildId: row.guild_id, kind: row.kind,
   actorId: row.actor_id, subjectId: row.subject_id,
   payload: JSON.parse(row.payload_json), source: row.source, createdAt: Number(row.created_at),
+  uid: row.uid ?? null, version: Number(row.version ?? 1),
 });
 
 export const cursorOf = (consumer) =>

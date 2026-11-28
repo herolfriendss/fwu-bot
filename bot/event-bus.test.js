@@ -134,3 +134,17 @@ test("the catalogue has no duplicate and uses dotted names", () => {
   assert.equal(new Set(EVENT_KINDS).size, EVENT_KINDS.length);
   assert.ok(EVENT_KINDS.every((kind) => /^[a-z]+\.[a-z]+$/.test(kind)));
 });
+
+test("FWU CORE 2.1: universal id, version and idempotency key (no duplicate event)", async () => {
+  const { publishEvent, recentEvents } = await import("./event-bus.js");
+  const guildId = "777777777777777777";
+  const first = publishEvent({ guildId, kind: "member.warned", subjectId: "1", source: "fwu", idempotencyKey: "case:12" });
+  const again = publishEvent({ guildId, kind: "member.warned", subjectId: "1", source: "guard", idempotencyKey: "case:12" });
+  assert.equal(again, first);
+  const other = publishEvent({ guildId: "888888888888888888", kind: "member.warned", source: "fwu", idempotencyKey: "case:12" });
+  assert.notEqual(other, first);
+  const [event] = recentEvents(guildId, { limit: 1 });
+  assert.match(event.uid, /^[0-9a-f-]{36}$/);
+  assert.equal(event.version, 1);
+  assert.notEqual(publishEvent({ guildId, kind: "member.warned", source: "fwu" }), publishEvent({ guildId, kind: "member.warned", source: "fwu" }));
+});
