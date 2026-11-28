@@ -120,12 +120,14 @@ export async function announceUpdateResult(client, dir = DATA()) {
 export function autoUpdateDue({ now = new Date(), lastRunDay = null, env = process.env, status = null } = {}) {
   if (String(env.FWU_AUTO_UPDATE ?? "on").toLowerCase() === "off") return false;
   if (!canStartUpdate(status, now.getTime())) return false;
-  const hour = Math.min(23, Math.max(0, Number.parseInt(env.FWU_AUTO_UPDATE_HOUR ?? "8", 10) || 0));
+  const configuredHour = Number.parseInt(env.FWU_AUTO_UPDATE_HOUR ?? "8", 10);
+  const hour = Number.isInteger(configuredHour) && configuredHour >= 0 && configuredHour <= 23 ? configuredHour : 8;
   const parts = new Intl.DateTimeFormat("fr-FR", { timeZone: "Europe/Paris", hour: "2-digit", hourCycle: "h23", year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(now);
   const get = (type) => parts.find((p) => p.type === type)?.value;
   const day = `${get("year")}-${get("month")}-${get("day")}`;
-  const statusParts = status?.at
-    ? new Intl.DateTimeFormat("fr-FR", { timeZone: "Europe/Paris", year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(new Date(Number(status.at) * 1000))
+  const statusTimestamp = Number(status?.at);
+  const statusParts = Number.isFinite(statusTimestamp) && statusTimestamp > 0
+    ? new Intl.DateTimeFormat("fr-FR", { timeZone: "Europe/Paris", year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(new Date(statusTimestamp * 1000))
     : [];
   const statusValue = (type) => statusParts.find((part) => part.type === type)?.value;
   const statusDay = statusParts.length ? `${statusValue("year")}-${statusValue("month")}-${statusValue("day")}` : null;
