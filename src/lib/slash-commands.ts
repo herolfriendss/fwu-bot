@@ -2307,6 +2307,15 @@ export const EXTRA_SLASH_COMMANDS: SlashCommandDef[] = [
     ],
   },
   {
+    name: "ui",
+    description: "Fiche d'un membre : abonnement, boost, vocal, dates, rôles",
+    usage: "/ui [membre]",
+    category: "Utilitaires",
+    dmPermission: false,
+    requiresBotProcess: true,
+    options: [opt(6, "membre", "Membre (vide = toi)")],
+  },
+  {
     name: "stats",
     description: "Statistiques du serveur",
     usage: "/stats serveur",

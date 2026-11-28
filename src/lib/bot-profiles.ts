@@ -82,6 +82,8 @@ export const SLASH_COMMAND_OWNERS: Record<BotProfileId, readonly string[]> = {
     "embed", "reglement", "screening", "heure", "citation", "archive", "resume-salon", "salon-temp", "sante", "defi", "export-config",
     // 27/11 : dernier message supprimé ou modifié (staff)
     "snipe",
+    // 28/11 : fiche d'un membre
+    "ui",
   ],
   guard: [
     "guildguard", "kick", "ban", "tempban", "blacklist", "purge", "nettoyer", "slowmode", "lock", "unlock", "verify",
