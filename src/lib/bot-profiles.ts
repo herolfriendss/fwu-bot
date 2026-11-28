@@ -209,14 +209,17 @@ const prefixOwners = invert(PREFIX_COMMAND_OWNERS);
  * (pont générique bot/prefix-slash-bridge.js). FWU reste en slash uniquement (décision 21).
  * Un nom déjà pris par une commande préfixe d'un autre bot n'est jamais réattribué.
  */
+const SLASH_ONLY_COMMANDS = new Set(["wet", "unwet"]);
+
 export const BRIDGED_PREFIX_COMMANDS: Record<BotProfileId, readonly string[]> = Object.fromEntries(
-  BOT_PROFILE_IDS.map((id) => [id, id === "fwu" ? [] : SLASH_COMMAND_OWNERS[id].filter((name) => !prefixOwners.has(name))]),
+  BOT_PROFILE_IDS.map((id) => [id, id === "fwu" ? [] : SLASH_COMMAND_OWNERS[id].filter((name) => !prefixOwners.has(name) && !SLASH_ONLY_COMMANDS.has(name))]),
 ) as unknown as Record<BotProfileId, readonly string[]>;
 for (const id of BOT_PROFILE_IDS) for (const name of BRIDGED_PREFIX_COMMANDS[id]) prefixOwners.set(name, id);
 
 /** True when `name` reaches the slash handler through the prefix bridge on `profile`. */
 export function isBridgedPrefixCommand(profile: BotProfileId, name: string): boolean {
-  return profile !== "fwu" && SLASH_COMMAND_OWNERS[profile].includes(String(name ?? "").toLowerCase());
+  const command = String(name ?? "").toLowerCase();
+  return profile !== "fwu" && !SLASH_ONLY_COMMANDS.has(command) && SLASH_COMMAND_OWNERS[profile].includes(command);
 }
 
 export function isBotProfileId(value: unknown): value is BotProfileId {
