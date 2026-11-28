@@ -138,7 +138,7 @@ export const SLASH_COMMANDS: SlashCommandDef[] = [
   // ── Général ────────────────────────────────────────────────────────────────
   { name: "aide", description: "Affiche la liste des commandes du bot", usage: "/aide", category: "Général" },
   {
-    name: "ia", description: "Gère ta mémoire de conversation et pose une question sur le serveur", usage: "/ia memoire etat:activer|desactiver · /ia oublier · /ia question", category: "Général", dmPermission: false, requiresBotProcess: true,
+    name: "ia", description: "Gère ta mémoire et pose des questions sur le fonctionnement du serveur", usage: "/ia memoire etat:activer|desactiver · /ia oublier · /ia question question", category: "Général", dmPermission: false, requiresBotProcess: true,
     options: [
       sub("memoire", "Choisis si le bot peut conserver le contexte de tes conversations", [
         opt(3, "etat", "Ton choix de consentement", { required: true, choices: [
