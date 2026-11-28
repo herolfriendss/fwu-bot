@@ -186,6 +186,7 @@ import { clearConnectedMarker, clearGatewayFailures, createGatewayWatchdog, list
 import { clearGatewayWait, clearSessionWaitMarker, listGatewayWaits, planGatewayLogin, recentlyStartedProfiles, recordGatewayStart, recordGatewayWait, sessionReserveFromEnv, writeSessionWaitMarker } from "./session-budget.js";
 import { createFleetWatcher, describeFleetChange, profileState, watchedProfiles } from "./fleet-watch.js";
 import { pruneJobs, runJobs } from "./core-queue.js";
+import { expireDue as expireAuthorityExceptions } from "./authority.js";
 import { LOGS_HUB_GUILD_ID, ACTIVE_SOURCE_GUILD_IDS, allowedRuntimeGuild, filterInactiveSourceGuilds, isLogsHub, inspectLogsHub, lastLogsHubFailure } from "./logs-hub.js";
 
 const { SITE_URL, BOT_SYNC_SECRET } = process.env;
@@ -286,6 +287,8 @@ setInterval(() => {
     .catch(() => record("core_job_error"));
 }, 15_000).unref?.();
 if (IS_FWU) setInterval(() => { try { pruneJobs(); } catch { record("core_job_error"); } }, 6 * 3_600_000).unref?.();
+// AUTHORITY: marks expired exceptions for the history (checks never depend on this job).
+if (IS_FWU) setInterval(() => { try { expireAuthorityExceptions(); } catch { record("core_job_error"); } }, 5 * 60_000).unref?.();
 if (!IS_FWU) {
   // Dedicated bots hand their logs to FWU (Logs Hub owner, RESUME source).
   setCentralLogRelay(({ guild, embed, fallbackChannelIds, components, allowedUserIds, category, mentionRoleIds }) => enqueueRelayedLog({

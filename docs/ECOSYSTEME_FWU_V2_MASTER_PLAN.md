@@ -323,7 +323,11 @@ récompenses ; le centre d'aide peut avancer en parallèle de CORE car il lit le
 - [x] 2.4 Journal d'audit unifié (`bot/core-audit.js`) : en ajout seul, numéroté par serveur, chaîné par empreinte SHA-256 (HMAC avec `PND_AUDIT_SECRET` si l'OWNER le crée) ; toute modification manuelle est détectée par `verifyAuditChain` ; secrets masqués ; export CSV protégé contre les formules.
 - [ ] 2.5 Registre transactionnel : déplacé en phase 6 (il doit être construit avec le code économique de LE FISC, `economy.js` / `economy-integrity.js`, pour ne pas créer un second système).
 
-**Phase 3 — AUTHORITY** : 3.1 registre + API `checkException` + tests d'attaque (sans bot) ; 3.2 migration des exemptions de quota ; 3.3 profil `authority` et `/authority` (après validation OWNER et token fourni par lui) ; 3.4 page console.
+**Phase 3 — AUTHORITY**
+- [x] 3.1 Registre et vérification (`bot/authority.js`) : demandes avec justification et durée (1 h à 30 j), décisions OWNER seul (approuver, refuser, suspendre, réactiver, révoquer, prolonger), nonce à usage unique, signature HMAC (`PND_AUTHORITY_SECRET`, sinon `BOT_SYNC_SECRET`), expiration à la lecture, rappels, journal chaîné. `hasException()` branché sur `core-permissions.js`. Les 15 cas d'attaque du cahier des charges sont testés (`bot/authority.test.js`).
+- [ ] 3.2 Brancher les exemptions de quota existantes (`/quota exemption`) sur AUTHORITY sans casser l'existant.
+- [ ] 3.3 Commandes `/authority` (demander, mes-demandes, statut, historique ; panneau OWNER en MP) — d'abord portées par un bot existant ou par le futur profil `authority` (décision OWNER : créer l'application Discord AUTHORITY et fournir son token lui-même).
+- [ ] 3.4 Page AUTHORITY de la console (même service).
 
 **Phase 4 — Centre d'aide** : 4.1 documentation générée depuis le catalogue ; 4.2 présentation des bots ; 4.3 tutoriels interactifs ; 4.4 assistant IA branché sur la documentation réelle ; 4.5 parcours dépannage → ticket existant.
 
@@ -354,7 +358,8 @@ récompenses ; le centre d'aide peut avancer en parallèle de CORE car il lit le
 | 1.6 Centre de commandement | fusionné (#82) | `claude/fwu-v2-staff-command` |
 | 2.1 / 2.2 Événements idempotents, file persistante | fusionné (#83) | `claude/fwu-v2-core-queue` |
 | 2.4 Journal d'audit unifié | fusionné (#85) | `claude/fwu-v2-core-audit` |
-| 2.3 Décision des permissions | terminé | `claude/fwu-v2-core-permissions` |
+| 2.3 Décision des permissions | fusionné (#86) | `claude/fwu-v2-core-permissions` |
+| 3.1 Registre AUTHORITY | terminé | `claude/fwu-v2-authority-core` |
 
 ## 15. Reprise du travail (pour une nouvelle session)
 
